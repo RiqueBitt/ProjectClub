@@ -1,0 +1,43 @@
+/* ---------- Figurinhas personalizadas (PersonalStickersSection.jsx) ---------- */
+.personal-stickers { margin-bottom: 6px; }
+.personal-stickers-label { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.personal-stickers-count { font-size: 11px; font-weight: 600; color: var(--text-muted); font-variant-numeric: tabular-nums; }
+.personal-stickers-hidden { font-size: 11px; color: var(--text-muted); margin: 0 0 6px; }
+
+.personal-sticker-tile { position: relative; }
+.personal-sticker-tile > button:first-child { width: 100%; border-radius: 6px; padding: 4px; }
+.personal-sticker-tile > button:first-child:hover { background: var(--bg-modifier-hover); }
+.personal-sticker-remove {
+  position: absolute; top: 2px; right: 2px;
+  width: 20px; height: 20px; border-radius: 50%;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 14px; line-height: 1; padding: 0;
+  background: rgba(0, 0, 0, 0.65); color: #fff;
+  opacity: 0; transition: opacity 0.12s;
+}
+.personal-sticker-tile:hover .personal-sticker-remove,
+.personal-sticker-remove:focus-visible { opacity: 1; }
+.personal-sticker-remove:hover { background: #d83c3e; }
+@media (hover: none) { .personal-sticker-remove { opacity: 0.85; } }
+
+.sticker-picker-grid .personal-sticker-add {
+  height: 80px; border: 2px dashed var(--bg-modifier-hover, rgba(255, 255, 255, 0.15));
+  border-radius: 8px; font-size: 28px; color: var(--text-muted);
+}
+.sticker-picker-grid .personal-sticker-add:hover:not(:disabled) { color: var(--text-normal, #fff); border-color: currentColor; }
+.sticker-picker-grid .personal-sticker-add:disabled { opacity: 0.6; cursor: progress; }
+
+.personal-stickers-upsell {
+  display: flex; align-items: center; gap: 10px;
+  margin: 4px 0 10px; padding: 10px 12px; border-radius: 8px;
+  background: linear-gradient(135deg, rgba(240, 178, 50, 0.18), rgba(240, 178, 50, 0.06));
+  border: 1px solid rgba(240, 178, 50, 0.45);
+}
+.personal-stickers-upsell-text { display: flex; flex-direction: column; gap: 2px; min-width: 0; flex: 1; }
+.personal-stickers-upsell-text strong { font-size: 13px; color: #f0b232; }
+.personal-stickers-upsell-text span { font-size: 11px; color: var(--text-muted); }
+.personal-stickers-upsell-btn {
+  flex-shrink: 0; padding: 6px 10px; border-radius: 6px;
+  background: #f0b232; color: #1e1f22; font-size: 12px; font-weight: 700;
+}
+.personal-stickers-upsell-btn:hover { filter: brightness(1.08); }

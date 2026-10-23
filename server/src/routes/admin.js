@@ -1,0 +1,135 @@
+const express = require('express');
+const ctrl = require('../controllers/adminController');
+const announcementCtrl = require('../controllers/announcementController');
+const appCatalogCtrl = require('../controllers/appCatalogController');
+const adminClanCtrl = require('../controllers/adminClanController');
+const modCtrl = require('../controllers/modController');
+const workshopCtrl = require('../controllers/steamWorkshopController');
+const gamebananaCtrl = require('../controllers/gamebananaController');
+const thunderstoreCtrl = require('../controllers/thunderstoreController');
+const { requireAuth } = require('../middleware/auth');
+const { requirePlatformAdmin } = require('../middleware/platformAdmin');
+const { uploadImage } = require('../middleware/upload');
+
+const router = express.Router();
+router.use(requireAuth, requirePlatformAdmin);
+
+router.get('/stats', ctrl.getStats);
+router.get('/audit-log', ctrl.listAuditLog);
+router.get('/metrics', ctrl.getMetrics);
+// Erros persistidos (servidor/telas/processo), agrupados — ver services/errorLog.js.
+router.get('/errors', require('../services/errorLog').listErrors);
+
+router.get('/community', ctrl.getCommunitySettings);
+router.patch('/community', ctrl.updateCommunitySettings);
+router.post('/community/icon', uploadImage.single('icon'), ctrl.uploadCommunityIcon);
+router.post('/community/banner', uploadImage.single('banner'), ctrl.uploadCommunityBanner);
+router.get('/system-toggles', ctrl.getSystemToggles);
+router.patch('/system-toggles', ctrl.adminUpdateSystemToggles);
+router.post('/maintenance', ctrl.setMaintenanceMode);
+router.post('/announcements', announcementCtrl.createAnnouncement);
+router.post('/announcements/:id/banner', uploadImage.single('banner'), announcementCtrl.uploadAnnouncementBanner);
+router.get('/announcements', announcementCtrl.listAnnouncements);
+
+router.get('/users', ctrl.listUsers);
+router.get('/users/:id/security-info', ctrl.getUserSecurityInfo);
+router.patch('/users/:id', ctrl.updateUserAdmin);
+router.post('/users/:id/ban', ctrl.banUser);
+router.delete('/users/:id/ban', ctrl.unbanUser);
+router.post('/users/:id/suspend', ctrl.suspendUser);
+router.delete('/users/:id/suspend', ctrl.unsuspendUser);
+router.patch('/users/:id/role', ctrl.setPlatformRole);
+router.delete('/users/:id', ctrl.deleteUserAccount);
+router.patch('/users/:id/level', ctrl.setUserLevel);
+router.post('/users/:id/xp', ctrl.addUserXp);
+router.post('/users/:id/currency', ctrl.addUserCurrency);
+router.post('/users/:id/badges', ctrl.grantBadge);
+router.delete('/users/:id/badges/:badgeId', ctrl.revokeBadge);
+
+router.get('/badges', ctrl.listBadges);
+router.post('/badges', ctrl.createBadgeType);
+router.patch('/badges/:id', ctrl.updateBadgeType);
+router.post('/badges/:id/icon', uploadImage.single('icon'), ctrl.uploadBadgeIcon);
+
+router.delete('/badges/:id', ctrl.deleteBadgeType);
+
+// Catálogo de apps/jogos (aba "Apps") — banner, ícone, descrição e
+// espaço necessário, tudo editável pela staff sem precisar de deploy.
+router.get('/app-catalog', appCatalogCtrl.listAdminAppCatalog);
+
+// Sistema de Mods — mapeamento Steam AppID → jogo no mod.io, e fila de
+// denúncias (item pedido 5/24).
+router.get('/mods/game-mappings', modCtrl.adminListGameMappings);
+router.post('/mods/game-mappings', modCtrl.adminCreateGameMapping);
+router.patch('/mods/game-mappings/:id', modCtrl.adminUpdateGameMapping);
+router.delete('/mods/game-mappings/:id', modCtrl.adminDeleteGameMapping);
+router.get('/mods/reports', modCtrl.adminListReports);
+router.patch('/mods/reports/:id', modCtrl.adminResolveReport);
+
+// Steam Workshop — mapeamento Steam AppID → AppID do Workshop
+router.get('/workshop/game-mappings', workshopCtrl.adminListGameMappings);
+router.post('/workshop/game-mappings', workshopCtrl.adminCreateGameMapping);
+router.patch('/workshop/game-mappings/:id', workshopCtrl.adminUpdateGameMapping);
+router.delete('/workshop/game-mappings/:id', workshopCtrl.adminDeleteGameMapping);
+
+// GameBanana — mapeamento Steam AppID → ID do jogo no GameBanana
+router.get('/gamebanana/game-mappings', gamebananaCtrl.adminListGameMappings);
+router.post('/gamebanana/game-mappings', gamebananaCtrl.adminCreateGameMapping);
+router.patch('/gamebanana/game-mappings/:id', gamebananaCtrl.adminUpdateGameMapping);
+router.delete('/gamebanana/game-mappings/:id', gamebananaCtrl.adminDeleteGameMapping);
+
+// Thunderstore — mapeamento Steam AppID → comunidade (slug) do Thunderstore
+router.get('/thunderstore/game-mappings', thunderstoreCtrl.adminListGameMappings);
+router.post('/thunderstore/game-mappings', thunderstoreCtrl.adminCreateGameMapping);
+router.patch('/thunderstore/game-mappings/:id', thunderstoreCtrl.adminUpdateGameMapping);
+router.delete('/thunderstore/game-mappings/:id', thunderstoreCtrl.adminDeleteGameMapping);
+
+router.post('/app-catalog', appCatalogCtrl.createAppCatalogItem);
+router.patch('/app-catalog/:id', appCatalogCtrl.updateAppCatalogItem);
+router.post('/app-catalog/:id/banner', uploadImage.single('banner'), appCatalogCtrl.uploadAppCatalogBanner);
+router.post('/app-catalog/:id/icon', uploadImage.single('icon'), appCatalogCtrl.uploadAppCatalogIcon);
+router.delete('/app-catalog/:id', appCatalogCtrl.deleteAppCatalogItem);
+// Item pedido: "as screenshots... adicionadas, removidas e editadas
+// pelo painel da staff, sem precisar alterar o código".
+router.post('/app-catalog/:id/screenshots', uploadImage.single('screenshot'), appCatalogCtrl.addAppScreenshot);
+router.patch('/app-catalog/:id/screenshots/reorder', appCatalogCtrl.reorderAppScreenshots);
+router.delete('/app-catalog/screenshots/:screenshotId', appCatalogCtrl.deleteAppScreenshot);
+
+// Item pedido: "adicione uma nova categoria chamada Clubes... lista
+// com todos os clubes criados pelos usuários... ver mensagens...
+// editar... excluir, inclusive de outros usuários" — nenhuma rota de
+// ENVIAR mensagem como staff foi criada de propósito ("Não poderá
+// enviar mensagens").
+router.get('/clans', adminClanCtrl.listAdminClans);
+router.get('/clans/:id', adminClanCtrl.getAdminClan);
+router.get('/clans/:id/messages', adminClanCtrl.listAdminClanMessages);
+router.patch('/clans/:id', adminClanCtrl.updateAdminClan);
+router.delete('/clans/:id', adminClanCtrl.deleteAdminClan);
+
+// Automod de DM — lista de sinalizações pendentes + visualização secreta
+// da conversa inteira quando a staff decide analisar um caso.
+router.get('/automod-flags', ctrl.listAutomodFlags);
+router.get('/automod-flags/:id/conversation', ctrl.getFlaggedConversation);
+router.post('/automod-flags/:id/resolve', ctrl.resolveAutomodFlag);
+
+// Denúncias manuais (feitas por usuário, ver controllers/reportController.js
+// pra criação) — mesmo padrão de 3 rotas acima, pra "Formulário e aprovação
+// manual".
+router.get('/reports', ctrl.listReports);
+router.get('/reports/:id/context', ctrl.getReportedContext);
+router.post('/reports/:id/resolve', ctrl.resolveReport);
+
+// Sistema de segurança "isca" (honeypot) — ver middleware/honeypot.js.
+router.get('/honeypot/hits', ctrl.listHoneypotHits);
+router.get('/honeypot/blocked', ctrl.listBlockedIps);
+router.delete('/honeypot/blocked/:ip', ctrl.unblockIp);
+
+// "Reload User" — ver services/presenceStore.js e adminController.js.
+router.post('/reload-user-presence', ctrl.reloadUserPresence);
+
+// Aba "Saúde" e busca rápida de usuário (gaveta de detalhes).
+router.get('/health', ctrl.getHealth);
+router.get('/staff/users/search', ctrl.staffSearchUsers);
+router.get('/staff/users/:id', ctrl.staffUserDetail);
+
+module.exports = router;

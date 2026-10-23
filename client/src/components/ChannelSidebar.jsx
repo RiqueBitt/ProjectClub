@@ -1,0 +1,637 @@
+import UnreadCountBadge from './UnreadCountBadge.jsx';
+import { Suspense, useEffect, useRef, useState } from 'react';
+import { lazyWithRetry as lazy } from '../utils/lazyWithRetry';
+import { createPortal } from 'react-dom';
+import { useNavigate } from 'react-router-dom';
+import { useStore, isChannelUnread, channelNotifyPrefs } from '../store/useStore';
+import { notificationMenuItems } from '../utils/notificationPrefs';
+import { categoryKey, isOverrideMuted, muteRemainingLabel } from '../utils/notificationLevels';
+import { useAuth } from '../context/AuthContext.jsx';
+import { useVoice } from '../context/VoiceContext.jsx';
+import { useContextMenu } from '../context/ContextMenuContext.jsx';
+import { deleteCategory, reorderCategories, reorderChannels, markChannelRead } from '../api/endpoints';
+import { getMyCommunityPermissions, hasPermission } from '../utils/permissions';
+import { buildVoiceModerationItems } from './voice/voiceModerationMenu';
+import CreateChannelModal from './modals/CreateChannelModal.jsx';
+import CreateCategoryModal from './modals/CreateCategoryModal.jsx';
+import FeaturedChannels from './FeaturedChannels.jsx';
+import ChannelIcon, { CustomIcon, hasCustomIcon } from './ChannelIcon.jsx';
+import '../styles/channels.css';
+import UserAvatar from './UserAvatar.jsx';
+import UserStatusBar from './UserStatusBar.jsx';
+import NavIcon from './NavIcons.jsx';
+import TypingDots from './TypingDots.jsx';
+import { cssZoom } from '../utils/cssZoom';
+import '../styles/nav.css';
+import settingsIcon from '../assets/icons/settings.png';
+import plusIcon from '../assets/icons/plus.png';
+import cancelIcon from '../assets/icons/cancel.png';
+import selectedIcon from '../assets/icons/selected.png';
+import linkIcon from '../assets/icons/link.png';
+import lockIcon from '../assets/icons/lock.png';
+import { proxyImage } from '../utils/imageProxy';
+import { usePopoverCoordination } from '../utils/popoverCoordinator';
+import ListSkeleton from './ListSkeleton.jsx';
+import { channelPath, absoluteUrl, useRouteRoom } from '../utils/prettyLinks';
+
+// Modais de staff/edição: cada um vira um pacote próprio, baixado só
+// quando é aberto (quase ninguém abre — não precisa estar no pacote inicial).
+const EditChannelModal = lazy(() => import('./modals/EditChannelModal.jsx'));
+const EditCategoryModal = lazy(() => import('./modals/EditCategoryModal.jsx'));
+const RoleManagerModal = lazy(() => import('./modals/RoleManagerModal.jsx'));
+const ModerationModal = lazy(() => import('./modals/ModerationModal.jsx'));
+const EmojiManagerModal = lazy(() => import('./modals/EmojiManagerModal.jsx'));
+const StickerManagerModal = lazy(() => import('./modals/StickerManagerModal.jsx'));
+const CommunitySettingsModal = lazy(() => import('./modals/CommunitySettingsModal.jsx'));
+
+const VOICE_TYPES = ['VOICE', 'STAGE'];
+
+function VoiceChannelTimer({ startedAt }) {
+  const [now, setNow] = useState(Date.now());
+  // Bug corrigido: faltava o intervalo que atualiza "now" — sem isso o
+  // cronômetro calculava o tempo decorrido só uma vez, na primeira
+  // renderização, e nunca mais mudava sozinho (só "andava" por acidente,
+  // quando outra coisa causava uma nova renderização do componente).
+  useEffect(() => {
+    if (!startedAt) return;
+    const interval = setInterval(() => setNow(Date.now()), 1000);
+    return () => clearInterval(interval);
+  }, [startedAt]);
+  if (!startedAt) return null;
+  const totalSeconds = Math.max(0, Math.floor((now - startedAt) / 1000));
+  const h = Math.floor(totalSeconds / 3600);
+  const m = Math.floor((totalSeconds % 3600) / 60);
+  const s = totalSeconds % 60;
+  const label = h > 0
+    ? `${h}:${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`
+    : `${m}:${String(s).padStart(2, '0')}`;
+  return <span className="voice-channel-timer" title="Tempo com alguém neste canal de voz">{label}</span>;
+}
+
+// Sininho cortado ao lado de canal/categoria silenciados; o title diz quanto falta.
+function MutedIcon({ title }) {
+  return (
+    <span className="channel-muted-icon" title={title} aria-label={title} role="img">
+      <svg width="13" height="13" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+        <path d="M6 16V11a6 6 0 0 1 9.5-4.9M18 11v5l2 2H8" /><path d="M10 21a2 2 0 0 0 4 0" /><path d="M3 3l18 18" />
+      </svg>
+    </span>
+  );
+}
+
+function buildSections(categories, channels) {
+  return [
+    { categoryId: null, name: null, channels },
+    ...categories.map((cat) => ({ categoryId: cat.id, name: cat.name, channels: cat.channels })),
+  ];
+}
+
+// BUG CORRIGIDO (contribuiu pro reload de página ao trocar de canal):
+// este componente agora é renderizado como coluna fixa em MainApp.jsx,
+// FORA da árvore de <Route> (não é mais só usado dentro de rotas
+// específicas) — useParams() só enxerga os parâmetros da rota ativa
+// quando o componente está DENTRO da <Route> correspondente; fora
+// dela, sempre retorna {} (vazio), então activeChannelId nunca batia
+// com o canal de verdade. propActiveChannelId (passado por quem
+// renderiza) tem prioridade quando existir; o useParams() interno
+// continua como respaldo pros outros lugares que ainda usam este
+// componente dentro de uma <Route> de verdade (ver TopMenu.jsx).
+// Categorias recolhidas ficam salvas por navegador (só preferência visual).
+// Agora por conta (chave com o id do usuário); a chave antiga, sem id,
+// só serve de ponto de partida na primeira vez.
+const COLLAPSED_CATS_KEY = 'collapsedCategories';
+function readCollapsedCats(userId) {
+  try {
+    const own = localStorage.getItem(`${COLLAPSED_CATS_KEY}:${userId}`);
+    return new Set(JSON.parse(own ?? localStorage.getItem(COLLAPSED_CATS_KEY) ?? '[]'));
+  } catch { return new Set(); }
+}
+
+// Props usadas pelo layout "Normal 2.0" (Normal2Sidebar.jsx):
+// - embedded: faz parte de uma coluna maior, ignora o "recolher canais"
+// - topSlot: conteúdo entre o cabeçalho da comunidade e a lista (o menu)
+// - sentenceCase: nome das categorias como foi escrito, sem caixa alta
+export default function ChannelSidebar({
+  activeChannelId: propActiveChannelId, embedded = false, topSlot = null, sentenceCase = false,
+} = {}) {
+  const { user } = useAuth();
+  const { openMenu } = useContextMenu();
+  const categories = useStore((s) => s.categories);
+  const channels = useStore((s) => s.channels);
+  const members = useStore((s) => s.members);
+  const roles = useStore((s) => s.roles);
+  const community = useStore((s) => s.community);
+  const communityLoaded = useStore((s) => s.communityLoaded);
+  const channelReadAt = useStore((s) => s.channelReadAt);
+  const collapsed = useStore((s) => s.channelSidebarCollapsed);
+  // Notificações por canal/categoria: redesenha quando muda alguma
+  // configuração, um silêncio expira ou o padrão global muda.
+  const notificationOverrides = useStore((s) => s.notificationOverrides);
+  useStore((s) => s.notifTick);
+  useStore((s) => s.userSettings?.extraPrefs?.notifyLevel);
+  const toggleChannelSidebar = useStore((s) => s.toggleChannelSidebar);
+  const [menuOpen, setMenuOpen] = useState(false);
+  usePopoverCoordination(menuOpen, () => setMenuOpen(false));
+  const [communitySettingsOpen, setCommunitySettingsOpen] = useState(false);
+  const [roleManagerOpen, setRoleManagerOpen] = useState(false);
+  const [moderationOpen, setModerationOpen] = useState(false);
+  const [emojiManagerOpen, setEmojiManagerOpen] = useState(false);
+  const [stickerManagerOpen, setStickerManagerOpen] = useState(false);
+  const navigate = useNavigate();
+  // Item pedido: cliques rápidos repetidos no MESMO canal disparavam som
+  // e recarregamento várias vezes seguidas — bloqueia a navegação já no
+  // clique, antes de qualquer efeito posterior, se o canal clicado já é
+  // o canal ativo (nenhuma navegação de verdade acontece, então nenhum
+  // som/carregamento é disparado de novo).
+  // /canal/<nome> → id (links bonitos); antes vinha do useParams.
+  const paramsChannelId = useRouteRoom()?.channelId;
+  const activeChannelId = propActiveChannelId ?? paramsChannelId;
+
+  const [channelModal, setChannelModal] = useState({ open: false, categoryId: null });
+  const [editChannel, setEditChannel] = useState(null);
+  const [editCategory, setEditCategory] = useState(null);
+  const [createCategoryOpen, setCreateCategoryOpen] = useState(false);
+  const [dragChannelId, setDragChannelId] = useState(null);
+  const [dragCategoryId, setDragCategoryId] = useState(null);
+  const [dragOverChannelId, setDragOverChannelId] = useState(null);
+  const [dragOverPosition, setDragOverPosition] = useState('before');
+  const [dragOverCategoryId, setDragOverCategoryId] = useState(null);
+  const [collapsedCats, setCollapsedCats] = useState(() => readCollapsedCats(user.id));
+  const toggleCategory = (id) => setCollapsedCats((prev) => {
+    const next = new Set(prev);
+    if (next.has(id)) next.delete(id); else next.add(id);
+    try { localStorage.setItem(`${COLLAPSED_CATS_KEY}:${user.id}`, JSON.stringify([...next])); } catch { /* sem localStorage: só não lembra */ }
+    return next;
+  });
+  // Prévia dos canais com novidade ao passar o mouse numa categoria recolhida.
+  const [catPreview, setCatPreview] = useState(null); // { catId, top, left }
+  const catPreviewTimer = useRef(null);
+  const myRoleIdsForBadges = members.find((m) => m.user.id === user.id)?.roleIds || [];
+  const unreadInCategory = (cat) => (cat.channels || []).filter((c) => (
+    c.id !== activeChannelId && (c.unreadMentions > 0 || c.unreadCount > 0 || isChannelUnread(c, channelReadAt, user.id, myRoleIdsForBadges))
+  ));
+  const showCatPreview = (e, cat) => {
+    clearTimeout(catPreviewTimer.current);
+    if (!collapsedCats.has(cat.id) || !window.matchMedia?.('(hover: hover)').matches) return;
+    if (unreadInCategory(cat).length === 0) return;
+    const r = e.currentTarget.getBoundingClientRect();
+    const z = cssZoom();
+    setCatPreview({ catId: cat.id, top: r.top / z, left: r.right / z + 8 });
+  };
+  const hideCatPreview = () => {
+    clearTimeout(catPreviewTimer.current);
+    catPreviewTimer.current = setTimeout(() => setCatPreview(null), 140);
+  };
+  useEffect(() => () => clearTimeout(catPreviewTimer.current), []);
+
+  const myPerms = getMyCommunityPermissions(roles, members, user.id, user.platformRole);
+  const canManage = hasPermission(myPerms, 'MANAGE_CHANNELS');
+
+  if (collapsed && !embedded) {
+    return (
+      <aside className="sidebar sidebar-collapsed">
+        <button className="icon-btn sidebar-expand-btn" title="Expandir canais" onClick={toggleChannelSidebar}>›</button>
+      </aside>
+    );
+  }
+
+  // Criar categoria agora abre um modal (nome livre + ícone), não prompt().
+  const addCategory = () => setCreateCategoryOpen(true);
+
+  const removeCategory = async (id) => {
+    if (!confirm('Excluir esta categoria? Os canais dentro dela ficam sem categoria (não são excluídos).')) return;
+    await deleteCategory(id);
+  };
+
+  const onListContextMenu = (e) => {
+    if (!canManage) return;
+    if (e.target.closest('.channel-item, .category-label, .voice-roster-item')) return;
+    e.preventDefault();
+    openMenu(e, [
+      { label: 'Criar canal', icon: '#', onClick: () => setChannelModal({ open: true, categoryId: null }) },
+      { label: 'Criar categoria', icon: '▾', onClick: addCategory },
+    ]);
+  };
+
+  // Clique direito numa categoria: silenciar / notificações (+ gerenciar, pra staff).
+  const onCategoryContextMenu = (e, cat) => {
+    const items = [...notificationMenuItems('category', cat)];
+    if (canManage) {
+      items.push({ divider: true });
+      items.push({ label: 'Criar canal', icon: 'hash', onClick: () => setChannelModal({ open: true, categoryId: cat.id }) });
+      items.push({ label: 'Editar categoria', icon: 'gear', onClick: () => setEditCategory(cat) });
+    }
+    if (useStore.getState().userSettings?.developerMode) {
+      items.push({ divider: true });
+      items.push({ label: 'Copiar ID da categoria', icon: 'id', onClick: () => navigator.clipboard?.writeText(cat.id) });
+    }
+    openMenu(e, items);
+  };
+
+  const onCategoryDrop = async (targetCategoryId) => {
+    setDragOverCategoryId(null);
+    if (!dragCategoryId || dragCategoryId === targetCategoryId) return;
+    const ids = categories.map((c) => c.id);
+    const from = ids.indexOf(dragCategoryId);
+    const to = ids.indexOf(targetCategoryId);
+    if (from < 0 || to < 0) return;
+    const reordered = [...ids];
+    const [moved] = reordered.splice(from, 1);
+    reordered.splice(to, 0, moved);
+    await reorderCategories(reordered);
+    setDragCategoryId(null);
+  };
+
+  const onChannelDrop = async (targetCategoryId, targetChannelId, position = 'before') => {
+    setDragOverChannelId(null);
+    setDragOverCategoryId(null);
+    if (!dragChannelId) return;
+    const sections = buildSections(categories, channels).map((s) => ({ ...s, channels: [...s.channels] }));
+    let dragged = null;
+    for (const sec of sections) {
+      const idx = sec.channels.findIndex((c) => c.id === dragChannelId);
+      if (idx !== -1) { dragged = sec.channels.splice(idx, 1)[0]; break; }
+    }
+    if (!dragged) return;
+    const targetSection = sections.find((s) => s.categoryId === targetCategoryId);
+    let targetIdx = targetChannelId ? targetSection.channels.findIndex((c) => c.id === targetChannelId) : targetSection.channels.length;
+    if (targetIdx < 0) targetIdx = targetSection.channels.length;
+    else if (position === 'after') targetIdx += 1;
+    targetSection.channels.splice(targetIdx, 0, dragged);
+    const order = sections.flatMap((sec) => sec.channels.map((c, i) => ({ id: c.id, categoryId: sec.categoryId, position: i })));
+    await reorderChannels(order);
+    setDragChannelId(null);
+  };
+
+  return (
+    <aside className={`sidebar${embedded ? ' sidebar-embedded' : ''}`}>
+      {community.bannerUrl && (
+        <div className="sidebar-banner" style={{ backgroundImage: `url(${community.bannerUrl})`, "--banner": `url(${JSON.stringify(community.bannerUrl)})` }}>
+          {/* Imagem de verdade: no Normal 2.0 o banner aparece inteiro, na proporção dele. */}
+          <img className="sidebar-banner-img" src={proxyImage(community.bannerUrl)} alt="" draggable={false} />
+        </div>
+      )}
+      <div className="sidebar-header" onClick={() => setMenuOpen((v) => !v)}>
+        <span className="truncate">{community.name || 'Project Club'}</span>
+        {canManage && (
+          <button className="icon-btn sidebar-header-toggle" title="Configurações da comunidade" onClick={(e) => { e.stopPropagation(); setMenuOpen((v) => !v); }}><img className="ui-icon" src={settingsIcon} alt="" /></button>
+        )}
+        {menuOpen && canManage && (
+          <div className="dropdown-menu server-header-menu" onClick={(e) => e.stopPropagation()}>
+            <button className="server-header-menu-item" onClick={() => { addCategory(); setMenuOpen(false); }}>
+              Criar categoria <span className="server-header-menu-icon">📁</span>
+            </button>
+            <button className="server-header-menu-item" onClick={() => { setChannelModal({ open: true, categoryId: categories[0]?.id || null }); setMenuOpen(false); }}>
+              Criar canal <img className="ui-icon-sm" src={plusIcon} alt="" />
+            </button>
+            <div className="dropdown-divider" />
+            <button className="server-header-menu-item" onClick={() => { setCommunitySettingsOpen(true); setMenuOpen(false); }}>
+              Configurações da comunidade <span className="server-header-menu-icon">🏳️</span>
+            </button>
+            <button className="server-header-menu-item" onClick={() => { setRoleManagerOpen(true); setMenuOpen(false); }}>
+              Cargos <span className="server-header-menu-icon">🏷️</span>
+            </button>
+            <button className="server-header-menu-item" onClick={() => { setEmojiManagerOpen(true); setMenuOpen(false); }}>
+              Emojis <span className="server-header-menu-icon">😀</span>
+            </button>
+            <button className="server-header-menu-item" onClick={() => { setStickerManagerOpen(true); setMenuOpen(false); }}>
+              Figurinhas <span className="server-header-menu-icon">🏷️</span>
+            </button>
+            <button className="server-header-menu-item" onClick={() => { setModerationOpen(true); setMenuOpen(false); }}>
+              Moderação <span className="server-header-menu-icon">🛡️</span>
+            </button>
+            <div className="dropdown-divider" />
+            <button className="server-header-menu-item" onClick={() => { navigate('/admin'); setMenuOpen(false); }}>
+              Painel administrativo <span className="server-header-menu-icon">🛠️</span>
+            </button>
+          </div>
+        )}
+      </div>
+
+      {communitySettingsOpen && <Suspense fallback={null}><CommunitySettingsModal onClose={() => setCommunitySettingsOpen(false)} /></Suspense>}
+      {roleManagerOpen && <Suspense fallback={null}><RoleManagerModal onClose={() => setRoleManagerOpen(false)} /></Suspense>}
+      {moderationOpen && <Suspense fallback={null}><ModerationModal onClose={() => setModerationOpen(false)} /></Suspense>}
+      {emojiManagerOpen && <Suspense fallback={null}><EmojiManagerModal onClose={() => setEmojiManagerOpen(false)} /></Suspense>}
+      {stickerManagerOpen && <Suspense fallback={null}><StickerManagerModal onClose={() => setStickerManagerOpen(false)} /></Suspense>}
+
+      {topSlot}
+
+      <nav className="sidebar-list" aria-label="Canais" onContextMenu={onListContextMenu}>
+        {/* Canais em destaque (Eventos, Feed, Galeria) — sempre no topo. */}
+        <FeaturedChannels canManage={canManage} />
+        {!communityLoaded && channels.length === 0 && categories.length === 0 && <ListSkeleton variant="channels" label="Carregando canais…" />}
+        {channels.length > 0 && (
+          <ChannelGroup
+            channels={channels}
+            categoryId={null}
+            members={members}
+            canManage={canManage}
+            myPerms={myPerms}
+            onEdit={setEditChannel}
+            channelReadAt={channelReadAt}
+            myUserId={user.id}
+            dragChannelId={dragChannelId}
+            setDragChannelId={setDragChannelId}
+            dragOverChannelId={dragOverChannelId}
+            setDragOverChannelId={setDragOverChannelId}
+            dragOverPosition={dragOverPosition}
+            setDragOverPosition={setDragOverPosition}
+            onChannelDrop={onChannelDrop}
+            activeChannelId={activeChannelId}
+            navigate={navigate}
+          />
+        )}
+        {categories.map((cat) => (
+          <div
+            key={cat.id}
+            className={`category-block ${dragOverCategoryId === cat.id ? 'drag-over' : ''}`}
+            draggable={canManage}
+            onDragStart={() => setDragCategoryId(cat.id)}
+            onDragOver={(e) => {
+              e.preventDefault();
+              if (dragCategoryId) setDragOverCategoryId(cat.id);
+              else if (dragChannelId) setDragOverCategoryId(cat.id);
+            }}
+            onDragLeave={(e) => {
+              if (!e.currentTarget.contains(e.relatedTarget)) setDragOverCategoryId(null);
+            }}
+            onDrop={(e) => {
+              e.preventDefault();
+              if (dragCategoryId) onCategoryDrop(cat.id);
+              else if (dragChannelId) onChannelDrop(cat.id, null);
+            }}
+          >
+            <div
+              className={`category-label${collapsedCats.has(cat.id) ? ' is-collapsed' : ''}${isOverrideMuted(notificationOverrides?.[categoryKey(cat.id)]) ? ' is-muted' : ''}`}
+              onMouseEnter={(e) => showCatPreview(e, cat)}
+              onMouseLeave={hideCatPreview}
+              onContextMenu={(e) => onCategoryContextMenu(e, cat)}
+            >
+              <button
+                type="button" className="category-toggle" aria-expanded={!collapsedCats.has(cat.id)}
+                onClick={() => { setCatPreview(null); toggleCategory(cat.id); }} title={collapsedCats.has(cat.id) ? 'Mostrar canais' : 'Esconder canais'}
+              >
+                {hasCustomIcon(cat) && <CustomIcon item={cat} className="category-custom-icon" />}
+                <span className="truncate">{sentenceCase ? cat.name : cat.name.toUpperCase()}</span>
+                {(() => {
+                  const o = notificationOverrides?.[categoryKey(cat.id)];
+                  if (!isOverrideMuted(o)) return null;
+                  return <MutedIcon title={`Categoria silenciada — ${muteRemainingLabel(o.mutedUntil, { forever: o.muteForever }).toLowerCase()}`} />;
+                })()}
+                {collapsedCats.has(cat.id) && (() => {
+                  // Contador de canais com novidade (vermelho se tiver menção).
+                  const unreadList = unreadInCategory(cat);
+                  if (unreadList.length === 0) return null;
+                  const hasMention = unreadList.some((c) => c.unreadMentions > 0);
+                  return (
+                    <span className={`category-unread-badge${hasMention ? ' is-mention' : ''}`} title={`${unreadList.length} ${unreadList.length === 1 ? 'canal' : 'canais'} com novidade`}>
+                      {unreadList.length > 99 ? '99+' : unreadList.length}
+                    </span>
+                  );
+                })()}
+                <svg className="category-chevron" width="12" height="12" viewBox="0 0 24 24" aria-hidden="true"><path d="m6 9 6 6 6-6" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" /></svg>
+              </button>
+              {canManage && (
+                <span className="category-actions">
+                  <button className="icon-btn-small" title="Criar canal nesta categoria" aria-label={`Criar canal em ${cat.name}`} onClick={() => setChannelModal({ open: true, categoryId: cat.id })}><img className="ui-icon-sm" src={plusIcon} alt="" /></button>
+                  <button className="icon-btn-small" title="Editar categoria" aria-label={`Editar categoria ${cat.name}`} onClick={() => setEditCategory(cat)}><img className="ui-icon-sm" src={settingsIcon} alt="" /></button>
+                  <button className="icon-btn-small" title="Excluir categoria" onClick={() => removeCategory(cat.id)}><img className="ui-icon-sm" src={cancelIcon} alt="x" /></button>
+                </span>
+              )}
+            </div>
+            <ChannelGroup
+              channels={collapsedCats.has(cat.id) ? (cat.channels || []).filter((c) => c.id === activeChannelId) : cat.channels}
+              categoryId={cat.id}
+              members={members}
+              canManage={canManage}
+              myPerms={myPerms}
+              onEdit={setEditChannel}
+              channelReadAt={channelReadAt}
+              myUserId={user.id}
+              dragChannelId={dragChannelId}
+              setDragChannelId={setDragChannelId}
+              dragOverChannelId={dragOverChannelId}
+              setDragOverChannelId={setDragOverChannelId}
+              dragOverPosition={dragOverPosition}
+              setDragOverPosition={setDragOverPosition}
+              onChannelDrop={onChannelDrop}
+              activeChannelId={activeChannelId}
+              navigate={navigate}
+            />
+          </div>
+        ))}
+      </nav>
+
+      {catPreview && (() => {
+        const cat = categories.find((c) => c.id === catPreview.catId);
+        const list = cat ? unreadInCategory(cat) : [];
+        if (!cat || list.length === 0) return null;
+        return createPortal(
+          <div
+            className="category-preview" role="tooltip"
+            style={{ top: Math.min(catPreview.top, window.innerHeight / cssZoom() - 48 - list.length * 38), left: catPreview.left }}
+            onMouseEnter={() => clearTimeout(catPreviewTimer.current)}
+            onMouseLeave={hideCatPreview}
+          >
+            <div className="category-preview-title">Novidades em <b>{cat.name}</b></div>
+            {list.slice(0, 8).map((c) => (
+              <button
+                key={c.id} type="button" className="category-preview-item"
+                onClick={() => { setCatPreview(null); navigate(channelPath(c)); }}
+              >
+                <span className="category-preview-icon">{hasCustomIcon(c) ? <CustomIcon item={c} className="channel-custom-icon" /> : <NavIcon name={VOICE_TYPES.includes(c.type) ? 'voice' : 'hash'} size={15} />}</span>
+                <span className="truncate">{c.name}</span>
+                <UnreadCountBadge channel={c} unread />
+              </button>
+            ))}
+          </div>,
+          document.body,
+        );
+      })()}
+
+      <UserStatusBar />
+
+      {channelModal.open && (
+        <CreateChannelModal
+          categoryId={channelModal.categoryId}
+          onClose={() => setChannelModal({ open: false, categoryId: null })}
+        />
+      )}
+      {editChannel && <Suspense fallback={null}><EditChannelModal channel={editChannel} onClose={() => setEditChannel(null)} /></Suspense>}
+      {createCategoryOpen && <CreateCategoryModal onClose={() => setCreateCategoryOpen(false)} />}
+      {editCategory && <Suspense fallback={null}><EditCategoryModal category={editCategory} onClose={() => setEditCategory(null)} onDeleted={() => setEditCategory(null)} /></Suspense>}
+    </aside>
+  );
+}
+
+function ChannelGroup({
+  channels, categoryId, members, canManage, myPerms, onEdit, channelReadAt, myUserId,
+  dragChannelId, setDragChannelId, dragOverChannelId, setDragOverChannelId,
+  dragOverPosition, setDragOverPosition, onChannelDrop,
+  // BUG CORRIGIDO ("algo deu errado" / tela em branco ao abrir a
+  // Comunidade): ChannelGroup é um componente PRÓPRIO, separado de
+  // ChannelSidebar (onde activeChannelId e navigate são declarados) —
+  // usá-los aqui dentro sem passar como prop dava
+  // "activeChannelId/navigate is not defined" (ReferenceError) assim
+  // que a lista de canais tentava renderizar, travando a tela inteira
+  // (capturado pelo ErrorBoundary como "Algo deu errado").
+  activeChannelId, navigate,
+}) {
+  const voice = useVoice();
+  const { openMenu } = useContextMenu();
+  const markChannelReadLocal = useStore((s) => s.markChannelReadLocal);
+  // Item pedido: "só notifica se marcar/responder uma pessoa" —
+  // isChannelUnread precisa saber meus cargos pra reconhecer uma
+  // menção de CARGO (não só @meu-nome direto) como "isso é pra mim".
+  const myRoleIds = members.find((m) => m.user.id === myUserId)?.roleIds || [];
+
+  const onContextMenu = (e, ch) => {
+    const items = [
+      {
+        label: 'Marcar como lido', icon: <img className="ui-icon-sm" src={selectedIcon} alt="" />,
+        onClick: () => { markChannelRead(ch.id).catch(() => {}); markChannelReadLocal(ch.id); },
+      },
+      {
+        label: 'Copiar link do canal', icon: <img className="ui-icon-sm" src={linkIcon} alt="" />,
+        onClick: () => navigator.clipboard?.writeText(absoluteUrl(channelPath(ch))),
+      },
+    ];
+    // Silenciar / "Todas as mensagens · Só @menções · Nada" (igual ao Discord).
+    items.push({ divider: true });
+    items.push(...notificationMenuItems('channel', ch));
+    if (canManage) {
+      items.push({ divider: true });
+      items.push({ label: 'Editar canal', icon: <img className="ui-icon-sm" src={settingsIcon} alt="" />, onClick: () => onEdit(ch) });
+    }
+    // Item pedido: verificar se todos os toggles de Configurações têm
+    // efeito real — "Modo desenvolvedor" (ver Message.jsx pro mesmo
+    // padrão aplicado em mensagens).
+    if (useStore.getState().userSettings?.developerMode) {
+      items.push({ divider: true });
+      items.push({ label: 'Copiar ID do canal', icon: '🆔', onClick: () => navigator.clipboard?.writeText(ch.id) });
+    }
+    openMenu(e, items);
+  };
+
+  const onRowDragOver = (e, ch) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (!dragChannelId || dragChannelId === ch.id) return;
+    const rect = e.currentTarget.getBoundingClientRect();
+    const position = (e.clientY - rect.top) < rect.height / 2 ? 'before' : 'after';
+    setDragOverChannelId(ch.id);
+    setDragOverPosition(position);
+  };
+
+  return (
+    <>
+      {channels.map((ch) => {
+        const unread = isChannelUnread(ch, channelReadAt, myUserId, myRoleIds);
+        // Silenciado (no canal ou na categoria): fica cinza, sem bolinha de
+        // não lido; menções continuam contando, só que apagadas.
+        const notify = channelNotifyPrefs(ch);
+        const isVoiceType = VOICE_TYPES.includes(ch.type);
+        const rosterEntries = isVoiceType ? (voice?.roster?.[ch.id] || []) : [];
+        const isDragging = dragChannelId === ch.id;
+        const isDragOver = dragOverChannelId === ch.id && dragChannelId && dragChannelId !== ch.id;
+        return (
+          <div key={ch.id}>
+            <div
+              className={`channel-drag-row ${isDragging ? 'dragging' : ''} ${isDragOver ? `drag-over drag-over-${dragOverPosition}` : ''}`}
+              draggable={canManage}
+              onDragStart={(e) => { e.stopPropagation(); setDragChannelId(ch.id); }}
+              onDragOver={(e) => onRowDragOver(e, ch)}
+              onDragLeave={() => setDragOverChannelId((id) => (id === ch.id ? null : id))}
+              onDrop={(e) => { e.preventDefault(); e.stopPropagation(); onChannelDrop(categoryId, ch.id, dragOverPosition); }}
+              onDragEnd={() => { setDragChannelId(null); setDragOverChannelId(null); }}
+              onContextMenu={(e) => onContextMenu(e, ch)}
+            >
+              <button
+                type="button"
+                // BUG CORRIGIDO ("os canais agora não estão abrindo
+                // quando clico neles"): a tentativa anterior usava
+                // <NavLink> com onClick chamando e.preventDefault()
+                // sempre — o React Router verifica defaultPrevented
+                // depois do onClick que a gente passa e, se estiver
+                // marcado, DESISTE de navegar por dentro também
+                // (não só do <a> nativo) — então cliques paravam de
+                // funcionar de verdade. Trocado por um <button> puro,
+                // exatamente como o layout Normal antigo já fazia com
+                // sucesso (ver ChannelSwitcher.jsx, função "go") — sem
+                // href, sem NavLink, sem nada que o navegador possa
+                // tentar tratar como link nativo (que foi a causa
+                // original do reload de página inteira): só um clique
+                // simples chamando navigate() por dentro do app.
+                onClick={() => { if (ch.id !== activeChannelId) navigate(channelPath(ch)); }}
+                data-channel-id={ch.id} data-channel-type={ch.type}
+                aria-current={ch.id === activeChannelId ? 'page' : undefined}
+                className={`sidebar-item channel-item ${ch.id === activeChannelId ? 'active' : ''} ${unread && !notify.muted ? 'unread' : ''} ${notify.muted ? 'is-muted' : ''}`}
+              >
+                <ChannelIcon channel={ch} />
+                <span className="truncate">{ch.name}</span>
+                {isVoiceType && ch.userLimit > 0 && (
+                  <span className="channel-user-limit" title="Limite de usuários no canal de voz">
+                    {rosterEntries.length}/{ch.userLimit}
+                  </span>
+                )}
+                {isVoiceType && rosterEntries.length > 0 && (
+                  <VoiceChannelTimer startedAt={voice?.rosterStartedAt?.[ch.id]} />
+                )}
+                {ch.isPrivate && <span title="Canal privado"><img className="ui-icon-sm" src={lockIcon} alt="" /></span>}
+                {!isVoiceType && <TypingDots roomKey={`channel:${ch.id}`} myUserId={myUserId} />}
+                {notify.muted && (
+                  <MutedIcon
+                    title={`${notify.mutedBy === 'category' ? 'Categoria silenciada' : 'Canal silenciado'} — ${muteRemainingLabel(notify.mutedUntil, { forever: notify.mutedForever }).toLowerCase()}`}
+                  />
+                )}
+                {/* Número vermelho de mensagens novas (com @ quando tem menção). */}
+                {!isVoiceType && <UnreadCountBadge channel={ch} active={ch.id === activeChannelId} muted={notify.muted} unread={unread} />}
+                {isVoiceType && ch.unreadMentions > 0 && <span className="unread-count-badge has-mention">@{ch.unreadMentions > 99 ? '99+' : ch.unreadMentions}</span>}
+                {canManage && (
+                  <span className="channel-item-actions">
+                    <button className="icon-btn-small" onClick={(e) => { e.stopPropagation(); onEdit(ch); }}><img className="ui-icon-sm" src={settingsIcon} alt="" /></button>
+                  </span>
+                )}
+              </button>
+            </div>
+            {rosterEntries.length > 0 && (
+              <div className="voice-roster">
+                {rosterEntries.map((p) => {
+                  const person = members.find((m) => m.user.id === p.userId)?.user;
+                  const isSpeaking = !p.muted && (p.userId === myUserId ? !!voice?.localSpeaking : !!voice?.rosterSpeaking?.[ch.id]?.[p.userId]);
+                  // Moderação de voz (clique direito), só com a permissão.
+                  const modItems = buildVoiceModerationItems({ voice, channelId: ch.id, target: p, myPerms, myUserId });
+                  return (
+                    <div
+                      key={p.userId} className={`voice-roster-item ${isSpeaking ? 'speaking' : ''}`}
+                      onContextMenu={modItems.length ? (e) => openMenu(e, modItems) : undefined}
+                    >
+                      <div className="avatar tiny">
+                        <UserAvatar user={person} size={20} />
+                      </div>
+                      <span className="truncate">{person?.displayName || p.userId}</span>
+                      {/* Ao vivo / câmera / mudo — a lista vem do servidor e agora
+                          atualiza quando a pessoa liga a tela ou a câmera. */}
+                      {p.screenSharing && <span className="voice-roster-live" title="Transmitindo a tela"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 5h18v11H3zM8 20h8M12 16v4" /></svg>AO VIVO</span>}
+                      {p.video && <svg className="voice-roster-ico" viewBox="0 0 24 24" aria-label="Câmera ligada" role="img"><path d="M3 7h12v10H3zM15 10l6-3v10l-6-3" /></svg>}
+                      {(p.serverMuted || p.serverDeafened) && <span className="voice-roster-servermod" title={p.serverDeafened ? 'Ensurdecido no servidor' : 'Silenciado no servidor'}>MOD</span>}
+                      {p.deafened && <svg className="voice-roster-ico is-muted" viewBox="0 0 24 24" aria-label="Ensurdecido" role="img"><title>Ensurdecido</title><path d="M4 15v-3a8 8 0 0 1 12.7-6.5M20 12v3M3 14h5v7H5a2 2 0 0 1-2-2zM16 16v3a2 2 0 0 0 2 2h1M3 3l18 18" /></svg>}
+                      {p.muted && !p.deafened && <svg className="voice-roster-ico is-muted" viewBox="0 0 24 24" aria-label="Mudo" role="img"><path d="M15 9.3V6a3 3 0 0 0-5.7-1.3M9 9v3a3 3 0 0 0 4.9 2.3M19 11a7 7 0 0 1-1.1 3.8M5 11a7 7 0 0 0 11 5.7M12 18v3M3 3l18 18" /></svg>}
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        );
+      })}
+      {canManage && (
+        <div
+          className="channel-drop-end"
+          onDragOver={(e) => { e.preventDefault(); e.stopPropagation(); }}
+          onDrop={(e) => { e.preventDefault(); e.stopPropagation(); onChannelDrop(categoryId, null); }}
+        />
+      )}
+    </>
+  );
+}

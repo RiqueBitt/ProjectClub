@@ -1,0 +1,968 @@
+import { isFeatureEnabled } from '../utils/features';
+import { create } from 'zustand';
+import { updateUserSettings } from '../api/endpoints';
+import { openPopover, closePopover, closeAllPopovers } from '../utils/popoverCoordinator';
+import { trackSave } from '../utils/saveIndicator';
+import { resolveChannelPrefs, channelKey, categoryKey } from '../utils/notificationLevels';
+import { loadLocalLayoutPrefs, normalizeLayoutPrefs, saveLocalLayoutPrefs, scheduleServerSave, loadFocusMode, saveFocusMode } from '../utils/appearance';
+import { mergeThreadSummary } from '../utils/chatFeatures';
+
+// Função estável (comparada por identidade no coordenador de menus) que
+// fecha o miniperfil quando outro menu flutuante abre.
+// Último fechamento do miniperfil por clique FORA dele (mousedown no
+// documento, ver MiniProfileCard): o mousedown fecha e o click que vem logo
+// depois, no MESMO avatar/item que abriu o card, reabria tudo de novo (o
+// toggle de openMiniProfile já não via o card aberto) — o card "piscava" e
+// voltava/mudava de lugar conforme onde se clicava. Ver openMiniProfile.
+let lastOutsideClose = null;
+const sameAnchor = (a, b) => (!a && !b) || (!!a && !!b && Math.abs(a.top - b.top) < 2 && Math.abs(a.left - b.left) < 2 && Math.abs(a.width - b.width) < 2 && Math.abs(a.height - b.height) < 2);
+
+function closeMiniProfileFromCoordinator() {
+  // eslint-disable-next-line no-use-before-define
+  useStore.setState({ miniProfileUserId: null, miniProfileAnchorRect: null, miniProfileSide: null });
+}
+
+// Detecta PC vs Mobile pra saber qual configuração do Editor de Interface
+// aplicar — mesmo ponto de corte (900px) usado pelo resto do CSS pra virar
+// o layout mobile.
+function getDeviceKey() {
+  return typeof window !== 'undefined' && window.innerWidth <= 900 ? 'MOBILE' : 'PC';
+}
+
+// Item pedido: "Sistema... Iniciar com o sistema... Minimizar para
+// bandeja... Abrir links no aplicativo... Confirmar saída... Essas
+// funções podem existir no '.exe' sem necessariamente existirem na
+// versão web" — avisa o app desktop (Electron, ver desktop/main.js)
+// toda vez que o UserSettings da conta carrega ou muda, pra ele
+// aplicar de verdade essas 4 opções. window.electronAPI só existe
+// quando o site está rodando DENTRO do app nativo (ver
+// desktop/preload.js) — no navegador comum/celular, isso é undefined
+// e a chamada simplesmente não acontece, sem quebrar nada.
+function syncDesktopSettings(settings) {
+  try { window.electronAPI?.updateSettings?.(settings); } catch { /* não é o app desktop — ignora */ }
+}
+
+// Único tema da rede (preto). Ver setTheme.
+const FORCED_THEME = 'amoled';
+
+// Estado central em tempo real: categorias/canais da comunidade única,
+// membros, conversas DM, mensagens por sala, amigos, presença, digitação e
+// pedaços de estado de UI (canal ativo, tema etc).
+export const useStore = create((set, get) => ({
+  categories: [], // categorias globais, cada uma com channels: [...]
+  channels: [], // canais sem categoria (categoryId null) ficam soltos aqui também, pra facilitar buscas
+  members: [], // todo mundo da comunidade — { user, roles: [...] } (substitui o antigo server.members)
+  roles: [], // cargos globais da comunidade
+  community: { name: 'Project Club', iconUrl: null, bannerUrl: null }, // nome/ícone/banner definidos pela staff
+  conversations: [],
+  // Já chegou (do servidor ou da cópia local) a estrutura da comunidade /
+  // a lista de conversas? Enquanto não, as listas mostram esqueleto em vez
+  // de "vazio" (ver ListSkeleton.jsx).
+  communityLoaded: false,
+  conversationsLoaded: false,
+  markLoaded: (patch) => set((s) => {
+    const next = {};
+    if (patch.community && !s.communityLoaded) next.communityLoaded = true;
+    if (patch.conversations && !s.conversationsLoaded) next.conversationsLoaded = true;
+    return next;
+  }),
+  friends: [],
+  presence: {}, // userId -> { status, customStatus }
+  // Item pedido: "Rich Presence" (jogo/Spotify) — userId -> activity
+  // object (ou undefined se não estiver jogando/ouvindo nada agora).
+  activities: {},
+  setActivity: (userId, activity) => set((s) => {
+    const next = { ...s.activities };
+    if (activity) next[userId] = activity; else delete next[userId];
+    return { activities: next };
+  }),
+  typing: {}, // roomKey -> Set(userId) (mantido como array simples)
+  messagesByRoom: {}, // roomKey -> Message[]
+  channelReadAt: {}, // channelId -> ISO date string (override local, feedback instantâneo ao abrir)
+  // Estado de leitura vindo do servidor (GET /community/channels/read-states):
+  // channelId -> { lastMessageAt, myReadAt, unreadMentions, lastMentionAt }.
+  // Mesclado nos objetos de canal (ver withChannelStates) — é o que faz o
+  // "não lido"/menções sobreviver a um F5.
+  channelStates: {},
+  // Notificações por canal/categoria: targetKey ("ch:<id>" / "cat:<id>") ->
+  // { level, mutedUntil, muteForever }. Carregado/sincronizado por
+  // utils/notificationPrefs.js. notifTick muda quando um silêncio expira
+  // (força a lista de canais a redesenhar sem o cinza).
+  notificationOverrides: {},
+  notifTick: 0,
+  setChannelStates: (states) => set((s) => {
+    const next = states || {};
+    const merge = (list) => withChannelStates(list, next, s.channelReadAt);
+    return {
+      channelStates: next,
+      channels: merge(s.channels),
+      categories: s.categories.map((cat) => ({ ...cat, channels: merge(cat.channels || []) })),
+    };
+  }),
+  // Notificação de menção clicada: o ChatWindow da sala certa leva até a
+  // mensagem assim que a 1ª página carregar. { roomKey, messageId, createdAt }
+  pendingJump: null,
+  setPendingJump: (pendingJump) => set({ pendingJump }),
+  // Painel do tópico aberto à direita do chat: { id, channelId, root? }.
+  // As respostas ficam em messagesByRoom['thread:<id>'] (ver roomKeyFor).
+  openThread: null,
+  setOpenThread: (openThread) => set({ openThread }),
+  // Notificação de tópico clicada com o canal ainda fechado: o ChatWindow
+  // abre o painel quando o canal carregar. { channelId, threadId }
+  pendingThread: null,
+  setPendingThread: (pendingThread) => set({ pendingThread }),
+  // "Visto" (DM 1:1): a outra pessoa leu até aqui.
+  setConversationOtherRead: (conversationId, lastReadAt) => set((s) => ({
+    conversations: s.conversations.map((c) => (c.id === conversationId ? { ...c, otherReadAt: lastReadAt } : c)),
+  })),
+  // Fila de toasts dispensáveis (avisos de moderação, alerta de
+  // anti-raid, atualização de app disponível, etc). `action` é opcional
+  // — { label, onClick } — e some sozinho quando o toast é dispensado ou
+  // clicado, sem precisar mudar nenhum dos outros ~15 lugares que já
+  // chamam pushNotice(message) só com texto.
+  notices: [],
+  viewingProfileUserId: null, // define pra abrir <UserProfileModal> daquele usuário, de qualquer lugar do app
+  // Item pedido: engrenagem no cabeçalho abrindo Configurações direto,
+  // sem precisar passar pelo próprio perfil primeiro — estado global
+  // igual o do perfil, pra ter só UMA instância do modal (renderizada
+  // uma vez em MainApp.jsx) reagindo a quem clicar em qualquer um dos
+  // dois lugares que abrem isso (cabeçalho ou dentro do perfil).
+  settingsModalOpen: false,
+  // ID de usuário pra mostrar o miniperfil (popup compacto, aberto ao
+  // clicar num avatar em mensagens/lista de membros) — tem um botão que
+  // abre o perfil completo (viewingProfileUserId) de dentro dele.
+  miniProfileUserId: null,
+  miniProfileAnchorRect: null,
+  // 'left' faz o card abrir do lado esquerdo do anchor (por cima do chat)
+  // em vez de em cima/embaixo dele — usado pela barra de membros, que é
+  // estreita demais (240-280px) pro card de 280px caber dentro dela sem
+  // estourar a tela. null/undefined = comportamento padrão (acima do
+  // anchor), usado em mensagens e na lista de amigos.
+  miniProfileSide: null,
+  // Quais sistemas (economy/houses/stickers) a staff desligou em
+  // /admin → Sistema — atualizado a cada 30s junto com o poll de
+  // manutenção em App.jsx. Usado pra esconder os itens correspondentes
+  // da barra lateral de seções (AppRail.jsx) pra todo mundo.
+  disabledSystems: [],
+  // Quando true, <UserProfileModal> já abre com a seção de cargos expandida
+  // e o dropdown de "+" adicionar cargo aberto — usado pelo item "Adicionar
+  // cargo" do menu de contexto da lista de membros.
+  profileAutoOpenRoleMenu: false,
+  // Define uma URL pra abrir <LinkConfirmModal> antes de navegar de fato
+  // pra um link clicado numa mensagem/bio — ver richTextRender.jsx.
+  pendingLinkUrl: null,
+  // Visualização ampliada de imagem (item pedido) — global igual o
+  // miniperfil/perfil, guarda só a URL+nome do arquivo atual; qualquer
+  // <img> clicável no app chama openLightbox pra abrir.
+  lightboxImage: null, // { images: [{ url, filename, mimeType }], index } | null
+  usableEmojis: [], // emojis customizados da comunidade que este usuário pode usar
+  // Item pedido: "sistema de figurinhas" — mesmo padrão de
+  // usableEmojis acima, populando a prop serverStickers do
+  // EmojiPicker.jsx (que já existia pronta, mas nunca tinha de onde
+  // vir os dados).
+  serverStickers: [],
+  // Item pedido: "sistema de coleções de emoji personalizado e
+  // figurinha" — carregadas uma vez no MainApp.jsx (mesmo padrão de
+  // usableEmojis/serverStickers acima), atualizadas em tempo real via
+  // socket quando a staff cria/edita/exclui uma (ver SocketContext.jsx).
+  emojiCollections: [],
+  stickerCollections: [],
+  // Item pedido: "sistema completo chamado Clans" — o clã do usuário
+  // atual (null se não estiver em nenhum), carregado no MainApp.jsx e
+  // atualizado sempre que algo relevante muda (entrar, sair, cargo
+  // alterado etc — ver ClansPage.jsx/ClanPage.jsx).
+  myClan: null,
+  myClanRole: null,
+  myClanCapabilities: {},
+  myClanPendingRequests: null,
+  usableStickers: [], // idem, para Sticker (ver StickerPicker.jsx)
+  usableSounds: [], // idem, para SoundboardSound (ver SoundboardPanel.jsx)
+  favoriteGifs: [], // GIFs salvos deste usuário — ver GifPicker.jsx aba "Favoritos"
+  // Clubes (fusão com o Reddit clone) — carregado uma vez ao entrar em
+  // Feeds e mantido em tempo real via socket (club:new/update/delete,
+  // ver SocketContext.jsx) daí em diante. É por isso que tanto a
+  // sidebar principal quanto a página de Feeds sempre mostram a mesma
+  // lista, e as duas atualizam sozinhas quando a staff mexe em algo —
+  // nenhuma delas faz fetch próprio depois da primeira carga.
+  clubs: [],
+
+  activeChannelId: null,
+  activeConversationId: null,
+  // "reddit" foi renomeado para "light" (tema "Claro" comum) — quem já
+  // tinha o tema antigo salvo no navegador continua vendo o mesmo visual,
+  // só migra o nome salvo.
+  //
+  // BUG CORRIGIDO ("tema escolhido não fica salvo, sempre volta pro
+  // Claro"): esse acesso ao localStorage não tinha nenhum try/catch —
+  // diferente do customBackground logo abaixo, que já era protegido.
+  // Em qualquer navegador/contexto onde localStorage.getItem lança erro
+  // (ex: modo privado do Safari em iOS em versões mais antigas, ou
+  // localStorage bloqueado por política do navegador/rede corporativa),
+  // essa exceção acontecia bem no meio da criação do estado inicial da
+  // store inteira — o que corrompia a inicialização de tudo, não só do
+  // tema, silenciosamente. Agora, além do try/catch, o tema também é
+  // sincronizado com a CONTA do usuário (ver setPreferredTheme no
+  // backend + AuthContext.jsx) — o localStorage vira só um cache rápido
+  // pra evitar o "flash" de tema errado antes da sessão carregar; a
+  // fonte de verdade de verdade é o banco de dados, que sobrevive a
+  // trocar de navegador/dispositivo ou limpar os dados locais.
+  // Tema preto forçado pra todo mundo (ver setTheme).
+  theme: FORCED_THEME,
+  // Item pedido: "em aparência adicione uma nova opção de layout, a
+  // opção normal e a opção de layout discord" — mesmo padrão do tema
+  // acima (localStorage como cache rápido, a conta como fonte de
+  // verdade — ver AuthContext.jsx e setLayoutStyle no backend).
+  // Item pedido: "deixe o layout do discord como o principal pra todo
+  // mundo" — fallback trocado de 'normal' pra 'discord' (só entra em
+  // jogo antes da conta carregar/sem localStorage ainda — a conta
+  // (User.layoutStyle) já vem com o novo default também, ver
+  // schema.prisma).
+  layoutStyle: (() => {
+    // Padrão: "Normal 2.0" (ver Normal2Sidebar.jsx).
+    try { return localStorage.getItem('layoutStyle') || 'normal2'; } catch { return 'normal2'; }
+  })(),
+  // Item pedido: "5 variantes de visual dos meus emoji" — mesmo padrão
+  // do tema acima (localStorage como cache rápido, a conta como fonte
+  // de verdade — ver AuthContext.jsx e setEmojiStyle no backend).
+  emojiStyle: (() => {
+    try { return localStorage.getItem('emojiStyle') || 'native'; } catch { return 'native'; }
+  })(),
+  // Item pedido: "sistema podendo mudar o zoom de 1,0 até 2,0... pra
+  // melhor personalização" — mesmo padrão de emojiStyle acima (guarda
+  // local pra aplicar na hora antes da conta terminar de carregar,
+  // ver AuthContext.jsx pra onde o valor salvo na CONTA sincroniza
+  // pra cá depois do login).
+  chatZoom: (() => {
+    try { return Number(localStorage.getItem('chatZoom')) || 1; } catch { return 1; }
+  })(),
+  // Item pedido: "adicione nas configurações do usuário ele poder
+  // aumentar ou diminuir o zoom quanto quiser" — zoom GERAL de toda a
+  // interface, mesmo padrão do chatZoom acima (valor local primeiro,
+  // pra aplicar na hora antes da conta terminar de carregar).
+  // BUG CORRIGIDO ("deveria começar em 100%, não 120%"): o padrão quando
+  // nunca foi escolhido agora é 1.0 (100%). Um valor 1.2 que ainda esteja
+  // guardado do padrão antigo é migrado pra 1.0 no boot (ver
+  // utils/zoomDefault.js + App.jsx/AuthContext).
+  interfaceZoom: (() => {
+    try {
+      const raw = localStorage.getItem('interfaceZoom');
+      if (raw === null) return 1; // nunca escolheu → 100%
+      const n = Number(raw);
+      return Number.isFinite(n) && n > 0 ? n : 1;
+    } catch { return 1; }
+  })(),
+  // Item pedido: "sistema completo de configurações... salvamento
+  // automático... interface muda imediatamente → frontend envia
+  // PATCH → backend valida → banco atualiza → servidor retorna
+  // sucesso. Se ocorrer erro: mostrar aviso → reverter alteração
+  // local, se necessário" — null até carregar de verdade (ver
+  // getUserSettings, chamado uma vez ao abrir o app em MainApp.jsx),
+  // os componentes tratam null como "ainda carregando" (mostram um
+  // esqueleto/skeleton em vez de um valor errado piscando na tela).
+  userSettings: null,
+  // Personalizar layout (ver utils/appearance.js): cache local + conta.
+  layoutPrefs: loadLocalLayoutPrefs(),
+  // opts.local: só aplica/guarda aqui (ex.: valor que acabou de vir da conta).
+  setLayoutPrefs: (patch, opts = {}) => {
+    const next = normalizeLayoutPrefs({ ...get().layoutPrefs, ...patch });
+    saveLocalLayoutPrefs(next);
+    set({ layoutPrefs: next });
+    if (!opts.local) scheduleServerSave(next, opts.delay);
+  },
+  // Modo foco: esconde as colunas laterais (lembrado só na sessão).
+  focusMode: loadFocusMode(),
+  setFocusMode: (on) => { saveFocusMode(on); set({ focusMode: on }); },
+  // Configuração do Editor de Interface (staff pode reorganizar/
+  // redimensionar os menus principais) — carregada uma vez ao abrir o
+  // app, aplicada globalmente (AppRail, sidebar, lista de membros). null
+  // até carregar de verdade, o que os componentes tratam como "usa o
+  // padrão embutido" (não trava nada esperando isso chegar).
+  uiLayout: null,
+  uiLayoutAll: {},
+  // Gradiente opcional escolhido pelo usuário que sobrepõe a cor de fundo
+  // mais externa do tema (--bg-deepest) — { top: '#rrggbb', bottom: '#rrggbb' }
+  // ou null pra usar o padrão do tema ativo.
+  customBackground: (() => {
+    try { return JSON.parse(localStorage.getItem('customBackground') || 'null'); } catch { return null; }
+  })(),
+  sidebarCollapsed: false,
+  channelSidebarCollapsed: false,
+  // Item pedido: "deixa a pessoa abrir e fechar o menu de categorias
+  // (início, comunidade, apps etc)... e todas as categorias, não só em
+  // comunidade" — toggle manual, pra funcionar em qualquer seção do
+  // app.
+  //
+  // BUG CORRIGIDO ("a setinha não está funcionando"): existia uma
+  // segunda classe (discord-icons-mode, aplicada sempre que o layout é
+  // 'discord', independente disso aqui) forçando ícone-só por cima —
+  // como o layout Discord é o padrão de todo mundo agora, essa segunda
+  // classe SEMPRE vencia e o toggle nunca conseguia expandir de volta.
+  // Unificado: este é agora o ÚNICO controle.
+  //
+  // Item pedido (ajuste): "a setinha deve iniciar sempre desativada/
+  // fechada quando o app for abrir" — não persiste mais entre sessões
+  // de propósito: toda vez que o app abre, começa recolhido (ícone-só)
+  // sempre, mesmo que a pessoa tenha expandido na sessão anterior — a
+  // seta continua funcionando normalmente ENQUANTO o app está aberto,
+  // só o estado inicial de cada abertura é fixo.
+  mainSidebarCollapsed: true,
+  // Controla a gaveta deslizante de canais/DMs em telas de celular.
+  mobileSidebarOpen: false,
+  // Item pedido: "corrija no mobile, deixe igual o EmberCord, quando
+  // abrir o menu lateral vai mostrar os canais e os ícones das
+  // categorias, pois no mobile não está dando de mudar de canal/
+  // categoria" — separado de mobileSidebarOpen (que é da barra
+  // principal, Início/Comunidade/etc): esse controla a lista de
+  // canais/categorias (ChannelSidebar), que no layout Discord mobile
+  // precisa reabrir mesmo já com um canal escolhido (senão, uma vez
+  // dentro de um canal, não haveria como trocar de canal de novo).
+  mobileChannelListOpen: false,
+  // Mesma ideia, mas pra lista de membros do lado direito.
+  mobileMembersOpen: false,
+
+  setCommunityStructure: ({ categories, channels, members, roles, community }) => set((s) => ({
+    ...(categories || channels || members ? { communityLoaded: true } : {}),
+    categories: categories
+      ? categories.map((cat) => ({ ...cat, channels: withChannelStates(cat.channels || [], s.channelStates, s.channelReadAt) }))
+      : s.categories,
+    channels: channels ? withChannelStates(channels, s.channelStates, s.channelReadAt) : s.channels,
+    members: members ?? s.members,
+    roles: roles ?? s.roles,
+    community: community ?? s.community,
+  })),
+
+  upsertCategory: (category) => set((s) => ({
+    categories: s.categories.some((c) => c.id === category.id)
+      ? s.categories.map((c) => (c.id === category.id ? { ...c, ...category } : c))
+      : [...s.categories, { ...category, channels: category.channels || [] }],
+  })),
+  removeCategory: (id) => set((s) => ({ categories: s.categories.filter((c) => c.id !== id) })),
+
+  upsertChannel: (channel) => set((s) => {
+    if (channel.categoryId) {
+      return {
+        categories: s.categories.map((cat) => {
+          if (cat.id !== channel.categoryId) {
+            // remove de outra categoria se estava lá (canal movido)
+            return { ...cat, channels: (cat.channels || []).filter((ch) => ch.id !== channel.id) };
+          }
+          const exists = (cat.channels || []).some((ch) => ch.id === channel.id);
+          return {
+            ...cat,
+            channels: exists
+              ? cat.channels.map((ch) => (ch.id === channel.id ? { ...ch, ...channel } : ch))
+              : [...(cat.channels || []), channel],
+          };
+        }),
+        channels: s.channels.filter((ch) => ch.id !== channel.id),
+      };
+    }
+    const exists = s.channels.some((ch) => ch.id === channel.id);
+    return {
+      categories: s.categories.map((cat) => ({ ...cat, channels: (cat.channels || []).filter((ch) => ch.id !== channel.id) })),
+      channels: exists ? s.channels.map((ch) => (ch.id === channel.id ? { ...ch, ...channel } : ch)) : [...s.channels, channel],
+    };
+  }),
+  removeChannel: (id) => set((s) => ({
+    categories: s.categories.map((cat) => ({ ...cat, channels: (cat.channels || []).filter((ch) => ch.id !== id) })),
+    channels: s.channels.filter((ch) => ch.id !== id),
+  })),
+
+  // Retorna todo canal, esteja ele dentro de uma categoria ou solto — usado
+  // pra achar "o primeiro canal" ou resolver um channelId em qualquer tela.
+  allChannels: () => {
+    const s = get();
+    return [...s.categories.flatMap((c) => c.channels || []), ...s.channels];
+  },
+
+  upsertRole: (role) => set((s) => ({
+    roles: s.roles.some((r) => r.id === role.id) ? s.roles.map((r) => (r.id === role.id ? role : r)) : [...s.roles, role],
+  })),
+  removeRole: (id) => set((s) => ({ roles: s.roles.filter((r) => r.id !== id) })),
+  setMembers: (members) => set({ members }),
+  // Item pedido: "categorias fiquem normal, mas os canais aparecerem
+  // numa barrinha onde fica o nome do canal, troque pra aparecer os
+  // canais ali quando trocar de categoria" — compartilhado entre
+  // ChannelSwitcher.jsx (quem abre/fecha) e ChatWindow.jsx (que
+  // mostra os canais no lugar do título quando uma categoria está
+  // aberta) — dois componentes irmãos, sem um ser pai do outro, então
+  // precisa viver no store global pra os dois lerem/escreverem nele.
+  openCategoryId: null,
+  setOpenCategoryId: (id) => set({ openCategoryId: id }),
+  // Busca rápida (Ctrl+K) — aberta pelo atalho ou pelo botão da barra do topo.
+  quickSwitcherOpen: false,
+  setQuickSwitcherOpen: (open) => set((s) => ({ quickSwitcherOpen: typeof open === 'function' ? open(s.quickSwitcherOpen) : !!open })),
+  // Gaveta de canais no celular (gesto de deslizar da borda esquerda).
+  openMobileChannelList: () => set({ mobileChannelListOpen: true, mobileSidebarOpen: true, mobileMembersOpen: false }),
+
+  setConversations: (conversations) => set({ conversations, conversationsLoaded: true }),
+  upsertConversation: (conversation) => set((s) => ({
+    conversations: s.conversations.some((c) => c.id === conversation.id)
+      ? s.conversations.map((c) => (c.id === conversation.id ? { ...c, ...conversation } : c))
+      : [...s.conversations, conversation],
+  })),
+  removeConversation: (id) => set((s) => ({ conversations: s.conversations.filter((c) => c.id !== id) })),
+  markConversationReadLocal: (conversationId) => set((s) => ({
+    conversations: s.conversations.map((c) => (c.id === conversationId ? { ...c, lastReadAt: new Date().toISOString() } : c)),
+  })),
+
+  setFriends: (friends) => set({ friends }),
+
+  setPresence: (userId, data) => set((s) => ({ presence: { ...s.presence, [userId]: data } })),
+
+  setActiveChannel: (id) => set({ activeChannelId: id, activeConversationId: null }),
+  setActiveConversation: (id) => set({ activeConversationId: id, activeChannelId: null }),
+
+  // Tema de categoria (facebook/clubpenguin/dark/light/amoled) e fundo
+  // personalizado (degradê) são mutuamente exclusivos — só um dos dois
+  // pode estar "ativo" por vez. Escolher um tema de categoria desliga o
+  // degradê automaticamente; ligar o degradê desliga o destaque do tema
+  // de categoria (o próprio setCustomBackground abaixo faz o mesmo na
+  // direção inversa), então nunca ficam os dois marcados ao mesmo tempo.
+  // Tema preto é o único da rede agora: qualquer tema salvo (claro,
+  // facebook, clubpenguin...) é ignorado. Temas personalizados virão depois.
+  setTheme: (_requestedTheme) => {
+    const theme = FORCED_THEME;
+    try {
+      localStorage.setItem('theme', theme);
+      localStorage.removeItem('customBackground');
+    } catch { /* localStorage indisponível — o tema ainda fica salvo na conta, ver setPreferredTheme */ }
+    set({ theme, customBackground: null });
+  },
+  setEmojiStyle: (emojiStyle) => {
+    try { localStorage.setItem('emojiStyle', emojiStyle); } catch { /* localStorage indisponível — ainda fica salvo na conta, ver setEmojiStyle no backend */ }
+    set({ emojiStyle });
+  },
+  // Item pedido: "em aparência adicione uma nova opção de layout, a
+  // opção normal e a opção de layout discord" — mesmo padrão de
+  // setEmojiStyle acima.
+  setLayoutStyle: (layoutStyle) => {
+    try { localStorage.setItem('layoutStyle', layoutStyle); } catch { /* localStorage indisponível — ainda fica salvo na conta, ver setLayoutStyle no backend */ }
+    set({ layoutStyle });
+  },
+  setChatZoom: (chatZoom) => {
+    try { localStorage.setItem('chatZoom', chatZoom); } catch { /* localStorage indisponível — ainda fica salvo na conta, ver setChatZoom no backend */ }
+    document.documentElement.style.setProperty('--chat-zoom', chatZoom);
+    set({ chatZoom });
+  },
+  // Item pedido: "adicione nas configurações do usuário ele poder
+  // aumentar ou diminuir o zoom quanto quiser" — dois caminhos bem
+  // diferentes dependendo de onde está rodando:
+  // - App desktop (Electron): usa o zoom NATIVO do Chromium
+  //   (window.electronAPI.setZoomFactor, exposto via preload.js — ver
+  //   ali o motivo de ser nativo e não CSS: não tem o problema de
+  //   "sobra"/corte que o CSS zoom causava nesse contexto específico,
+  //   já relatado e corrigido antes).
+  // - Navegador normal e Android: só CSS mesmo (--global-zoom, ver
+  //   global.css) — não existe outro jeito de controlar o zoom de um
+  //   site comum por fora do Electron.
+  setInterfaceZoom: (interfaceZoom) => {
+    try { localStorage.setItem('interfaceZoom', interfaceZoom); } catch { /* localStorage indisponível — ainda fica salvo na conta, ver setInterfaceZoom no backend */ }
+    if (window.electronAPI?.setZoomFactor) {
+      window.electronAPI.setZoomFactor(interfaceZoom);
+    } else {
+      document.documentElement.style.setProperty('--global-zoom', interfaceZoom);
+    }
+    set({ interfaceZoom });
+  },
+  setUserSettings: (settings) => {
+    syncDesktopSettings(settings);
+    set({ userSettings: settings });
+  },
+  // Item pedido: "salvamento automático... interface muda
+  // imediatamente → frontend envia PATCH → backend valida → banco
+  // atualiza → servidor retorna sucesso. Se ocorrer erro: mostrar
+  // aviso → reverter alteração local, se necessário. Nunca informar
+  // 'salvo' se o servidor rejeitou a alteração." — aplica a mudança
+  // na tela na hora (sem esperar o servidor responder — é isso que
+  // faz parecer instantâneo), mas se o servidor rejeitar, desfaz
+  // sozinho e avisa; nunca finge que salvou algo que na verdade não
+  // foi salvo.
+  updateUserSetting: async (key, value) => {
+    const prevSettings = get().userSettings;
+    set((s) => ({ userSettings: { ...s.userSettings, [key]: value } }));
+    try {
+      const { settings, rejected } = await trackSave(updateUserSettings({ [key]: value }));
+      set({ userSettings: settings });
+      syncDesktopSettings(settings);
+      if (rejected?.length) {
+        set({ userSettings: prevSettings ? { ...prevSettings, ...settings } : settings });
+        get().pushNotice('Não foi possível salvar essa configuração.');
+      }
+    } catch {
+      set({ userSettings: prevSettings });
+      get().pushNotice('Não foi possível salvar esta configuração. Verifique sua conexão e tente novamente.');
+    }
+  },
+  setUiLayout: (device, config) => set((s) => {
+    const uiLayoutAll = { ...s.uiLayoutAll, [device]: config };
+    return { uiLayoutAll, uiLayout: device === getDeviceKey() ? config : s.uiLayout };
+  }),
+  setUiLayoutAll: (all) => set({ uiLayoutAll: all, uiLayout: all[getDeviceKey()] }),
+  setCustomBackground: (bg) => {
+    try {
+      if (bg) localStorage.setItem('customBackground', JSON.stringify(bg));
+      else localStorage.removeItem('customBackground');
+    } catch { /* localStorage indisponível — segue só em memória pra essa sessão */ }
+    set({ customBackground: bg });
+  },
+  toggleSidebar: () => set((s) => ({ sidebarCollapsed: !s.sidebarCollapsed })),
+  toggleChannelSidebar: () => set((s) => ({ channelSidebarCollapsed: !s.channelSidebarCollapsed })),
+  // Item pedido: "a setinha deve iniciar sempre desativada/fechada
+  // quando o app for abrir" — não grava mais em localStorage de
+  // propósito, pra sempre recomeçar recolhido na próxima abertura (ver
+  // o valor inicial fixo em mainSidebarCollapsed acima); continua
+  // alternando normalmente enquanto o app está aberto.
+  toggleMainSidebar: () => set((s) => ({ mainSidebarCollapsed: !s.mainSidebarCollapsed })),
+  openMobileSidebar: () => set({ mobileSidebarOpen: true, mobileMembersOpen: false }),
+  closeMobileSidebar: () => set({ mobileSidebarOpen: false }),
+  // Item pedido: "no mobile quero que só tenha um botão com 3
+  // barrinha que mostra o canal com as categorias e as categorias
+  // como início, apps etc juntos em um só" — um botão só, controlando
+  // os dois de uma vez (mobileSidebarOpen já existe pra MainSidebar,
+  // mobileChannelListOpen é o da lista de canais) — mantidos como
+  // estados separados (cada um já tem seu próprio CSS/gaveta), só a
+  // ação de abrir/fechar é uma coisa só agora.
+  toggleMobileChannelList: () => set((s) => {
+    const next = !s.mobileChannelListOpen;
+    return { mobileChannelListOpen: next, mobileSidebarOpen: next };
+  }),
+  closeMobileChannelList: () => set({ mobileChannelListOpen: false, mobileSidebarOpen: false }),
+  toggleMobileSidebar: () => set((s) => ({ mobileSidebarOpen: !s.mobileSidebarOpen, mobileMembersOpen: false })),
+  openMobileMembers: () => set({ mobileMembersOpen: true, mobileSidebarOpen: false }),
+  closeMobileMembers: () => set({ mobileMembersOpen: false }),
+  toggleMobileMembers: () => set((s) => ({ mobileMembersOpen: !s.mobileMembersOpen, mobileSidebarOpen: false })),
+
+  pushNotice: (message, action) => set((s) => ({ notices: [...s.notices, { id: `${Date.now()}-${Math.random()}`, message, action }] })),
+  dismissNotice: (id) => set((s) => ({ notices: s.notices.filter((n) => n.id !== id) })),
+  // Aviso "fixo" com barra de progresso (usado pelo download do .apk no
+  // Android — ver utils/nativeUpdateCheck.js). Mantém sempre um único
+  // aviso com id fixo, que o NoticeToast NÃO fecha sozinho enquanto tem
+  // `progress`. progress = { percent } (determinado) ou { indeterminate:
+  // true } (sem tamanho conhecido/sem progresso ainda — barra animada,
+  // nunca um 0% congelado). clearDownloadProgress remove quando termina.
+  setDownloadProgress: (progress, message) => set((s) => {
+    const id = 'app-download-progress';
+    const rest = s.notices.filter((n) => n.id !== id);
+    return { notices: [...rest, { id, message, progress, kind: 'info' }] };
+  }),
+  clearDownloadProgress: () => set((s) => ({ notices: s.notices.filter((n) => n.id !== 'app-download-progress') })),
+
+  // Item pedido: "quando abrir o perfil, feche a barra lateral do
+  // usuário também" — mesmo padrão já usado em openMobileMembers
+  // acima, fecha qualquer gaveta mobile aberta (categorias e lista de
+  // membros) ao abrir o perfil, evitando as duas coisas sobrepostas.
+  // Telas cheias (perfil, configurações) fecham qualquer menu flutuante
+  // aberto antes de aparecer — sem menu sobrando por cima ou por baixo.
+  openProfile: (userId) => { closeAllPopovers(); set({ viewingProfileUserId: userId, profileAutoOpenRoleMenu: false, mobileSidebarOpen: false, mobileMembersOpen: false, settingsModalOpen: false, miniProfileUserId: null, miniProfileAnchorRect: null }); },
+  // Item pedido: "ao clicar no nome de um usuário e abrir o mini
+  // perfil, o segundo clique no seu nome fecha o mini perfil" —
+  // clicar de novo no MESMO usuário (o card já está aberto pra ele)
+  // agora fecha em vez de reabrir/reposicionar; clicar num usuário
+  // DIFERENTE enquanto um já está aberto troca pra ele normalmente.
+  // "Um menu por vez": o miniperfil entra no mesmo coordenador dos outros
+  // menus flutuantes (clique direito, emojis, status...) — abrir qualquer
+  // um deles fecha o miniperfil, e abrir o miniperfil fecha o que estava aberto.
+  openMiniProfile: (userId, anchorRect, side) => {
+    // Clique no mesmo item que abriu o card: o mousedown de "clique fora" já
+    // fechou — este click completa o toggle (fica fechado) em vez de reabrir.
+    const lc = lastOutsideClose;
+    lastOutsideClose = null;
+    if (!get().miniProfileUserId && lc && lc.userId === userId && Date.now() - lc.at < 600 && sameAnchor(lc.rect, anchorRect || null)) return;
+    const closing = get().miniProfileUserId === userId;
+    if (closing) closePopover(closeMiniProfileFromCoordinator);
+    else openPopover(closeMiniProfileFromCoordinator);
+    set(closing
+      ? { miniProfileUserId: null, miniProfileAnchorRect: null, miniProfileSide: null }
+      : { miniProfileUserId: userId, miniProfileAnchorRect: anchorRect || null, miniProfileSide: side || null });
+  },
+  setDisabledSystems: (disabledSystems) => set({ disabledSystems }),
+  closeMiniProfile: (reason) => {
+    const st = get();
+    lastOutsideClose = reason === 'outside' && st.miniProfileUserId ? { userId: st.miniProfileUserId, rect: st.miniProfileAnchorRect, at: Date.now() } : null;
+    // Só vale pro click DESTE mesmo gesto: o onClick do React (na raiz do
+    // app) roda antes deste listener no window, que então esquece o registro
+    // — o próximo clique no avatar abre normalmente.
+    if (lastOutsideClose && typeof window !== 'undefined') {
+      const rec = lastOutsideClose;
+      window.addEventListener('click', () => { if (lastOutsideClose === rec) lastOutsideClose = null; }, { once: true });
+    }
+    closePopover(closeMiniProfileFromCoordinator); set({ miniProfileUserId: null, miniProfileAnchorRect: null, miniProfileSide: null });
+  },
+  // Mesma coisa que openProfile, mas já abre direto em "adicionar cargo".
+  openProfileAddRole: (userId) => set({ viewingProfileUserId: userId, profileAutoOpenRoleMenu: true }),
+  clearProfileAutoOpenRoleMenu: () => set({ profileAutoOpenRoleMenu: false }),
+  closeProfile: () => set({ viewingProfileUserId: null, profileAutoOpenRoleMenu: false }),
+  openSettings: () => { closeAllPopovers(); set({ settingsModalOpen: true, miniProfileUserId: null, miniProfileAnchorRect: null }); },
+  closeSettings: () => set({ settingsModalOpen: false }),
+  // App desktop com navegador: o link abre numa aba do navegador do Project
+  // Club (ao lado do chat), sem sair do app. Senão, confirmação como antes.
+  openLinkConfirm: (url) => {
+    const b = typeof window !== 'undefined' ? window.electronAPI?.browser : null;
+    // App do celular com o navegador nativo (PcBrowserPlugin) também abre aqui.
+    const cap = typeof window !== 'undefined' ? window.Capacitor : null;
+    const androidBrowser = !!(cap?.getPlatform?.() === 'android' && cap?.isPluginAvailable?.('PcBrowser'));
+    if (isFeatureEnabled('browser') && ((b && b.version >= 1) || androidBrowser) && /^https?:\/\//i.test(String(url)) && get().userSettings?.openLinksInApp !== false) {
+      import('../browser/browserStore').then(({ openInBrowser }) => { if (!openInBrowser(url)) set({ pendingLinkUrl: url }); }).catch(() => set({ pendingLinkUrl: url }));
+      return;
+    }
+    set({ pendingLinkUrl: url });
+  },
+  // Item pedido: "quando mandarem gif, imagem/vídeo, quando abrir ele
+  // e clicar em baixar, faça baixar já de vez" — mimeType adicionado
+  // (opcional — as chamadas de GIF colado continuam funcionando sem
+  // passar nada, já que nunca é vídeo) pra ImageLightbox.jsx saber se
+  // deve mostrar um <video> em vez de <img>, coisa que ele nunca fazia.
+  // Item pedido: "se alguém enviar vários arquivo de imagem, ao
+  // clicar em uma das imagens vai abrir com as opções de baixar
+  // etc, e vai ter uma setinha de ir e voltar" — images é a lista
+  // completa de imagens da mesma mensagem (pra navegar entre elas),
+  // index é qual delas foi clicada primeiro.
+  openLightbox: (images, index = 0) => { closeAllPopovers(); set({ lightboxImage: { images, index } }); },
+  closeLightbox: () => set({ lightboxImage: null }),
+  setLightboxIndex: (index) => set((s) => (s.lightboxImage ? { lightboxImage: { ...s.lightboxImage, index } } : {})),
+  closeLinkConfirm: () => set({ pendingLinkUrl: null }),
+  setUsableEmojis: (emojis) => set({ usableEmojis: emojis }),
+  setServerStickers: (stickers) => set({ serverStickers: stickers }),
+  setEmojiCollections: (collections) => set({ emojiCollections: collections }),
+  setStickerCollections: (collections) => set({ stickerCollections: collections }),
+  setMyClan: ({ clan, myRole, myCapabilities, pendingRequests }) => set({
+    myClan: clan, myClanRole: myRole || null, myClanCapabilities: myCapabilities || {},
+    myClanPendingRequests: pendingRequests !== undefined ? pendingRequests : null,
+  }),
+  setUsableStickers: (stickers) => set({ usableStickers: stickers }),
+  setUsableSounds: (sounds) => set({ usableSounds: sounds }),
+  setFavoriteGifs: (gifs) => set({ favoriteGifs: gifs }),
+
+  setClubs: (clubs) => set({ clubs }),
+  upsertClub: (club) => set((s) => ({
+    clubs: s.clubs.some((c) => c.id === club.id)
+      ? s.clubs.map((c) => (c.id === club.id ? club : c))
+      : [club, ...s.clubs],
+  })),
+  removeClub: (id) => set((s) => ({ clubs: s.clubs.filter((c) => c.id !== id) })),
+  upsertClubCategory: (communityId, category) => set((s) => ({
+    clubs: s.clubs.map((c) => {
+      if (c.id !== communityId) return c;
+      const exists = c.categories.some((cat) => cat.id === category.id);
+      return { ...c, categories: exists ? c.categories.map((cat) => (cat.id === category.id ? category : cat)) : [...c.categories, category] };
+    }),
+  })),
+  removeClubCategory: (communityId, categoryId) => set((s) => ({
+    clubs: s.clubs.map((c) => (c.id === communityId ? { ...c, categories: c.categories.filter((cat) => cat.id !== categoryId) } : c)),
+  })),
+
+  // Ups por usuário (item pedido: "atualizados em tempo real") — cache
+  // pequeno alimentado pelo evento user:ups-update (ver SocketContext.jsx
+  // e services/ups.js no backend). UserProfileModal/MiniProfileCard leem
+  // daqui como override do que veio no fetch inicial, se já tiver algo
+  // mais novo aqui.
+  upsByUserId: {},
+  setUserUps: (userId, totalUps) => set((s) => ({ upsByUserId: { ...s.upsByUserId, [userId]: totalUps } })),
+
+  addFavoriteGifLocal: (gif) => set((s) => (
+    s.favoriteGifs.some((g) => g.gifId === gif.gifId) ? {} : { favoriteGifs: [gif, ...s.favoriteGifs] }
+  )),
+  removeFavoriteGifLocal: (gifId) => set((s) => ({ favoriteGifs: s.favoriteGifs.filter((g) => g.gifId !== gifId) })),
+
+  roomMessages: (roomKey) => get().messagesByRoom[roomKey] || [],
+  setRoomMessages: (roomKey, messages) => set((s) => ({
+    messagesByRoom: capRooms({ ...s.messagesByRoom, [roomKey]: messages }, roomKey),
+  })),
+  prependRoomMessages: (roomKey, olderMessages) => set((s) => {
+    const existing = s.messagesByRoom[roomKey] || [];
+    const existingIds = new Set(existing.map((m) => m.id));
+    const fresh = olderMessages.filter((m) => !existingIds.has(m.id));
+    return { messagesByRoom: capRooms({ ...s.messagesByRoom, [roomKey]: [...fresh, ...existing] }, roomKey) };
+  }),
+  addMessage: (roomKey, message) => set((s) => {
+    // Sala que nunca foi aberta (o socket recebe TODAS as DMs): não
+    // guarda — o ChatWindow zera e recarrega a sala ao abrir de qualquer
+    // jeito, então isso só acumulava memória à toa.
+    if (!s.messagesByRoom[roomKey]) return {};
+    touchRoom(roomKey);
+    const existing = s.messagesByRoom[roomKey] || [];
+    if (existing.some((m) => m.id === message.id)) {
+      // A real já entrou (ex.: pela busca de "catch-up") — só tira a
+      // otimista com o mesmo nonce, se ainda sobrou, pra não duplicar.
+      if (!message.nonce) return {};
+      const withoutTemp = existing.filter((m) => !(m.nonce === message.nonce && String(m.id).startsWith('temp-')));
+      return withoutTemp.length === existing.length ? {} : { messagesByRoom: { ...s.messagesByRoom, [roomKey]: withoutTemp } };
+    }
+    // Eco da própria mensagem (o servidor emite 'message:new' antes de
+    // responder o POST): troca a otimista NO LUGAR, pelo nonce — sem
+    // duplicar por um instante nem pular de posição.
+    if (message.nonce) {
+      const idx = existing.findIndex((m) => m.nonce === message.nonce && String(m.id).startsWith('temp-'));
+      if (idx >= 0) {
+        const next = existing.slice();
+        next[idx] = { ...message, _animateIn: existing[idx]._animateIn };
+        return { messagesByRoom: { ...s.messagesByRoom, [roomKey]: next } };
+      }
+    }
+    // Item pedido: "melhore a fluidez do chat, deixando mais suave e
+    // com detalhes de animação" — só mensagens que chegam por aqui
+    // (envio próprio otimista ou 'message:new' via socket) são
+    // "novas" de verdade e devem animar de entrada; as ~50 carregadas
+    // de uma vez ao abrir um canal (setRoomMessages/prependRoomMessages,
+    // histórico) não passam por addMessage, então nunca ganham essa
+    // marca — sem isso, TODAS as mensagens (histórico inteiro incluído)
+    // animavam juntas toda vez que um chat abria, em vez de só a
+    // mensagem que realmente acabou de chegar.
+    return { messagesByRoom: { ...s.messagesByRoom, [roomKey]: [...existing, { ...message, _animateIn: true }] } };
+  }),
+  // Aplica dados públicos atualizados de um usuário (tag, avatar, nome...)
+  // em todo lugar que já tem uma cópia em cache: lista de membros da
+  // comunidade e autor de toda mensagem já carregada.
+  patchUserEverywhere: (user) => set((s) => ({
+    members: s.members.map((m) => (m.user.id === user.id ? { ...m, user: { ...m.user, ...user } } : m)),
+    messagesByRoom: Object.fromEntries(Object.entries(s.messagesByRoom).map(([roomKey, msgs]) => [
+      roomKey,
+      msgs.map((m) => (m.authorId === user.id ? { ...m, author: { ...m.author, ...user } } : m)),
+    ])),
+  })),
+  resolveOptimisticMessage: (roomKey, tempId, realMessage) => set((s) => {
+    const existing = s.messagesByRoom[roomKey] || [];
+    const alreadyHasReal = existing.some((m) => m.id === realMessage.id);
+    const tempIdx = existing.findIndex((m) => m.id === tempId);
+    // O eco do socket já trocou a otimista pela real — nada a fazer
+    // (evita um render à toa).
+    if (tempIdx < 0 && alreadyHasReal) return {};
+    let next;
+    if (tempIdx >= 0 && !alreadyHasReal) {
+      // Troca no mesmo lugar (antes ia pro fim da lista e "pulava").
+      next = existing.slice();
+      next[tempIdx] = { ...realMessage, nonce: existing[tempIdx].nonce, _animateIn: existing[tempIdx]._animateIn };
+    } else {
+      next = existing.filter((m) => m.id !== tempId);
+      if (!alreadyHasReal) next.push(realMessage);
+    }
+    return { messagesByRoom: { ...s.messagesByRoom, [roomKey]: next } };
+  }),
+  failOptimisticMessage: (roomKey, tempId) => set((s) => ({
+    messagesByRoom: {
+      ...s.messagesByRoom,
+      [roomKey]: (s.messagesByRoom[roomKey] || []).map((m) => (
+        m.id === tempId ? { ...m, pending: false, failed: true } : m
+      )),
+    },
+  })),
+  // Muda só alguns campos de uma mensagem (estado de envio, progresso do
+  // upload…) sem trocar o resto. Sem a sala/mensagem, não faz nada.
+  patchMessage: (roomKey, id, patch) => set((s) => {
+    const list = s.messagesByRoom[roomKey];
+    if (!list) return {};
+    const idx = list.findIndex((m) => m.id === id);
+    if (idx < 0) return {};
+    const next = list.slice();
+    next[idx] = { ...list[idx], ...patch };
+    return { messagesByRoom: { ...s.messagesByRoom, [roomKey]: next } };
+  }),
+  updateMessage: (roomKey, message) => set((s) => ({
+    messagesByRoom: {
+      ...s.messagesByRoom,
+      [roomKey]: (s.messagesByRoom[roomKey] || []).map((m) => (m.id === message.id ? mergeThreadSummary(m, message) : m)),
+    },
+  })),
+  removeMessage: (roomKey, id) => set((s) => ({
+    messagesByRoom: {
+      ...s.messagesByRoom,
+      [roomKey]: (s.messagesByRoom[roomKey] || []).filter((m) => m.id !== id),
+    },
+  })),
+
+  setTypingUser: (roomKey, userId, isTyping) => set((s) => {
+    const current = new Set(s.typing[roomKey] || []);
+    if (isTyping) current.add(userId); else current.delete(userId);
+    return { typing: { ...s.typing, [roomKey]: Array.from(current) } };
+  }),
+
+  markChannelReadLocal: (channelId) => set((s) => {
+    const patchChannel = (ch) => (ch.id === channelId ? { ...ch, unreadMentions: 0, unreadCount: 0 } : ch);
+    return {
+      channelReadAt: { ...s.channelReadAt, [channelId]: new Date().toISOString() },
+      channels: s.channels.map(patchChannel),
+      categories: s.categories.map((cat) => ({ ...cat, channels: (cat.channels || []).map(patchChannel) })),
+    };
+  }),
+
+  bumpChannelMention: (channelId) => set((s) => {
+    const patchChannel = (ch) => (ch.id === channelId ? { ...ch, unreadMentions: (ch.unreadMentions || 0) + 1 } : ch);
+    return {
+      channels: s.channels.map(patchChannel),
+      categories: s.categories.map((cat) => ({ ...cat, channels: (cat.channels || []).map(patchChannel) })),
+    };
+  }),
+
+  // +1 no contador de não lidas de um canal fechado (evento 'channel:activity').
+  bumpChannelUnread: (channelId, createdAt) => set((s) => {
+    let hit = false;
+    const patchChannel = (ch) => {
+      if (ch.id !== channelId) return ch;
+      hit = true;
+      return { ...ch, unreadCount: (ch.unreadCount || 0) + 1, ...(createdAt ? { lastMessageAt: createdAt } : {}) };
+    };
+    const channels = s.channels.map(patchChannel);
+    const categories = s.categories.map((cat) => ({ ...cat, channels: (cat.channels || []).map(patchChannel) }));
+    return hit ? { channels, categories } : {};
+  }),
+
+  // Mensagem nova num canal fechado com "Todas as mensagens" (evento
+  // 'channel:message'): marca a atividade pra ele aparecer como não lido.
+  bumpChannelActivity: ({ channelId, authorId, createdAt, messageId }) => set((s) => {
+    const lastMessage = { id: messageId, channelId, authorId, createdAt };
+    const patchChannel = (ch) => (ch.id === channelId ? { ...ch, lastMessage, lastMessageAt: createdAt } : ch);
+    return {
+      channels: s.channels.map(patchChannel),
+      categories: s.categories.map((cat) => ({ ...cat, channels: (cat.channels || []).map(patchChannel) })),
+    };
+  }),
+
+  bumpRoomActivity: (message) => set((s) => {
+    if (message.conversationId) {
+      return {
+        conversations: s.conversations.map((c) => (
+          c.id === message.conversationId ? { ...c, lastMessage: message } : c
+        )),
+      };
+    }
+    if (message.channelId) {
+      const patchChannel = (ch) => (ch.id === message.channelId ? { ...ch, lastMessage: message } : ch);
+      return {
+        channels: s.channels.map(patchChannel),
+        categories: s.categories.map((cat) => ({ ...cat, channels: (cat.channels || []).map(patchChannel) })),
+      };
+    }
+    return {};
+  }),
+}));
+
+// Memória do chat: só as MAX_CACHED_ROOMS salas usadas mais recentemente
+// ficam com mensagens na memória (antes, cada canal/DM visitado ficava
+// pra sempre). Abrir uma sala de novo recarrega do servidor, como já era.
+const MAX_CACHED_ROOMS = 8;
+const roomLru = [];
+function touchRoom(roomKey) {
+  const i = roomLru.indexOf(roomKey);
+  if (i >= 0) roomLru.splice(i, 1);
+  roomLru.push(roomKey);
+}
+function capRooms(byRoom, currentKey) {
+  touchRoom(currentKey);
+  const keys = Object.keys(byRoom);
+  if (keys.length <= MAX_CACHED_ROOMS) return byRoom;
+  const keep = new Set(roomLru.slice(-MAX_CACHED_ROOMS));
+  keep.add(currentKey);
+  const out = {};
+  keys.forEach((k) => { if (keep.has(k)) out[k] = byRoom[k]; });
+  for (let i = roomLru.length - 1; i >= 0; i -= 1) if (!out[roomLru[i]] && !keep.has(roomLru[i])) roomLru.splice(i, 1);
+  return out;
+}
+
+// Mescla o estado de leitura do servidor nos canais. Uma menção já lida
+// localmente (channelReadAt mais novo que a última menção) não volta a
+// acender só porque o servidor ainda não gravou a leitura.
+export function withChannelStates(list, states, localReadAt = {}) {
+  if (!list || !states || !Object.keys(states).length) return list;
+  return list.map((ch) => {
+    const st = states[ch.id];
+    if (!st) return ch;
+    const local = localReadAt[ch.id];
+    const readLocally = local && (!st.lastMentionAt || new Date(local) >= new Date(st.lastMentionAt));
+    const unreadMentions = readLocally ? 0 : (st.unreadMentions || 0);
+    // Contador de não lidas: lido aqui depois da última mensagem = zero.
+    const readAllLocally = local && (!st.lastMessageAt || new Date(local) >= new Date(st.lastMessageAt));
+    const unreadCount = readAllLocally ? 0 : Math.max(st.unreadCount || 0, unreadMentions);
+    if (ch.myReadAt === st.myReadAt && ch.lastMessageAt === st.lastMessageAt
+      && ch.unreadMentions === unreadMentions && ch.lastMentionAt === st.lastMentionAt && ch.unreadCount === unreadCount) return ch;
+    return { ...ch, myReadAt: st.myReadAt, lastMessageAt: st.lastMessageAt, lastMentionAt: st.lastMentionAt, unreadMentions, unreadCount };
+  });
+}
+
+export function roomKeyFor({ conversationId, channelId, threadId }) {
+  // Resposta de tópico vive na "sala" do tópico (painel à direita), nunca
+  // na lista principal do canal.
+  if (threadId) return `thread:${threadId}`;
+  return conversationId ? `conversation:${conversationId}` : `channel:${channelId}`;
+}
+
+// Item pedido: "só notifica se marcar/responder uma pessoa" — helper
+// reaproveitável pra pegar os cargos do usuário atual (usado por
+// isChannelUnread abaixo pra saber se uma menção de CARGO conta pra
+// mim), em vez de repetir a mesma busca em cada um dos vários lugares
+// que precisam disso. Recebe myUserId de fora (do AuthContext) — o
+// próprio store não tem acesso a isso, só à lista de membros.
+export function useMyRoleIds(myUserId) {
+  return useStore((s) => {
+    const me = s.members.find((m) => m.user.id === myUserId);
+    return me?.roleIds || [];
+  });
+}
+
+// Conversa na caixa normal (fora de Solicitações/Spam/Ignoradas).
+export const isMainInbox = (c) => !c?.inbox || c.inbox === 'main';
+
+export function isConversationUnread(conversation, myUserId) {
+  // Solicitações e spam não acendem "não lida" (igual ao Discord).
+  if (!isMainInbox(conversation)) return false;
+  const last = conversation.lastMessage;
+  if (!last || last.authorId === myUserId) return false;
+  if (!conversation.lastReadAt) return true;
+  return new Date(last.createdAt) > new Date(conversation.lastReadAt);
+}
+
+// Item pedido: "toda vez que uma pessoa manda uma mensagem em algum
+// canal ele notifica todo mundo, está errado — se mandar uma mensagem
+// normal não vai notificar ninguém, só vai notificar se ele marcar
+// [mencionar]/responder uma pessoa, e só aquela pessoa" — antes,
+// QUALQUER mensagem nova marcava o canal como "não lido" pra todo
+// mundo que estivesse nele, sem checar menção nenhuma (só comparava a
+// data da última mensagem com a data da última leitura). Agora só
+// conta como "não lido" quando a última mensagem menciona diretamente
+// esta pessoa (@nome, @cargo dela, @todos ou @aqui) ou é uma resposta
+// direta a uma mensagem dela — mensagem normal, sem nenhum desses,
+// não acende nada pra mais ninguém.
+//
+// Notificações por canal: com "Todas as mensagens" (e sem silêncio),
+// qualquer mensagem nova de outra pessoa acende o canal, igual ao Discord.
+export function isChannelUnread(channel, channelReadAtMap, myUserId, myRoleIds = []) {
+  // Menções pendentes vindas do servidor (sobrevive a recarregar a página)
+  // ou contadas ao vivo pelo 'mention:new'.
+  if (channel.unreadMentions > 0) return true;
+  const readAt = channelReadAtMap[channel.id] ?? channel.myReadAt;
+  const prefs = channelNotifyPrefs(channel);
+  if (prefs.level === 'ALL' && !prefs.muted) {
+    const last = channel.lastMessage;
+    const lastAt = last?.createdAt || channel.lastMessageAt;
+    if (lastAt && !(last && last.authorId === myUserId && last.createdAt === lastAt)) {
+      if (!readAt || new Date(lastAt) > new Date(readAt)) return true;
+    }
+  }
+  const last = channel.lastMessage;
+  if (!last || last.authorId === myUserId) return false;
+  const repliedToMe = last.replyTo?.authorId === myUserId || last.replyTo?.author?.id === myUserId;
+  if (!messageMentionsUser(last, myUserId, myRoleIds) && !repliedToMe) return false;
+  if (!readAt) return true;
+  return new Date(last.createdAt) > new Date(readAt);
+}
+
+// Nível/silêncio efetivos de um canal (canal → categoria → global).
+export function channelNotifyPrefs(channel, state = useStore.getState(), now = Date.now()) {
+  const overrides = state.notificationOverrides || {};
+  return resolveChannelPrefs({
+    globalLevel: state.userSettings?.extraPrefs?.notifyLevel,
+    channelOverride: channel?.id ? overrides[channelKey(channel.id)] : null,
+    categoryOverride: channel?.categoryId ? overrides[categoryKey(channel.categoryId)] : null,
+    now,
+  });
+}
+
+export function messageMentionsUser(message, myUserId, myRoleIds = []) {
+  if (!message?.mentions?.length) return false;
+  return message.mentions.some((m) => {
+    if (m.targetType === 'EVERYONE' || m.targetType === 'HERE') return true;
+    if (m.targetType === 'USER') return m.targetId === myUserId;
+    if (m.targetType === 'ROLE') return myRoleIds.includes(m.targetId);
+    return false;
+  });
+}

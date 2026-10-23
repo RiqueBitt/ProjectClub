@@ -1,0 +1,259 @@
+const nodemailer = require('nodemailer');
+const env = require('../config/env');
+
+let transporter = null;
+
+// Unfilled placeholder from the .env template — treated the same as "not
+// configured" so a deploy that forgot to fill in real SMTP settings falls
+// back to console-logging emails instead of crashing every register/login
+// flow with `getaddrinfo ENOTFOUND smtp.seuservico.com`.
+const PLACEHOLDER_HOSTS = new Set(['smtp.seuservico.com']);
+
+function getTransporter() {
+  if (transporter) return transporter;
+
+  if (!env.SMTP_HOST || !env.SMTP_USER || PLACEHOLDER_HOSTS.has(env.SMTP_HOST)) {
+    // No (real) SMTP configured (e.g. local dev, or a deploy that hasn't
+    // filled in SMTP_HOST/SMTP_USER yet). Fall back to a transport that just
+    // logs the email to the console so the flow is still testable end-to-end
+    // instead of throwing and taking down register/login/password-reset.
+    transporter = {
+      sendMail: async (options) => {
+        console.log('\n[email:dev-fallback] SMTP não configurado (ou ainda no placeholder) — imprimindo o e-mail em vez de enviá-lo.');
+        console.log(`  To:      ${options.to}`);
+        console.log(`  Subject: ${options.subject}`);
+        console.log(`  Body:\n${options.text || options.html}\n`);
+        return { messageId: 'dev-fallback' };
+      },
+    };
+    return transporter;
+  }
+
+  transporter = nodemailer.createTransport({
+    host: env.SMTP_HOST,
+    port: env.SMTP_PORT,
+    secure: env.SMTP_PORT === 465,
+    auth: { user: env.SMTP_USER, pass: env.SMTP_PASS },
+  });
+  return transporter;
+}
+
+async function sendMail({ to, subject, text, html }) {
+  const t = getTransporter();
+  try {
+    return await t.sendMail({ from: env.SMTP_FROM, to, subject, text, html });
+  } catch (err) {
+    // Give a concrete, actionable hint in the server log for the two most
+    // common SMTP misconfigurations, instead of just the raw driver error.
+    if (err.code === 'EAUTH') {
+      console.error('[email] Falha de autenticação SMTP. Se estiver usando Gmail: a senha normal da conta NÃO funciona com SMTP — gere uma "senha de app" em https://myaccount.google.com/apppasswords (exige verificação em duas etapas ativada) e use ela em SMTP_PASS.');
+    } else if (err.code === 'ENOTFOUND' || err.code === 'EDNS' || err.code === 'ECONNREFUSED' || err.code === 'ETIMEDOUT') {
+      console.error(`[email] Não foi possível conectar ao host SMTP "${env.SMTP_HOST}:${env.SMTP_PORT}". Confira SMTP_HOST/SMTP_PORT no .env.`);
+    }
+    throw err;
+  }
+}
+
+// Shared branded wrapper for every outgoing e-mail — table-based layout
+// with inline styles on purpose (not a <style> block, not flexbox/grid):
+// email clients (Outlook especially) strip or ignore modern CSS, so this is
+// the boring-but-actually-renders-everywhere approach. Visually mirrors the
+// app's brand color (--brand: #1877F2) on a plain white card since a dark
+// background is unreliable across clients (Outlook/Gmail dark-mode both
+// have a habit of inverting or clipping dark HTML emails unpredictably).
+// SECURITY: todo valor vindo de usuário (nome de exibição, motivo de
+// recusa escrito pela staff, URLs montadas com dados externos...) passa
+// por aqui antes de entrar no HTML do e-mail — sem isso, um displayName
+// tipo `<a href="https://phishing">clique</a>` virava HTML de verdade
+// dentro de um e-mail com a marca do Project Club.
+function escapeHtml(value) {
+  return String(value ?? '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
+function emailLayout(bodyHtml) {
+  return `<!DOCTYPE html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  </head>
+  <body style="margin:0; padding:0; background-color:#e3e5e8; font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;">
+    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background-color:#e3e5e8; padding:32px 16px;">
+      <tr>
+        <td align="center">
+          <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:480px; background-color:#ffffff; border-radius:12px; overflow:hidden; box-shadow:0 2px 10px rgba(0,0,0,0.08);">
+            <tr>
+              <td style="background:linear-gradient(135deg,#1877F2,#145DBF); padding:32px; text-align:center;">
+                <table role="presentation" cellpadding="0" cellspacing="0" style="margin:0 auto 10px;">
+                  <tr>
+                    <td style="width:44px; height:44px; background-color:#ffffff; border-radius:12px; text-align:center; vertical-align:middle; font-size:20px; font-weight:800; color:#1877F2;">PC</td>
+                  </tr>
+                </table>
+                <span style="font-size:20px; font-weight:800; color:#ffffff; letter-spacing:0.3px;">Project Club</span>
+              </td>
+            </tr>
+            <tr>
+              <td style="padding:36px 32px;">
+                ${bodyHtml}
+              </td>
+            </tr>
+            <tr>
+              <td style="padding:18px 32px; background-color:#f7f7f8; text-align:center;">
+                <span style="font-size:12px; color:#8a8f98; line-height:1.5;">
+                  Você recebeu este e-mail porque uma conta do Project Club usa este endereço.<br />Se não foi você, pode ignorar com segurança.
+                </span>
+              </td>
+            </tr>
+          </table>
+        </td>
+      </tr>
+    </table>
+  </body>
+</html>`;
+}
+
+async function sendVerificationCode(to, code, { expiresIn = '15 minutos' } = {}) {
+  const bodyHtml = `
+    <p style="margin:0 0 8px; font-size:15px; color:#2e3338;">Olá! 👋</p>
+    <p style="margin:0 0 24px; font-size:15px; color:#2e3338; line-height:1.5;">Use o código abaixo para confirmar seu e-mail e concluir seu cadastro no Project Club:</p>
+    <div style="text-align:center; margin:0 0 24px;">
+      <span style="display:inline-block; font-family:'Courier New',monospace; font-size:32px; font-weight:700; letter-spacing:8px; color:#1877F2; background-color:#fff4ec; padding:16px 20px; border-radius:8px;">${escapeHtml(code)}</span>
+    </div>
+    <p style="margin:0; font-size:13px; color:#8a8f98; line-height:1.5;">Este código expira em ${escapeHtml(expiresIn)}. Se você não solicitou isso, pode ignorar este e-mail com segurança — sua conta continua protegida.</p>
+  `;
+  return sendMail({
+    to,
+    subject: 'Confirme seu e-mail — Project Club',
+    text: `Seu código de verificação é: ${code}
+
+Este código expira em ${expiresIn}.
+
+Se você não solicitou isso, ignore este e-mail.`,
+    html: emailLayout(bodyHtml),
+  });
+}
+
+async function sendPasswordReset(to, resetUrl) {
+  const safeUrl = escapeHtml(resetUrl);
+  const bodyHtml = `
+    <p style="margin:0 0 8px; font-size:15px; color:#2e3338;">Olá!</p>
+    <p style="margin:0 0 24px; font-size:15px; color:#2e3338; line-height:1.5;">Recebemos um pedido para redefinir a senha da sua conta Project Club. Clique no botão abaixo para escolher uma nova senha:</p>
+    <div style="text-align:center; margin:0 0 24px;">
+      <a href="${safeUrl}" style="display:inline-block; background:linear-gradient(135deg,#1877F2,#145DBF); color:#ffffff; text-decoration:none; font-weight:700; font-size:15px; padding:14px 36px; border-radius:8px;">Redefinir senha</a>
+    </div>
+    <p style="margin:0 0 6px; font-size:13px; color:#8a8f98;">Ou copie e cole este link no navegador:</p>
+    <p style="margin:0 0 24px; font-size:13px; word-break:break-all;"><a href="${safeUrl}" style="color:#1877F2;">${safeUrl}</a></p>
+    <p style="margin:0; font-size:13px; color:#8a8f98; line-height:1.5;">Este link expira em 1 hora. Se você não solicitou isso, ignore este e-mail — sua senha continua a mesma.</p>
+  `;
+  return sendMail({
+    to,
+    subject: 'Redefinição de senha — Project Club',
+    text: `Clique no link para redefinir sua senha: ${resetUrl}
+
+Este link expira em 1 hora. Se você não solicitou isso, ignore este e-mail.`,
+    html: emailLayout(bodyHtml),
+  });
+}
+
+async function sendApplicationApproved(to, loginUrl) {
+  const safeUrl = escapeHtml(loginUrl);
+  const bodyHtml = `
+    <p style="margin:0 0 8px; font-size:15px; color:#2e3338;">Boas notícias! 🎉</p>
+    <p style="margin:0 0 24px; font-size:15px; color:#2e3338; line-height:1.5;">Sua inscrição no Project Club foi <b>aprovada</b>! Sua conta já está ativa — clique no botão abaixo pra fazer login com o e-mail e a senha que você cadastrou no formulário. No primeiro acesso vamos pedir o código de verificação que enviamos para este e-mail (dá pra pedir um novo na própria tela).</p>
+    <div style="text-align:center; margin:0 0 24px;">
+      <a href="${safeUrl}" style="display:inline-block; background:linear-gradient(135deg,#1877F2,#145DBF); color:#ffffff; text-decoration:none; font-weight:700; font-size:15px; padding:14px 36px; border-radius:8px;">Entrar no Project Club</a>
+    </div>
+    <p style="margin:0; font-size:13px; color:#8a8f98; line-height:1.5;">Até já!</p>
+  `;
+  return sendMail({
+    to,
+    subject: 'Sua inscrição foi aprovada — Project Club',
+    text: `Sua inscrição no Project Club foi aprovada! Sua conta já está ativa. Entre em: ${loginUrl}`,
+    html: emailLayout(bodyHtml),
+  });
+}
+
+async function sendApplicationRejected(to, reason) {
+  const bodyHtml = `
+    <p style="margin:0 0 8px; font-size:15px; color:#2e3338;">Olá,</p>
+    <p style="margin:0 0 16px; font-size:15px; color:#2e3338; line-height:1.5;">Depois de analisar sua inscrição, não conseguimos aprovar sua entrada no Project Club desta vez.</p>
+    ${reason ? `<p style="margin:0 0 24px; font-size:14px; color:#2e3338; background-color:#f7f7f8; padding:14px 16px; border-radius:8px; line-height:1.5;">${escapeHtml(reason)}</p>` : ''}
+    <p style="margin:0; font-size:13px; color:#8a8f98; line-height:1.5;">Se quiser, você pode se inscrever novamente no futuro.</p>
+  `;
+  return sendMail({
+    to,
+    subject: 'Sobre sua inscrição — Project Club',
+    text: `Depois de analisar sua inscrição, não conseguimos aprovar sua entrada no Project Club desta vez.${reason ? `\n\nMotivo: ${reason}` : ''}`,
+    html: emailLayout(bodyHtml),
+  });
+}
+
+module.exports = {
+  sendMail, sendVerificationCode, sendPasswordReset, sendApplicationApproved, sendApplicationRejected,
+  sendOfflineNotification, sendNewLoginAlert, escapeHtml,
+};
+
+// Alerta de "Novo acesso à sua conta" — disparado no login quando não
+// existe nenhuma sessão anterior com o mesmo navegador + IP (ver
+// maybeSendNewLoginAlert em authController.js). Os valores aqui
+// (dispositivo, IP) vêm do request, então passam por escapeHtml.
+async function sendNewLoginAlert(to, { device, ip, when, appUrl }) {
+  const whenText = new Date(when || Date.now()).toLocaleString('pt-BR', { timeZone: 'America/Sao_Paulo' });
+  const bodyHtml = `
+    <p style="margin:0 0 8px; font-size:15px; color:#2e3338;">Novo acesso à sua conta</p>
+    <p style="margin:0 0 16px; font-size:14px; color:#2e3338; line-height:1.5;">Detectamos um login na sua conta do Project Club a partir de um dispositivo ou rede que não reconhecemos:</p>
+    <p style="margin:0 0 24px; font-size:14px; color:#2e3338; background-color:#f7f7f8; padding:14px 16px; border-radius:8px; line-height:1.6;">
+      <b>Dispositivo:</b> ${escapeHtml(device || 'Desconhecido')}<br />
+      <b>IP:</b> ${escapeHtml(ip || 'Desconhecido')}<br />
+      <b>Quando:</b> ${escapeHtml(whenText)} (horário de Brasília)
+    </p>
+    <p style="margin:0 0 24px; font-size:14px; color:#2e3338; line-height:1.5;">Se foi você, pode ignorar este e-mail. Se <b>não</b> foi você, troque sua senha agora e encerre as outras sessões em Configurações &rsaquo; Segurança.</p>
+    <div style="text-align:center; margin:0 0 8px;">
+      <a href="${escapeHtml(appUrl)}" style="display:inline-block; background:linear-gradient(135deg,#1877F2,#145DBF); color:#ffffff; text-decoration:none; font-weight:700; font-size:15px; padding:14px 36px; border-radius:8px;">Abrir Project Club</a>
+    </div>
+  `;
+  return sendMail({
+    to,
+    subject: 'Novo acesso à sua conta — Project Club',
+    text: `Novo acesso à sua conta do Project Club.
+
+Dispositivo: ${device || 'Desconhecido'}
+IP: ${ip || 'Desconhecido'}
+Quando: ${whenText} (horário de Brasília)
+
+Se não foi você, troque sua senha e encerre as outras sessões em Configurações > Segurança: ${appUrl}`,
+    html: emailLayout(bodyHtml),
+  });
+}
+
+// Item pedido: verificar se todos os toggles de Configurações têm efeito
+// real. "Notificações por e-mail" já existia na tela, descrevendo
+// exatamente este cenário ("pedidos de amizade e menções, quando você
+// está offline"), mas nenhum código de verdade mandava esse e-mail —
+// era um toggle sem nada pra controlar. Usado em friendController.js
+// (pedido de amizade recebido) e messageController.js (menção), só
+// quando o destinatário está offline (presenceStore.isOnline) e com
+// esse toggle ligado — ver os dois pontos de chamada pra essa função.
+async function sendOfflineNotification(to, { type, actorName, appUrl }) {
+  const isMention = type === 'mention';
+  const heading = isMention ? `${actorName} mencionou você` : `${actorName} te enviou um pedido de amizade`;
+  const bodyHtml = `
+    <p style="margin:0 0 8px; font-size:15px; color:#2e3338;">${escapeHtml(heading)}</p>
+    <p style="margin:0 0 24px; font-size:14px; color:#8a8f98; line-height:1.5;">Você estava offline quando isso aconteceu — abra o Project Club pra ver.</p>
+    <div style="text-align:center; margin:0 0 8px;">
+      <a href="${escapeHtml(appUrl)}" style="display:inline-block; background:linear-gradient(135deg,#1877F2,#145DBF); color:#ffffff; text-decoration:none; font-weight:700; font-size:15px; padding:14px 36px; border-radius:8px;">Abrir Project Club</a>
+    </div>
+    <p style="margin:16px 0 0; font-size:12px; color:#8a8f98; line-height:1.5;">Pra parar de receber estes e-mails, desligue "Notificações por e-mail" nas Configurações da sua conta.</p>
+  `;
+  return sendMail({
+    to,
+    subject: heading,
+    text: `${heading}. Você estava offline quando isso aconteceu — abra o Project Club pra ver: ${appUrl}`,
+    html: emailLayout(bodyHtml),
+  });
+}

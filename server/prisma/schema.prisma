@@ -1,0 +1,4020 @@
+// Schema da CommunityHub — adaptado do EmberCord para uma UNICA comunidade
+// global (nao multiplos servidores criaveis). Todo mundo que se cadastra
+// entra automaticamente na mesma comunidade: mesmos canais, mesmos cargos,
+// mesmo mural de moderacao.
+//
+// Principais mudancas em relacao ao EmberCord original:
+//   - Removido: Server, ServerMember, Invite, ServerTemplate, DiscoverCategory,
+//     ServerBoost/ServerPurchase/UserServerBoost, Onboarding/Ticket* (fase 2/3).
+//   - Category/Channel/Role/Emoji/Sticker/SoundboardSound/AutoModRule/Ban/
+//     Warning/AuditLogEntry deixam de ter serverId - agora sao globais.
+//   - MemberRole vira UserRole (User <-> Role direto, sem ServerMember no meio).
+//   - Ban/Warning passam a ser da PLATAFORMA (era so do servidor antes).
+//
+// Sistemas mantidos do EmberCord: auth (JWT+refresh, verificacao de e-mail,
+// 2FA), perfil (avatar, banner, idCard, fonte/efeito/cor do nome, account
+// level, insignias, likes de perfil), amigos, DMs completas (anexos,
+// reacoes, respostas, edicao, fixacao, busca, enquetes), cargos e
+// permissoes (bitfield), moderacao (ban/kick/timeout/warn + automod),
+// emojis customizados, painel admin, anuncios da plataforma.
+
+generator client {
+  provider = "prisma-client-js"
+  // fullTextIndex: permite o @@fulltext([content]) em Message (busca de
+  // mensagens com MATCH ... AGAINST — ver services/messageSearch.js).
+  previewFeatures = ["fullTextIndex"]
+}
+
+datasource db {
+  provider = "mysql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id                  String    @id @default(uuid())
+  publicId            String?   @unique
+  email               String    @unique
+  username            String    @unique
+  displayName         String
+  passwordHash        String
+  avatarUrl           String?
+  // Item pedido: "dois banners independentes" — bannerUrl continua
+  // sendo o do PERFIL COMPLETO (não mudei o nome/significado dele, pra
+  // não precisar migrar dados nem tocar em nada que já dependia dele).
+  // miniProfileBannerUrl é o do MINIPERFIL (o cartão que abre ao
+  // clicar no nome/avatar de alguém) — antes os dois compartilhavam o
+  // mesmo valor (bannerUrl), agora são de verdade independentes.
+  bannerUrl           String?
+  miniProfileBannerUrl String?
+  // Enquadramento do banner ("x,y,zoom" — foco em % + zoom 1–4),
+  // escolhido no editor de banner. Usado principalmente em GIF (que não
+  // dá pra recortar no navegador sem perder a animação). null = centro.
+  bannerFraming        String? @db.VarChar(32)
+  miniProfileBannerFraming String? @db.VarChar(32)
+  idCardUrl           String?
+  // Enquadramento ("x,y,zoom") da placa de identificação — mesmo formato
+  // de bannerFraming acima, aplicado no fundo da linha na lista de
+  // membros. Ausente = centralizado sem zoom (as placas antigas seguem
+  // funcionando igual). Ver client ProfileBanner.jsx/MembersList.jsx.
+  idCardFraming       String? @db.VarChar(32)
+  // Item pedido: pingente escolhido da lista curada pela staff (ver
+  // model Pendant acima) — null = nenhum escolhido. onDelete: SetNull
+  // pra não travar a staff de remover um pingente do catálogo só
+  // porque alguém ainda está usando ele; a pessoa simplesmente fica
+  // sem pingente se isso acontecer.
+  selectedPendantId   String?
+  selectedPendant     Pendant? @relation(fields: [selectedPendantId], references: [id], onDelete: SetNull)
+  // Item pedido: "sobre o pingente é uma imagem à escolha do usuário,
+  // que ele pega dos seus arquivos, qualquer imagem do usuário" —
+  // além de escolher do catálogo (selectedPendant acima), a pessoa
+  // também pode enviar uma imagem própria. Os dois convivem no schema,
+  // mas na prática só um vale de cada vez (escolher um dos dois limpa
+  // o outro — ver pendantController.js): evita ambiguidade de "qual
+  // aparece" se os dois estivessem preenchidos ao mesmo tempo.
+  customPendantUrl    String?
+  bio                 String? @db.Text
+  pronouns            String?
+  // BUG CORRIGIDO ("Unknown field birthDate for select statement on
+  // model User"): o sistema de Aniversariantes (birthdayController.js)
+  // sempre esperou esse campo aqui — mas ele só existia em
+  // MembershipApplication (o formulário de inscrição), nunca era
+  // copiado pra cá quando a inscrição virava conta de verdade
+  // (ver applicationsController.js approveApplication, já corrigido
+  // também). Contas aprovadas ANTES desta correção continuam sem essa
+  // data (não tem como recuperar um dado que nunca foi salvo aqui) —
+  // só afeta cadastros novos daqui pra frente.
+  birthDate           DateTime?
+  // Item pedido: "personalizar a cor da barra de nível, normalmente é
+  // verde" — null usa o verde padrão (var(--green) no CSS), só quando
+  // a pessoa escolhe uma cor própria é que esse campo é preenchido.
+  // Público (não vai em SELF_USER_FIELDS) — é a mesma barra que
+  // qualquer visitante do perfil vê, igual a cor do perfil já é.
+  levelBarColor       String?
+  // Item pedido: "opacidade das caixas das colunas, deixando invisível
+  // ou mostrando melhor" — 0 a 100 (percentual). Null usa o padrão
+  // (o mesmo valor sutil que já existia antes dessa opção existir).
+  profileSectionOpacity Int?
+  // Item pedido: "adicione lá poder editar as cores do mini perfil
+  // separada do perfil grande, mudando a cor do perfil, mudando a cor
+  // do botão ver perfil completo" — null usa o mesmo profileColor do
+  // perfil grande (comportamento de antes dessa opção existir).
+  miniProfileColor       String?
+  miniProfileButtonColor String?
+  // Item pedido: "escolher a cor de fundo da bolha que mostra os
+  // status (Preto / Cinza / Branco)" — guarda um dos 3 valores fixos
+  // (ver STATUS_BUBBLE_COLOR_OPTIONS em UserSettingsModal.jsx); null
+  // continua caindo no comportamento de sempre (acompanha o fundo do
+  // card, var(--bg-elevated)), sem mudança nenhuma pra quem nunca
+  // mexeu nisso.
+  statusBubbleColor      String?
+  profileColor        String    @default("#1877F2")
+  profileNameFont     String    @default("NORMAL")
+  profileNameEffect   String    @default("SOLID")
+  profileNameColor    String    @default("#1877F2")
+  profileNameColor2   String    @default("#FFFFFF")
+  // Item pedido: "poder editar cada cor... tipo todas as cores que
+  // aparecem no arco-íris" — efeitos como RAINBOW (6 cores) e GLITCH
+  // (2 cores) usavam cores FIXAS no código, sem nenhum jeito de
+  // personalizar. Esse campo guarda um array JSON de cores hex (ex:
+  // '["#ff0000","#00ff00",...]') — null/vazio significa "usa as cores
+  // padrão daquele efeito" (ver DEFAULT_MULTI_COLORS em nameStyle.js),
+  // só é lido/gravado pelos efeitos que realmente têm mais de 2 cores
+  // (os outros continuam usando só profileNameColor/Color2 acima).
+  profileNameColors   String?   @db.Text
+  // Item pedido: status de relacionamento (estilo Orkut) — só fica
+  // preenchido depois que os DOIS lados confirmam via
+  // RelationshipRequest (mesmo espírito de aceitar um pedido de
+  // amizade). Auto-relação (User com User), por isso os dois nomes de
+  // relação distintos pros dois lados.
+  relationshipPartnerId String?
+  relationshipPartner   User?   @relation("RelationshipPartnerLink", fields: [relationshipPartnerId], references: [id])
+  relationshipPartnerOf User[]  @relation("RelationshipPartnerLink")
+  // Item pedido: "sistema igual da Steam" — ordem personalizada das
+  // seções do perfil, escolhida pela própria pessoa (Configurações →
+  // Colunas). Guarda um array JSON de chaves de seção (ex:
+  // '["scraps","album","about",...]') — null/vazio usa a ordem padrão.
+  profileSectionOrder String? @db.Text
+  // Tema de interface escolhido (facebook/light/dark/amoled/clubpenguin) —
+  // salvo na CONTA, não só no localStorage do navegador. O localStorage
+  // continua sendo usado como cache rápido (evita o "flash" de tema
+  // errado antes da sessão carregar), mas essa coluna é a fonte de
+  // verdade de verdade: sobrevive a limpar dados do navegador, trocar de
+  // navegador/dispositivo, ou o localStorage falhar silenciosamente (ex:
+  // modo privado do Safari em iOS lança erro em localStorage.setItem,
+  // que antes desse campo existir podia derrubar a inicialização do tema
+  // inteira sem nenhum fallback).
+  preferredTheme      String?
+  // Item pedido: "em aparência adicione uma nova opção de layout, a
+  // opção normal (a atual) e a opção de layout discord — o layout
+  // discord faz os canais/categorias ficarem num popover no canto da
+  // tela, aberto por um ícone, em vez das abas horizontais fixas no
+  // topo do chat (ver ChannelSwitcher.jsx)." 'normal' = padrão atual.
+  // Item pedido: "deixe o layout do discord como o principal pra
+  // todo mundo, atualiza pra deixar ele como principal pra qualquer
+  // user que for usar no futuro" — default trocado de 'normal' pra
+  // 'discord'; usuários já existentes são atualizados uma vez via
+  // script (ver server/scripts/set-default-layout-discord.js), não
+  // só o default de quem se cadastra dali pra frente.
+  // "normal2" = layout "Normal 2.0", o padrão desde 10/2026.
+  layoutStyle         String   @default("normal2")
+  // Versão da migração de layout já aplicada a esta conta. Toda conta
+  // começa em 0; o seed passa quem está em 0 pra "normal2" UMA vez e marca
+  // 2 (conta nova já nasce em "normal2", então pra ela não muda nada).
+  // Escolher um layout em Configurações também marca 2, então a escolha
+  // de cada um nunca é desfeita por um deploy.
+  layoutVersion       Int      @default(0)
+  // Item pedido: "sistema no aparência podendo mudar o zoom de 1,0
+  // até 2,0... para melhor personalização" — quanto maior, maior o
+  // texto/espaçamento do chat e da barra de digitar no PC (nunca no
+  // celular — zoom sempre foi só uma opção de desktop nesse app).
+  // 1.0 = tamanho normal, sem nenhum zoom extra além do zoom geral
+  // do app que já existia antes disso tudo.
+  chatZoom            Float     @default(1.0)
+  // Item pedido: "adicione nas configurações do usuário ele poder
+  // aumentar ou diminuir o zoom quanto quiser" — zoom GERAL de toda a
+  // interface (diferente de chatZoom acima, que só afeta o chat).
+  // BUG CORRIGIDO: o padrão era 1.2 (120%) — o padrão histórico do app —,
+  // mas a interface deve começar em 100% (1.0) quando ninguém escolheu
+  // nada. Contas que ainda tinham o 1.2 "de padrão" são migradas pra 1.0
+  // no cliente (ver client/src/utils/zoomDefault.js). OBS.: este @default
+  // só vale pra linhas NOVAS após um `prisma db push` — não rodei
+  // migração/deploy aqui (não mexo em deploy); as contas existentes são
+  // tratadas pela migração do cliente.
+  interfaceZoom       Float     @default(1.0)
+  // Item pedido: "5 variantes de visual dos meus emoji, uma delas o
+  // mesmo tema do Discord" — mesmo padrão de preferredTheme acima
+  // (sincronizado entre localStorage e conta, ver setEmojiStyle no
+  // controller). Valores: native | twemoji | noto | fluent | openmoji
+  // (ver EMOJI_STYLE_OPTIONS em utils/emojiStyle.js).
+  emojiStyle          String    @default("native")
+  // Conquistas escolhidas pra exibir — perfil completo (até 6) e
+  // miniperfil (até 4), cada uma como array JSON de achievementId. Fica
+  // salvo na conta (não no navegador), então sobrevive a sair/entrar de
+  // novo ou trocar de dispositivo — a validação de "só pode escolher
+  // conquista já desbloqueada" e do limite de 6/4 é feita no backend
+  // (ver userController.setDisplayedAchievements).
+  displayedAchievements     String @default("[]")
+  displayedAchievementsMini String @default("[]")
+  // Privacidade de pedidos de amizade — EVERYONE (padrão, qualquer um
+  // pode pedir), FRIENDS_OF_FRIENDS (só quem tem pelo menos 1 amigo em
+  // comum com você), NOBODY (ninguém pode mandar pedido novo pra você —
+  // não afeta amizades já existentes).
+  friendRequestPrivacy String @default("EVERYONE")
+  accountLevel        Int       @default(1)
+  accountXp           Int       @default(0)
+  lastXpMessageAt     DateTime? // cooldown anti-farm do ganho de XP por mensagem
+  status              String    @default("OFFLINE")
+  // "Ausente" posto pelo próprio sistema (inatividade), não escolhido na
+  // mão — sobrevive a reinícios do servidor (antes vivia só na memória).
+  autoIdle            Boolean   @default(false)
+  customStatus        String?
+  customStatusEmoji   String?
+  customStatusExpiresAt DateTime?
+  emailVerified       Boolean   @default(false)
+  twoFactorEnabled    Boolean   @default(false)
+  twoFactorSecret     String?
+  // SECURITY: último "passo" TOTP (janela de 30s) já aceito pra esta
+  // conta — impede reaproveitar o MESMO código 2FA (ex: capturado por
+  // phishing em tempo real) uma segunda vez dentro da validade dele.
+  twoFactorLastUsedStep Int?
+  platformRole        String    @default("USER")
+  // Apoio ao Project Club: NONE | SUBSCRIBER (Assinante) | SUPER (Super
+  // Assinante). Só a staff muda (Painel → Gerenciamento de Apoio), com
+  // registro em SupporterAuditLog. Hierarquia apenas visual/benefícios —
+  // não dá nenhuma permissão de staff. Ver services/supporters.js.
+  supporterTier       String    @default("NONE") @db.VarChar(16)
+  // Apoio temporário comprado com gemas (crédito): até quando vale.
+  // null = apoio normal (definido pela staff, sem prazo).
+  supporterUntil      DateTime?
+  // SECURITY: marca quando a conta foi promovida automaticamente a ADMIN
+  // via PLATFORM_ADMIN_EMAIL (ver adminBootstrap.js). Preenchido = a
+  // promoção automática já aconteceu uma vez e NÃO se repete — se outra
+  // pessoa da staff rebaixar essa conta depois, ela continua rebaixada.
+  platformAdminBootstrappedAt DateTime?
+  // Última troca de @usuário (ClubTag) — cooldown de 7 dias entre trocas
+  // (ver updateUsername em userController.js).
+  usernameChangedAt   DateTime?
+  isPlatformBanned    Boolean   @default(false)
+  platformBanReason   String?
+  suspendedUntil      DateTime?
+  timeoutUntil        DateTime?
+  // Item pedido: "excluir conta" — separado de suspensão/ban (que são
+  // ações da STAFF): quando preenchido, a PRÓPRIA pessoa desativou a
+  // conta (Configurações -> Minha Conta). Login passa a ser recusado
+  // enquanto esse campo estiver preenchido, mas nenhum dado é apagado
+  // de verdade (mensagens antigas, posts, etc continuam existindo
+  // normalmente para quem via elas antes) — evita quebrar referências
+  // em cascata que uma exclusão física causaria.
+  accountDisabledAt   DateTime?
+  failedLoginAttempts Int       @default(0)
+  loginLockedUntil    DateTime?
+  tagEmoji            String?
+  tagText             String?
+  // Item pedido: "Cada usuário pode estar em apenas 1 clan por vez" —
+  // colocado direto no User (em vez de uma tabela de membros à parte)
+  // já garante essa regra pela própria estrutura do banco, sem
+  // precisar de nenhuma validação extra: um campo só pode apontar pra
+  // um clã só, nunca dois ao mesmo tempo.
+  clanId              String?
+  clan                Clan?     @relation("ClanMembers", fields: [clanId], references: [id], onDelete: SetNull)
+  // OWNER | SUB_OWNER | ADMIN | MODERATOR | MEMBER — só faz sentido
+  // quando clanId não é nulo.
+  clanRole            String?
+  // A tag de clã que este usuário escolheu mostrar no perfil, dentre
+  // as disponíveis no clã dele (ver ClanTag abaixo) — nula até
+  // escolher uma, mesmo já sendo membro do clã.
+  clanTagId           String?
+  clanTag             ClanTag?  @relation(fields: [clanTagId], references: [id], onDelete: SetNull)
+  // Campos inversos exigidos pelo Prisma pro outro lado de cada
+  // relação declarada em ClanJoinRequest/ClanMessage (ver mais abaixo
+  // no arquivo) — nunca lidos diretamente por nenhum código, só
+  // completam a relação dos dois lados.
+  clanJoinRequests    ClanJoinRequest[]
+  clanMessages        ClanMessage[]
+  clanInvitesReceived ClanInvite[] @relation("ClanInvitesReceived")
+  clanInvitesSent     ClanInvite[] @relation("ClanInvitesSent")
+  // Item pedido: "sistema completo de configurações" — campos
+  // inversos exigidos pelo Prisma pro outro lado de cada relação
+  // declarada nos novos modelos (ver mais abaixo no arquivo); nunca
+  // lidos diretamente por nenhum código, só completam a relação dos
+  // dois lados. settings é opcional (User?) porque a linha só é
+  // criada na primeira vez que a pessoa muda alguma configuração
+  // nova (ver getOrCreateSettings em settingsController.js).
+  settings            UserSettings?
+  shortcuts           UserShortcut[]
+  // Notificações por canal/categoria (ver model NotificationOverride).
+  notificationOverrides NotificationOverride[]
+  connectedAccounts   ConnectedAccount[]
+  registeredGames     RegisteredGame[]
+  gamePlaytimes       GamePlaytime[]
+  securityLogs        SecurityLog[]
+  // Item pedido: "um user só pode criar um clã" — restrição vitalícia
+  // (diferente de clanId, que só impede estar em DOIS ao mesmo
+  // tempo): mesmo saindo ou sendo o último membro a apagar o clã,
+  // marcado true pra sempre depois da primeira criação, nunca
+  // reiniciado por sair de um clã existente.
+  hasCreatedClan      Boolean   @default(false)
+  youtubeUrl          String?
+  steamUrl            String?
+  robloxUrl           String?
+  xUrl                String?
+
+  // --- Economia (adaptado do bot Robbie — mantido: moedas/gemas e o baú
+  // diário. Removidos por pedido do usuário: loja de cores, empregos e
+  // cassino). ---
+  coins               Int       @default(0)  // "moedas"
+  gems                Int       @default(0)  // "gemas" — vêm principalmente do Mega Baú
+  // Moldura do avatar equipada (loja) — JSON {id,url,s,x,y} copiado da
+  // AvatarDecoration pra não precisar de join em todo lugar que mostra avatar.
+  avatarDecoration    String?   @db.Text
+  // Efeito de perfil equipado (loja) — JSON {id,url,d:{s,x,y,o,t},m:{...}}
+  // copiado do ProfileEffect (d = computador, m = celular).
+  profileEffect       String?   @db.Text
+  // Fonte do nome comprada na Loja (JSON {id, family, url}). Quando existe,
+  // vale no lugar de profileNameFont (as fontes grátis de sempre).
+  profileFont         String?   @db.Text
+  // Estilo de perfil da Loja (chave: win2000, anime, terror, bugado,
+  // nostalgia...) — muda o visual do perfil e do miniperfil inteiros.
+  profileStyle        String?   @db.VarChar(32)
+  dailyStreak         Int       @default(0)
+  lastDailyAt         DateTime?
+
+  createdAt           DateTime  @default(now())
+  updatedAt           DateTime  @updatedAt
+
+  refreshTokens        RefreshToken[]
+  pushTokens           PushToken[]
+  webPushSubscriptions WebPushSubscription[]
+  scheduledMessages    ScheduledMessage[]
+  reminders            Reminder[]
+  minigameWeeklyPrizes MinigameWeeklyPrize[]
+  verificationCodes    EmailVerificationCode[]
+  passwordResetTokens  PasswordResetToken[]
+  twoFactorRecoveryCodes TwoFactorRecoveryCode[]
+  // Contas externas conectadas (Google/Discord/GitHub) — ver OAuthAccount.
+  oauthAccounts          OAuthAccount[]
+
+  sentFriendRequests    Friendship[] @relation("Requester")
+  receivedFriendRequests Friendship[] @relation("Addressee")
+  // Item pedido: sistemas estilo Orkut — depoimentos, recados (scraps)
+  // e "sou fã". Cada um segue o mesmo padrão de duas pontas (quem
+  // criou / de quem é o perfil) já usado em Friendship acima.
+  testimonialsWritten  Testimonial[] @relation("TestimonialAuthor")
+  testimonialsReceived Testimonial[] @relation("TestimonialTarget")
+  scrapsWritten        Scrap[]       @relation("ScrapAuthor")
+  scrapsReceived       Scrap[]       @relation("ScrapTarget")
+  fansOf     Fan[] @relation("FanIsFanOf")
+  fans       Fan[] @relation("FanTarget")
+  // Item pedido: mais sistemas estilo Orkut — rankings, visitantes de
+  // perfil, álbum de fotos, traços (confiável/legal/sexy), e status de
+  // relacionamento.
+  rankingVotesGiven    RankingVote[] @relation("RankingVoter")
+  rankingVotesReceived RankingVote[] @relation("RankingTarget")
+  profileVisitsMade     ProfileVisit[] @relation("ProfileVisitor")
+  profileVisitsReceived ProfileVisit[] @relation("ProfileVisitTarget")
+  photos         Photo[]        @relation("PhotoOwner")
+  photoComments  PhotoComment[] @relation("PhotoCommentAuthor")
+  traitVotesGiven    TraitVote[] @relation("TraitVoter")
+  traitVotesReceived TraitVote[] @relation("TraitTarget")
+  relationshipRequestsSent     RelationshipRequest[] @relation("RelationshipRequester")
+  relationshipRequestsReceived RelationshipRequest[] @relation("RelationshipPartner")
+  profilePollsCreated ProfilePoll[]     @relation("ProfilePollAuthor")
+  profilePollVotes    ProfilePollVote[] @relation("ProfilePollVoter")
+  // ^ mantido
+
+  conversationMemberships ConversationMember[]
+  messages                Message[]
+  reactions               Reaction[]
+
+  roles          UserRole[]
+  channelReadStates ChannelReadState[]
+  badges         UserBadge[]
+  emojisCreated  Emoji[]
+  favoriteGifs   FavoriteGif[]
+  pollVotes      PollVote[]
+
+  profileVotesGiven    ProfileVote[] @relation("ProfileVotesGiven")
+  profileVotesReceived ProfileVote[] @relation("ProfileVotesReceived")
+
+  stickersCreated Sticker[]
+  soundsCreated   SoundboardSound[]
+
+  warningsReceived Warning[] @relation("WarningTarget")
+  announcementsCreated PlatformAnnouncement[]
+  eventsCreated         Event[]
+  updateLogEntries     UpdateLogEntry[]
+  ownedFurniture       UserFurniture[]
+  ownedHouses          UserHouse[]
+  ownedMapBackgrounds  UserMapBackground[]
+  stickers             UserSticker[]
+  stickerAlbum         UserStickerAlbum[]
+  stickerCapsules      StickerCapsule[]
+  achievements         UserAchievement[]
+  ticketsOpened        Ticket[]       @relation("TicketsOpened")
+  ticketsClaimed       Ticket[]       @relation("TicketsClaimed")
+  ticketMessages       TicketMessage[]
+  houseLikesGiven      HouseLike[]    @relation("HouseLikesGiven")
+  houseCommentsGiven   HouseComment[] @relation("HouseCommentsGiven")
+  communitiesCreated     Community[]        @relation("CommunitiesCreated")
+  postsAuthored           Post[]             @relation("PostsAuthored")
+  postVotesGiven          PostVote[]         @relation("PostVotesGiven")
+  postCommentsAuthored    PostComment[]      @relation("PostCommentsAuthored")
+  postCommentVotesGiven   PostCommentVote[]  @relation("PostCommentVotesGiven")
+  // (bansIssued/warningsIssued removidos: moderatorId não é @relation — ver comentário nos modelos Ban/Warning)
+
+  // Sistema de Mods (Apps → Mods) — ver bloco de modelos ModX no final
+  // deste arquivo para o contexto completo de cada um.
+  modFavorites   ModFavorite[]
+  modUps         ModUp[]
+  modComments    ModComment[]
+  modReports     ModReport[]
+  modProfiles    ModProfile[]
+  modCollections ModCollection[]
+  // Modpacks públicos (ver SharedModpack no fim do arquivo).
+  sharedModpacks         SharedModpack[]         @relation("SharedModpackAuthor")
+  sharedModpackVotes     SharedModpackVote[]
+  sharedModpackDownloads SharedModpackDownload[]
+  // Item pedido: coluna "Modpack preferido" no perfil — OU um modpack
+  // (featuredModpackId) OU um mod avulso (featuredModJson, objeto JSON
+  // { source, sourceId, name, thumbnailUrl, steamAppId, gameName }).
+  // Escolher um limpa o outro (ver modpackController.setFeatured).
+  featuredModpackId      String?
+  featuredModpack        SharedModpack?          @relation("UserFeaturedModpack", fields: [featuredModpackId], references: [id], onDelete: SetNull)
+  featuredModJson        String?                 @db.Text
+  // Vitrine do perfil: jogos em destaque (JSON { games: [...] }, ver
+  // sanitizeProfileShowcase em userController.js). null = nada escolhido.
+  profileShowcase        String?                 @db.Text
+  // Mural do perfil (widgets): jogo favorito, jogos que gosto, em rotação,
+  // quero jogar — JSON validado em profileExtrasController.js.
+  profileWidgets         String?                 @db.Text
+  // Lista de desejos da Loja: [{ kind, id }] — só amigos veem.
+  profileWishlist        String?                 @db.Text
+  // Conta desativada pela própria pessoa (volta ao entrar de novo).
+  selfDeactivatedAt      DateTime?
+
+  // Varredura de status personalizado vencido (services/customStatus.js).
+  @@index([customStatusExpiresAt])
+}
+
+// Item pedido: "pingentes... mini imagens que podem ser colocadas pelo
+// usuário (lista de seleção que nós fazemos) ao lado do seu nome...
+// como no Discord quando cargos possuem imagem atrelada" — catálogo
+// curado pela staff (não upload livre da pessoa, diferente da placa de
+// identificação/idCardUrl); cada usuário escolhe UM da lista, ou
+// nenhum. Aparece só no mini perfil, perfil completo e no chat — nunca
+// na lista de membros (ver comentário em User.selectedPendantId
+// abaixo e o componente PendantIcon.jsx no client).
+model Pendant {
+  id        String   @id @default(uuid())
+  name      String
+  iconUrl   String
+  enabled   Boolean  @default(true)
+  createdAt DateTime @default(now())
+
+  users User[]
+}
+
+model Badge {
+  id          String   @id @default(uuid())
+  key         String   @unique
+  name        String
+  description String? @db.Text
+  icon        String
+  iconUrl     String?
+  rarity      String   @default("COMMON")
+  ageYears    Int?
+  // Ordem de exibição quando o usuário tem mais de uma insígnia — menor
+  // número aparece primeiro/na frente. Editável pela staff no painel.
+  priority    Int      @default(0)
+  createdAt   DateTime @default(now())
+
+  users UserBadge[]
+}
+
+model ProfileVote {
+  id         String   @id @default(uuid())
+  fromUserId String
+  from       User     @relation("ProfileVotesGiven", fields: [fromUserId], references: [id], onDelete: Cascade)
+  toUserId   String
+  to         User     @relation("ProfileVotesReceived", fields: [toUserId], references: [id], onDelete: Cascade)
+  value      Int
+  createdAt  DateTime @default(now())
+
+  @@unique([fromUserId, toUserId])
+}
+
+model UserBadge {
+  id        String   @id @default(uuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  badgeId   String
+  badge     Badge    @relation(fields: [badgeId], references: [id], onDelete: Cascade)
+  awardedAt DateTime @default(now())
+
+  @@unique([userId, badgeId])
+}
+
+model FavoriteGif {
+  id        String   @id @default(uuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  // Chave de deduplicação (id do provedor ou a própria URL, cortada em
+  // 300 no gifController) — VARCHAR(191) padrão era pequeno demais e dava
+  // erro 500 ao favoritar um GIF com URL longa. 512 * 4 bytes (utf8mb4) +
+  // userId ainda cabe no limite de 3072 bytes do índice único do InnoDB.
+  gifId     String   @db.VarChar(512)
+  url       String   @db.Text
+  preview   String?  @db.Text
+  createdAt DateTime @default(now())
+
+  @@unique([userId, gifId])
+}
+
+model PlatformSettings {
+  id                 String  @id @default("singleton")
+  communityName      String  @default("Project Club")
+  communityIconUrl   String?
+  communityBannerUrl String?
+  maintenanceMode    Boolean @default(false)
+  maintenanceMessage String?
+  // Item pedido: "refaça esse sistema [de tag da comunidade] bloqueando
+  // essa tag [PROJ] de aparecer ou removendo ele" — a causa real do
+  // problema era a tag ser calculada sozinha a partir do NOME da
+  // comunidade (communityName.slice(0,4).toUpperCase() — "Project
+  // Club" sempre virava "PROJ", pra sempre, sem jeito de mudar isso
+  // enquanto o nome da comunidade continuasse o mesmo). Agora é um
+  // texto configurável à parte, independente do nome — nulo por
+  // padrão (nesse caso o sistema usa um valor fixo seguro que nunca
+  // é "PROJ", ver setActiveTag em userController.js), e a staff pode
+  // trocar por outro texto quando quiser, sem depender do nome mudar.
+  communityTagEmoji  String?
+  communityTagText   String?
+  // Liga/desliga sistemas inteiros pra toda a comunidade — adaptado do
+  // "disabled_systems" do bot Robbie (lista de chaves: "economia", "casas",
+  // "figurinhas"). Quando uma chave está aqui, a página correspondente
+  // mostra uma tela de "indisponível" pra todo mundo (exceto staff).
+  disabledSystems    String  @default("[]") // JSON array de strings — LEGADO, ver model SystemToggle abaixo
+  // Casa/mapa inicial (igual o bot Robbie tinha) — todo usuário NOVO já
+  // ganha essa casa (e esse mapa, se a casa tiver grupo) de graça e ativa
+  // assim que a conta é criada, sem precisar comprar nada.
+  starterHouseId     String?
+  starterMapId       String?
+  // Canais em destaque no topo da lista (Eventos, Feed, Galeria) que a
+  // staff escondeu — JSON array de chaves. Nulo = todos visíveis.
+  hiddenFeaturedChannels String?
+  // Canal AFK (igual ao Discord): quem fica parado na voz por
+  // afkTimeoutSeconds (60/300/900/1800/3600) é movido pra esse canal de voz
+  // e fica mudo lá. Nulo = desligado. Ver services/voiceAfk.js.
+  afkChannelId       String?
+  afkTimeoutSeconds  Int     @default(300)
+}
+
+// Item pedido: "sistema de eventos integrado ao painel da Staff" — só
+// quem tem permissão de staff pode criar/editar/excluir (checado no
+// controller, ver ADMIN/MODERATOR em roleMiddleware). Aparecem
+// automaticamente na categoria "Início". status é editado manualmente
+// pela staff (não calculado a partir das datas) — mais simples e dá
+// controle total pra staff encerrar um evento antes da hora, por
+// exemplo, sem precisar mexer na data.
+model Event {
+  id          String    @id @default(uuid())
+  title       String
+  description String    @db.Text
+  bannerUrl   String?
+  iconUrl     String?
+  startsAt    DateTime?
+  endsAt      DateTime?
+  status      String    @default("UPCOMING") // UPCOMING | ACTIVE | ENDED
+  // Canal de voz do evento: quem vai recebe "Começou! Entrar na call".
+  voiceChannelId String?
+  createdById String
+  createdBy   User      @relation(fields: [createdById], references: [id])
+  createdAt   DateTime  @default(now())
+  // Link bonito (/evento/noite-de-jogos) — ver services/slugs.js.
+  slug        String?   @db.VarChar(100)
+
+  rsvps EventRsvp[] // presença confirmada ("Eu vou" / "Talvez" / "Não vou")
+
+  @@index([slug])
+}
+
+model PlatformAnnouncement {
+  id             String    @id @default(uuid())
+  title          String
+  description    String? @db.Text
+  bannerUrl      String?
+  buttonLabel    String?
+  buttonUrl      String?
+  targetType     String
+  targetUserId   String?
+  createdById    String
+  createdBy      User      @relation(fields: [createdById], references: [id])
+  createdAt      DateTime  @default(now())
+  // Agendado: só aparece a partir desta hora (null = na hora).
+  publishAt      DateTime?
+
+  dismissals AnnouncementDismissal[]
+}
+
+model AnnouncementDismissal {
+  id             String               @id @default(uuid())
+  announcementId String
+  announcement   PlatformAnnouncement @relation(fields: [announcementId], references: [id], onDelete: Cascade)
+  userId         String
+  dismissedAt    DateTime             @default(now())
+
+  @@unique([announcementId, userId])
+}
+
+// --- Seção de Atualizações — changelog público da plataforma, staff
+// escreve, todo mundo vê (sem dispensar, diferente do banner de
+// PlatformAnnouncement acima) — em tempo real via socket (ver
+// updatesController.js). ---
+model UpdateLogEntry {
+  id          String   @id @default(uuid())
+  title       String
+  description String   @db.Text
+  // Item pedido: "número de atualização vai pra v1.0, estilo de
+  // versão" — string livre (não força um formato semver rígido),
+  // editável pela staff; sugerida automaticamente no cliente com base
+  // na última publicada, mas a staff pode digitar outra coisa se
+  // quiser pular uma versão, por exemplo.
+  version     String?
+  createdById String
+  createdBy   User     @relation(fields: [createdById], references: [id])
+  createdAt   DateTime @default(now())
+  // Item pedido: "poder editar" — precisa de updatedAt pra saber
+  // quando uma entrada já publicada foi editada depois.
+  // BUG CORRIGIDO (erro no deploy: "Added the required column
+  // updatedAt... without a default value"): @updatedAt sozinho não
+  // conta como um valor padrão pras linhas JÁ existentes na tabela na
+  // hora de aplicar a migração — precisa de @default(now()) explícito
+  // junto (as 25 atualizações já publicadas ganham "agora" como
+  // valor inicial, e o campo continua atualizando sozinho a cada
+  // edição normalmente, graças ao @updatedAt).
+  updatedAt   DateTime @default(now()) @updatedAt
+}
+
+// --- Sistema de segurança "isca" (honeypot) — rotas falsas que só
+// scanners/bots automatizados tentariam acessar (ex: /wp-admin,
+// /.env, /phpmyadmin, endpoints de admin sem token, etc). Um visitante
+// normal nunca bate nessas rotas, então qualquer acesso já é sinal forte
+// de reconhecimento automatizado. Em vez de devolver um 404/403 normal
+// (que confirma pro atacante que a rota não existe/está protegida), a
+// resposta finge sucesso com dados falsos plausíveis — desperdiça o
+// tempo do script e não entrega nenhuma informação real. Depois de
+// alguns hits do mesmo IP num intervalo curto, o IP entra em
+// BlockedIp automaticamente.
+model HoneypotHit {
+  id        String   @id @default(uuid())
+  ip        String
+  path      String
+  method    String
+  userAgent String?
+  createdAt DateTime @default(now())
+
+  @@index([ip])
+  @@index([createdAt])
+}
+
+model BlockedIp {
+  id        String    @id @default(uuid())
+  ip        String    @unique
+  reason    String
+  hitCount  Int       @default(1)
+  createdAt DateTime  @default(now())
+  expiresAt DateTime?
+}
+
+model PlatformAuditLog {
+  id         String   @id @default(uuid())
+  actorId    String
+  action     String
+  targetType String?
+  targetId   String?
+  reason     String?
+  metadata   String?  @db.Text // JSON livre (links de ícone/banner etc.) — passava de 191 e derrubava a ação com 500
+  createdAt  DateTime @default(now())
+}
+
+// Login com Google/Discord/GitHub (ver services/oauth.js e
+// controllers/oauthController.js). Só guarda QUEM é a pessoa no provedor
+// (o id estável dela lá) — nunca o token de acesso do provedor, que é
+// usado uma única vez no callback e descartado.
+model OAuthAccount {
+  id             String   @id @default(uuid())
+  userId         String
+  user           User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  provider       String   // "google" | "discord" | "github"
+  providerUserId String
+  email          String?
+  createdAt      DateTime @default(now())
+
+  @@unique([provider, providerUserId])
+  @@index([userId])
+}
+
+model RefreshToken {
+  id        String   @id @default(uuid())
+  tokenHash String   @unique
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userAgent String?
+  ipAddress String?
+  createdAt DateTime @default(now())
+  expiresAt DateTime
+  revoked   Boolean  @default(false)
+  revokedAt DateTime?
+  // Por que essa linha foi revogada — distingue rotação normal
+  // ("ROTATED"), encerramento explícito ("LOGOUT", "REVOKED",
+  // "PASSWORD_CHANGE", "PASSWORD_RESET", "ADMIN", "ACCOUNT_DISABLED") e
+  // detecção de roubo ("THEFT"). Só reuso de um token "ROTATED" (fora da
+  // pequena janela de corrida) é tratado como roubo em refresh().
+  revokedReason String?
+  // Token que substituiu este na rotação (só preenchido pra "ROTATED").
+  replacedById  String?
+  // Quando a sessão/aparelho começou de verdade (o login) — a linha é
+  // recriada a cada rotação, então createdAt sozinho só diz "último uso".
+  sessionStartedAt DateTime?
+  lastUsedAt    DateTime @default(now())
+
+  // perf: consultas frequentes (where + orderBy) desse modelo
+  @@index([userId, revoked])
+  @@index([expiresAt])
+}
+
+// Códigos de recuperação do 2FA (10 por vez, uso único). Só o hash
+// (sha256) fica salvo — o código em si aparece UMA vez pra pessoa, na
+// hora em que é gerado.
+model TwoFactorRecoveryCode {
+  id        String    @id @default(uuid())
+  userId    String
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  codeHash  String
+  usedAt    DateTime?
+  createdAt DateTime  @default(now())
+
+  // perf: consultas frequentes (where + orderBy) desse modelo
+  @@index([userId])
+}
+
+// Token de push (Firebase Cloud Messaging) — item pedido: "push
+// notification de verdade no Android, mesmo com o app fechado". Sem
+// isso, o app só consegue notificar enquanto o próprio processo JS está
+// vivo (que o Android mata depois de um tempo em segundo plano); com um
+// token de FCM registrado, o Google entrega a notificação por fora,
+// mesmo com o app inteiro fechado. Uma pessoa pode ter mais de um
+// dispositivo (celular pessoal + outro), por isso não é um campo simples
+// em User — é uma tabela própria, uma linha por aparelho/instalação.
+model PushToken {
+  id        String   @id @default(uuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  token     String   @unique
+  platform  String   @default("android")
+  createdAt DateTime @default(now())
+  lastUsedAt DateTime @default(now())
+
+  @@index([userId])
+}
+
+// Assinaturas Web Push (navegador/PWA — Chrome, Edge, Firefox, Safari 16+):
+// o navegador entrega um endpoint + chaves por aparelho; o servidor assina
+// cada envio com a chave VAPID (ver services/webPush.js). Várias por
+// pessoa (celular, notebook...). Apagada sozinha quando o serviço de push
+// responde 404/410 (a pessoa revogou ou desinstalou).
+model WebPushSubscription {
+  id         String   @id @default(uuid())
+  userId     String
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  endpoint   String   @unique @db.VarChar(500)
+  p256dh     String   @db.VarChar(255)
+  auth       String   @db.VarChar(64)
+  userAgent  String?  @db.VarChar(255)
+  createdAt  DateTime @default(now())
+  lastUsedAt DateTime @default(now())
+
+  @@index([userId])
+}
+
+// Par de chaves VAPID gerado uma vez e guardado aqui, pra não depender de
+// configurar variável de ambiente (se VAPID_PUBLIC_KEY/VAPID_PRIVATE_KEY
+// existirem no ambiente, elas têm prioridade). Trocar a chave invalida
+// todas as assinaturas — por isso é persistida.
+// ---------- Mensagens agendadas ----------
+// "Enviar às 18h": fica aqui até a hora; o job (services/scheduledMessages.js)
+// envia pelo MESMO caminho do envio normal (permissões, automod, menções,
+// push) como se a pessoa tivesse apertado Enter naquela hora. Se ela perder
+// o acesso ao canal até lá, vira FAILED com o motivo.
+model ScheduledMessage {
+  id             String    @id @default(uuid())
+  authorId       String
+  author         User      @relation(fields: [authorId], references: [id], onDelete: Cascade)
+  channelId      String?
+  conversationId String?
+  content        String    @db.Text
+  replyToId      String?
+  sendAt         DateTime
+  status         String    @default("PENDING") // PENDING | SENT | FAILED | CANCELLED
+  sentMessageId  String?
+  error          String?   @db.VarChar(300)
+  createdAt      DateTime  @default(now())
+  claimedAt      DateTime?
+
+  @@index([status, sendAt])
+  @@index([authorId, status])
+}
+
+// ---------- Lembretes ----------
+// "Me lembra disso em 2h": vira um aviso (UserNotice kind REMINDER) na hora
+// marcada, com link pra mensagem/página de origem. Entregue uma vez só
+// (claim atômico no job), igual ao lembrete de evento.
+model Reminder {
+  id        String    @id @default(uuid())
+  userId    String
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  text      String    @db.VarChar(500)
+  link      String?   @db.VarChar(300)
+  messageId String?
+  dueAt     DateTime
+  firedAt   DateTime?
+  createdAt DateTime  @default(now())
+
+  @@index([firedAt, dueAt])
+  @@index([userId, firedAt])
+}
+
+// Prêmio do ranking SEMANAL dos Mini-Jogos (services/minigameWeekly.js):
+// ao fechar a semana, os 3 melhores de cada jogo ganham moedas; a linha é
+// criada uma vez (unique) e `claimedAt` marca o resgate.
+model MinigameWeeklyPrize {
+  id        String    @id @default(uuid())
+  weekKey   String    @db.VarChar(10) // "2026-W42"
+  game      String    @db.VarChar(40)
+  userId    String
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  rank      Int
+  score     Int
+  coins     Int
+  claimedAt DateTime?
+  createdAt DateTime  @default(now())
+
+  @@unique([weekKey, game, userId])
+  @@index([userId, claimedAt])
+  @@index([weekKey, game])
+}
+
+model WebPushKeys {
+  id         String   @id @default("singleton")
+  publicKey  String   @db.VarChar(255)
+  privateKey String   @db.VarChar(255)
+  createdAt  DateTime @default(now())
+}
+
+model EmailVerificationCode {
+  id        String   @id @default(uuid())
+  code      String
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+
+  // perf: consultas frequentes (where + orderBy) desse modelo
+  @@index([expiresAt])
+}
+
+model PasswordResetToken {
+  id        String   @id @default(uuid())
+  token     String   @unique
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  expiresAt DateTime
+  used      Boolean  @default(false)
+  createdAt DateTime @default(now())
+
+  // perf: consultas frequentes (where + orderBy) desse modelo
+  @@index([expiresAt])
+}
+
+model Friendship {
+  id           String   @id @default(uuid())
+  requesterId  String
+  requester    User     @relation("Requester", fields: [requesterId], references: [id], onDelete: Cascade)
+  addresseeId  String
+  addressee    User     @relation("Addressee", fields: [addresseeId], references: [id], onDelete: Cascade)
+  status       String   @default("PENDING")
+  // Recado opcional junto com o pedido de amizade.
+  message      String?  @db.VarChar(200)
+  // Quando o pedido foi aceito ("Amigos desde ..." no perfil). Amizades
+  // antigas ficam null — nesse caso vale updatedAt (a última mudança de
+  // status, que pra uma amizade aceita é o próprio aceite).
+  acceptedAt   DateTime?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  @@unique([requesterId, addresseeId])
+
+  // perf: consultas frequentes (where + orderBy) desse modelo
+  @@index([addresseeId, status])
+  @@index([requesterId, status])
+}
+
+// Item pedido: "sistema igual tinha no Orkut" — depoimento é um texto
+// que um amigo escreve sobre você, mas só aparece publicamente no seu
+// perfil depois de VOCÊ aprovar (status PENDING -> APPROVED) — igual
+// era no Orkut de verdade, dono do perfil decide o que fica exposto.
+model Testimonial {
+  id        String   @id @default(uuid())
+  authorId  String
+  author    User     @relation("TestimonialAuthor", fields: [authorId], references: [id], onDelete: Cascade)
+  targetId  String
+  target    User     @relation("TestimonialTarget", fields: [targetId], references: [id], onDelete: Cascade)
+  text      String   @db.Text
+  status    String   @default("PENDING") // PENDING | APPROVED
+  createdAt DateTime @default(now())
+
+  @@unique([authorId, targetId])
+  @@index([targetId, status])
+}
+
+// Recado no mural — ao contrário do depoimento, é público na hora, sem
+// aprovação nenhuma (o Orkut original também era assim: uma parede
+// cronológica de mensagens curtas e informais que qualquer amigo podia
+// deixar).
+model Scrap {
+  id        String   @id @default(uuid())
+  authorId  String
+  author    User     @relation("ScrapAuthor", fields: [authorId], references: [id], onDelete: Cascade)
+  targetId  String
+  target    User     @relation("ScrapTarget", fields: [targetId], references: [id], onDelete: Cascade)
+  text      String
+  createdAt DateTime @default(now())
+
+  @@index([targetId, createdAt])
+}
+
+// "Sou fã" — só um contador simples, sem texto/aprovação, igual o
+// Orkut original.
+model Fan {
+  id        String   @id @default(uuid())
+  fanId     String
+  fanUser   User     @relation("FanIsFanOf", fields: [fanId], references: [id], onDelete: Cascade)
+  targetId  String
+  target    User     @relation("FanTarget", fields: [targetId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
+
+  @@unique([fanId, targetId])
+}
+
+// Rankings — "top 5" por categoria entre amigos, igual o Orkut. Cada
+// pessoa escolhe UM alvo por categoria (pode trocar depois, é um voto
+// só, não acumula vários votos pro mesmo alvo na mesma categoria).
+model RankingVote {
+  id        String   @id @default(uuid())
+  voterId   String
+  voter     User     @relation("RankingVoter", fields: [voterId], references: [id], onDelete: Cascade)
+  targetId  String
+  target    User     @relation("RankingTarget", fields: [targetId], references: [id], onDelete: Cascade)
+  category  String // FUNNY | TRUSTWORTHY | CREATIVE | COOL
+  createdAt DateTime @default(now())
+
+  @@unique([voterId, category])
+  @@index([targetId, category])
+}
+
+// "Quem visitou seu perfil" — um registro por par (visitante, dono do
+// perfil), atualizado a cada nova visita (não cria um registro novo
+// pra cada visita, só atualiza quando foi a última vez e conta
+// quantas vezes no total).
+model ProfileVisit {
+  id          String   @id @default(uuid())
+  visitorId   String
+  visitor     User     @relation("ProfileVisitor", fields: [visitorId], references: [id], onDelete: Cascade)
+  targetId    String
+  target      User     @relation("ProfileVisitTarget", fields: [targetId], references: [id], onDelete: Cascade)
+  visitCount  Int      @default(1)
+  lastVisitAt DateTime @default(now())
+
+  @@unique([visitorId, targetId])
+  @@index([targetId, lastVisitAt])
+}
+
+// Álbum de fotos com comentários — diferente do banner/avatar (que só
+// tem uma foto de cada), aqui é uma galeria de várias fotos, cada uma
+// com seus próprios comentários.
+model Photo {
+  id        String   @id @default(uuid())
+  ownerId   String
+  owner     User     @relation("PhotoOwner", fields: [ownerId], references: [id], onDelete: Cascade)
+  url       String
+  caption   String?
+  createdAt DateTime @default(now())
+
+  comments PhotoComment[]
+
+  @@index([ownerId, createdAt])
+}
+
+model PhotoComment {
+  id        String   @id @default(uuid())
+  photoId   String
+  photo     Photo    @relation(fields: [photoId], references: [id], onDelete: Cascade)
+  authorId  String
+  author    User     @relation("PhotoCommentAuthor", fields: [authorId], references: [id], onDelete: Cascade)
+  text      String
+  createdAt DateTime @default(now())
+
+  @@index([photoId, createdAt])
+}
+
+// Confiável / Legal / Sexy — três selos separados, cada um é um "sim"
+// binário (votou = sim, sem voto = não conta) — o perfil mostra a
+// porcentagem de "sim" entre quem votou.
+model TraitVote {
+  id        String   @id @default(uuid())
+  voterId   String
+  voter     User     @relation("TraitVoter", fields: [voterId], references: [id], onDelete: Cascade)
+  targetId  String
+  target    User     @relation("TraitTarget", fields: [targetId], references: [id], onDelete: Cascade)
+  trait     String // TRUSTWORTHY | COOL | SEXY
+  createdAt DateTime @default(now())
+
+  @@unique([voterId, targetId, trait])
+  @@index([targetId, trait])
+}
+
+// Status de relacionamento com confirmação — só fica público depois
+// que os dois lados confirmam, mesmo espírito de um pedido de
+// amizade.
+model RelationshipRequest {
+  id          String   @id @default(uuid())
+  requesterId String
+  requester   User     @relation("RelationshipRequester", fields: [requesterId], references: [id], onDelete: Cascade)
+  partnerId   String
+  partner     User     @relation("RelationshipPartner", fields: [partnerId], references: [id], onDelete: Cascade)
+  status      String   @default("PENDING") // PENDING | ACCEPTED | DECLINED
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@unique([requesterId, partnerId])
+}
+
+// Enquetes NO PERFIL (item pedido: "sistema igual tinha no Orkut") —
+// nomes com prefixo "Profile" de propósito: já existe um sistema de
+// enquete DIFERENTE no app (Poll/PollVote, anexado a mensagens de
+// chat, com duração/expiração — ver messageController.js e
+// pollController.js) — usar os mesmos nomes aqui colidiria e quebraria
+// a validação do banco (nome de modelo duplicado). Esta é uma
+// funcionalidade nova e diferente (enquete solta no perfil, sem
+// expiração, sem estar presa a nenhuma mensagem).
+model ProfilePoll {
+  id        String   @id @default(uuid())
+  authorId  String
+  author    User     @relation("ProfilePollAuthor", fields: [authorId], references: [id], onDelete: Cascade)
+  question  String
+  createdAt DateTime @default(now())
+  // Enquete presa a um post do Feed (null = enquete do perfil)
+  // Sem @unique de propósito: o prisma db push trata unique novo como
+  // "possível perda de dados" e trava o deploy. O código garante 1 por post.
+  postId    String?
+  post      Post?    @relation(fields: [postId], references: [id], onDelete: Cascade)
+
+  options ProfilePollOption[]
+  votes   ProfilePollVote[]
+
+  @@index([postId])
+}
+
+model ProfilePollOption {
+  id     String      @id @default(uuid())
+  pollId String
+  poll   ProfilePoll @relation(fields: [pollId], references: [id], onDelete: Cascade)
+  text   String
+  order  Int         @default(0)
+
+  votes ProfilePollVote[]
+}
+
+model ProfilePollVote {
+  id        String            @id @default(uuid())
+  pollId    String
+  poll      ProfilePoll       @relation(fields: [pollId], references: [id], onDelete: Cascade)
+  optionId  String
+  option    ProfilePollOption @relation(fields: [optionId], references: [id], onDelete: Cascade)
+  voterId   String
+  voter     User              @relation("ProfilePollVoter", fields: [voterId], references: [id], onDelete: Cascade)
+  createdAt DateTime          @default(now())
+
+  @@unique([pollId, voterId])
+}
+
+model Conversation {
+  id        String   @id @default(uuid())
+  isGroup   Boolean  @default(false)
+  name      String?
+  icon      String?
+  // Dono do grupo (quem criou). Só o dono remove outros membros; se ele
+  // sair, a posse passa pro membro mais antigo. null em DM 1:1 e em
+  // grupos antigos (nesses, o membro mais antigo conta como dono).
+  ownerId   String?
+  createdAt DateTime @default(now())
+  // Link bonito de GRUPO (/dm/grupo-amigos) — DM 1:1 usa o @ da outra
+  // pessoa (/dm/fulano) e fica sem slug. Ver services/slugs.js.
+  slug      String?  @db.VarChar(100)
+
+  members  ConversationMember[]
+  messages Message[]
+  automodFlags AutomodFlag[]
+  reports Report[]
+
+  @@index([slug])
+}
+
+model ConversationMember {
+  id             String       @id @default(uuid())
+  conversationId String
+  conversation   Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  userId         String
+  user           User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  joinedAt       DateTime     @default(now())
+  lastReadAt     DateTime?
+  // Caixa da conversa pra ESTA pessoa: "main" (normal), "request"
+  // (solicitação de mensagem de quem não é amigo), "spam" ou "ignored"
+  // (escondida). Ver services/dmInbox.js.
+  inbox          String       @default("main") @db.VarChar(12)
+  inboxAcceptedAt DateTime?
+  // "Fixar conversa": quando ESTA pessoa fixou a conversa no topo da
+  // lista de DMs (null = não fixada). Fica na conta, então vale em todo
+  // aparelho. Máximo de 10 fixadas por pessoa (ver conversationController).
+  pinnedAt       DateTime?
+
+  @@unique([conversationId, userId])
+}
+
+model Role {
+  id          String   @id @default(uuid())
+  name        String
+  color       String   @default("#99AAB5")
+  icon        String?
+  permissions String   @default("0")
+  position    Int      @default(0)
+  isDefault   Boolean  @default(false)
+  hoist       Boolean  @default(false)
+  mentionable Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @default(now()) @updatedAt
+
+  members UserRole[]
+}
+
+model UserRole {
+  id     String @id @default(uuid())
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  roleId String
+  role   Role   @relation(fields: [roleId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, roleId])
+}
+
+model Category {
+  id        String   @id @default(uuid())
+  name      String
+  position  Int      @default(0)
+  updatedAt DateTime @default(now()) @updatedAt
+  // Ícone personalizado (opcional): um emoji OU uma imagem pequena.
+  iconEmoji String?
+  iconUrl   String?
+
+  channels   Channel[]
+  overwrites PermissionOverwrite[]
+  notificationOverrides NotificationOverride[]
+}
+
+model Channel {
+  id              String    @id @default(uuid())
+  categoryId      String?
+  category        Category? @relation(fields: [categoryId], references: [id], onDelete: SetNull)
+  name            String
+  // clampTopic aceita até 500 caracteres — VARCHAR(191) dava erro 500.
+  topic           String?   @db.VarChar(512)
+  slowModeSeconds Int?
+  type            String    @default("TEXT")
+  position        Int       @default(0)
+  isPrivate       Boolean   @default(false)
+  userLimit       Int?
+  rulesContent    String?   @db.Text
+  rulesTitle      String?
+  // Ícone personalizado (opcional): um emoji OU uma imagem pequena —
+  // sem nenhum dos dois, continua o # / alto-falante padrão.
+  iconEmoji       String?
+  iconUrl         String?
+  updatedAt       DateTime  @default(now()) @updatedAt
+  // Link bonito (/canal/chat-geral) — ver services/slugs.js. Sem @unique de
+  // propósito (unique novo trava o prisma db push); a unicidade é no código.
+  slug            String?   @db.VarChar(100)
+
+  messages   Message[]
+  readStates ChannelReadState[]
+  overwrites PermissionOverwrite[]
+  notificationOverrides NotificationOverride[]
+
+  @@index([slug])
+}
+
+model PermissionOverwrite {
+  id         String    @id @default(uuid())
+  channelId  String?
+  channel    Channel?  @relation(fields: [channelId], references: [id], onDelete: Cascade)
+  categoryId String?
+  category   Category? @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+  targetType String
+  targetId   String
+  allow      String    @default("0")
+  deny       String    @default("0")
+
+  @@unique([channelId, categoryId, targetType, targetId])
+}
+
+// Notificações por canal/categoria (igual ao Discord): nível próprio
+// ("Todas as mensagens" / "Só @menções" / "Nada" — null = herda) e
+// silenciar por um tempo ou até reativar. Canal sobrescreve categoria,
+// categoria sobrescreve o padrão global (UserSettings.extraPrefs.notifyLevel).
+// Lógica de resolução em services/notificationPrefs.js.
+//
+// targetKey ("ch:<id>" ou "cat:<id>") é o que garante UMA linha por
+// pessoa+alvo: um @@unique com channelId/categoryId anuláveis não seria
+// respeitado pelo MySQL (NULL nunca colide) nem aceito pelo upsert do Prisma.
+model NotificationOverride {
+  id          String    @id @default(uuid())
+  userId      String
+  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  targetKey   String    @db.VarChar(64)
+  channelId   String?
+  channel     Channel?  @relation(fields: [channelId], references: [id], onDelete: Cascade)
+  categoryId  String?
+  category    Category? @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+  level       String?   @db.VarChar(16) // ALL | MENTIONS | NONE — null = herda
+  mutedUntil  DateTime?
+  muteForever Boolean   @default(false)
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @default(now()) @updatedAt
+
+  @@unique([userId, targetKey])
+  @@index([targetKey, level])
+  @@index([channelId])
+  @@index([categoryId])
+}
+
+model ChannelReadState {
+  id         String   @id @default(uuid())
+  channelId  String
+  channel    Channel  @relation(fields: [channelId], references: [id], onDelete: Cascade)
+  userId     String
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  lastReadAt DateTime @default(now())
+
+  @@unique([channelId, userId])
+}
+
+// Item pedido: "sistema de coleções de emoji personalizado e
+// figurinha... vai ter a mesma categoria que o emoji normal, aquela
+// barra lateral" — nome/ícone escolhidos por quem cria, igual as
+// categorias do emoji unicode nativo já tinham (ver EmojiPicker.jsx,
+// GROUP_RAIL_ICON). Um modelo só, compartilhado entre emoji e
+// figurinha via `kind`, em vez de duplicar tudo duas vezes — as duas
+// coisas são idênticas estruturalmente (nome + ícone + pertence a um
+// dos dois tipos), só a lista de itens dentro que muda.
+model AssetCollection {
+  id        String   @id @default(uuid())
+  kind      String   // EMOJI | STICKER
+  name      String
+  // Item pedido: "o icon/logo das coleções são imagem como .png etc"
+  // — trocado de emoji unicode digitado pra upload de imagem de
+  // verdade, mesmo padrão de emoji/figurinha (magic-bytes validado,
+  // ver middleware/upload.js).
+  iconUrl   String
+  order     Int      @default(0)
+  createdAt DateTime @default(now())
+  emojis    Emoji[]
+  stickers  Sticker[]
+
+  @@index([kind])
+}
+
+model Emoji {
+  id            String   @id @default(uuid())
+  name          String   @unique
+  url           String
+  category      String   @default("Geral")
+  allowedRoleId String?
+  collectionId  String?
+  collection    AssetCollection? @relation(fields: [collectionId], references: [id], onDelete: SetNull)
+  createdById   String
+  createdBy     User     @relation(fields: [createdById], references: [id])
+  createdAt     DateTime @default(now())
+}
+
+model Sticker {
+  id           String   @id @default(uuid())
+  name         String   @unique
+  url          String
+  collectionId String?
+  collection   AssetCollection? @relation(fields: [collectionId], references: [id], onDelete: SetNull)
+  createdById  String
+  createdBy    User     @relation(fields: [createdById], references: [id])
+  createdAt    DateTime @default(now())
+}
+
+model SoundboardSound {
+  id          String   @id @default(uuid())
+  name        String   @unique
+  url         String
+  emoji       String?
+  durationMs  Int      @default(0)
+  createdById String
+  createdBy   User     @relation(fields: [createdById], references: [id])
+  createdAt   DateTime @default(now())
+}
+
+model Message {
+  id             String        @id @default(uuid())
+  content        String? @db.Text
+  title          String?
+  authorId       String
+  author         User          @relation(fields: [authorId], references: [id], onDelete: Cascade)
+  conversationId String?
+  conversation   Conversation? @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  channelId      String?
+  channel        Channel?      @relation(fields: [channelId], references: [id], onDelete: Cascade)
+  replyToId      String?
+  // BUG CORRIGIDO ("erro 500 ao excluir canal — Foreign key constraint
+  // violated: messageId"): antes essa relação era onDelete: NoAction —
+  // ou seja, o banco RECUSA apagar uma mensagem que tenha outras
+  // mensagens respondendo a ela (replyToId apontando pra ela). Isso não
+  // dava problema em excluir mensagem avulsa (o app já bloqueia isso
+  // noutro lugar), mas excluir um CANAL inteiro faz o Prisma tentar
+  // apagar em cascata (onDelete: Cascade lá embaixo, no relacionamento
+  // Channel->Message) TODAS as mensagens do canal de uma vez — e se
+  // qualquer uma delas tinha uma resposta apontando pra ela, o próprio
+  // banco travava a operação inteira no meio, sem distinção de qual
+  // canal era. SetNull resolve isso: ao apagar uma mensagem (avulsa ou
+  // em cascata via canal), qualquer resposta a ela só perde a referência
+  // ("responder a" vira null) em vez de travar a exclusão — a resposta
+  // em si continua existindo normalmente, só sem mais aquele vínculo.
+  replyTo        Message?      @relation("MessageReply", fields: [replyToId], references: [id], onDelete: SetNull, onUpdate: NoAction)
+  replies        Message[]     @relation("MessageReply")
+  pinned         Boolean       @default(false)
+  // Quando/quem fixou (lista de fixadas ordenada pela fixação mais recente).
+  pinnedAt       DateTime?
+  pinnedById     String?
+  edited         Boolean       @default(false)
+  deleted        Boolean       @default(false)
+  archived       Boolean       @default(false)
+  createdAt      DateTime      @default(now())
+  updatedAt      DateTime      @updatedAt
+
+  attachments Attachment[]
+  reactions   Reaction[]
+  mentions    MessageMention[]
+  poll        Poll?
+
+  // JSON do embed (EmbedBuilderModal / chamadas / prévia de link) — a
+  // descrição sozinha pode ter 4096 caracteres; VARCHAR(191) quebrava.
+  embed String? @db.Text
+  icon  String?
+  quickReactions String @default("[]")
+  stickerUrl String? @db.VarChar(512)
+  // Mensagem encaminhada: JSON { authorId, authorName, channelId,
+  // channelName, conversationId, messageId, createdAt } da original.
+  forwardedFrom String? @db.Text
+
+  // Tópicos (threads) a partir de uma mensagem: a RAIZ do tópico é a
+  // mensagem com título que responde à mensagem-mãe (replyToId + title,
+  // ver "Criar tópico"). As respostas DENTRO do tópico apontam pra raiz
+  // por threadId e não aparecem na lista principal do canal. Os campos
+  // thread* abaixo só são usados na raiz (contador, última resposta e
+  // arquivamento automático por inatividade — ver services/threads.js).
+  threadId          String?
+  isThread          Boolean   @default(false)
+  threadReplyCount  Int       @default(0)
+  threadLastReplyAt DateTime?
+  threadLastReplyId String?
+  threadArchivedAt  DateTime?
+
+  edits MessageEdit[]
+
+  automodFlags AutomodFlag[]
+  reports Report[]
+
+  // Item pedido: otimização/velocidade. O MySQL já cria sozinho um
+  // índice simples em toda chave estrangeira (channelId, conversationId,
+  // authorId) — mas a consulta REAL de listar mensagens sempre filtra
+  // POR CANAL *e* ordena por data ao mesmo tempo ("as últimas 50
+  // mensagens desse canal"). Um índice simples só ajuda a achar as
+  // linhas certas; ainda sobra pro banco ORDENAR isso à parte depois,
+  // toda vez. Um índice COMPOSTO (canal + data) deixa o banco fazer as
+  // duas coisas de uma vez só, direto no índice — é a mudança de maior
+  // impacto possível nessa tabela, que é a mais consultada do app
+  // inteiro (toda troca de canal/DM dispara essa consulta).
+  @@index([channelId, createdAt])
+  @@index([conversationId, createdAt])
+  // Filtro de spam (checkSpamLimits) e "from:@pessoa" na busca: autor + data.
+  @@index([authorId, createdAt])
+  // Modo lento: última mensagem da pessoa NESTE canal.
+  @@index([channelId, authorId, createdAt])
+  // Respostas de um tópico (painel do tópico) em ordem de data.
+  @@index([threadId, createdAt])
+  // Varredura de arquivamento automático (só raízes de tópico).
+  @@index([isThread, threadLastReplyAt])
+  // Busca de mensagens por texto (MATCH ... AGAINST em modo booleano).
+  @@fulltext([content])
+}
+
+// Histórico de edições: o conteúdo ANTERIOR de uma mensagem, gravado a
+// cada edição (ver messageController.editMessage). Visível pra quem pode
+// ver a mensagem, clicando no "(editado)".
+model MessageEdit {
+  id        String   @id @default(uuid())
+  messageId String
+  message   Message  @relation(fields: [messageId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  content   String?  @db.Text
+  editedAt  DateTime @default(now())
+
+  @@index([messageId, editedAt])
+}
+
+// Cada sistema (economia/rank/casas/figurinhas) é sua PRÓPRIA linha —
+// diferente do PlatformSettings.disabledSystems antigo (um JSON array
+// numa coluna só), isso evita a condição de corrida real que existia
+// antes: clicar em 2 toggles rapidinho podia fazer um clique "ler,
+// modificar, salvar" por cima do outro que ainda não tinha terminado,
+// apagando sem querer a mudança anterior. Com uma linha por sistema,
+// desligar "economia" nunca mais mexe na linha de "casas" — update de
+// UM system nunca conflita com o de outro.
+model SystemToggle {
+  key     String  @id // "economia" | "rank" | "casas" | "figurinhas"
+  enabled Boolean @default(true)
+}
+
+model AutomodFlag {
+  id             String    @id @default(uuid())
+  messageId      String
+  message        Message   @relation(fields: [messageId], references: [id], onDelete: Cascade)
+  conversationId String
+  conversation   Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  senderId       String
+  recipientId    String
+  matchedWord    String
+  // Trecho da mensagem em volta da palavra sinalizada — mostrado direto
+  // na lista da staff sem precisar abrir a conversa pra dar uma primeira
+  // olhada. A conversa inteira só é revelada se a staff clicar em
+  // "analisar" (ver adminGetFlaggedConversation).
+  snippet        String    @db.Text
+  status         String    @default("PENDING") // PENDING | ACTIONED | DISMISSED
+  reviewedById   String?
+  reviewedAt     DateTime?
+  createdAt      DateTime  @default(now())
+}
+
+// Item pedido: "Formulário e aprovação manual" — denúncia MANUAL feita por
+// um usuário (diferente de AutomodFlag acima, que é detecção automática
+// de palavra em DM). Cobre tanto mensagem de canal público quanto DM —
+// channelId/conversationId são só referência (a Message já carrega a
+// relação de verdade com um dos dois), sem @relation nomeada própria pra
+// não duplicar o que a Message já resolve.
+model Report {
+  id             String    @id @default(uuid())
+  // "MESSAGE" (denúncia de uma mensagem — o caso original) ou "PROFILE"
+  // (denúncia do perfil/usuário em si, feita pelo modal de perfil). Em
+  // denúncia de perfil não existe mensagem, por isso messageId é
+  // opcional; o alvo é sempre reportedUserId.
+  kind           String    @default("MESSAGE")
+  messageId      String?
+  message        Message?  @relation(fields: [messageId], references: [id], onDelete: Cascade)
+  reporterId     String
+  // Usuário denunciado (autor da mensagem, ou o dono do perfil).
+  reportedUserId String
+  conversationId String?
+  conversation   Conversation? @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  channelId      String?
+  // Categoria escolhida nos botões rápidos da denúncia (spam, harassment,
+  // nsfw, scam, impersonation, other — ver REPORT_CATEGORIES em
+  // reportController.js). null em denúncias antigas.
+  category       String?   @db.VarChar(24)
+  reason         String    @db.Text
+  // Mesmo espírito do "snippet" de AutomodFlag — conteúdo da mensagem no
+  // momento da denúncia, preservado aqui pra staff sempre ter o que foi
+  // denunciado mesmo se o autor editar ou apagar a mensagem depois.
+  snippet        String    @db.Text
+  status         String    @default("PENDING") // PENDING | ACTIONED | DISMISSED
+  reviewedById   String?
+  reviewedAt     DateTime?
+  createdAt      DateTime  @default(now())
+
+  // perf: consultas frequentes (where + orderBy) desse modelo
+  @@index([status, createdAt])
+}
+
+// BUG CORRIGIDO ("erro 500 ao excluir canal — Foreign key constraint
+// violated: messageId"): Poll/PollVote/MessageMention/Attachment/Reaction
+// eram todas onDelete: NoAction na relação com Message (ou, no caso de
+// PollVote, com Poll) — ou seja, o banco RECUSAVA apagar uma mensagem
+// que ainda tivesse enquete/menção/anexo/reação vinculados a ela.
+// Mensagem avulsa (Excluir mensagem no chat) não sofria com isso porque
+// o controller já apagava esses registros um por um antes de apagar a
+// mensagem em si — mas EXCLUIR UM CANAL faz o Prisma cascatear em massa
+// (onDelete: Cascade de Channel pra Message), tentando apagar centenas
+// de mensagens de uma vez sem esse cuidado manual, e bastava UMA delas
+// ter enquete/menção/anexo/reação pra travar a operação inteira no
+// meio. Cascade aqui resolve na raiz: apagar uma mensagem (avulsa ou em
+// massa via canal) já leva junto tudo que só existe por causa dela.
+model Poll {
+  id        String   @id @default(uuid())
+  messageId String   @unique
+  message   Message  @relation(fields: [messageId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  question  String
+  // JSON com até 7 opções de até 80 caracteres — não cabe em VARCHAR(191)
+  // (String sem @db.* no MySQL): enquete com opções longas dava erro 500.
+  // VARCHAR → TEXT é uma conversão segura pro `db push` (sem perda de dados).
+  options   String   @db.Text
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+
+  votes PollVote[]
+}
+
+model PollVote {
+  id          String   @id @default(uuid())
+  pollId      String
+  poll        Poll     @relation(fields: [pollId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  userId      String
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  optionIndex Int
+  createdAt   DateTime @default(now())
+
+  @@unique([pollId, userId])
+}
+
+model MessageMention {
+  id         String  @id @default(uuid())
+  messageId  String
+  message    Message @relation(fields: [messageId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  targetType String
+  targetId   String?
+
+  @@index([targetType, targetId])
+  @@index([messageId])
+}
+
+model Attachment {
+  id        String  @id @default(uuid())
+  messageId String
+  message   Message @relation(fields: [messageId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  url       String
+  filename  String
+  mimeType  String
+  size      Int
+  // Item pedido: "o ícone de olho vai representar... marcar imagem
+  // com spoiler... vai ficar toda borrada, um botão escrito Spoiler,
+  // e ao clicar vai tirar a censura" — marcado por quem envia, na
+  // hora de anexar (ver ChatWindow.jsx).
+  isSpoiler Boolean @default(false)
+}
+
+model Reaction {
+  id        String   @id @default(uuid())
+  messageId String
+  message   Message  @relation(fields: [messageId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  emoji     String
+  createdAt DateTime @default(now())
+
+  @@unique([messageId, userId, emoji])
+}
+
+model Ban {
+  id          String   @id @default(uuid())
+  userId      String
+  reason      String?
+  moderatorId String // uuid de um User, ou "system" (AutoMod) — sem @relation de propósito, ver AuditLogEntry.actorId
+  createdAt   DateTime @default(now())
+
+  @@unique([userId])
+}
+
+model Warning {
+  id          String   @id @default(uuid())
+  userId      String
+  target      User     @relation("WarningTarget", fields: [userId], references: [id], onDelete: Cascade)
+  reason      String
+  moderatorId String // uuid de um User, ou "system" (AutoMod) — sem @relation de propósito
+  createdAt   DateTime @default(now())
+
+  // perf: consultas frequentes (where + orderBy) desse modelo
+  @@index([userId, createdAt])
+}
+
+model AuditLogEntry {
+  id         String   @id @default(uuid())
+  actorId    String // uuid de um User, ou "system" para ações automáticas do AutoMod — por isso NÃO é uma @relation (evita FK quebrando com "system")
+  action     String
+  targetType String?
+  targetId   String?
+  reason     String?
+  metadata   String?  @db.Text // JSON livre (links de ícone/banner etc.) — passava de 191 e derrubava a ação com 500
+  createdAt  DateTime @default(now())
+
+  // perf: consultas frequentes (where + orderBy) desse modelo
+  @@index([createdAt])
+}
+
+model AutoModRule {
+  id        String   @id @default(uuid())
+  type      String
+  enabled   Boolean  @default(true)
+  action    String   @default("DELETE")
+  config    String   @default("{}")
+  createdAt DateTime @default(now())
+}
+
+// --- Baús diários — editável pela staff (o BADGE/COINS/loja de cores e o
+// sistema de empregos foram removidos por pedido do usuário; o baú diário
+// continua, dá pra staff editar sem precisar de deploy novo). ---
+
+model DailyChest {
+  id               String @id @default(uuid())
+  name             String
+  chanceRegular    Float
+  chanceSubscriber Float  @default(0)
+  coinsMin         Int
+  coinsMax         Int
+  ticketsMin       Int    @default(0)
+  ticketsMax       Int    @default(0)
+  position         Int    @default(0)
+  enabled          Boolean @default(true)
+  // Imagens reais do bú (fechado/aberto) — extraídas do bot Robbie
+  // original (config/chests.json), usadas direto por link (imgur), sem
+  // precisar baixar/hospedar de novo.
+  imageClosed      String?
+  imageOpened      String?
+}
+
+// --- Casas/decoração (adaptado do bot Robbie — fase 3). Simplificações
+// desta fase: sem variantes de móvel (frente/lado), sem flip/rotação, sem
+// móveis com GIF animado, sem sistema de mapas/grupos, sem desfazer/refazer,
+// sem geração de imagem no servidor — a casa é renderizada ao vivo no
+// navegador (camadas de <img> por zIndex) em vez de compor um PNG/GIF final
+// como o bot original fazia com Jimp/gifwrap. ---
+
+model FurnitureCategory {
+  id    String @id
+  name  String
+
+  items Furniture[]
+}
+
+model Furniture {
+  id         String   @id
+  categoryId String
+  category   FurnitureCategory @relation(fields: [categoryId], references: [id])
+  name       String
+  price      Int      @default(0)
+  imageUrl   String
+  width      Int      @default(200)
+  height     Int      @default(200)
+  createdAt  DateTime @default(now())
+
+  owners  UserFurniture[]
+  placed  PlacedFurniture[]
+}
+
+model UserFurniture {
+  id          String   @id @default(uuid())
+  userId      String
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  furnitureId String
+  furniture   Furniture @relation(fields: [furnitureId], references: [id], onDelete: Cascade)
+  quantity    Int      @default(1)
+  purchasedAt DateTime @default(now())
+
+  @@unique([userId, furnitureId])
+}
+
+// Casa do catálogo — igual o bot Robbie tinha, uma casa OU tem fundo
+// próprio (imageUrl vira o fundo completo, groupId null), OU pertence a um
+// grupo (imageUrl vira só a "imagem da casa" — sprite, sem fundo — e o
+// fundo real é o mapa que o usuário escolher; a posição/tamanho onde essa
+// casa aparece em cima do mapa vem do HouseGroup).
+model HouseCatalog {
+  id              String   @id
+  name            String
+  price           Int      @default(0)
+  backgroundColor String   @default("#BFEFFF")
+  imageUrl        String?  // fundo completo (sem grupo) OU sprite da casa (com grupo)
+  width           Int      @default(1000)
+  height          Int      @default(632)
+  stock           Int?     // null = ilimitado
+  groupId         Int?     // 1-1000, liga com HouseGroup.id — null = casa autônoma (fundo próprio)
+  group           HouseGroup? @relation(fields: [groupId], references: [id], onDelete: SetNull)
+  createdAt       DateTime @default(now())
+
+  owners UserHouse[]
+}
+
+// Grupo de casas (igual o bot Robbie tinha) — define a posição/tamanho
+// (x, y, width, height) onde a "imagem da casa" (sprite) das casas ligadas
+// a esse grupo aparece por cima do mapa escolhido pelo usuário. Mover ou
+// redimensionar um grupo afeta TODAS as casas daquele grupo de uma vez —
+// staff cadastra várias "peles" de casa (Iglu Azul, Iglu Vermelho...) que
+// compartilham a mesma vaga visual no mapa.
+model HouseGroup {
+  id     Int @id
+  x      Int
+  y      Int
+  width  Int
+  height Int
+
+  houses HouseCatalog[]
+}
+
+model UserHouse {
+  id          String   @id @default(uuid())
+  userId      String
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  houseId     String
+  // Faltava onDelete aqui — sem ele o Prisma/SQLite recusa (erro de chave
+  // estrangeira) apagar qualquer casa do catálogo (HouseCatalog) que já
+  // tenha sido comprada por pelo menos um usuário, ou seja, praticamente
+  // qualquer casa "de verdade" do painel de staff. O clique em "Excluir"
+  // batia no backend, o backend jogava um 500 genérico (erroHandler.js
+  // esconde o motivo real em produção), e a casa simplesmente continuava
+  // na lista — parecia que o botão não fazia nada. Cascade aqui reflete a
+  // intenção real do botão: apagar um tipo de casa do catálogo também
+  // remove as posses dela pelos usuários (e, em cascata, os likes/recados/
+  // móveis colocados dentro, que já dependem de UserHouse via Cascade).
+  house       HouseCatalog @relation(fields: [houseId], references: [id], onDelete: Cascade)
+  isActive    Boolean  @default(false)
+  purchasedAt DateTime @default(now())
+  updatedAt   DateTime @default(now()) @updatedAt
+  // Fundo escolhido (adaptado do sistema de "mapas" do bot Robbie —
+  // fundos de imagem reais que substituem a cor sólida da casa quando
+  // definidos; null = usa HouseCatalog.backgroundColor normalmente. Se a
+  // casa tiver grupo (HouseCatalog.groupId), o fundo é OBRIGATÓRIO — é o
+  // que dá o tamanho do quadro, e a "imagem da casa" do grupo aparece por
+  // cima dele, na posição definida pelo HouseGroup daquela casa).
+  mapBackgroundId String?
+  mapBackground   MapBackground? @relation(fields: [mapBackgroundId], references: [id], onDelete: SetNull)
+
+  items PlacedFurniture[]
+  likes    HouseLike[]
+  comments HouseComment[]
+
+  @@unique([userId, houseId])
+}
+
+// Catálogo de fundos (mapas) — extraído das imagens reais do bot Robbie
+// (floresta, montanha, praia, campo de futebol, etc).
+model MapBackground {
+  id       String @id
+  name     String
+  imageUrl String
+  price    Int    @default(50)
+  stock    Int?   // null = ilimitado (igual HouseCatalog.stock, mesmo padrão do bot Robbie)
+  width    Int    @default(1000) // usado como tamanho do quadro quando a casa ativa tem grupo
+  height   Int    @default(632)
+
+  houses UserHouse[]
+  owners UserMapBackground[]
+}
+
+// Fundos comprados por cada usuário — sem isso, "escolher fundo" na tela
+// de Decorar aceitaria qualquer id sem checar se a pessoa pagou por ele.
+model UserMapBackground {
+  id              String        @id @default(uuid())
+  userId          String
+  user            User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  mapBackgroundId String
+  mapBackground   MapBackground @relation(fields: [mapBackgroundId], references: [id], onDelete: Cascade)
+  purchasedAt     DateTime      @default(now())
+
+  @@unique([userId, mapBackgroundId])
+}
+
+// Curtidas e livro de visitas de casas — adaptado das tabelas house_likes/
+// house_comments do bot Robbie (fase de sistemas adicionais).
+model HouseLike {
+  id          String    @id @default(uuid())
+  userHouseId String
+  userHouse   UserHouse @relation(fields: [userHouseId], references: [id], onDelete: Cascade)
+  likerId     String
+  liker       User      @relation("HouseLikesGiven", fields: [likerId], references: [id], onDelete: Cascade)
+  createdAt   DateTime  @default(now())
+
+  @@unique([userHouseId, likerId])
+}
+
+model HouseComment {
+  id          String    @id @default(uuid())
+  userHouseId String
+  userHouse   UserHouse @relation(fields: [userHouseId], references: [id], onDelete: Cascade)
+  authorId    String
+  author      User      @relation("HouseCommentsGiven", fields: [authorId], references: [id], onDelete: Cascade)
+  content     String @db.Text
+  createdAt   DateTime  @default(now())
+}
+
+model PlacedFurniture {
+  id          String    @id @default(uuid())
+  userHouseId String
+  userHouse   UserHouse @relation(fields: [userHouseId], references: [id], onDelete: Cascade)
+  furnitureId String
+  furniture   Furniture @relation(fields: [furnitureId], references: [id], onDelete: Cascade)
+  x           Int       @default(0)
+  y           Int       @default(0)
+  width       Int
+  height      Int
+  zIndex      Int       @default(0)
+  flipped     Boolean   @default(false)
+  createdAt   DateTime  @default(now())
+}
+
+// --- Figurinhas/álbum (adaptado do bot Robbie — fase 4). Simplificação
+// desta fase: o layout de páginas/slots configurável pela staff do
+// original virou uma posição fixa por figurinha (slotIndex, na ordem do
+// catálogo) — razoável com um catálogo pequeno; sem sistema de troca entre
+// jogadores (sticker_trades) nesta fase. ---
+
+model StickerRarity {
+  id     String @id
+  name   String
+  color  String
+  weight Float  @default(1)
+
+  stickers CollectibleSticker[]
+}
+
+model CollectibleSticker {
+  id          String @id
+  name        String
+  description String? @db.Text
+  imageUrl    String
+  rarityId    String
+  rarity      StickerRarity @relation(fields: [rarityId], references: [id])
+  assignedPage    Int     @default(1)   // página do álbum onde a staff fixou essa figurinha
+  assignedSlotKey String?               // "slot0".."slot11" — null = staff ainda não posicionou
+  enabled     Boolean @default(true)
+
+  inventory UserSticker[]
+  album     UserStickerAlbum[]
+  capsules  StickerCapsule[]
+}
+
+model UserSticker {
+  id        String  @id @default(uuid())
+  userId    String
+  user      User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  stickerId String
+  sticker   CollectibleSticker @relation(fields: [stickerId], references: [id], onDelete: Cascade)
+  quantity  Int     @default(0)
+
+  @@unique([userId, stickerId])
+}
+
+model UserStickerAlbum {
+  id        String   @id @default(uuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  stickerId String
+  sticker   CollectibleSticker  @relation(fields: [stickerId], references: [id], onDelete: Cascade)
+  pastedAt  DateTime @default(now())
+
+  @@unique([userId, stickerId])
+}
+
+// Cápsula comprada na Máquina de Cápsulas — a figurinha já é sorteada NA
+// COMPRA (fica "fechada" aqui) e só entra no inventário quando aberta.
+model StickerCapsule {
+  id        String    @id @default(uuid())
+  userId    String
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  stickerId String
+  sticker   CollectibleSticker   @relation(fields: [stickerId], references: [id], onDelete: Cascade)
+  opened    Boolean   @default(false)
+  createdAt DateTime  @default(now())
+  openedAt  DateTime?
+}
+
+// Layout do álbum — configurável pela staff (adaptado de
+// utils/albumCardLayout.js do bot Robbie: fundo, até 12 espaços por
+// página com posição/tamanho/liga-desliga, número de páginas). Sem
+// suporte a sobrescrever o layout por página individual nesta fase — um
+// só grid de espaços vale pra todas as páginas (o original permite
+// overrides por página; simplificado aqui).
+model AlbumSettings {
+  id                 String  @id @default("singleton")
+  backgroundColor    String  @default("#14161c")
+  backgroundImageUrl String?
+  totalPages         Int     @default(5)
+  showBorder         Boolean @default(false)
+  showNames          Boolean @default(false)
+  // Dimensões de referência pra posicionar os espaços — o cliente escala
+  // isso proporcionalmente pro tamanho de tela real (ver StickersPage.jsx).
+  width              Int     @default(1780)
+  height             Int     @default(1208)
+}
+
+model AlbumSlot {
+  id      String  @id @default(uuid())
+  slotKey String  @unique // "slot0".."slot11"
+  x       Int
+  y       Int
+  width   Int
+  height  Int
+  enabled Boolean @default(true)
+}
+
+// Conquistas — as definições (nome/descrição/condição) ficam em código
+// (server/src/data/achievementsCatalog.js), aqui só guarda quem já
+// desbloqueou o quê e quando (adaptado de utils/achievements.js do bot
+// Robbie).
+// Catálogo de conquistas — agora vive no BANCO (não mais só em código),
+// exatamente pra staff poder editar nome/descrição/ícone/raridade/meta
+// pelo painel sem precisar de deploy novo. `key` é o identificador
+// ESTÁVEL usado internamente (UserAchievement.achievementId guarda esse
+// valor, não o id/uuid — assim, mesmo recriando o catálogo do zero, quem
+// já tinha desbloqueado continua batendo certinho). `progressType` diz
+// pro motor de conquistas (services/achievements.js) QUAL cálculo usar
+// pra saber o progresso atual — staff pode reaproveitar o mesmo tipo em
+// várias conquistas com metas diferentes (ex: COINS com target 1000 e
+// depois 10000), mas não inventa um tipo novo sem código (não tem como
+// staff descrever uma condição arbitrária só pela tela).
+model Achievement {
+  id           String   @id @default(uuid())
+  key          String   @unique
+  name         String
+  description  String   @db.Text
+  iconUrl      String?  // null = usa o ícone padrão de medalha no frontend
+  rarity       String   @default("COMMON") // COMMON | RARE | EPIC | LEGENDARY
+  progressType String
+  target       Int
+  position     Int      @default(0)
+  enabled      Boolean  @default(true)
+  createdAt    DateTime @default(now())
+}
+
+model UserAchievement {
+  id            String   @id @default(uuid())
+  userId        String
+  user          User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  achievementId String
+  unlockedAt    DateTime @default(now())
+
+  @@unique([userId, achievementId])
+}
+
+// --- Tickets de suporte (adaptado do /ticket do bot Robbie) — sistema
+// genuinamente útil numa plataforma web de comunidade, diferente de coisas
+// como cassino/empregos que eram específicas do bot. Um membro abre um
+// ticket, conversa com a staff por mensagens dentro dele, staff fecha
+// quando resolvido. ---
+
+model Ticket {
+  id          String   @id @default(uuid())
+  authorId    String
+  author      User     @relation("TicketsOpened", fields: [authorId], references: [id], onDelete: Cascade)
+  subject     String
+  status      String   @default("OPEN") // OPEN | CLOSED
+  claimedById String?
+  claimedBy   User?    @relation("TicketsClaimed", fields: [claimedById], references: [id], onDelete: SetNull)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  closedAt    DateTime?
+
+  messages TicketMessage[]
+
+  // perf: consultas frequentes (where + orderBy) desse modelo
+  @@index([authorId, createdAt])
+  @@index([status, createdAt])
+}
+
+model TicketMessage {
+  id        String   @id @default(uuid())
+  ticketId  String
+  ticket    Ticket   @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+  authorId  String
+  author    User     @relation(fields: [authorId], references: [id], onDelete: Cascade)
+  content   String @db.Text
+  createdAt DateTime @default(now())
+
+  // perf: consultas frequentes (where + orderBy) desse modelo
+  @@index([ticketId, createdAt])
+}
+
+// --- Inscrições (formulário de entrada com aprovação da staff) — a conta
+// só é criada de verdade quando um admin aprova. Antes disso não existe
+// nenhum User, só este registro pendente.
+model MembershipApplication {
+  id           String    @id @default(uuid())
+  email        String
+  passwordHash String
+  username     String
+  displayName  String
+  birthDate    DateTime?
+  // Respostas do questionário (pergunta 2 em diante), guardadas como JSON
+  // — mais flexível que uma coluna por pergunta, já que a staff pode
+  // querer mudar as perguntas no futuro sem precisar de outra migração.
+  answers      String?   @db.Text
+  status       String    @default("PENDING") // PENDING | APPROVED | REJECTED
+  // Inscrição feita com "Inscrever-se com Google/Discord/GitHub": a
+  // identidade do provedor fica guardada aqui e só vira OAuthAccount
+  // quando a staff aprovar (approveApplication).
+  oauthProvider       String?
+  oauthProviderUserId String?
+  oauthEmail          String?
+  reviewedById String?
+  reviewedAt   DateTime?
+  createdAt    DateTime  @default(now())
+}
+
+// --- Editor de Interface (staff pode reorganizar/redimensionar os menus
+// principais do site — barra de seções, sidebar de canais, lista de
+// membros — separadamente pra PC e pra Mobile, aplicado pra todo mundo). ---
+model UiLayoutConfig {
+  device            String  @id // "PC" | "MOBILE"
+  // Campos JSON em TEXT (sem @default: o MySQL não aceita valor padrão em
+  // TEXT; o controller sempre grava os quatro). Em VARCHAR(191) a posição
+  // de 4+ painéis já estourava o limite e o Editor de Interface dava 500.
+  railOrder         String  @db.Text // JSON array com a ordem das seções (ex: ["/","/dms","/economia",...])
+  railHidden        String  @db.Text // JSON array das seções escondidas
+  sidebarWidth      Int     @default(280)
+  membersWidth      Int     @default(240)
+  membersDefaultOpen Boolean @default(true)
+  // Posição de cada painel inteiro (barra lateral, lista de membros, chat,
+  // etc) dentro da grade do app — staff arrasta no Editor de Interface,
+  // vale pra TODO MUNDO assim que salva. JSON: { panelId: { gridColumn,
+  // gridRow } } — painel sem entrada aqui usa a posição padrão do CSS.
+  panelPositions    String  @db.Text
+  // Item pedido: "GIFa Move" — posição/tamanho customizados do menu de
+  // GIFs, definidos visualmente pela staff no Painel (arrastar +
+  // redimensionar por alças, independente por dispositivo). JSON:
+  // { left, top, width, height } em pixels (desktop) — vazio "{}" usa
+  // o cálculo automático padrão que já existia (perto do botão que
+  // abriu o menu).
+  gifMenuLayout     String  @db.Text
+  updatedAt         DateTime @updatedAt
+}
+
+// Metadados dos arquivos guardados no Backblaze B2 (fotos de perfil,
+// banners, anexos de mensagem, GIFs, áudio, etc) — o arquivo em si NUNCA
+// fica no MongoDB, só essas informações sobre ele. `storageKey` é o
+// caminho dentro do bucket B2; `url` é o endereço público final já
+// resolvido (o que efetivamente é usado no site). Ver
+// services/fileStorage.js pra upload/exclusão de verdade.
+// --- Fusão com o Reddit clone (fase 2 — Clubes). Clubes são categorias
+// principais criadas SÓ pela staff (ADMIN/MODERATOR) — servem apenas pra
+// organizar e publicar posts, sem sistema de regras nem de
+// entrar/sair. Cada Clube tem suas próprias categorias de post
+// (PostCategory — "Discussão", "Meme", etc), também geridas só pela
+// staff; todo post precisa obrigatoriamente de um Clube + uma categoria
+// dentro dele. Post pode ser TEXT/IMAGE/LINK, com contagem de score
+// (upvotes-downvotes) e comentários denormalizada em Post pra ordenar/
+// listar sem precisar contar toda vez. Comentários são aninhados
+// (parentId próprio, igual ao Reddit) e também têm voto.
+model Community {
+  id          String   @id @default(uuid())
+  slug        String   @unique
+  name        String
+  description String?  @db.Text
+  iconUrl     String?
+  bannerUrl   String?
+  createdById String
+  createdBy   User     @relation("CommunitiesCreated", fields: [createdById], references: [id], onDelete: Cascade)
+  createdAt   DateTime @default(now())
+  // Tags do Fórum definidas pela staff (JSON: ["Guia","Bug",...]) — quem
+  // posta escolhe entre elas; a lista do Fórum filtra por tag.
+  postTags    String?  @db.Text
+
+  posts      Post[]
+  categories PostCategory[]
+}
+
+// Categoria de post DENTRO de um Clube (ex: Discussão, Meme, Dúvida...) —
+// staff cria/edita/exclui pela tela de gerenciar o Clube. Todo Clube novo
+// já nasce com um conjunto padrão (ver communitiesController.createCommunity),
+// que a staff pode editar livremente depois.
+model PostCategory {
+  id          String    @id @default(uuid())
+  communityId String
+  community   Community @relation(fields: [communityId], references: [id], onDelete: Cascade)
+  name        String
+  // Visual completo (item pedido: "melhore o visual das categorias") —
+  // ícone pequeno (mostrado no chip/lista), banner grande (mostrado no
+  // topo da lista de posts daquela categoria), e descrição com suporte a
+  // **negrito**/__sublinhado__ (mesma sintaxe de richTextRender.jsx já
+  // usada em bio/mensagens — sem reinventar formatação nova).
+  iconUrl     String?
+  bannerUrl   String?
+  description String?   @db.Text
+  position    Int       @default(0)
+  createdAt   DateTime  @default(now())
+
+  posts Post[]
+}
+
+model Post {
+  id           String       @id @default(uuid())
+  communityId  String
+  community    Community    @relation(fields: [communityId], references: [id], onDelete: Cascade)
+  categoryId   String
+  category     PostCategory @relation(fields: [categoryId], references: [id], onDelete: Restrict)
+  authorId     String
+  author       User         @relation("PostsAuthored", fields: [authorId], references: [id], onDelete: Cascade)
+  title        String
+  type         String       @default("TEXT") // TEXT | IMAGE | LINK
+  content      String?      @db.Text
+  imageUrl     String?
+  linkUrl      String?
+  score        Int          @default(0) // upvotes - downvotes, denormalizado pra ordenar sem contar toda vez
+  commentCount Int          @default(0)
+  // Tags escolhidas no post (JSON: ["Guia"]) e "fixado pela staff" (topo).
+  tags         String?      @db.Text
+  pinnedAt     DateTime?
+  createdAt    DateTime     @default(now())
+  updatedAt    DateTime     @updatedAt
+  // Link bonito (/forum/como-instalar-mods) — ver services/slugs.js.
+  slug         String?      @db.VarChar(100)
+
+  votes    PostVote[]
+  comments PostComment[]
+  polls    ProfilePoll[] // enquete opcional (no máximo 1) do post (reaproveita o modelo das enquetes do perfil)
+
+  // Mesmo raciocínio do Message acima — listar Feeds sempre filtra por
+  // Clube (ou categoria) E ordena por pontuação/data ao mesmo tempo
+  // ("posts mais votados/recentes desse Clube").
+  @@index([communityId, createdAt])
+  @@index([communityId, score])
+  @@index([categoryId, createdAt])
+
+  // perf: consultas frequentes (where + orderBy) desse modelo
+  @@index([authorId, createdAt])
+  @@index([slug])
+}
+
+model PostVote {
+  id     String @id @default(uuid())
+  postId String
+  post   Post   @relation(fields: [postId], references: [id], onDelete: Cascade)
+  userId String
+  user   User   @relation("PostVotesGiven", fields: [userId], references: [id], onDelete: Cascade)
+  value  Int // 1 ou -1
+
+  @@unique([postId, userId])
+}
+
+model PostComment {
+  id        String        @id @default(uuid())
+  postId    String
+  post      Post          @relation(fields: [postId], references: [id], onDelete: Cascade)
+  authorId  String
+  author    User          @relation("PostCommentsAuthored", fields: [authorId], references: [id], onDelete: Cascade)
+  parentId  String?
+  // BUG CORRIGIDO (mesma causa do erro 500 ao excluir canal, ver
+  // Message.replyToId acima): NoAction aqui bloqueava apagar um
+  // comentário que tivesse respostas — o app já contorna isso na
+  // exclusão manual de UM comentário (soft-delete quando tem resposta,
+  // ver postsController.deleteComment), mas excluir uma CONTA inteira
+  // (staff → Excluir conta) cascateia em massa direto no banco, sem
+  // passar por essa lógica — bastava a pessoa ter UM comentário com
+  // resposta pra travar a exclusão da conta inteira no meio. SetNull
+  // resolve na raiz: a resposta só perde o vínculo "responder a", nunca
+  // trava a operação.
+  parent    PostComment?  @relation("CommentReplies", fields: [parentId], references: [id], onDelete: SetNull, onUpdate: NoAction)
+  replies   PostComment[] @relation("CommentReplies")
+  content   String        @db.Text
+  score     Int           @default(0)
+  deleted   Boolean       @default(false)
+  createdAt DateTime      @default(now())
+
+  votes PostCommentVote[]
+
+  @@index([postId, createdAt])
+
+  // perf: consultas frequentes (where + orderBy) desse modelo
+  @@index([authorId, createdAt])
+}
+
+model PostCommentVote {
+  id        String      @id @default(uuid())
+  commentId String
+  comment   PostComment @relation(fields: [commentId], references: [id], onDelete: Cascade)
+  userId    String
+  user      User        @relation("PostCommentVotesGiven", fields: [userId], references: [id], onDelete: Cascade)
+  value     Int
+
+  @@unique([commentId, userId])
+}
+
+model FileAsset {
+  id           String   @id @default(uuid())
+  ownerId      String?  // quem enviou — sem @relation de propósito, pra não inflar ainda mais a lista de relações do User
+  originalName String
+  mimeType     String
+  sizeBytes    Int
+  storageKey   String   @unique
+  url          String
+  createdAt    DateTime @default(now())
+
+  @@index([ownerId])
+}
+
+// ============================================================
+// Item pedido: "sistema completo chamado Clans" — comunidades
+// pequenas dentro da plataforma, cada usuário em no máximo um clã
+// por vez (ver User.clanId acima). Modelos próprios, dedicados, em
+// vez de tentar encaixar no sistema de Category/Channel/Role da
+// comunidade principal — aquele sistema é fortemente acoplado ao
+// conceito de "existe só uma comunidade" e ao esquema de permissões
+// bitfield customizável por cargo (server/src/services/permissions.js);
+// um clã precisa de isolamento total (só membros daquele clã veem/usam
+// o chat e a voz dele) e de cargos FIXOS (não criados/customizados
+// pela staff), então reaproveitar aquele sistema complicaria mais do
+// que ajudaria. Onde faz sentido, o padrão de outros sistemas já
+// existentes foi seguido de qualquer forma (AssetCollection pros
+// ícones — mesma ideia de "criado pela staff, name + url"; upload de
+// imagem pelo mesmo middleware/validação que emoji/figurinha/etc já
+// usam).
+model Clan {
+  id          String   @id @default(uuid())
+  name        String
+  description String?
+  isPublic    Boolean  @default(true)
+  // Item pedido: "Clubes poderão ser Públicos ou Privados. Clubes
+  // privados terão duas opções: Exclusivo para amigos... Somente por
+  // convite" — privacyType é a fonte de verdade real agora (3
+  // valores); isPublic (acima) é mantido só por compatibilidade com
+  // código antigo que ainda lê esse campo direto, sempre sincronizado
+  // com privacyType (true quando PUBLIC, false nos outros dois).
+  privacyType String  @default("PUBLIC") // PUBLIC | FRIENDS_ONLY | INVITE_ONLY
+  iconId      String?
+  icon        ClanIcon? @relation(fields: [iconId], references: [id], onDelete: SetNull)
+  // Item pedido: "menu de cores, permitindo escolher a cor que será
+  // aplicada ao ícone" — cor hex aplicada por cima do ícone (ver
+  // ClanIcon.url — pensado pra ser uma imagem que aceita ser tingida,
+  // tipo um SVG de silhueta/contorno).
+  // Item pedido: "a cor inicial/padrão de todos os ícones deve ser um
+  // cinza neutro" — mesmo tom já usado no app pra "neutro/offline"
+  // (ver STATUS_COLOR.OFFLINE em client/src/utils/status.js).
+  iconColor   String   @default("#80848E")
+  createdAt   DateTime @default(now())
+
+  members       User[]            @relation("ClanMembers")
+  tags          ClanTag[]
+  joinRequests  ClanJoinRequest[]
+  messages      ClanMessage[]
+  invites       ClanInvite[]
+}
+
+// Item pedido: "ícones personalizados... criados através do Painel da
+// Staff... nome do ícone... disponibilizar pros usuários" — mesmo
+// padrão de AssetCollection (acima): criado pela staff, global,
+// qualquer clã pode escolher usar.
+model ClanIcon {
+  id        String   @id @default(uuid())
+  name      String
+  url       String
+  createdAt DateTime @default(now())
+  // Item pedido: "quando eu criar um icon pro clã, deixe ele ser o
+  // padrão" — o ícone criado mais recentemente vira automaticamente
+  // o padrão (desmarcando o anterior — sempre só um por vez), usado
+  // quando o dono não escolhe nenhum ícone específico na criação/
+  // edição do clã.
+  isDefault Boolean  @default(false)
+  clans     Clan[]
+}
+
+// Item pedido: "cada tag pode ter no máximo 4 caracteres... não pode
+// existir uma tag igual à de outro clã... a tag pertence ao clã, não
+// a um usuário" — @@unique global no texto da tag garante a segunda
+// regra pela própria estrutura do banco.
+model ClanTag {
+  id        String   @id @default(uuid())
+  clanId    String
+  clan      Clan     @relation(fields: [clanId], references: [id], onDelete: Cascade)
+  tag       String   @unique
+  createdAt DateTime @default(now())
+  users     User[]
+}
+
+// Item pedido: "clan privado... o usuário precisa enviar uma
+// solicitação... o dono do clan poderá aceitar ou recusar" — mesmo
+// padrão de Application (candidatura pra entrar na plataforma):
+// status PENDING/APPROVED/REJECTED, uma linha por tentativa.
+model ClanJoinRequest {
+  id        String   @id @default(uuid())
+  clanId    String
+  clan      Clan     @relation(fields: [clanId], references: [id], onDelete: Cascade)
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  status    String   @default("PENDING") // PENDING | APPROVED | REJECTED
+  createdAt DateTime @default(now())
+
+  @@unique([clanId, userId])
+}
+
+// Item pedido: "Somente por convite — entrada apenas através de
+// convite" — diferente de ClanJoinRequest (a pessoa de fora pede pra
+// entrar, o dono decide): aqui é o inverso, alguém de DENTRO do clube
+// convida uma pessoa específica, que decide aceitar ou recusar.
+model ClanInvite {
+  id            String   @id @default(uuid())
+  clanId        String
+  clan          Clan     @relation(fields: [clanId], references: [id], onDelete: Cascade)
+  invitedUserId String
+  invitedUser   User     @relation("ClanInvitesReceived", fields: [invitedUserId], references: [id], onDelete: Cascade)
+  invitedById   String
+  invitedBy     User     @relation("ClanInvitesSent", fields: [invitedById], references: [id], onDelete: Cascade)
+  status        String   @default("PENDING") // PENDING | ACCEPTED | REJECTED
+  createdAt     DateTime @default(now())
+
+  @@unique([clanId, invitedUserId])
+}
+
+// Item pedido: "Canal de Chat: usado para mensagens de texto entre os
+// membros" — modelo dedicado e propositalmente simples (só texto),
+// em vez de reaproveitar o Message da comunidade principal (que
+// carrega bem mais coisa junto — anexos, reações, respostas, enquetes,
+// menções — peso desnecessário pro escopo pedido aqui). O canal de voz
+// não precisa de um modelo próprio: reaproveita a voz já integrada
+// (servidor de mídia próprio, ver /api/voice/join), usando
+// "clan:<id do clã>" como nome da sala.
+model ClanMessage {
+  id        String   @id @default(uuid())
+  clanId    String
+  clan      Clan     @relation(fields: [clanId], references: [id], onDelete: Cascade)
+  authorId  String
+  author    User     @relation(fields: [authorId], references: [id], onDelete: Cascade)
+  content   String
+  createdAt DateTime @default(now())
+
+  @@index([clanId, createdAt])
+
+  // perf: consultas frequentes (where + orderBy) desse modelo
+  @@index([authorId, createdAt])
+}
+
+// ============================================================
+// Item pedido: "sistema completo de configurações... UserSettings...
+// UNIQUE(userId)... cada usuário possui apenas um conjunto principal
+// de configurações" — tabela dedicada e separada do User (que já
+// guarda algumas preferências mais antigas — tema, zoom do chat,
+// estilo de emoji — mantidas exatamente onde estão, sem mover nada
+// que já funciona, pra não arriscar quebrar algo testado). Tudo que
+// é NOVO a partir deste sistema de Configurações reformulado mora
+// aqui daqui pra frente.
+//
+// Implementado em fases (o próprio pedido pede pra não desenvolver
+// tudo de uma vez) — a estrutura do banco já vem completa (é barato
+// criar os campos de uma vez, evita repetir migração toda hora), mas
+// a API e a tela só ficam de verdade prontas e testadas fase a fase,
+// seguindo a ordem que o próprio pedido definiu. Campo sem uso ainda
+// simplesmente fica parado com seu valor padrão até a fase dele
+// chegar — não altera nada no comportamento atual do app até lá.
+model UserSettings {
+  id     String @id @default(uuid())
+  userId String @unique
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  // --- Idioma e horário ---
+  language   String  @default("pt-BR")
+  timezone   String? // ex: "America/Sao_Paulo" — null = detecta pelo navegador
+  timeFormat String  @default("24h") // "12h" | "24h" | "auto"
+
+  // --- Aparência (além de preferredTheme, que já existe no User) ---
+  messageDensity String  @default("standard") // "compact" | "standard" | "comfortable"
+  messageDisplay String  @default("cozy")     // reservado — modo de exibição de mensagem
+  showTimestamps Boolean @default(true)
+  showAvatars    Boolean @default(true)
+  groupMessages  Boolean @default(true)
+  showLinkPreviews Boolean @default(true)
+  autoPlayMedia    Boolean @default(true)
+
+  // --- Caixa de chat ---
+  enterSends Boolean @default(true) // false = Ctrl+Enter envia, Enter quebra linha
+
+  // --- Privacidade ---
+  profilePrivacy       String  @default("everyone")  // "everyone" | "friends_groups" | "friends"
+  dmPrivacy             String  @default("everyone")  // "everyone" | "friends" | "friends_groups" | "none"
+  friendRequestPrivacy String  @default("everyone")  // "everyone" | "friends_of_friends" | "none"
+  contentFilterLevel    String  @default("moderate")  // "off" | "moderate" | "high"
+  spamFilterEnabled     Boolean @default(true)
+  // "Mostrar confirmação de leitura" (Visto) nas DMs 1:1 — desligado, a
+  // pessoa não manda nem vê o "Visto" (recíproco, igual WhatsApp).
+  showReadReceipts      Boolean @default(true)
+
+  // --- Notificações ---
+  desktopNotifications Boolean @default(true)
+  emailNotifications   Boolean @default(true)
+  notificationSounds   Boolean @default(true)
+
+  // --- Acessibilidade ---
+  reducedMotion Boolean @default(false)
+  highContrast  Boolean @default(false)
+  textScale     Float   @default(1.0) // 0.8 a 1.5
+  saturation    Int     @default(100) // 0, 50, 75, 100
+
+  // --- Voz e vídeo ---
+  inputDeviceId     String? // deviceId salvo do enumerateDevices(), null = padrão do sistema
+  outputDeviceId    String?
+  inputMode         String  @default("voice_activity") // "voice_activity" | "push_to_talk"
+  pushToTalkKey     String? // combinação de tecla configurável (ver seção 31)
+  inputVolume       Int     @default(100)
+  outputVolume      Int     @default(100)
+  noiseSuppression  Boolean @default(true)
+  echoCancellation  Boolean @default(true)
+  automaticGain     Boolean @default(true)
+  streamQuality     String  @default("1080p") // "720p" | "1080p"
+  streamFPS         Int     @default(30)       // 30 | 60
+  streamAudioEnabled Boolean @default(true)
+
+  // --- Atividades / jogos ---
+  activitySharing  Boolean @default(true)
+  activityVisibility String @default("everyone") // "everyone" | "friends" | "friends_groups" | "none"
+  gameJoinPrivacy   String  @default("friends")   // "none" | "friends" | "friends_groups" | "everyone"
+  gameDetectionEnabled Boolean @default(true)
+  // Biblioteca de jogos (tempo de jogo): "everyone" | "friends" | "nobody" — dono e staff sempre veem.
+  gamesVisibility      String  @default("friends")
+
+  // --- Overlay (só ".exe") ---
+  overlayEnabled       Boolean @default(false)
+  overlayNotifications Boolean @default(true)
+
+  // --- Sistema (".exe") ---
+  startWithSystem   Boolean @default(false)
+  minimizeToTray    Boolean @default(true)
+  openLinksInApp    Boolean @default(true)
+  confirmOnExit     Boolean @default(false)
+
+  developerMode Boolean @default(false)
+
+  // --- Personalizar layout (Configurações → Aparência/Acessibilidade) ---
+  // JSON com as preferências de layout (densidade, cantos, largura da
+  // coluna, fonte, fundo animado, temas sazonais, fonte legível...) —
+  // validado/limpo em settingsController.js. null = padrão.
+  layoutPrefs String? @db.Text
+  // Preferências extras (temas coloridos, modo streamer, sons, avisos,
+  // e-mails por categoria, voz...) — JSON validado em settingsController.js.
+  extraPrefs  String? @db.Text
+  // Volume individual por pessoa nas chamadas: JSON { userId: 0..200 }
+  // (100 = padrão, não guardado; no máximo 500 pessoas). Segue a conta
+  // entre PC/site/celular — validado em utils/voiceVolumes.js.
+  voiceVolumes String? @db.Text
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+// Item pedido: "atalhos personalizados... verificar se já existe
+// outro comando usando a combinação" — @@unique([userId, keyCombination])
+// garante essa checagem no próprio banco, não só numa validação que
+// alguém poderia esquecer de checar em algum lugar.
+model UserShortcut {
+  id              String @id @default(uuid())
+  userId          String
+  user            User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  action          String // ex: "abrir_configuracoes"
+  keyCombination  String // ex: "Ctrl+,"
+  createdAt       DateTime @default(now())
+
+  @@unique([userId, keyCombination])
+  @@unique([userId, action])
+}
+
+// Item pedido: "ConnectedAccount... provider... accessToken...
+// refreshToken... Tokens devem ser armazenados com segurança e nunca
+// enviados desnecessariamente ao frontend" — os tokens nunca entram
+// no SELECT usado pra responder o frontend (ver connectionController.js,
+// quando implementado nessa fase), só são lidos internamente pelo
+// próprio backend quando precisa renovar ou usar a conexão.
+model ConnectedAccount {
+  id             String    @id @default(uuid())
+  userId         String
+  user           User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  provider       String    // ex: "spotify", "steam", "youtube"
+  providerUserId String
+  displayName    String?
+  accessToken    String
+  refreshToken   String?
+  expiresAt      DateTime?
+  showOnProfile  Boolean   @default(true)
+  shareActivity  Boolean   @default(true)
+  createdAt      DateTime  @default(now())
+
+  @@unique([userId, provider])
+}
+
+// Item pedido: "RegisteredGames... Jogos adicionados... Cada jogo
+// deve possuir um identificador interno. Não depender apenas do nome
+// exibido."
+// Item pedido: "melhore também essa aba de apps, adicione ícone,
+// banner melhorando a interface tudo sendo configurado do painel da
+// staff" — catálogo de apps/jogos (o ProjectMC hoje, outros no
+// futuro) editável pela staff: banner grande (tela de detalhe, estilo
+// Steam), ícone pequeno (card da lista) e o texto de espaço necessário
+// exibido ali — tudo isso é conteúdo/apresentação, então fica no
+// banco, editável sem precisar de deploy novo. moduleId é o
+// identificador ESTÁVEL que liga esse registro de apresentação ao
+// módulo real gerenciado pelo lado Electron (projectMcManager.js,
+// MODULES[id]) — nunca muda mesmo que o nome de exibição mude.
+model AppCatalogItem {
+  id          String   @id @default(uuid())
+  moduleId    String   @unique // ex: "projectmc" — bate com MODULES no desktop/projectMcManager.js
+  name        String
+  // BUG CORRIGIDO ("só a descrição do DaVinci Project dá erro ao
+  // salvar"): String sem @db.Text vira VARCHAR(191) no MySQL (o limite
+  // padrão do Prisma pra manter o campo indexável em UTF8MB4) — mas o
+  // backend já validava até 500 caracteres (appCatalogController.js).
+  // Uma descrição entre 192 e 500 caracteres passava na validação do
+  // Node só pra ser rejeitada pelo MySQL na hora de gravar de verdade
+  // ("Data too long for column"), voltando como erro 500 — a
+  // descrição sugerida pro DaVinci Project tinha 212 caracteres,
+  // batendo exatamente nesse limite. @db.Text não tem esse teto (até
+  // 65KB), então a validação de 500 caracteres do backend passa a ser
+  // a única que importa de verdade.
+  description String? @db.Text
+  bannerUrl   String?
+  iconUrl     String?
+  sizeLabel   String? // ex: "~100 MB" — texto livre, exibido como "espaço necessário" (legado, mantido por compatibilidade — a UI nova usa sizeLabelWin/sizeLabelLinux abaixo)
+  // Item pedido: "adicione mais informações... versão, tamanho,
+  // requisitos... separe claramente os downloads para Windows e
+  // Linux" — campos novos, todos opcionais (nenhum quebra os apps já
+  // cadastrados, que ainda não os preencheram).
+  version         String?
+  sizeLabelWin    String? // ex: "~140 MB" — específico do pacote Windows
+  sizeLabelLinux  String? // ex: "~300 MB" — específico do pacote Linux (.AppImage)
+  requirementsWin String? @db.Text
+  requirementsLinux String? @db.Text
+  // Lista de recursos principais — um por linha (texto simples, sem
+  // precisar de outra tabela pra algo tão simples de editar).
+  featuresText    String? @db.Text
+  screenshots AppScreenshot[]
+  order       Int      @default(0)
+  enabled     Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+// Item pedido: "as screenshots de todos os aplicativos devem poder
+// ser adicionadas, removidas e editadas pelo painel da staff, sem
+// precisar alterar o código" — uma linha por imagem, staff controla
+// tudo (upload, ordem, remoção) via o mesmo painel Admin → Apps.
+model AppScreenshot {
+  id              String        @id @default(uuid())
+  appCatalogItemId String
+  appCatalogItem  AppCatalogItem @relation(fields: [appCatalogItemId], references: [id], onDelete: Cascade)
+  imageUrl        String
+  order           Int           @default(0)
+  createdAt       DateTime      @default(now())
+}
+
+// Biblioteca de jogos (estilo Steam): tempo total por jogo, somado a
+// partir da atividade que o app de desktop reporta (ver
+// services/gamePlaytime.js). gameKey = nome normalizado (slug).
+model GamePlaytime {
+  id             String   @id @default(uuid())
+  userId         String
+  user           User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  gameKey        String
+  name           String
+  steamAppId     Int?
+  iconUrl        String?  @db.VarChar(500)
+  totalSeconds   Int      @default(0)
+  sessions       Int      @default(0)
+  firstPlayedAt  DateTime @default(now())
+  lastPlayedAt   DateTime @default(now())
+
+  @@unique([userId, gameKey])
+  @@index([userId, lastPlayedAt])
+}
+
+model RegisteredGame {
+  id          String   @id @default(uuid())
+  userId      String
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  gameKey     String   // identificador interno estável, ex: "minecraft" — nunca muda mesmo se displayName mudar
+  displayName String
+  iconUrl     String?
+  createdAt   DateTime @default(now())
+
+  @@unique([userId, gameKey])
+}
+
+// Item pedido: "SecurityLog... Senha alterada, Sessão encerrada,
+// E-mail alterado, Conexão adicionada, Conexão removida... Não
+// armazenar informações sensíveis desnecessárias no log" — ipHash
+// (nunca o IP em si), sem nenhum dado sensível além do necessário
+// pra pessoa reconhecer o próprio histórico de segurança.
+model SecurityLog {
+  id        String   @id @default(uuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  action    String   // "PASSWORD_CHANGED" | "SESSION_REVOKED" | "EMAIL_CHANGED" | "CONNECTION_ADDED" | "CONNECTION_REMOVED" | ...
+  device    String?
+  ipHash    String?
+  createdAt DateTime @default(now())
+
+  @@index([userId, createdAt])
+}
+
+// ========== Sistema de Mods (Apps → Mods) ==========
+// Item pedido: "Quero que você implemente um sistema completo de Mods
+// dentro do Project Club... Project Club → Apps → Mods." — usa o
+// mod.io (https://docs.mod.io/restapiref/) como fonte dos mods em si;
+// as tabelas abaixo armazenam SÓ o que é do Project Club (favoritos,
+// ups, comentários, denúncias, perfis, coleções) mais REFERÊNCIAS pro
+// mod.io (modioModId, modioGameId — sempre Int, o tipo de ID que a API
+// do mod.io usa) — NUNCA o arquivo físico do mod (.zip/.dll/.pak/...),
+// que continua vivendo só no mod.io e é baixado sob demanda pelo app
+// desktop (ver desktop/modsManager.js) pra uma pasta temporária,
+// instalado na pasta do jogo, e descartado depois — nunca sobe pro
+// banco nem fica hospedado nos nossos servidores.
+
+// Mapa de qual AppID da Steam corresponde a qual jogo no mod.io — o
+// mod.io não expõe um jeito de buscar "qual é o jogo com este AppID
+// da Steam" diretamente pela API pública, então mantemos esse mapa
+// nós mesmos (editável pela staff, sem precisar de deploy pra
+// cadastrar um jogo novo). Um AppID da Steam SEM entrada aqui (ou com
+// enabled=false) é tratado como "sem suporte a mods" — nunca inventa
+// suporte que não foi configurado (item pedido 5: "não mostrar
+// qualquer jogo como compatível automaticamente").
+model ModGameMapping {
+  id          String   @id @default(uuid())
+  steamAppId  Int      @unique
+  modioGameId Int      @unique
+  modioNameId String   // slug do jogo no mod.io (ex: "lethalcompany") — usado nos links pro site do mod.io
+  displayName String
+  iconUrl     String?
+  enabled     Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+// Item pedido: "faça a integração com Steam Workshop" — mesma ideia do
+// ModGameMapping, mas pro Workshop da própria Steam em vez do mod.io.
+// workshopAppId existe separado de steamAppId porque nem todo jogo usa o
+// PRÓPRIO AppID pra guardar os itens de Workshop: Terraria clássico
+// (steamAppId 105600) não lê Workshop nenhum sozinho — quem lê é o
+// tModLoader, um app SEPARADO da Steam (AppID 1281930). Pra a maioria
+// dos jogos (Payday 2, Payday 3) os dois valores são iguais.
+model WorkshopGameMapping {
+  id            String   @id @default(uuid())
+  steamAppId    Int      @unique // AppID detectado localmente (o jogo que a pessoa tem instalado)
+  workshopAppId Int      // AppID usado pra consultar/baixar itens do Workshop (pode ser diferente do de cima)
+  displayName   String
+  iconUrl       String?
+  // Aviso mostrado quando steamAppId ≠ workshopAppId (ex: "Isso lê os
+  // mods através do tModLoader — instale-o também pela Steam.") — fica
+  // em branco pra jogos onde os dois AppIDs já são o mesmo.
+  note          String?
+  enabled       Boolean  @default(true)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+}
+
+// Item pedido: "integrar com GameBanana... uma API de mods de jogos da
+// Steam, sem precisar de login." Mesma ideia do WorkshopGameMapping —
+// gameBananaGameId é o ID numérico que o PRÓPRIO GameBanana usa pra
+// identificar o jogo (visível na URL da página do jogo lá, tipo
+// gamebanana.com/games/6 → id 6).
+model GameBananaGameMapping {
+  id                String   @id @default(uuid())
+  steamAppId        Int      @unique
+  gameBananaGameId  Int
+  displayName       String
+  iconUrl           String?
+  enabled           Boolean  @default(true)
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+}
+
+// Item pedido: "quero que você pegue a interface e tudo do Gale
+// [Thunderstore Mod Manager] e funda com o que eu já tenho" — mesma
+// ideia do GameBananaGameMapping/WorkshopGameMapping, agora pro
+// Thunderstore (o repositório de mods usado por jogos com BepInEx —
+// Lethal Company, Risk of Rain 2, Content Warning, etc, exatamente os
+// mesmos jogos que o Gale gerencia). communityIdentifier é o slug que
+// o PRÓPRIO Thunderstore usa pra identificar o jogo/comunidade (ex:
+// "lethal-company" em thunderstore.io/c/lethal-company/) — não existe
+// um "ID numérico" aqui como no GameBanana, o slug já é o identificador
+// estável. Implementação própria, direto contra a API pública do
+// Thunderstore (docs em thunderstore.io/api/docs/) — nenhum código do
+// Gale (GPL-3.0) foi copiado; só o conceito de "essa fonte de mods
+// existe e mapeia por Steam AppID" segue o mesmo padrão já usado pelas
+// outras três fontes acima.
+model ThunderstoreGameMapping {
+  id                  String   @id @default(uuid())
+  steamAppId          Int      @unique
+  communityIdentifier String   // slug do Thunderstore, ex: "lethal-company"
+  displayName         String
+  iconUrl             String?
+  enabled             Boolean  @default(true)
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+}
+
+model ModFavorite {
+  id          String   @id @default(uuid())
+  userId      String
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  modioModId  Int
+  modioGameId Int
+  createdAt   DateTime @default(now())
+
+  @@unique([userId, modioModId])
+  @@index([modioModId])
+}
+
+model ModUp {
+  id          String   @id @default(uuid())
+  userId      String
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  modioModId  Int
+  modioGameId Int
+  createdAt   DateTime @default(now())
+
+  @@unique([userId, modioModId])
+  @@index([modioModId])
+}
+
+model ModComment {
+  id          String    @id @default(uuid())
+  userId      String
+  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  modioModId  Int
+  modioGameId Int
+  content     String    @db.Text
+  createdAt   DateTime  @default(now())
+  editedAt    DateTime?
+
+  @@index([modioModId, createdAt])
+}
+
+model ModReport {
+  id         String   @id @default(uuid())
+  reporterId String
+  reporter   User     @relation(fields: [reporterId], references: [id], onDelete: Cascade)
+  modioModId Int
+  reason     String   @db.Text
+  // PENDING | ACTIONED | DISMISSED — mesmo vocabulário de status já usado
+  // em Report/AutomodFlag, pro painel da staff reaproveitar o mesmo padrão
+  // de fila de moderação (ver adminController.js).
+  status     String   @default("PENDING")
+  createdAt  DateTime @default(now())
+
+  @@index([modioModId])
+  @@index([status])
+}
+
+// Perfis de mods (item pedido 15, inspirado no r2modmanPlus mas
+// implementação própria) — um perfil é um conjunto nomeado de mods
+// ativos/inativos pra um jogo específico. A ATIVAÇÃO de verdade (que
+// arquivo fica onde) acontece só localmente no app desktop; aqui só
+// fica o registro de QUAIS mods/versões pertencem a cada perfil, pra
+// sincronizar entre computadores da mesma conta.
+model ModProfile {
+  id          String           @id @default(uuid())
+  userId      String
+  user        User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  modioGameId Int
+  name        String
+  items       ModProfileItem[]
+  createdAt   DateTime         @default(now())
+  updatedAt   DateTime         @updatedAt
+
+  @@unique([userId, modioGameId, name])
+}
+
+model ModProfileItem {
+  id             String     @id @default(uuid())
+  profileId      String
+  profile        ModProfile @relation(fields: [profileId], references: [id], onDelete: Cascade)
+  // Item pedido: "poder adicionar mods já baixados direto no modpack"
+  // — um mod instalado localmente (de qualquer fonte: mod.io,
+  // Workshop, GameBanana ou arquivo local) só existe no disco como uma
+  // PASTA com nome, sem ID de mod.io nenhum — por isso modioModId
+  // virou opcional. Quando ele existe (mod adicionado pela própria
+  // página do mod.io), o par (profileId, modioModId) já garante que
+  // não duplica. Quando NÃO existe (adicionado pelo nome, direto da
+  // lista de instalados), o controller confere duplicata por
+  // (profileId, modName) manualmente antes de criar — ver
+  // upsertProfileItem em modController.js.
+  modioModId     Int?
+  modioModfileId Int? // qual "Modfile" (versão específica) do mod.io está instalada nesse perfil
+  // Nome do mod — obrigatório NA PRÁTICA pra qualquer item (é o nome
+  // da pasta que desktop/modsManager.js usa pra ativar/desativar),
+  // mesmo continuando opcional no schema pra não quebrar linhas
+  // antigas que só tinham o modioModId.
+  modName        String?
+  version        String?
+  enabled        Boolean    @default(true)
+  installedAt    DateTime   @default(now())
+
+  @@unique([profileId, modioModId])
+}
+
+model ModCollection {
+  id          String              @id @default(uuid())
+  authorId    String
+  author      User                @relation(fields: [authorId], references: [id], onDelete: Cascade)
+  modioGameId Int
+  name        String
+  description String?             @db.Text
+  imageUrl    String?
+  items       ModCollectionItem[]
+  createdAt   DateTime            @default(now())
+  updatedAt   DateTime            @updatedAt
+}
+
+model ModCollectionItem {
+  id           String        @id @default(uuid())
+  collectionId String
+  collection   ModCollection @relation(fields: [collectionId], references: [id], onDelete: Cascade)
+  modioModId   Int
+  // Mesmo motivo do ModProfileItem.modName: instalar uma coleção
+  // inteira precisa do NOME de cada mod pra saber o nome da pasta no
+  // disco (ver desktop/modsManager.js) — guardar aqui evita consultar a
+  // API do mod.io de novo só pra montar a lista antes de instalar.
+  modName      String?
+  order        Int           @default(0)
+
+  @@unique([collectionId, modioModId])
+}
+
+// Item pedido: "sistema de criar modpacks e postar pra outras pessoas
+// baixarem, com like, dislike e quantas pessoas já baixaram". Diferente
+// de ModProfile (privado, só mod.io) — vale pra QUALQUER jogo (chave =
+// steamAppId) e qualquer fonte. items é um array JSON de
+// { source: 'modio'|'thunderstore'|'gamebanana'|'workshop'|'local',
+// sourceId, name, thumbnailUrl?, version? } — 'local' é só uma pasta no
+// disco de quem criou e não pode ser baixado por outra pessoa.
+// likeCount/dislikeCount/downloadCount são contadores desnormalizados
+// (mantidos em transação junto com SharedModpackVote/Download).
+model SharedModpack {
+  id            String                  @id @default(uuid())
+  authorId      String
+  author        User                    @relation("SharedModpackAuthor", fields: [authorId], references: [id], onDelete: Cascade)
+  steamAppId    Int
+  gameName      String
+  name          String
+  description   String?                 @db.Text
+  coverUrl      String?
+  items         String                  @db.MediumText
+  isPublic      Boolean                 @default(false)
+  likeCount     Int                     @default(0)
+  dislikeCount  Int                     @default(0)
+  downloadCount Int                     @default(0)
+  votes         SharedModpackVote[]
+  downloads     SharedModpackDownload[]
+  featuredBy    User[]                  @relation("UserFeaturedModpack")
+  createdAt     DateTime                @default(now())
+  updatedAt     DateTime                @updatedAt
+
+  @@index([steamAppId, isPublic])
+  @@index([authorId])
+}
+
+model SharedModpackVote {
+  id         String        @id @default(uuid())
+  modpackId  String
+  modpack    SharedModpack @relation(fields: [modpackId], references: [id], onDelete: Cascade)
+  userId     String
+  user       User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  value      Int // +1 = like, -1 = dislike
+  createdAt  DateTime      @default(now())
+
+  @@unique([modpackId, userId])
+  @@index([userId])
+}
+
+// Um registro por pessoa — "quantas pessoas já baixaram" conta gente,
+// não cliques (baixar de novo não soma).
+model SharedModpackDownload {
+  id         String        @id @default(uuid())
+  modpackId  String
+  modpack    SharedModpack @relation(fields: [modpackId], references: [id], onDelete: Cascade)
+  userId     String
+  user       User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt  DateTime      @default(now())
+
+  @@unique([modpackId, userId])
+  @@index([userId])
+}
+
+// --- Social: RSVP de eventos e página "Atividade" (só aditivo) ---
+
+// Resposta de presença de uma pessoa num evento da comunidade.
+model EventRsvp {
+  id        String   @id @default(uuid())
+  eventId   String
+  event     Event    @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  userId    String
+  status    String // GOING | MAYBE | NO
+  // Lembrete de 15 min antes já enviado (idempotente; zera se o horário mudar).
+  startNotifiedAt DateTime?
+  remindedAt DateTime?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([eventId, userId])
+  @@index([userId])
+}
+
+// Coisas da linha do tempo que não ficam guardadas em outra tabela:
+// subida de nível (LEVEL_UP) e "Comemorar" (CELEBRATE, data.itemKey).
+model ActivityEvent {
+  id        String   @id @default(uuid())
+  userId    String
+  type      String // LEVEL_UP | CELEBRATE
+  data      String?  @db.Text // JSON
+  createdAt DateTime @default(now())
+
+  @@index([userId, createdAt])
+  @@index([type, createdAt])
+
+  // perf: consultas frequentes (where + orderBy) desse modelo
+  @@index([createdAt])
+}
+
+// "Parabéns" de um amigo num item da Atividade (itemKey = ach:<id>, lvl:<id>, post:<id>, mp:<id>).
+model ActivityCheer {
+  id        String   @id @default(uuid())
+  itemKey   String
+  ownerId   String
+  userId    String
+  createdAt DateTime @default(now())
+
+  @@unique([itemKey, userId])
+  @@index([itemKey])
+  @@index([ownerId])
+}
+
+
+// Loja: molduras de avatar (estilo "decorações de perfil"). Criadas pela
+// staff no painel; preço em moedas e/ou gemas (null = não vende nessa moeda).
+model AvatarDecoration {
+  id         String   @id @default(uuid())
+  name       String
+  imageUrl   String   @db.Text
+  priceCoins Int?
+  priceGems  Int?
+  scale      Float    @default(1.2) // tamanho em relação ao avatar
+  offsetX    Float    @default(0)   // % do tamanho do avatar
+  offsetY    Float    @default(0)
+  active     Boolean  @default(true)
+  sortOrder  Int      @default(0)
+  createdAt  DateTime @default(now())
+  // Loja (sala branca): destaque, exclusividade de apoio e desconto.
+  // exclusiveTier: null = qualquer um compra; SUBSCRIBER/SUPER = benefício
+  // da categoria (liberado sem compra enquanto o status durar).
+  featured         Boolean @default(false)
+  exclusiveTier    String? @db.VarChar(16)
+  discountEligible Boolean @default(true)
+  description      String? @db.Text
+  // Item limitado (igual aos "limiteds" do Roblox): estoque total; null =
+  // ilimitado. Cada cópia vendida ganha um número de série (#1, #2...).
+  // Limitados podem ser trocados entre jogadores (ItemTrade).
+  stock            Int?
+  sold             Int     @default(0)
+  // Filtros da Loja: tags de tema ("anime,jogos"), cor principal e grupo
+  // de variantes (itens iguais em cores diferentes).
+  tags             String?  @db.VarChar(200)
+  color            String?  @db.VarChar(16)
+  variantGroup     String?  @db.VarChar(64)
+  owners     UserAvatarDecoration[]
+  // Coleção da loja (opcional).
+  collectionId String?
+  collection   ShopCollection? @relation(fields: [collectionId], references: [id], onDelete: SetNull)
+
+  @@index([collectionId])
+}
+
+model UserAvatarDecoration {
+  id           String           @id @default(uuid())
+  userId       String
+  decorationId String
+  decoration   AvatarDecoration @relation(fields: [decorationId], references: [id], onDelete: Cascade)
+  serial       Int?
+  // Item com prazo (recompensa de missão): some sozinho quando vence.
+  expiresAt    DateTime?
+  createdAt    DateTime         @default(now())
+
+  @@unique([userId, decorationId])
+  @@index([decorationId])
+}
+
+// Coleções da loja: agrupam molduras e efeitos de perfil, com banner
+// grande (carrossel "Destaques") e preço de pacote opcional.
+model ShopCollection {
+  id               String   @id @default(uuid())
+  name             String
+  description      String?  @db.Text
+  bannerUrl        String?  @db.Text
+  logoUrl          String?  @db.Text
+  accentColor      String?
+  active           Boolean  @default(true)
+  featured         Boolean  @default(true)
+  // Aparece na Loja? false = coleção "oculta": nem ela nem os itens dela
+  // são vendidos/listados na Loja, mas tudo continua funcionando (quem já
+  // tem usa normalmente, a staff pode dar de prêmio, missões, códigos...).
+  showInShop       Boolean  @default(true)
+  sortOrder        Int      @default(0)
+  bundlePriceCoins Int?
+  bundlePriceGems  Int?
+  // Oferta por tempo limitado (staff): desconto % no pacote entre início e fim.
+  offerStartsAt    DateTime?
+  offerEndsAt      DateTime?
+  offerDiscount    Int?
+  // Desconto de Assinante vale no pacote? (false = excluído por config)
+  discountEligible Boolean  @default(true)
+  createdAt        DateTime @default(now())
+  decorations      AvatarDecoration[]
+  effects          ProfileEffect[]
+  items            ShopItem[]
+}
+
+// Efeito de perfil: imagem animada transparente (GIF/WebP/APNG) que passa
+// por cima do perfil inteiro. Ajustes separados pra computador e celular.
+model ProfileEffect {
+  id           String   @id @default(uuid())
+  name         String
+  imageUrl     String   @db.Text
+  priceCoins   Int?
+  priceGems    Int?
+  scale        Float    @default(1)
+  offsetX      Float    @default(0)
+  offsetY      Float    @default(0)
+  opacity      Float    @default(0.85)
+  duration     Float    @default(4)   // segundos visível
+  mScale       Float    @default(1)
+  mOffsetX     Float    @default(0)
+  mOffsetY     Float    @default(0)
+  mOpacity     Float    @default(0.85)
+  mDuration    Float    @default(4)
+  active       Boolean  @default(true)
+  sortOrder    Int      @default(0)
+  createdAt    DateTime @default(now())
+  featured         Boolean @default(false)
+  exclusiveTier    String? @db.VarChar(16)
+  discountEligible Boolean @default(true)
+  description      String? @db.Text
+  stock            Int?
+  sold             Int     @default(0)
+  // Filtros da Loja: tags de tema ("anime,jogos"), cor principal e grupo
+  // de variantes (itens iguais em cores diferentes).
+  tags             String?  @db.VarChar(200)
+  color            String?  @db.VarChar(16)
+  variantGroup     String?  @db.VarChar(64)
+  collectionId String?
+  collection   ShopCollection? @relation(fields: [collectionId], references: [id], onDelete: SetNull)
+  owners       UserProfileEffect[]
+
+  @@index([collectionId])
+}
+
+model UserProfileEffect {
+  id        String        @id @default(uuid())
+  userId    String
+  effectId  String
+  effect    ProfileEffect @relation(fields: [effectId], references: [id], onDelete: Cascade)
+  serial    Int?
+  expiresAt DateTime?
+  createdAt DateTime      @default(now())
+
+  @@unique([userId, effectId])
+  @@index([effectId])
+}
+
+// Itens da Loja de tipos novos (mesmo fluxo de compra das molduras):
+// FONT  = fonte do nome no perfil (data: {family, url?} — família do Google
+//         Fonts ou arquivo de fonte enviado).
+// STYLE = estilo de perfil/miniperfil (data: {style: "win2000"...}).
+// "key" marca os itens embutidos (os 5 estilos), criados desativados pra
+// staff ativar, escolher coleção e preço no painel.
+model ShopItem {
+  id               String   @id @default(uuid())
+  kind             String   @db.VarChar(16)
+  key              String?  @unique @db.VarChar(64)
+  name             String
+  description      String?  @db.Text
+  previewUrl       String?  @db.Text
+  data             String?  @db.Text
+  priceCoins       Int?
+  priceGems        Int?
+  active           Boolean  @default(true)
+  sortOrder        Int      @default(0)
+  featured         Boolean  @default(false)
+  exclusiveTier    String?  @db.VarChar(16)
+  discountEligible Boolean  @default(true)
+  stock            Int?
+  sold             Int      @default(0)
+  tags             String?  @db.VarChar(200)
+  color            String?  @db.VarChar(16)
+  variantGroup     String?  @db.VarChar(64)
+  collectionId     String?
+  collection       ShopCollection? @relation(fields: [collectionId], references: [id], onDelete: SetNull)
+  owners           UserShopItem[]
+  createdAt        DateTime @default(now())
+
+  @@index([kind])
+  @@index([collectionId])
+}
+
+model UserShopItem {
+  id        String   @id @default(uuid())
+  userId    String
+  itemId    String
+  item      ShopItem @relation(fields: [itemId], references: [id], onDelete: Cascade)
+  serial    Int?
+  expiresAt DateTime?
+  createdAt DateTime @default(now())
+
+  @@unique([userId, itemId])
+  @@index([itemId])
+}
+
+// Troca de itens limitados entre jogadores. offer = o que quem propõe dá;
+// request = o que pede em troca. Formato: {items:[{kind,id}], coins, gems}.
+// Na hora de aceitar, tudo é conferido de novo e trocado de uma vez só.
+model ItemTrade {
+  id          String    @id @default(uuid())
+  fromUserId  String
+  toUserId    String
+  status      String    @default("PENDING") @db.VarChar(16)
+  offer       String    @db.Text
+  request     String    @db.Text
+  message     String?   @db.VarChar(300)
+  createdAt   DateTime  @default(now())
+  respondedAt DateTime?
+
+  @@index([fromUserId, status])
+  @@index([toUserId, status])
+}
+
+// Histórico de concessões/remoções de Assinante e Super Assinante. actorId
+// vem sempre da sessão de quem fez (nunca do corpo da requisição).
+model SupporterAuditLog {
+  id        String   @id @default(uuid())
+  userId    String
+  actorId   String
+  fromTier  String   @db.VarChar(16)
+  toTier    String   @db.VarChar(16)
+  reason    String?  @db.Text
+  createdAt DateTime @default(now())
+
+  @@index([userId, createdAt])
+  @@index([createdAt])
+}
+
+// --- Missões diárias/semanais + histórico da economia (round 5) ---
+// Tabelas novas e independentes (sem relação com User pra não mexer no
+// model User). Período em America/Sao_Paulo: periodKey "D2026-10-10"
+// (diária) ou "W2026-10-05" (semanal, segunda-feira da semana).
+model Mission {
+  id          String   @id @default(uuid())
+  period      String   @default("DAILY") // DAILY | WEEKLY
+  type        String   // MESSAGES | REACTIONS | VOICE_MINUTES | FORUM_POSTS | FORUM_COMMENTS | SHOP_VISIT | DAILY_CHEST
+  title       String
+  description String?  @db.Text
+  target      Int      @default(1)
+  rewardCoins Int      @default(0)
+  rewardGems  Int      @default(0)
+  rewardXp    Int      @default(0)
+  // Recompensa de item da Loja (moldura/efeito/fonte/estilo), opcional e
+  // com prazo em dias (null = pra sempre).
+  rewardItemKind String? @db.VarChar(16)
+  rewardItemId   String?
+  rewardItemDays Int?
+  enabled     Boolean  @default(true)
+  position    Int      @default(0)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  progress    UserMissionProgress[]
+
+  @@index([enabled, type])
+}
+
+model UserMissionProgress {
+  id          String    @id @default(uuid())
+  userId      String
+  missionId   String
+  mission     Mission   @relation(fields: [missionId], references: [id], onDelete: Cascade)
+  periodKey   String
+  progress    Int       @default(0)
+  completedAt DateTime?
+  claimedAt   DateTime?
+  updatedAt   DateTime  @updatedAt
+
+  @@unique([userId, missionId, periodKey])
+  @@index([userId, periodKey])
+  @@index([missionId])
+}
+
+// Histórico de moedas/gemas/XP (só o que acontece daqui pra frente —
+// baú diário, missões, compras na Loja, ajustes da staff, nível).
+model EconomyTransaction {
+  id        String   @id @default(uuid())
+  userId    String
+  kind      String   // DAILY | MISSION | SHOP | ADMIN | LEVEL
+  label     String
+  coins     Int      @default(0)
+  gems      Int      @default(0)
+  xp        Int      @default(0)
+  createdAt DateTime @default(now())
+
+  @@index([userId, createdAt])
+}
+
+// ============================================================
+// Round 7 (contentx): avisos persistentes, Galeria (curtidas/álbuns)
+// e tempo de jogo por dia. Sem @relation com User de propósito (não
+// mexe no modelo User, que outras áreas também editam).
+// ============================================================
+
+// Aviso pessoal que fica salvo (lembrete de evento, presente recebido...).
+// Nota pessoal sobre alguém (só o dono vê).
+model UserNote {
+  id        String   @id @default(uuid())
+  ownerId   String
+  targetId  String
+  text      String   @db.VarChar(256)
+  updatedAt DateTime @updatedAt
+
+  @@unique([ownerId, targetId])
+}
+
+// Código de resgate criado pela staff (moedas, gemas e/ou um item da Loja).
+model RedeemCode {
+  id          String    @id @default(uuid())
+  code        String    @unique @db.VarChar(40)
+  note        String?   @db.VarChar(120)
+  rewardCoins Int       @default(0)
+  rewardGems  Int       @default(0)
+  itemKind    String?   @db.VarChar(16)
+  itemId      String?
+  itemDays    Int?
+  maxUses     Int       @default(1)
+  uses        Int       @default(0)
+  expiresAt   DateTime?
+  createdById String?
+  createdAt   DateTime  @default(now())
+  redemptions RedeemCodeUse[]
+}
+
+model RedeemCodeUse {
+  id        String     @id @default(uuid())
+  codeId    String
+  code      RedeemCode @relation(fields: [codeId], references: [id], onDelete: Cascade)
+  userId    String
+  createdAt DateTime   @default(now())
+
+  @@unique([codeId, userId])
+  @@index([userId])
+}
+
+// Mensagens favoritadas (Caixa de Entrada → Favoritos).
+model SavedMessage {
+  id        String   @id @default(uuid())
+  userId    String
+  messageId String
+  createdAt DateTime @default(now())
+
+  @@unique([userId, messageId])
+  @@index([userId, createdAt])
+}
+
+// Ignorar alguém: as mensagens da pessoa ficam escondidas pra quem ignorou
+// (mais leve que bloquear, e a pessoa não fica sabendo).
+model UserIgnore {
+  id        String   @id @default(uuid())
+  userId    String
+  targetId  String
+  createdAt DateTime @default(now())
+
+  @@unique([userId, targetId])
+}
+
+// Banners promocionais da Loja (staff).
+model ShopBanner {
+  id           String   @id @default(uuid())
+  title        String   @db.VarChar(80)
+  subtitle     String?  @db.VarChar(200)
+  imageUrl     String?  @db.Text
+  badge        String?  @db.VarChar(40)
+  buttonLabel  String?  @db.VarChar(30)
+  collectionId String?
+  accentColor  String?  @db.VarChar(16)
+  active       Boolean  @default(true)
+  sortOrder    Int      @default(0)
+  endsAt       DateTime?
+  createdAt    DateTime @default(now())
+}
+
+// "Trocar de conta" (igual ao Discord): cada aparelho guarda um token
+// próprio por conta salva; trocar emite uma sessão nova sem pedir a senha.
+model AccountSwitchToken {
+  id         String   @id @default(uuid())
+  userId     String
+  tokenHash  String   @unique
+  userAgent  String?  @db.VarChar(300)
+  createdAt  DateTime @default(now())
+  lastUsedAt DateTime @default(now())
+  expiresAt  DateTime
+
+  @@index([userId])
+}
+
+model UserNotice {
+  id        String    @id @default(uuid())
+  userId    String
+  kind      String    // EVENT_REMINDER | GIFT | ...
+  title     String
+  body      String?   @db.Text
+  link      String?
+  data      String?   @db.Text // JSON livre
+  readAt    DateTime?
+  createdAt DateTime  @default(now())
+
+  @@index([userId, createdAt])
+
+  // perf: consultas frequentes (where + orderBy) desse modelo
+  @@index([userId, readAt])
+  @@index([createdAt])
+}
+
+// Links bonitos: slug antigo (antes de renomear) → registro atual, pra links
+// velhos continuarem abrindo. kind = channel | event | post | conversation.
+// Tabela nova, então o @@unique aqui não trava o prisma db push.
+model SlugHistory {
+  id        String   @id @default(uuid())
+  kind      String   @db.VarChar(16)
+  slug      String   @db.VarChar(100)
+  targetId  String
+  createdAt DateTime @default(now())
+
+  @@unique([kind, slug])
+  @@index([targetId])
+}
+
+// Curtida numa mídia da Galeria. itemKey = "a:<attachmentId>" ou "p:<postId>".
+model GalleryLike {
+  id        String   @id @default(uuid())
+  itemKey   String
+  userId    String
+  createdAt DateTime @default(now())
+
+  @@unique([itemKey, userId])
+  @@index([itemKey])
+  @@index([userId])
+}
+
+model GalleryAlbum {
+  id          String   @id @default(uuid())
+  name        String
+  description String?  @db.Text
+  createdById String
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  items GalleryAlbumItem[]
+
+  @@index([createdById])
+}
+
+model GalleryAlbumItem {
+  id        String       @id @default(uuid())
+  albumId   String
+  album     GalleryAlbum @relation(fields: [albumId], references: [id], onDelete: Cascade)
+  itemKey   String
+  url       String       @db.Text
+  kind      String       // image | gif | video
+  title     String?
+  addedById String
+  createdAt DateTime     @default(now())
+
+  @@unique([albumId, itemKey])
+  @@index([albumId, createdAt])
+}
+
+// Segundos jogados por dia (fuso de Brasília), pro gráfico de horas por semana.
+model GamePlayDay {
+  id      String @id @default(uuid())
+  userId  String
+  gameKey String
+  day     String // "AAAA-MM-DD"
+  seconds Int    @default(0)
+
+  @@unique([userId, gameKey, day])
+  @@index([userId, day])
+}
+
+// Migrações de dados que rodam UMA vez só no deploy (prisma/seed.js):
+// cada uma grava sua chave aqui quando termina e nunca mais roda.
+model SeedMarker {
+  key    String   @id
+  doneAt DateTime @default(now())
+}
+
+// Mini-Jogos: cada placar enviado no fim de uma partida (histórico).
+model MinigameScore {
+  id        String   @id @default(uuid())
+  userId    String
+  game      String   @db.VarChar(40)
+  score     Int
+  createdAt DateTime @default(now())
+
+  @@index([game, score])
+  @@index([userId, game])
+}
+
+// Mini-Jogos: resumo por pessoa e jogo (recorde, partidas, tempo jogado).
+// O ranking lê daqui (1 linha por pessoa), não do histórico.
+model MinigameStat {
+  id           String    @id @default(uuid())
+  userId       String
+  game         String    @db.VarChar(40)
+  bestScore    Int       @default(0)
+  bestAt       DateTime?
+  plays        Int       @default(0)
+  seconds      Int       @default(0)
+  lastPlayedAt DateTime  @default(now())
+
+  @@unique([userId, game])
+  @@index([game, bestScore])
+  @@index([userId, lastPlayedAt])
+}
+
+// Canal em destaque "Anúncios": posts da staff com banner (acima de Eventos).
+model StaffAnnouncement {
+  id          String   @id @default(uuid())
+  title       String   @db.VarChar(160)
+  body        String   @db.Text
+  bannerUrl   String?  @db.Text
+  linkUrl     String?  @db.VarChar(500)
+  linkLabel   String?  @db.VarChar(60)
+  pinned      Boolean  @default(false)
+  createdById String
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  // Agendado: fica escondido até publishAt; o sweeper publica e avisa a tela.
+  publishAt   DateTime?
+  published   Boolean  @default(true)
+
+  @@index([pinned, createdAt])
+  @@index([published, publishAt])
+}
+
+// ============================================================
+// Jogo de Cartas (substitui as Figurinhas colecionáveis). Tudo editável
+// pela staff (Painel → Jogo de Cartas). Sem @relation com User de propósito.
+// Lógica do jogo: server/src/cards/ (motor puro + IA, servidor autoritativo).
+// ============================================================
+model CardDef {
+  id           String   @id @default(uuid())
+  retired      Boolean  @default(false) // coleção antiga: jogável, mas fora de pacotes, bots e draft
+  slug         String   @unique
+  name         String
+  description  String?  @db.Text
+  flavor       String?  @db.Text
+  imageUrl     String?
+  rarity       String   @default("COMUM") // COMUM | INCOMUM | RARA | EPICA | LENDARIA | MITICA
+  element      String   @default("FOGO")  // FOGO | AGUA | TERRA | AR | LUZ | SOMBRA
+  collection   String   @default("Origens")
+  cost         Int      @default(1)
+  attack       Int      @default(1)
+  health       Int      @default(1)
+  ability      String   @default("NONE")
+  abilityValue Int      @default(0)
+  kind         String   @default("UNIT") // UNIT | SPELL
+  enabled      Boolean  @default(true)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  @@index([rarity])
+  @@index([collection])
+}
+
+model CardPack {
+  id             String   @id @default(uuid())
+  name           String
+  description    String?  @db.Text
+  imageUrl       String?
+  color          String   @default("#7c5cff")
+  priceCoins     Int?
+  priceGems      Int?
+  cardsPerPack   Int      @default(5)
+  weights        String   @db.Text // JSON { COMUM: 60, INCOMUM: 25, ... }
+  guaranteed     String?  // raridade mínima garantida na última carta
+  poolMode       String   @default("ALL") // ALL | COLLECTION | LIST
+  poolCollection String?
+  poolCardIds    String?  @db.Text // JSON [cardId]
+  dailyLimit     Int?
+  discountPercent Int?
+  offerEndsAt    DateTime?
+  expansion      Boolean   @default(false)
+  availableUntil DateTime?
+  active         Boolean  @default(true)
+  sort           Int      @default(0)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+}
+
+model UserCard {
+  id        String   @id @default(uuid())
+  userId    String
+  cardId    String
+  quantity  Int      @default(0)
+  level     Int      @default(1)
+  foil      Int      @default(0) // quantas das cópias são brilhantes (foil)
+  golden    Int      @default(0) // quantas das cópias são douradas (mais raras que brilhantes)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([userId, cardId])
+  @@index([cardId])
+}
+
+model CardDeck {
+  id        String   @id @default(uuid())
+  userId    String
+  name      String
+  cards     String   @db.Text // JSON [{ cardId, copies }]
+  active    Boolean  @default(false)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([userId])
+}
+
+model CardPlayer {
+  userId         String   @id
+  wins           Int      @default(0)
+  losses         Int      @default(0)
+  pvpWins        Int      @default(0)
+  pvpLosses      Int      @default(0)
+  rating         Int      @default(1000)
+  coinsEarned    Int      @default(0)
+  packsOpened    Int      @default(0)
+  streak         Int      @default(0)
+  bestStreak     Int      @default(0)
+  rewardDay      String?
+  rewardsToday   Int      @default(0)
+  starterClaimed Boolean  @default(false)
+  banned         Boolean  @default(false)
+  seasonKey      String?
+  seasonRating   Int      @default(1000)
+  seasonWins     Int      @default(0)
+  seasonLosses   Int      @default(0)
+  lastSeasonReward String? @db.Text
+  campaignStage  Int      @default(0)
+  duoWins        Int      @default(0)
+  duoLosses      Int      @default(0)
+  customPlayed   Int      @default(0)
+  brawlWeek      String?
+  brawlWins      Int      @default(0)
+  tutorialDone   Boolean  @default(false)
+  dust           Int      @default(0)
+  chestDay       String?
+  chestWins      Int      @default(0)
+  chestsOpened   Int      @default(0)
+  streakDays     Int      @default(0)
+  lastPlayDay    String?
+  equippedBack   String?
+  equippedFrame  String?
+  // Etapa 4: conquistas raras, draft e chefão
+  flawlessWins   Int      @default(0)
+  clutchWins     Int      @default(0)
+  draftRuns      Int      @default(0)
+  draftBest      Int      @default(0)
+  bossDamage     Int      @default(0)
+  kitV2          Boolean  @default(false) // kit grátis da nova coleção (memes/Club Penguin/cultura pop)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  @@index([rating])
+}
+
+// Draft (Arena): o jogador escolhe 1 de 3 cartas até montar o baralho e
+// joga contra bots até 7 vitórias ou 3 derrotas. Uma corrida ativa por vez.
+model CardDraft {
+  id         String    @id @default(uuid())
+  userId     String
+  status     String    @default("PICKING") // PICKING | PLAYING | DONE
+  picks      String    @db.Text // JSON [cardId]
+  options    String?   @db.Text // JSON [cardId] (3 opções da escolha atual)
+  wins       Int       @default(0)
+  losses     Int       @default(0)
+  fee        Int       @default(0)
+  reward     Int       @default(0)
+  matchId    String?
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
+  finishedAt DateTime?
+
+  @@index([userId, status])
+}
+
+// Chefão semanal da comunidade: todo mundo bate no mesmo chefe; quando a
+// vida acaba, quem participou resgata o prêmio.
+model CardBoss {
+  id         String    @id @default(uuid())
+  weekKey    String    @unique
+  name       String
+  element    String
+  hp         Int
+  damage     Int       @default(0)
+  defeatedAt DateTime?
+  createdAt  DateTime  @default(now())
+}
+
+model CardBossHit {
+  id       String   @id @default(uuid())
+  bossId   String
+  userId   String
+  damage   Int      @default(0)
+  attempts Int      @default(0)
+  day      String?
+  dayTries Int      @default(0)
+  claimed  Boolean  @default(false)
+  updatedAt DateTime @updatedAt
+
+  @@unique([bossId, userId])
+  @@index([bossId, damage])
+}
+
+// Liga de clãs: resultado e pagamento de cada semana (uma linha por semana).
+model CardClanWeek {
+  id        String   @id @default(uuid())
+  weekKey   String   @unique
+  results   String   @db.Text // JSON [{clanId, name, points, coins}]
+  createdAt DateTime @default(now())
+}
+
+model CardMatch {
+  id           String    @id @default(uuid())
+  mode         String    // PVE | PVP
+  difficulty   String?
+  p1Id         String
+  p2Id         String?
+  status       String    @default("ACTIVE") // PENDING | ACTIVE | FINISHED | CANCELLED | DECLINED
+  winnerId     String?
+  state        String?   @db.LongText
+  version      Int       @default(0)
+  turnDeadline DateTime?
+  reward1      Int       @default(0)
+  reward2      Int       @default(0)
+  endReason    String?
+  initialState String?   @db.LongText
+  actions      String?   @db.LongText
+  campaignStageId String?
+  tournamentId String?
+  boardId String?
+  p3Id         String?
+  p4Id         String?
+  format       String    @default("1V1") // 1V1 | 2V2
+  custom       Boolean   @default(false) // partida personalizada: sem recompensa nenhuma
+  lobbyId      String?
+  kind         String?   // TUTORIAL | BRAWL | DRAFT | BOSS
+  reward3      Int       @default(0)
+  reward4      Int       @default(0)
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+  endedAt      DateTime?
+
+  @@index([p1Id, status])
+  @@index([p2Id, status])
+  @@index([status, createdAt])
+}
+
+model CardTrade {
+  id           String    @id @default(uuid())
+  fromId       String
+  toId         String
+  offer        String    @db.Text // JSON [{ cardId, qty }]
+  request      String    @db.Text
+  offerCoins   Int       @default(0)
+  requestCoins Int       @default(0)
+  message      String?
+  status       String    @default("PENDING") // PENDING | ACCEPTED | DECLINED | CANCELLED | FAILED
+  createdAt    DateTime  @default(now())
+  resolvedAt   DateTime?
+
+  @@index([toId, status])
+  @@index([fromId, status])
+}
+
+model CardPackOpen {
+  id        String   @id @default(uuid())
+  userId    String
+  packId    String
+  dayKey    String
+  cards     String   @db.Text
+  paidCoins Int      @default(0)
+  paidGems  Int      @default(0)
+  createdAt DateTime @default(now())
+
+  @@index([userId, dayKey])
+  @@index([userId, createdAt])
+}
+
+model CardGameSettings {
+  id        String   @id @default("singleton")
+  data      String   @db.Text
+  updatedAt DateTime @updatedAt
+}
+
+// Estatísticas por carta (equilíbrio do jogo — Painel da Staff).
+model CardStat {
+  cardId    String   @id
+  played    Int      @default(0)
+  wins      Int      @default(0)
+  updatedAt DateTime @updatedAt
+}
+
+// Mercado: carta fica "em custódia" enquanto anunciada.
+model CardListing {
+  id        String    @id @default(uuid())
+  sellerId  String
+  cardId    String
+  foil      Boolean   @default(false)
+  price     Int
+  status    String    @default("ACTIVE") // ACTIVE | SOLD | CANCELLED
+  buyerId   String?
+  createdAt DateTime  @default(now())
+  soldAt    DateTime?
+
+  @@index([status, createdAt])
+  @@index([sellerId, status])
+  @@index([cardId, status])
+}
+
+// Campanha (história contra bots), editável pela staff.
+model CardCampaignStage {
+  id           String   @id @default(uuid())
+  position     Int      @default(0)
+  name         String
+  story        String?  @db.Text
+  botName      String
+  difficulty   String   @default("MEDIO")
+  heroHp       Int      @default(30)
+  deckCardIds  String?  @db.Text // JSON [cardId] (opcional; vazio = baralho gerado)
+  rewardCoins  Int      @default(0)
+  rewardCardId String?
+  boardId String?
+  enabled      Boolean  @default(true)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+}
+
+// Torneios criados pela staff (chaveamento eliminatório).
+model CardTournament {
+  id          String    @id @default(uuid())
+  name        String
+  description String?   @db.Text
+  status      String    @default("OPEN") // OPEN | RUNNING | FINISHED | CANCELLED
+  maxPlayers  Int       @default(8)
+  prizeCoins  Int       @default(0)
+  prizeGems   Int       @default(0)
+  prizeCardId String?
+  startsAt    DateTime?
+  bracket     String?   @db.LongText
+  winnerId    String?
+  createdById String?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+}
+
+model CardTournamentEntry {
+  id           String   @id @default(uuid())
+  tournamentId String
+  userId       String
+  createdAt    DateTime @default(now())
+
+  @@unique([tournamentId, userId])
+  @@index([userId])
+}
+
+// Fundos (mesas) de batalha do Jogo de Cartas — editáveis pela staff.
+// Sem imagem, usa a cena ilustrada do tema base.
+model CardBoard {
+  id        String   @id @default(uuid())
+  name      String
+  theme     String   @default("floresta")
+  imageUrl  String?  @db.Text
+  dim       Int      @default(35)
+  accent    String   @default("#8b6bff")
+  effect    String   @default("NONE")
+  weight    Int      @default(10)
+  active    Boolean  @default(true)
+  sort      Int      @default(0)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+// Salas de batalha (convite por link): 1v1 ou 2v2, normal ou personalizada.
+model CardLobby {
+  id        String   @id @default(uuid())
+  code      String   @unique
+  hostId    String
+  format    String   @default("1V1") // 1V1 | 2V2
+  custom    Boolean  @default(false)
+  rules     String?  @db.Text // JSON das regras personalizadas
+  slots     String   @db.Text // JSON [{ userId?, bot? }] — times: 0,2 vs 1,3
+  boardId   String?
+  status    String   @default("OPEN") // OPEN | STARTED | CANCELLED
+  matchId   String?
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([status, expiresAt])
+  @@index([hostId])
+}
+
+// Passe da temporada (gratuito): XP por partidas, missões e pacotes.
+model CardPass {
+  id        String   @id @default(uuid())
+  userId    String
+  seasonKey String
+  xp        Int      @default(0)
+  claimed   String?  @db.Text // JSON [níveis já resgatados]
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([userId, seasonKey])
+}
+
+// Cosméticos da Arena (verso de carta, moldura do herói).
+model CardCosmetic {
+  id        String   @id @default(uuid())
+  key       String   @unique
+  kind      String   // BACK | FRAME
+  name      String
+  rarity    String   @default("COMUM")
+  priceGems Int?
+  source    String   @default("SHOP") // SHOP | PASS | FREE
+  active    Boolean  @default(true)
+  sort      Int      @default(0)
+  createdAt DateTime @default(now())
+}
+
+model UserCardCosmetic {
+  id         String   @id @default(uuid())
+  userId     String
+  cosmeticId String
+  createdAt  DateTime @default(now())
+
+  @@unique([userId, cosmeticId])
+  @@index([userId])
+}
+
+// Erros persistidos (painel da staff → GET /api/admin/errors). Alimentado
+// pelas mesmas entradas do errorRing (erro de tela do cliente, 500 do
+// servidor, erro do processo), agrupado por impressão digital (sha1 de
+// origem + mensagem normalizada + 1ª linha da pilha): o mesmo erro
+// repetido só soma `count`/`lastSeen`. No máximo 1 gravação por
+// impressão digital a cada 10s; some depois de 30 dias (cleanupJobs).
+model ErrorLog {
+  id          String   @id @default(uuid())
+  source      String   // server | client | process
+  message     String   @db.Text
+  stack       String?  @db.Text
+  url         String?  @db.VarChar(512)
+  userAgent   String?  @db.VarChar(512)
+  userId      String?
+  count       Int      @default(1)
+  firstSeen   DateTime @default(now())
+  lastSeen    DateTime @updatedAt
+  fingerprint String   @unique
+
+  @@index([lastSeen])
+  @@index([source, lastSeen])
+}
+
+// Dias em que cada pessoa usou o app (painel de números da staff).
+model UserActiveDay {
+  userId String
+  day    String   @db.VarChar(10) // AAAA-MM-DD (horário de Brasília)
+  at     DateTime @default(now())
+
+  @@id([userId, day])
+  @@index([day])
+}
+
+// Quedas detectadas pelo monitor de status (página pública /status).
+model StatusIncident {
+  id        String    @id @default(uuid())
+  component String    @db.VarChar(32)
+  startedAt DateTime  @default(now())
+  endedAt   DateTime?
+  detail    String?   @db.VarChar(300)
+
+  @@index([component, startedAt])
+}
+
+// Temporada de missões (passe do mês): pontos vêm das missões resgatadas.
+// Faixa grátis pra todo mundo + faixa extra de apoiador. Ver services/missionSeason.js.
+model SeasonPass {
+  userId      String
+  seasonKey   String   @db.VarChar(7) // AAAA-MM
+  points      Int      @default(0)
+  claimedFree String   @default("[]") @db.VarChar(400)
+  claimedPlus String   @default("[]") @db.VarChar(400)
+  updatedAt   DateTime @updatedAt
+
+  @@id([userId, seasonKey])
+  @@index([seasonKey, points])
+}
+
+// Chaves de acesso (passkeys / WebAuthn): entrar com digital, rosto ou PIN
+// do aparelho, sem senha. Ver controllers/passkeyController.js.
+model Passkey {
+  id           String    @id @default(uuid())
+  userId       String
+  credentialId String    @unique @db.VarChar(512)
+  publicKey    String    @db.Text // base64url
+  counter      Int       @default(0)
+  transports   String?   @db.VarChar(200)
+  name         String    @db.VarChar(60)
+  createdAt    DateTime  @default(now())
+  lastUsedAt   DateTime?
+
+  @@index([userId])
+}
+
+// Bolinha "novo" das seções (Anúncios, Eventos, Coleções da Loja...): quando
+// cada pessoa abriu a seção pela última vez. Sem @relation de propósito
+// (não mexe no model User). Ver services/sectionBadges.js.
+model SectionSeen {
+  userId  String
+  section String   @db.VarChar(32)
+  seenAt  DateTime @default(now())
+
+  @@id([userId, section])
+}
+
+// Primeiros passos (checklist de boas-vindas) + tour. Uma linha por pessoa
+// por passo: completedAt = o servidor confirmou que o passo foi feito
+// (conferido no banco ou por evento do próprio servidor, nunca pelo
+// cliente); claimedAt = a recompensa já foi paga (uma vez só, garantido
+// pelo updateMany com claimedAt: null). Passos especiais sem recompensa:
+// TOUR (tour visto) e DISMISS (checklist escondido). Ver services/onboarding.js.
+model UserOnboardingStep {
+  userId      String
+  step        String    @db.VarChar(32)
+  completedAt DateTime?
+  claimedAt   DateTime?
+  coins       Int       @default(0)
+  createdAt   DateTime  @default(now())
+
+  @@id([userId, step])
+}
+
+// Backups automáticos do banco (job diário + botão no painel da staff).
+// Só o histórico/estado; o arquivo fica no S3 compatível (BACKUP_S3_*) ou
+// em BACKUP_DIR. Ver services/dbBackup.js.
+model DbBackup {
+  id         String    @id @default(uuid())
+  status     String    @db.VarChar(16) // RUNNING | OK | FAILED
+  trigger    String    @db.VarChar(16) // SCHEDULE | MANUAL
+  method     String?   @db.VarChar(16) // mysqldump | node
+  location   String?   @db.VarChar(512)
+  fileName   String?   @db.VarChar(255)
+  sizeBytes  BigInt?
+  tables     Int?
+  rows       BigInt?
+  error      String?   @db.Text
+  startedBy  String?
+  startedAt  DateTime  @default(now())
+  finishedAt DateTime?
+
+  @@index([startedAt])
+}
+
+// --- Meta de doações (barrinha verde no topo da barra lateral) ---
+// Uma meta só (singleton). Valores em CENTAVOS pra não ter erro de
+// arredondamento. A staff define a meta e lança cada doação recebida.
+model DonationGoal {
+  id          String   @id @default("singleton")
+  enabled     Boolean  @default(false)
+  title       String   @default("Meta do mês") @db.VarChar(80)
+  description String?  @db.VarChar(200)
+  target      Int      @default(0)
+  raised      Int      @default(0)
+  showDonors  Boolean  @default(true)
+  updatedAt   DateTime @updatedAt
+}
+
+model DonationEntry {
+  id        String   @id @default(uuid())
+  amount    Int
+  donorName String?  @db.VarChar(60)
+  note      String?  @db.VarChar(200)
+  actorId   String
+  createdAt DateTime @default(now())
+
+  @@index([createdAt])
+}
+
+// Pacote de figurinhas personalizadas (Assinante: 5, Super Assinante: 15).
+// Só a dona/o dono usa no chat. Independente de User de propósito: quando a
+// assinatura acaba as figurinhas ficam guardadas, só deixam de ser usáveis.
+model PersonalSticker {
+  id        String   @id @default(uuid())
+  ownerId   String
+  name      String   @db.VarChar(32)
+  url       String   @db.VarChar(500)
+  createdAt DateTime @default(now())
+
+  @@index([ownerId])
+}

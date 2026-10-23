@@ -1,0 +1,700 @@
+import { createContext, useContext, useEffect, useRef, useState } from 'react';
+import { applyRemotePin } from '../utils/dmPins';
+import { useNavigate } from 'react-router-dom';
+import { io } from 'socket.io-client';
+import { useAuth } from './AuthContext';
+import { useStore, roomKeyFor, messageMentionsUser, isChannelUnread, isConversationUnread } from '../store/useStore';
+import { listFriends, getCommunity, listUsableEmojis, listServerStickers, listAssetCollections } from '../api/endpoints';
+import { playSound } from '../utils/sounds';
+import { getExtra, streamerQuiet } from '../utils/extraPrefs';
+import { canNotify, quietHoursActive, loadNotificationOverrides, applyOverrideUpdate } from '../utils/notificationPrefs';
+import { setupNativeActivity } from '../utils/nativeActivity';
+import { updateUnreadBadge } from '../utils/unreadBadge';
+import { wantsBroadcastNotify } from '../utils/broadcastNotify';
+import { sameData } from '../utils/liveRefresh';
+import { getAccessToken, refreshAccessToken } from '../api/client';
+import { channelPath, conversationPath, userPath } from '../utils/prettyLinks';
+
+const SocketContext = createContext(null);
+
+// BUG CORRIGIDO: o ícone da notificação apontava pra '/icon.svg', um
+// arquivo que nunca existiu neste projeto (só existe /icon.png) — toda
+// notificação nativa sempre saía sem ícone nenhum (ou com um genérico do
+// sistema), silenciosamente, sem erro nenhum visível.
+// BUG CORRIGIDO ("notificação só funcionava com a janela minimizada"):
+// document.visibilityState só vira 'hidden' quando a aba/janela é
+// MINIMIZADA ou trocada de aba — se a pessoa só está com o app aberto
+// mas trabalhando em OUTRA janela por cima (o caso mais comum de
+// verdade), a janela continua "visível" tecnicamente, então nenhuma
+// notificação disparava. document.hasFocus() cobre esse caso também.
+//
+// Item pedido: "Sobreposição no jogo (overlay)... Nova mensagem,
+// menção, convite, pedido de amizade e entrada em chamada aparecem na
+// overlay" — toda notificação que já passa por AQUI (mensagem/menção/
+// chamada/pedido de amizade, ver os pontos que chamam notifyUser mais
+// abaixo) também é repassada pro app de desktop, que decide sozinho
+// (ver desktop/main.js) se deve aparecer de verdade por cima do jogo.
+// Sem efeito nenhum fora do app desktop (window.electronAPI não existe
+// no navegador comum/celular).
+// Caixa de cada conversa que chegou antes da própria conversa estar na lista.
+const pendingInbox = new Map();
+function isQuietConversation(conversationId) {
+  const c = useStore.getState().conversations.find((x) => x.id === conversationId);
+  const inbox = c?.inbox || pendingInbox.get(conversationId);
+  return !!inbox && inbox !== 'main';
+}
+
+function notifyUser(title, body, onClick) {
+  useStore.getState().pushNotice(body ? `${title}: ${body}` : title);
+  // Modo streamer: nada de notificação do sistema/sobreposição na tela.
+  if (streamerQuiet('notify')) return;
+  // "Não perturbe" agendado (Configurações → Notificações): nada de
+  // notificação do sistema nem sobreposição dentro da janela de horário.
+  if (quietHoursActive()) return;
+  window.electronAPI?.showOverlayNotification?.({ title, body });
+  const isHiddenOrUnfocused = typeof document !== 'undefined'
+    && (document.visibilityState === 'hidden' || !document.hasFocus());
+  // Item pedido: verificar se todos os toggles de Configurações têm
+  // efeito real. "Notificações de desktop" já existia na tela mas nunca
+  // era checado aqui — a notificação nativa do sistema disparava sempre
+  // (quando a janela estava sem foco), mesmo com o toggle desligado.
+  const desktopNotificationsOn = useStore.getState().userSettings?.desktopNotifications !== false;
+  if (desktopNotificationsOn && isHiddenOrUnfocused && typeof Notification !== 'undefined' && Notification.permission === 'granted') {
+    try {
+      const n = new Notification(title, { body, icon: '/icon.png' });
+      // Clicar na notificação traz a janela pra frente — funciona tanto
+      // no app de desktop (Electron, via a ponte exposta em preload.js)
+      // quanto num navegador comum (window.focus() já resolve sozinho).
+      n.onclick = () => {
+        window.electronAPI?.focusWindow?.();
+        window.focus();
+        onClick?.();
+      };
+    } catch { /* not fatal */ }
+  }
+}
+
+export function SocketProvider({ children }) {
+  const { token, user, setUser, logout } = useAuth();
+  const navigate = useNavigate();
+  const userId = user?.id;
+  const [connected, setConnected] = useState(false);
+  const socketRef = useRef(null);
+
+  const {
+    addMessage, updateMessage, removeMessage, setPresence, setTypingUser,
+    setConversations, setFriends, bumpRoomActivity, bumpChannelMention,
+    patchUserEverywhere, setUsableEmojis, setServerStickers, setEmojiCollections, setStickerCollections,
+  } = useStore.getState();
+
+  useEffect(() => {
+    if (!token || !user) {
+      socketRef.current?.disconnect();
+      socketRef.current = null;
+      setConnected(false);
+      return;
+    }
+
+    // Item pedido: "prevenindo erros de demora de conectar" — sem
+    // essas opções, o Socket.IO usa os padrões da biblioteca (timeout
+    // de 20s pra considerar a conexão inicial como falha, e até 1-5s
+    // de espera entre tentativas de reconexão) — conservadores demais
+    // pra um chat em tempo real, onde detectar e se recuperar de uma
+    // queda rápido importa mais do que economizar tentativas.
+    // BUG CORRIGIDO ("mensagens só chegam recarregando a página"): o
+    // token ia FIXO no socket (o do login). Ele expira em 15 min e o
+    // axios renova só pra ele mesmo — então, depois disso, qualquer queda
+    // de rede fazia a reconexão ser recusada pelo servidor ('unauthorized')
+    // e o Socket.IO NÃO tenta de novo depois de uma recusa do middleware:
+    // o chat parava de receber tudo em tempo real até dar F5. Agora cada
+    // (re)conexão lê o token mais recente e, se for recusado, renova e
+    // reconecta sozinho.
+    const socket = io('/', {
+      auth: (cb) => cb({ token: getAccessToken() || token }), transports: ['websocket', 'polling'],
+      timeout: 10000, reconnectionDelay: 400, reconnectionDelayMax: 2500,
+    });
+    socketRef.current = socket;
+    let authRetryTimer = null;
+    let authRetries = 0;
+    socket.on('connect_error', (err) => {
+      if (err?.message !== 'unauthorized' || socket.active) return;
+      clearTimeout(authRetryTimer);
+      const wait = Math.min(15000, 500 * 2 ** authRetries);
+      authRetries += 1;
+      authRetryTimer = setTimeout(() => {
+        if (socketRef.current !== socket) return;
+        refreshAccessToken()
+          .catch(() => null)
+          .finally(() => { if (socketRef.current === socket && !socket.connected) socket.connect(); });
+      }, wait);
+    });
+
+    socket.on('connect', () => {
+      authRetries = 0;
+      setConnected(true);
+      // Silenciados/níveis por canal (recarrega a cada reconexão — pode ter
+      // mudado em outro aparelho enquanto estava sem conexão).
+      loadNotificationOverrides();
+      if (typeof Notification !== 'undefined' && Notification.permission === 'default') {
+        Notification.requestPermission().catch(() => {});
+      }
+    });
+    socket.on('disconnect', () => setConnected(false));
+
+    // Detecção de atividade pra status "Ausente" automático: o servidor
+    // conta 15min sem receber nenhum 'presence:activity' e marca a conta
+    // como ausente sozinho (ver sockets/index.js). Aqui só escutamos
+    // interação de verdade com a página e avisamos o servidor — throttled
+    // bem folgado (bem menor que os 15min do servidor) só pra não gerar
+    // um evento por pixel de mouse movido.
+    const ACTIVITY_THROTTLE_MS = 60 * 1000;
+    let lastActivitySentAt = 0;
+    const notifyActivity = () => {
+      // BUG CORRIGIDO ("melhore o sistema de identificação se o user
+      // entra mesmo na web, mexendo, pra manter o online"): eventos de
+      // teclado/mouse/toque não eram checados contra visibilidade da
+      // aba — na prática o navegador já não entrega a maioria desses
+      // eventos pra uma aba em segundo plano, mas 'scroll'/'wheel' podem
+      // disparar em cenários bordas (ex.: a aba ainda visível mas sem
+      // foco, atrás de outra janela só parcialmente cobrindo a tela).
+      // Essa checagem garante que só conta como "a pessoa está de fato
+      // usando o site agora" quando a aba realmente está em primeiro
+      // plano — mais fiel ao que "Ausente" deveria significar.
+      if (document.visibilityState !== 'visible') return;
+      const now = Date.now();
+      if (now - lastActivitySentAt < ACTIVITY_THROTTLE_MS) return;
+      lastActivitySentAt = now;
+      socket.emit('presence:activity');
+    };
+    const activityEvents = ['mousemove', 'mousedown', 'keydown', 'touchstart', 'wheel', 'scroll'];
+    activityEvents.forEach((evt) => window.addEventListener(evt, notifyActivity, { passive: true }));
+    const onVisibilityChange = () => {
+      if (document.visibilityState === 'visible') notifyActivity();
+    };
+    document.addEventListener('visibilitychange', onVisibilityChange);
+    // Voltar o foco pra aba (trocar de janela/aplicativo e voltar) também
+    // conta como "a pessoa está aqui de novo" — cobre o caso de alguém
+    // que deixa a aba visível mas sem foco por um tempo (não dispara
+    // visibilitychange, já que a aba nunca ficou tecnicamente "hidden").
+    window.addEventListener('focus', notifyActivity);
+
+    // Menções já tratadas (a mesma menção pode chegar 2x: pelo
+    // 'message:new' da sala aberta E pelo 'mention:new' da sala pessoal).
+    const seenMentions = new Set();
+    const markMentionSeen = (id) => {
+      if (!id) return false;
+      if (seenMentions.has(id)) return true;
+      seenMentions.add(id);
+      if (seenMentions.size > 500) seenMentions.delete(seenMentions.values().next().value);
+      return false;
+    };
+    // Clicar na notificação leva até o canal E até a mensagem.
+    const goToMessage = ({ channelId, conversationId, messageId, createdAt }) => {
+      if (channelId) {
+        if (messageId) useStore.getState().setPendingJump({ roomKey: roomKeyFor({ channelId }), messageId, createdAt });
+        navigate(channelPath(channelId));
+      } else if (conversationId) {
+        if (messageId) useStore.getState().setPendingJump({ roomKey: roomKeyFor({ conversationId }), messageId, createdAt });
+        navigate(conversationPath(conversationId));
+      } else navigate('/');
+    };
+    const handleIncomingMention = ({ channelId, messageId, createdAt, authorName, preview, reply }) => {
+      const { activeChannelId } = useStore.getState();
+      const isOpen = activeChannelId === channelId && document.visibilityState === 'visible';
+      if (!isOpen) bumpChannelMention(channelId);
+      // Canal silenciado / "Nada" / "Não perturbe": o contador acende, mas
+      // sem som nem notificação (igual ao Discord).
+      if (canNotify({ kind: 'mention', channelId })) {
+        playSound('mention');
+        const verb = reply ? 'respondeu sua mensagem' : 'mencionou você';
+        notifyUser(`${authorName || 'Alguém'} ${verb}`, (preview || '').slice(0, 120), () => goToMessage({ channelId, messageId, createdAt }));
+      }
+      updateUnreadBadge(userId);
+    };
+
+    socket.on('message:new', (message) => {
+      addMessage(roomKeyFor(message), message);
+      // Resposta de tópico não acende o canal (quem participa recebe o
+      // 'thread:reply' próprio, logo abaixo).
+      if (!message.threadId) bumpRoomActivity(message);
+
+      if (message.authorId !== user.id) {
+        let wasMentioned = false;
+        if (message.channelId) {
+          const { members } = useStore.getState();
+          const me = members.find((m) => m.user.id === user.id);
+          if (messageMentionsUser(message, user.id, me?.roleIds || [])) wasMentioned = true;
+        }
+        const isReplyToMe = message.replyTo?.authorId === user.id || message.replyTo?.author?.id === user.id;
+
+        const { activeConversationId } = useStore.getState();
+        const isOpenConversation = message.conversationId && message.conversationId === activeConversationId;
+
+        if (message.channelId && (wasMentioned || isReplyToMe)) {
+          if (!markMentionSeen(message.id)) {
+            handleIncomingMention({
+              channelId: message.channelId, messageId: message.id, createdAt: message.createdAt,
+              authorName: message.author?.displayName, preview: message.content, reply: isReplyToMe && !wasMentioned,
+            });
+          }
+        } else if (isOpenConversation && document.visibilityState === 'visible') {
+          playSound('messageActive', 0.3);
+        } else if (message.conversationId && !isOpenConversation && !isQuietConversation(message.conversationId) && canNotify({ kind: 'dm' })) {
+          playSound('message');
+          // Item pedido: notificação nativa pra mensagem direta (DM), não
+          // só pra menção — igual Discord notifica qualquer DM nova,
+          // mesmo sem @ nenhum, já que é sempre "pessoal" por definição.
+          const authorName = message.author?.displayName || 'Alguém';
+          const preview = (message.content || '').slice(0, 120) || '📎 Anexo';
+          notifyUser(authorName, preview, () => goToMessage({ conversationId: message.conversationId, messageId: message.id, createdAt: message.createdAt }));
+        }
+      }
+      // Item pedido: bolinha de não lidas no ícone da bandeja/dock — só
+      // atualiza quando a mensagem é de outra pessoa e realmente conta
+      // como não lida (mesma condição de cima), refletindo direto no
+      // ícone do app via Electron (ver App.jsx/desktop main.js).
+      updateUnreadBadge(userId);
+    });
+    // Menção/resposta num canal que NÃO está aberto (o servidor manda pra
+    // sala pessoal — o socket só fica na sala do canal aberto).
+    socket.on('mention:new', (payload) => {
+      if (!payload?.channelId || payload.authorId === user.id || markMentionSeen(payload.messageId)) return;
+      handleIncomingMention(payload);
+    });
+    // Canal com "Todas as mensagens" (no canal, na categoria ou como padrão):
+    // o servidor avisa cada mensagem nova mesmo com o canal fechado.
+    socket.on('channel:message', (payload) => {
+      if (!payload?.channelId || payload.authorId === user.id || markMentionSeen(payload.messageId)) return;
+      const st = useStore.getState();
+      const isOpen = st.activeChannelId === payload.channelId && document.visibilityState === 'visible';
+      if (isOpen) return;
+      st.bumpChannelActivity(payload);
+      if (canNotify({ kind: 'message', channelId: payload.channelId })) {
+        playSound('message');
+        notifyUser(
+          `${payload.authorName || 'Alguém'} em #${payload.channelName || 'canal'}`,
+          (payload.preview || '').slice(0, 120) || 'Nova mensagem',
+          () => goToMessage(payload),
+        );
+      }
+      updateUnreadBadge(userId);
+    });
+    // Anúncio ou evento novo: notificação do PC/navegador (o push do celular
+    // sai do servidor). Respeita a chave em Configurações → Notificações.
+    socket.on('broadcast:notify', (p = {}) => {
+      if (!p.kind || (p.authorId && p.authorId === user.id)) return;
+      if (!wantsBroadcastNotify(getExtra(), p.kind)) return;
+      playSound('message');
+      notifyUser(p.title || 'Novidade', (p.body || '').slice(0, 140), () => navigate(p.link || (p.kind === 'event' ? '/comunidade/eventos' : '/anuncios')));
+    });
+    // Contador de não lidas: toda mensagem nova de canal público chega aqui
+    // (sem conteúdo) e soma +1 no canal, se ele não estiver aberto.
+    const seenActivity = new Set();
+    socket.on('channel:activity', ({ channelId, messageId, authorId, createdAt } = {}) => {
+      if (!channelId || authorId === user.id) return;
+      if (messageId) {
+        if (seenActivity.has(messageId)) return;
+        seenActivity.add(messageId);
+        if (seenActivity.size > 1000) seenActivity.delete(seenActivity.values().next().value);
+      }
+      const st = useStore.getState();
+      if (st.activeChannelId === channelId && document.visibilityState === 'visible') return;
+      st.bumpChannelUnread?.(channelId, createdAt);
+    });
+    // Configuração de notificação mudou em outro aparelho/aba.
+    socket.on('notification-override:update', applyOverrideUpdate);
+    // @everyone/@here num canal público: só acende o canal (sem notificação
+    // individual pra não virar spam pra comunidade inteira).
+    socket.on('channel:ping', ({ channelId, messageId, authorId } = {}) => {
+      if (!channelId || authorId === user.id || markMentionSeen(messageId)) return;
+      const st = useStore.getState();
+      const exists = st.channels.some((c) => c.id === channelId) || st.categories.some((cat) => (cat.channels || []).some((c) => c.id === channelId));
+      if (!exists) return;
+      if (st.activeChannelId === channelId && document.visibilityState === 'visible') return;
+      bumpChannelMention(channelId);
+      updateUnreadBadge(userId);
+    });
+    // "Visto" numa DM 1:1 (a outra pessoa abriu a conversa).
+    socket.on('conversation:read', ({ conversationId, userId: readerId, lastReadAt } = {}) => {
+      if (!conversationId || readerId === user.id) return;
+      useStore.getState().setConversationOtherRead(conversationId, lastReadAt);
+    });
+
+    socket.on('message:update', (message) => {
+      updateMessage(roomKeyFor(message), message);
+    });
+    socket.on('message:delete', ({ id, ...room }) => {
+      removeMessage(roomKeyFor(room), id);
+    });
+
+    // Nova resposta num tópico em que a pessoa participa (servidor já
+    // filtrou quem ainda vê o canal). Com o painel desse tópico aberto e
+    // visível, não avisa.
+    socket.on('thread:reply', (p = {}) => {
+      if (!p.threadId || p.authorId === user.id || markMentionSeen(p.messageId)) return;
+      const st = useStore.getState();
+      if (st.openThread?.id === p.threadId && document.visibilityState === 'visible') return;
+      if (!canNotify({ kind: 'mention', channelId: p.channelId })) return;
+      playSound('mention');
+      notifyUser(
+        `${p.authorName || 'Alguém'} respondeu no tópico “${p.threadName || 'tópico'}”`,
+        (p.preview || '').slice(0, 120),
+        () => {
+          useStore.getState().setPendingThread({ channelId: p.channelId, threadId: p.threadId });
+          navigate(channelPath(p.channelId));
+        },
+      );
+    });
+    // Tópico arquivado sozinho por inatividade.
+    socket.on('thread:archived', ({ id, channelId, threadArchivedAt } = {}) => {
+      if (!id) return;
+      const st = useStore.getState();
+      const key = roomKeyFor({ channelId });
+      const root = (st.messagesByRoom[key] || []).find((m) => m.id === id);
+      if (root) updateMessage(key, { ...root, threadArchivedAt });
+      if (st.openThread?.id === id) st.setOpenThread({ ...st.openThread, root: { ...(st.openThread.root || {}), ...(root || {}), threadArchivedAt } });
+    });
+
+    socket.on('presence:update', ({ userId, status, customStatus, customStatusEmoji, mobile }) => {
+      // "Amigos ficam online" (Configurações → Notificações).
+      const st = useStore.getState();
+      const prev = st.presence?.[userId]?.status;
+      if (status && status !== 'OFFLINE' && (!prev || prev === 'OFFLINE') && userId !== user.id && getExtra().notifyFriendOnline) {
+        const f = st.friends.find((x) => x.status === 'ACCEPTED' && x.user?.id === userId);
+        if (f) notifyUser(`${f.user.displayName} ficou online`, '', () => navigate(userPath(f.user)));
+      }
+      // customStatusEmoji só vem quando o servidor sabe (status
+      // personalizado mudou/venceu) — senão mantém o que já tinha.
+      const prevEmoji = st.presence?.[userId]?.customStatusEmoji;
+      setPresence(userId, { status, customStatus, customStatusEmoji: customStatusEmoji !== undefined ? customStatusEmoji : prevEmoji, mobile: !!mobile });
+    });
+    // Alguém reagiu a uma mensagem sua (o servidor já respeita a preferência).
+    socket.on('reaction:you', ({ emoji, by, preview, channelId, conversationId, messageId }) => {
+      playSound('notice', 0.35);
+      notifyUser(`${by?.displayName || 'Alguém'} reagiu com ${emoji}`, preview ? `"${preview}"` : '', () => goToMessage({ channelId, conversationId, messageId }));
+    });
+    socket.on('notice:new', () => playSound('notice', 0.4));
+    // Conversa mudou de caixa (Solicitações / Spam / aceita).
+    socket.on('conversation:inbox', ({ conversationId, inbox }) => {
+      const st = useStore.getState();
+      if (st.conversations.some((c) => c.id === conversationId)) {
+        st.setConversations(st.conversations.map((c) => (c.id === conversationId ? { ...c, inbox } : c)));
+      }
+      pendingInbox.set(conversationId, inbox);
+    });
+    // Conversa fixada/desafixada pela mesma conta em outro aparelho.
+    socket.on('conversation:pin', applyRemotePin);
+    // BUG CORRIGIDO: sem isso, o status de cada pessoa só chegava via
+    // eventos incrementais (presence:update) — se um evento se perdesse
+    // no caminho (reconexão, instabilidade), o status errado dela ficava
+    // preso pra sempre. Esse evento manda o retrato completo e atual de
+    // todo mundo toda vez que este socket conecta/reconecta — substitui o
+    // mapa de presença inteiro, então corrige sozinho qualquer coisa que
+    // tenha ficado desatualizada. Ver server/src/sockets/index.js.
+    socket.on('presence:sync', (list, meta) => {
+      // Uma única atualização da store com a lista inteira — antes era um
+      // setPresence por pessoa (N cópias do mapa + N avisos pra todo
+      // componente inscrito), travando a tela a cada conexão/reconexão
+      // em comunidades grandes.
+      if (!Array.isArray(list)) return;
+      useStore.setState((s) => {
+        const next = { ...s.presence };
+        // Lista "completa" (servidor novo): só vem quem está online — quem
+        // ficou de fora está offline (corrige quem caiu enquanto este
+        // socket estava desconectado).
+        if (meta?.complete) {
+          const online = new Set(list.map((p) => p.userId));
+          Object.keys(next).forEach((uid) => {
+            if (!online.has(uid) && next[uid]?.status !== 'OFFLINE') next[uid] = { ...next[uid], status: 'OFFLINE' };
+          });
+          (s.members || []).forEach((m) => {
+            const uid = m.user?.id;
+            if (uid && !online.has(uid) && !next[uid] && m.user.status && m.user.status !== 'OFFLINE') {
+              next[uid] = { status: 'OFFLINE', customStatus: m.user.customStatus ?? null };
+            }
+          });
+        }
+        list.forEach(({ userId: uid, status, customStatus, mobile }) => { next[uid] = { status, customStatus, mobile: !!mobile }; });
+        return { presence: next };
+      });
+    });
+
+    // "Reload User" (painel de staff → Reload) — o servidor limpou o
+    // cache de presença de todo mundo (ver adminController.reloadUserPresence).
+    // Zera a presença local também, pra refletir isso na hora em vez de
+    // continuar mostrando pontinhos verdes desatualizados até a próxima
+    // atualização incremental chegar.
+    socket.on('presence:reset', () => useStore.setState({ presence: {} }));
+
+    // Item pedido: "Rich Presence" (jogo/Spotify tocando agora) — chega
+    // sempre que o app de desktop de alguém detecta início/fim de um
+    // jogo/música, ou quando ela sai de vez (ver server/src/sockets/
+    // index.js). activity vem null quando parou.
+    socket.on('activity:changed', ({ userId: uid, activity }) => {
+      useStore.getState().setActivity(uid, activity);
+    });
+    // Item pedido: ícone de atividade na lista de membros aparecer
+    // mesmo pra quem já estava jogando/ouvindo ANTES de eu conectar —
+    // "foto instantânea" de tudo que já existe, mandada uma vez só ao
+    // conectar (ver server/src/sockets/index.js), diferente de
+    // activity:changed (que só chega quando algo MUDA depois).
+    socket.on('activity:sync', (activitiesMap) => {
+      // Mesma ideia do presence:sync — uma atualização só, não uma por pessoa.
+      const entries = Object.entries(activitiesMap || {});
+      if (!entries.length) return;
+      useStore.setState((s) => {
+        const next = { ...s.activities };
+        entries.forEach(([uid, activity]) => { if (activity) next[uid] = activity; else delete next[uid]; });
+        return { activities: next };
+      });
+    });
+    // Item pedido: "Rich Presence" — no app de desktop, começa a
+    // escutar os avisos que o Electron manda (ver desktop/
+    // activityDetector.js + preload.js) e repassa pro servidor. Sem
+    // efeito nenhum na web comum/Android (setupNativeActivity já
+    // verifica isso sozinho e não faz nada se não for o app de
+    // desktop).
+    setupNativeActivity(socket);
+
+    // Conta excluída pela staff (painel → Usuários → Excluir conta) — a
+    // pessoa é deslogada na hora, com um aviso claro, em vez de só ficar
+    // travada com erros estranhos na tela (o token dela ainda "parece"
+    // válido pro navegador, mas o usuário já não existe mais no banco).
+    socket.on('account:deleted', () => {
+      alert('Sua conta foi excluída pela equipe.');
+      logout();
+    });
+
+    socket.on('typing:start', ({ userId, ...room }) => setTypingUser(roomKeyFor(room), userId, true));
+    socket.on('typing:stop', ({ userId, ...room }) => setTypingUser(roomKeyFor(room), userId, false));
+
+    socket.on('community:update', () => refreshCommunity());
+    socket.on('ui-layout:update', ({ device, config }) => {
+      // Editor de Interface (staff arrasta os menus/painéis, muda tamanho
+      // de barras etc) — muda pra TODO MUNDO na hora, sem precisar
+      // recarregar a página nem esperar o próximo check de status.
+      useStore.getState().setUiLayout(device, config);
+    });
+    // BUG CORRIGIDO ("estou no nível 10, mas o botão de criar Clube
+    // não aparece"): esse evento já chegava certinho pro navegador
+    // (o servidor já emite 'user:update' pra sala inteira, incluindo
+    // quem acabou de subir de nível — ver messageController.js), mas
+    // patchUserEverywhere só atualiza OUTRAS pessoas (a lista de
+    // membros, os autores de mensagens) — nunca o próprio usuário
+    // logado, que vive num lugar separado (AuthContext, não esse
+    // store) e só era atualizado no login/refresh de token (a cada
+    // 15min). Até isso acontecer, accountLevel continuava com o valor
+    // antigo em memória mesmo já tendo mudado de verdade no banco —
+    // o botão de criar clube (que checa accountLevel >= 10 direto do
+    // usuário logado) ficava escondido até a próxima renovação de
+    // sessão. Agora, quando o id bate com quem está logado agora,
+    // atualiza os dois lugares de uma vez.
+    socket.on('user:update', (updatedUser) => {
+      patchUserEverywhere(updatedUser);
+      if (updatedUser.id === user.id) setUser((prev) => (prev ? { ...prev, ...updatedUser } : prev));
+    });
+    // Reflete na hora quando a staff liga/desliga um sistema em /admin →
+    // Sistema (ver adminController.adminUpdateSystemToggles) — antes esse
+    // evento era emitido mas ninguém no cliente escutava ele, então a UI
+    // (AppRail escondendo ícones, a nova seção "Cor do perfil" em
+    // UserSettingsModal) só reagia depois de recarregar a página inteira.
+    socket.on('system:toggles-update', ({ disabledSystems }) => {
+      useStore.getState().setDisabledSystems(disabledSystems || []);
+    });
+    socket.on('account:banned', ({ reason, automated } = {}) => {
+      let msg = `Sua conta foi banida da comunidade${automated ? ' pelo AutoMod' : ''}.`;
+      if (reason) msg += `\nMotivo: ${reason}`;
+      alert(msg);
+      window.location.reload();
+    });
+    // O servidor derruba o socket logo depois destes avisos (ver
+    // io.kickUser no servidor) — recarrega pra cair na tela de login,
+    // que mostra a mensagem certa.
+    socket.on('account:suspended', ({ suspendedUntil, reason } = {}) => {
+      let msg = 'Sua conta foi suspensa temporariamente';
+      if (suspendedUntil) msg += ` até ${new Date(suspendedUntil).toLocaleString('pt-BR')}`;
+      msg += '.';
+      if (reason) msg += `\nMotivo: ${reason}`;
+      alert(msg);
+      window.location.reload();
+    });
+    socket.on('account:disabled', () => {
+      logout();
+    });
+
+    socket.on('conversation:new', ({ conversation }) => {
+      const known = conversation?.id && pendingInbox.get(conversation.id);
+      useStore.getState().upsertConversation(known ? { ...conversation, inbox: known } : conversation);
+      // BUG CORRIGIDO ("DM nova só recebe mensagem recarregando"): o
+      // servidor só coloca o socket nas salas das conversas que já
+      // existiam na hora de conectar — numa conversa criada DEPOIS (alguém
+      // te chamou pela 1ª vez, grupo novo, amizade aceita), as mensagens
+      // não chegavam em tempo real até abrir essa conversa ou dar F5.
+      if (conversation?.id) socket.emit('conversation:join', conversation.id);
+    });
+    socket.on('conversation:left', ({ conversationId }) => {
+      useStore.getState().removeConversation(conversationId);
+    });
+
+    socket.on('dm-call:ringing', ({ conversationId, fromUserId }) => {
+      const convo = useStore.getState().conversations.find((c) => c.id === conversationId);
+      const caller = convo?.members.find((m) => m.id === fromUserId);
+      notifyUser(`${caller?.displayName || 'Alguém'} está ligando`, convo?.isGroup ? convo.name : 'Toque para atender');
+    });
+
+    socket.on('channel:new', () => refreshCommunity());
+    socket.on('channel:update', () => refreshCommunity());
+    socket.on('channel:delete', () => refreshCommunity());
+    socket.on('channel:reorder', () => refreshCommunity());
+    socket.on('category:new', () => refreshCommunity());
+    socket.on('category:update', () => refreshCommunity());
+    socket.on('category:delete', () => refreshCommunity());
+    socket.on('category:reorder', () => refreshCommunity());
+    socket.on('overwrite:update', () => refreshCommunity());
+    // BUG CORRIGIDO ("editar cargo tem delay"): esses 4 avisos JÁ vêm
+    // com o cargo inteiro pronto (ou o ID, no caso de exclusão) — não
+    // tinha necessidade nenhuma de rebuscar a comunidade INTEIRA
+    // (categorias+canais+membros+cargos) toda vez que UM cargo mudava.
+    // Isso rodava em cima da atualização otimista que o próprio
+    // componente que edita já fazia (ver RoleManagerModal.jsx),
+    // dobrando o trabalho de rede à toa a cada clique numa permissão.
+    // role:reorder continua recarregando tudo — o aviso só traz a nova
+    // ORDEM dos ids, não os cargos com a posição já recalculada.
+    socket.on('role:new', (role) => useStore.getState().upsertRole(role));
+    socket.on('role:update', (role) => useStore.getState().upsertRole(role));
+    socket.on('role:delete', ({ id }) => useStore.getState().removeRole(id));
+    socket.on('role:reorder', () => refreshCommunity());
+
+    // Clubes (fusão com o Reddit clone) — item 5: antes esses eventos
+    // nem existiam (criar/editar/excluir Clube não emitia nada), então
+    // quem já estava com o site aberto só via a mudança recarregando a
+    // página. Diferente de refreshCommunity() acima (refaz um GET
+    // inteiro), aqui já vem o objeto pronto no payload — atualiza
+    // direto no estado global sem precisar de uma segunda ida ao
+    // servidor.
+    socket.on('club:new', (club) => useStore.getState().upsertClub(club));
+    socket.on('club:update', (club) => useStore.getState().upsertClub(club));
+    socket.on('club:delete', ({ id }) => useStore.getState().removeClub(id));
+    socket.on('club:category:new', ({ communityId, category }) => useStore.getState().upsertClubCategory(communityId, category));
+    socket.on('club:category:update', ({ communityId, category }) => useStore.getState().upsertClubCategory(communityId, category));
+    socket.on('club:category:delete', ({ communityId, id }) => useStore.getState().removeClubCategory(communityId, id));
+
+    // Conquistas e Ups em tempo real — ver services/achievements.js e
+    // services/ups.js no backend, que emitem esses eventos.
+    // achievement:unlocked e xp:levelup agora viram o aviso animado com
+    // "Comemorar" (ver CelebrationToasts.jsx) — sem aviso de texto duplicado.
+    socket.on('user:ups-update', ({ userId, totalUps }) => useStore.getState().setUserUps(userId, totalUps));
+    socket.on('member:roles-update', () => refreshCommunity());
+
+    socket.on('emoji:new', () => refreshUsableEmojis());
+    socket.on('emoji:update', () => refreshUsableEmojis());
+    socket.on('emoji:delete', () => refreshUsableEmojis());
+    socket.on('sticker:new', () => refreshServerStickers());
+    socket.on('sticker:delete', () => refreshServerStickers());
+    socket.on('assetCollection:new', ({ kind }) => refreshCollections(kind));
+    socket.on('assetCollection:update', ({ kind }) => refreshCollections(kind));
+    socket.on('assetCollection:delete', ({ kind }) => refreshCollections(kind));
+
+    socket.on('moderation:timeout', ({ timeoutUntil, reason, automated }) => {
+      const until = new Date(timeoutUntil).toLocaleString('pt-BR');
+      let msg = `Você recebeu um silêncio temporário${automated ? ' automático' : ''} até ${until}.`;
+      if (reason) msg += `\nMotivo: ${reason}`;
+      useStore.getState().pushNotice(msg);
+    });
+    socket.on('moderation:warning', ({ reason, automated }) => {
+      useStore.getState().pushNotice(`Você recebeu uma advertência${automated ? ' automática' : ''}.\nMotivo: ${reason}`);
+    });
+    socket.on('automod:raid-alert', ({ reason }) => {
+      useStore.getState().pushNotice(`⚠️ Proteção anti-raid ativada: ${reason}`);
+    });
+
+    // Item pedido: "Sobreposição no jogo (overlay)... Pedido de
+    // amizade... aparece na overlay" — antes esse evento só tocava um
+    // som e recarregava a lista, sem nenhuma notificação de verdade
+    // (nativa ou na overlay). Agora usa o mesmo notifyUser() de tudo
+    // mais acima — cobre as duas coisas de uma vez.
+    socket.on('friend:request', ({ from }) => {
+      playSound('friendRequest');
+      refreshFriends();
+      notifyUser('Novo pedido de amizade', from?.displayName ? `${from.displayName} quer ser seu amigo` : undefined, () => navigate('/friends'));
+    });
+    socket.on('friend:update', () => refreshFriends());
+    socket.on('friend:removed', () => refreshFriends());
+
+    // Item pedido: sistemas estilo Orkut — avisos em tempo real, mesmo
+    // padrão dos outros acima (a lista de verdade é buscada sob
+    // demanda por quem precisa dela — perfil, notificações — esses
+    // avisos aqui são só o "toast" imediato).
+    socket.on('testimonial:new-pending', ({ testimonial }) => {
+      useStore.getState().pushNotice(`📝 ${testimonial.author.displayName} escreveu um depoimento pra você — dá uma olhada nas notificações.`);
+    });
+    socket.on('testimonial:approved', () => {
+      useStore.getState().pushNotice('✅ Seu depoimento foi aprovado e já está visível no perfil da pessoa!');
+    });
+    socket.on('scrap:new', ({ scrap }) => {
+      useStore.getState().pushNotice(`💬 ${scrap.author.displayName} deixou um recado no seu mural!`);
+    });
+    socket.on('fan:new', ({ fanName }) => {
+      useStore.getState().pushNotice(`⭐ ${fanName} agora é seu fã!`);
+    });
+
+    async function refreshFriends() {
+      const { friendships } = await listFriends().catch(() => ({ friendships: [] }));
+      setFriends(friendships);
+    }
+
+    // Vários eventos seguidos (reordenar canais, cargos de membro, etc.)
+    // viravam uma busca da comunidade inteira CADA — agora junta os que
+    // chegam em ~300ms numa busca só, e só grava no store o que mudou
+    // (evita re-render do app inteiro à toa).
+    let communityTimer = null;
+    function refreshCommunity() {
+      clearTimeout(communityTimer);
+      communityTimer = setTimeout(async () => {
+        const data = await getCommunity().catch(() => null);
+        if (!data || socketRef.current !== socket) return;
+        const cur = useStore.getState();
+        const patch = {};
+        ['categories', 'channels', 'members', 'roles', 'community'].forEach((k) => {
+          if (data[k] !== undefined && !sameData(cur[k], data[k])) patch[k] = data[k];
+        });
+        if (Object.keys(patch).length) cur.setCommunityStructure(patch);
+      }, 300);
+    }
+
+    async function refreshUsableEmojis() {
+      const { emojis } = await listUsableEmojis().catch(() => ({ emojis: [] }));
+      setUsableEmojis(emojis);
+    }
+
+    async function refreshServerStickers() {
+      const { stickers } = await listServerStickers().catch(() => ({ stickers: [] }));
+      setServerStickers(stickers);
+    }
+
+    async function refreshCollections(kind) {
+      const { collections } = await listAssetCollections(kind).catch(() => ({ collections: [] }));
+      if (kind === 'STICKER') setStickerCollections(collections);
+      else setEmojiCollections(collections);
+    }
+
+    return () => {
+      activityEvents.forEach((evt) => window.removeEventListener(evt, notifyActivity));
+      document.removeEventListener('visibilitychange', onVisibilityChange);
+      window.removeEventListener('focus', notifyActivity);
+      clearTimeout(communityTimer);
+      clearTimeout(authRetryTimer);
+      socket.disconnect();
+    };
+  }, [token, userId]);
+
+  return (
+    <SocketContext.Provider value={{ socket: socketRef.current, connected }}>
+      {children}
+    </SocketContext.Provider>
+  );
+}
+
+export function useSocket() {
+  return useContext(SocketContext);
+}
