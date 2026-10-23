@@ -39,7 +39,7 @@ export function DecorationOverlay({ deco, size, avatarSize = size }) {
     <img
       className="avatar-decoration" src={proxyImage(deco.url)} alt="" aria-hidden="true" draggable="false" loading="lazy" decoding="async"
       style={{
-        position: 'absolute', left: off + dx, top: off + dy, width: size, height: size, maxWidth: 'none', maxHeight: 'none', pointerEvents: 'none', zIndex: 1,
+        position: 'absolute', left: off + dx, top: off + dy, width: size, height: size, maxWidth: 'none', maxHeight: 'none', pointerEvents: 'none', zIndex: 2,
         objectFit: 'contain',
       }}
     />
@@ -54,11 +54,15 @@ export default function UserAvatar({ user, size = 32, className = '', style = {}
   const scale = Math.min(2, Math.max(1, Number(deco.s) || 1.2));
   // A caixa (layout) continua com o tamanho do avatar; só a moldura cresce.
   const decoSize = Math.round(size * scale);
-  const outer = { position: 'relative', width: size, height: size, flexShrink: 0, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', overflow: 'visible' };
+  // Camadas EXPLÍCITAS dentro do próprio componente (contexto de
+  // empilhamento isolado — isolation:isolate): foto em 0, moldura em 2. Não
+  // depende de z-index/position de quem envolve o avatar, então nenhuma
+  // tela consegue mais jogar a moldura pra trás da foto.
+  const outer = { position: 'relative', width: size, height: size, flexShrink: 0, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', overflow: 'visible', isolation: 'isolate' };
   for (const k of OUTER_KEYS) if (style[k] !== undefined) outer[k] = style[k];
   return (
     <span className="avatar-deco-wrap" style={outer}>
-      <BaseAvatar user={user} size={size} className={className} style={stripOuter(style)} />
+      <BaseAvatar user={user} size={size} className={className} style={{ position: 'relative', zIndex: 0, ...stripOuter(style) }} />
       <DecorationOverlay deco={deco} size={decoSize} avatarSize={size} />
     </span>
   );

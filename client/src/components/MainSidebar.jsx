@@ -76,7 +76,7 @@ export const ITEMS = [
   // Economia (round 5): saldo, baú diário, missões, histórico e atalhos
   // pra Loja/Ranking. `system` = some pra membros se a staff desligar
   // "economia" em Admin → Sistemas (admin sempre vê).
-  { to: '/economia', icon: ECONOMY_NAV_ICON, isImg: true, labelKey: 'nav.economia', system: 'economia', match: (p) => p.startsWith('/economia') || p.startsWith('/missoes') },
+  { to: '/economia', icon: ECONOMY_NAV_ICON, isImg: true, labelKey: 'nav.economia', system: 'economia', match: (p) => p.startsWith('/economia') || p.startsWith('/missoes') || p.startsWith('/loja') },
   { to: '/progresso', icon: ranksIcon, isImg: true, labelKey: 'nav.progresso', match: (p) => p.startsWith('/progresso') || p.startsWith('/rank') || p.startsWith('/conquistas') },
   { to: '/tickets', icon: supportIcon, isImg: true, labelKey: 'nav.suporte', match: (p) => p.startsWith('/tickets') },
   // Navegador do Project Club: app para computador, app do celular e site.
@@ -96,6 +96,12 @@ export const ITEMS = [
 // dentro de ITEMS) porque só aparece pra ADMIN/MODERATOR — ver o filtro
 // no componente abaixo.
 export const STAFF_ITEM = { to: '/admin', icon: dashboardIcon, isImg: true, labelKey: 'nav.painel', match: (p) => p.startsWith('/admin') };
+// O acesso ao Painel saiu da barra lateral e foi pra barra superior (ao
+// lado da engrenagem — ver TopSearchBar.jsx). Só ADMIN: é o mesmo critério
+// do servidor (requirePlatformAdmin em /api/admin) e da própria página
+// (AdminPanel.jsx) — antes o item aparecia pra MODERATOR, que abria e
+// dava de cara com "Acesso restrito".
+export const canOpenStaffPanel = (user) => user?.platformRole === 'ADMIN';
 
 // Tira do menu os itens cujo sistema a staff desligou (admin continua vendo).
 export function visibleNavItems(items, disabledSystems, user) {
@@ -195,8 +201,8 @@ export default function MainSidebar() {
 
   const isStaff = user?.platformRole === 'ADMIN' || user?.platformRole === 'MODERATOR';
   const disabledSystems = useStore((s) => s.disabledSystems);
-  const baseNav = visibleNavItems(ITEMS, disabledSystems, user);
-  const navItems = isStaff ? [...baseNav, STAFF_ITEM] : baseNav;
+  // O Painel não fica mais aqui: virou botão na barra superior.
+  const navItems = visibleNavItems(ITEMS, disabledSystems, user);
 
   return (
     <aside className={`main-sidebar ${mainSidebarCollapsed ? 'main-sidebar-manually-collapsed' : ''}`}>

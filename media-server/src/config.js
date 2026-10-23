@@ -63,7 +63,12 @@ const config = {
   // Sinalização: mensagens por segundo por conexão (balde de fichas) e
   // tentativas de conexão por minuto por IP.
   msgRatePerSec: num(env.MEDIA_MSG_RATE, 40),
-  msgBurst: num(env.MEDIA_MSG_BURST, 120),
+  // Pico 400 (antes 120): ao entrar numa sala, o cliente pede TODOS os
+  // consumers de uma vez (2 msgs por áudio, 3–4 por vídeo) — com ~20 câmeras
+  // ou ~40 microfones passava de 120, o consume de algumas pessoas era
+  // recusado ("muitas requisições") e elas nunca eram ouvidas. A taxa
+  // sustentada (40/s) e o limite por IP continuam segurando abuso.
+  msgBurst: num(env.MEDIA_MSG_BURST, 400),
   connectsPerMinutePerIp: num(env.MEDIA_CONNECTS_PER_MINUTE, 60),
   // Batimento do WebSocket (ping/pong): quem não responde em 2 ciclos cai.
   heartbeatMs: Math.max(1000, num(env.MEDIA_HEARTBEAT_MS, 15000)),
@@ -83,7 +88,10 @@ const config = {
   speakingHoldMs: Math.max(0, num(env.MEDIA_SPEAKING_HOLD_MS, 400)),
 
   // Bitrate inicial de saída por transport (bps) — o BWE ajusta depois.
-  initialAvailableOutgoingBitrate: num(env.MEDIA_INITIAL_BITRATE, 800000),
+  // 1,5 Mbps (antes 800 kbps): quem abria uma tela compartilhada começava
+  // na camada baixa do simulcast e subia devagar ("tela borrada no
+  // começo"). É só o ponto de partida — o BWE desce se a rede não aguentar.
+  initialAvailableOutgoingBitrate: num(env.MEDIA_INITIAL_BITRATE, 1_500_000),
   // Teto de bitrate de entrada por transport (bps): 0 = sem teto. 12 Mbps
   // cobre mic + câmera simulcast + tela 1440p/60fps (10 Mbps na camada cheia
   // + a camada baixa do simulcast da tela). Com 5 Mbps a tela nos presets

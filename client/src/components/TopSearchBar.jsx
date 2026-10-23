@@ -1,8 +1,8 @@
 import InboxPopover from './InboxPopover.jsx';
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
-import { ITEMS, STAFF_ITEM, ACTIVITY_NAV_ICON } from './MainSidebar.jsx';
+import { ITEMS, STAFF_ITEM, ACTIVITY_NAV_ICON, canOpenStaffPanel } from './MainSidebar.jsx';
 import { useStore, isChannelUnread, isConversationUnread, useMyRoleIds } from '../store/useStore';
 import { useAuth } from '../context/AuthContext.jsx';
 import { usePopoverCoordination } from '../utils/popoverCoordinator';
@@ -10,7 +10,7 @@ import logoIcon from '../assets/icons/logo-project-club.png';
 import searchIcon from '../assets/icons/nav-search.png';
 import notificationsIcon from '../assets/icons/nav-notifications.png';
 import settingsIcon from '../assets/icons/settings.png';
-import { QuickSwitcherButton } from './QuickSwitcher.jsx';
+import { useQuickSearch, QuickResults, quickSearchKeys } from './QuickSwitcher.jsx';
 
 export const DONATE_URL = 'https://livepix.gg/projectclubr';
 const svg = (d) => <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d={d} /></svg>;
@@ -41,6 +41,7 @@ function useSectionTitle() {
 
 export default function TopSearchBar() {
   const navigate = useNavigate();
+  const { pathname } = useLocation();
   const [inboxOpen, setInboxOpen] = useState(false);
   const layoutStyle = useStore((s) => s.layoutStyle);
   const sectionTitle = useSectionTitle();
@@ -73,10 +74,44 @@ export default function TopSearchBar() {
   const pendingIncoming = friends.filter((f) => f.status === 'PENDING' && f.isIncoming).length;
   const notifBadge = unreadChannels + unreadConversations + pendingIncoming;
 
+  // ---- Busca unificada: este campo É a busca rápida (antigo Ctrl+K) ----
+  // Digitou → menu de resultados rápidos logo abaixo (canais, voz,
+  // conversas, pessoas — inclusive do servidor —, páginas, configurações);
+  // a última linha (e Enter sem nada destacado) abre a busca completa.
+  const [searchOpen, setSearchOpen] = useState(false);
+  const [activeIndex, setActiveIndex] = useState(-1);
+  const formRef = useRef(null);
+  const inputRef = useRef(null);
+  const resultsRef = useRef(null);
+  const closeSearch = () => { setSearchOpen(false); setActiveIndex(-1); };
+  const { groups: qsGroups, flat: qsFlat, choose: qsChoose } = useQuickSearch(q, {
+    active: searchOpen,
+    onDone: () => { closeSearch(); setQ(''); inputRef.current?.blur(); },
+  });
+  useEffect(() => { setActiveIndex(-1); }, [q]);
+  useEffect(() => {
+    resultsRef.current?.querySelector('.qs-item.active')?.scrollIntoView({ block: 'nearest' });
+  }, [activeIndex]);
+  // Fecha ao clicar fora.
+  useEffect(() => {
+    if (!searchOpen) return undefined;
+    const onDown = (e) => { if (!formRef.current?.contains(e.target)) closeSearch(); };
+    document.addEventListener('mousedown', onDown, true);
+    return () => document.removeEventListener('mousedown', onDown, true);
+  }, [searchOpen]);
+
+  const goFullSearch = () => {
+    const term = q.trim();
+    closeSearch();
+    inputRef.current?.blur();
+    navigate(term ? `/search?q=${encodeURIComponent(term)}` : '/search');
+  };
   const submitSearch = (e) => {
     e.preventDefault();
-    navigate(q.trim() ? `/search?q=${encodeURIComponent(q.trim())}` : '/search');
+    if (qsFlat[activeIndex]) qsChoose(qsFlat[activeIndex]);
+    else goFullSearch();
   };
+  const isMac = typeof navigator !== 'undefined' && /Mac|iPhone|iPad/.test(navigator.platform || '');
 
   return (
     <div className="top-search-bar" onMouseDown={(e) => { if (e.target === e.currentTarget) startManualDrag(e); }}>
@@ -121,21 +156,56 @@ export default function TopSearchBar() {
         </div>
       )}
 
-      <form className="top-search-bar-form" onSubmit={submitSearch}>
+      <form className={`top-search-bar-form${searchOpen ? ' is-open' : ''}`} onSubmit={submitSearch} ref={formRef} role="search">
         <div className="top-search-bar-input-wrap">
           <span className="top-search-bar-input-icon top-search-bar-icon-mask" style={{ WebkitMaskImage: `url(${searchIcon})`, maskImage: `url(${searchIcon})` }} />
           <input
+            ref={inputRef}
             className="top-search-bar-input"
             value={q}
-            onChange={(e) => setQ(e.target.value)}
+            onChange={(e) => { setQ(e.target.value); setSearchOpen(true); }}
+            onFocus={() => setSearchOpen(true)}
+            // Perdeu o foco pra fora da busca (Tab, Ctrl+K, clique em outro
+            // campo): fecha o menu. Clique num resultado não tira o foco
+            // (onMouseDown com preventDefault em QuickResults).
+            onBlur={(e) => { if (!formRef.current?.contains(e.relatedTarget)) closeSearch(); }}
+            onKeyDown={(e) => {
+              if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); closeSearch(); e.currentTarget.blur(); return; }
+              if (!searchOpen) setSearchOpen(true);
+              if (e.key === 'Tab') { closeSearch(); return; }
+              quickSearchKeys(e, { flat: qsFlat, activeIndex, setActiveIndex, choose: qsChoose, onEnterNone: goFullSearch, tabNavigates: false });
+            }}
             placeholder="Buscar em Project Club"
             aria-label="Buscar em Project Club"
+            role="combobox"
+            aria-autocomplete="list"
+            aria-expanded={searchOpen}
+            aria-controls="tsb-results"
+            aria-activedescendant={qsFlat[activeIndex] ? `tsb-${qsFlat[activeIndex].key}` : undefined}
+            enterKeyHint="search"
+            autoComplete="off"
+            spellCheck={false}
           />
+          {!searchOpen && !q && <kbd className="top-search-bar-kbd" aria-hidden="true">{isMac ? '⌘K' : 'Ctrl K'}</kbd>}
         </div>
+        {searchOpen && (
+          <div className="top-search-dropdown">
+            <QuickResults groups={qsGroups} flat={qsFlat} activeIndex={activeIndex} setActiveIndex={setActiveIndex} choose={qsChoose} listRef={resultsRef} idPrefix="tsb" />
+            <div className="qs-footer top-search-dropdown-footer">
+              <span><kbd>↑</kbd><kbd>↓</kbd> navegar</span>
+              <span><kbd>Enter</kbd> abrir</span>
+              <span className="qs-footer-tip"><b>#</b> canais · <b>@</b> pessoas · <b>!</b> voz · <b>&gt;</b> páginas</span>
+            </div>
+          </div>
+        )}
       </form>
 
       <div className="top-search-bar-actions">
-        <QuickSwitcherButton className="top-search-bar-icon-btn" />
+        {/* Celular: a barra de busca não cabe, então a lupa abre a MESMA
+            busca em tela cheia (QuickSwitcher.jsx). */}
+        <button type="button" className="top-search-bar-icon-btn top-search-mobile-btn" title="Buscar" aria-label="Buscar em Project Club" onClick={() => useStore.getState().setQuickSwitcherOpen(true)}>
+          <span className="top-search-bar-icon-mask" style={{ WebkitMaskImage: `url(${searchIcon})`, maskImage: `url(${searchIcon})`, width: 18, height: 18 }} />
+        </button>
         <a className="top-search-bar-icon-btn top-donate-btn" href={DONATE_URL} target="_blank" rel="noreferrer" title="Apoiar o Project Club (doação)" aria-label="Apoiar o Project Club">
           {svg('M12 20.5s-7.5-4.6-7.5-10.2A4.3 4.3 0 0 1 12 7.6a4.3 4.3 0 0 1 7.5 2.7c0 5.6-7.5 10.2-7.5 10.2z')}
         </a>
@@ -157,6 +227,16 @@ export default function TopSearchBar() {
         <button type="button" className="top-search-bar-icon-btn" title="Configurações" aria-label="Configurações" onClick={() => useStore.getState().openSettings()}>
           <span className="top-search-bar-icon-mask" style={{ WebkitMaskImage: `url(${settingsIcon})`, maskImage: `url(${settingsIcon})`, width: 18, height: 18 }} />
         </button>
+        {/* Painel da staff — logo à direita da engrenagem, só pra quem o
+            servidor reconhece como ADMIN (platformRole vem de /api/auth/me,
+            lido do banco; a rota /api/admin/* também exige ADMIN no
+            servidor via requirePlatformAdmin — esconder o botão é só
+            conveniência, nunca a proteção). */}
+        {canOpenStaffPanel(user) && (
+          <button type="button" className={`top-search-bar-icon-btn top-staff-panel-btn${pathname.startsWith('/admin') ? ' active' : ''}`} title="Painel" aria-label="Painel da staff" onClick={() => navigate('/admin')}>
+            <span className="top-search-bar-icon-mask" style={{ WebkitMaskImage: `url(${STAFF_ITEM.icon})`, maskImage: `url(${STAFF_ITEM.icon})`, width: 18, height: 18 }} />
+          </button>
+        )}
 
         {/* Foto de perfil saiu da barra superior (pedido): o perfil e o
             status continuam no painel do usuário da barra lateral e na

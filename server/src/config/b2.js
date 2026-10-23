@@ -67,4 +67,30 @@ function getB2Client() {
   return client;
 }
 
-module.exports = { getB2Client, isB2Configured };
+// Cliente SÓ de leitura (rota /media/:key, que serve todo avatar, banner e
+// anexo em produção): com keep-alive. O keepAlive:false acima foi pra
+// contornar corpo cortado em UPLOAD; aplicado também nas leituras, cada
+// imagem aberta no site custava um handshake TLS novo com o B2 — CPU à toa
+// numa rota muito quente.
+let readClient = null;
+function getB2ReadClient() {
+  if (!isB2Configured()) return null;
+  if (!readClient) {
+    readClient = new S3Client({
+      endpoint: env.B2_ENDPOINT,
+      region: env.B2_REGION,
+      credentials: { accessKeyId: env.B2_KEY_ID, secretAccessKey: env.B2_APPLICATION_KEY },
+      forcePathStyle: true,
+      requestChecksumCalculation: 'WHEN_REQUIRED',
+      responseChecksumValidation: 'WHEN_REQUIRED',
+      requestHandler: new NodeHttpHandler({
+        httpsAgent: new HttpsAgent({ keepAlive: true, keepAliveMsecs: 15000, maxSockets: 50, maxFreeSockets: 10, timeout: 30000 }),
+        connectionTimeout: 5000,
+        requestTimeout: 30000,
+      }),
+    });
+  }
+  return readClient;
+}
+
+module.exports = { getB2Client, getB2ReadClient, isB2Configured };

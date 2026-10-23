@@ -114,11 +114,16 @@ const MELODIES = {
 // soar "de verdade" (tipo marimba/sininho) e um filtro passa-baixa que corta
 // o chiado agudo. Nenhuma nota passa de ~1,2 kHz.
 const PACKS = {
-  classic: { wave: 'sine', mult: 0.5, gain: 0.2, attack: 0.016, release: 0.2, lowpass: 2200, harm: 0.16 },
-  suave: { wave: 'sine', mult: 0.5, gain: 0.15, slow: 1.35, attack: 0.03, release: 0.32, lowpass: 1500, harm: 0.08 },
-  retro: { wave: 'square', mult: 0.5, gain: 0.045, attack: 0.008, release: 0.08, lowpass: 1700 },
-  halloween: { wave: 'triangle', mult: 0.5, gain: 0.17, minor: true, vibrato: 5, vibDepth: 0.012, attack: 0.025, release: 0.28, lowpass: 1300, harm: 0.1 },
-  natal: { wave: 'sine', mult: 1, gain: 0.15, bell: true, attack: 0.01, release: 0.5, lowpass: 2600 },
+// BUG CORRIGIDO ("efeitos abafados"): o passa-baixa ficava praticamente EM
+// CIMA do som — corte entre 1,3 e 2,6 kHz com Q 0,5 (que já atenua ~6 dB no
+// próprio corte) tirava o 2º harmônico e todo o "ar" das notas. Como as notas
+// já ficam abaixo de ~1,2 kHz, o filtro agora só corta o chiado de verdade
+// (bem acima do 3º harmônico) com resposta plana (Q 0,707, Butterworth).
+  classic: { wave: 'sine', mult: 0.5, gain: 0.2, attack: 0.016, release: 0.2, lowpass: 6000, harm: 0.16 },
+  suave: { wave: 'sine', mult: 0.5, gain: 0.15, slow: 1.35, attack: 0.03, release: 0.32, lowpass: 4500, harm: 0.08 },
+  retro: { wave: 'square', mult: 0.5, gain: 0.045, attack: 0.008, release: 0.08, lowpass: 5000 },
+  halloween: { wave: 'triangle', mult: 0.5, gain: 0.17, minor: true, vibrato: 5, vibDepth: 0.012, attack: 0.025, release: 0.28, lowpass: 4000, harm: 0.1 },
+  natal: { wave: 'sine', mult: 1, gain: 0.15, bell: true, attack: 0.01, release: 0.5, lowpass: 7000 },
 };
 const MAX_FREQ = 1200; // acima disso fica estridente: desce uma oitava
 
@@ -144,8 +149,8 @@ function synth(key, packId, volume, customNotes) {
   // Passa-baixa suave: tira a aspereza (sem deixar abafado).
   const lp = ac.createBiquadFilter();
   lp.type = 'lowpass';
-  lp.frequency.value = pk.lowpass || 2200;
-  lp.Q.value = 0.5;
+  lp.frequency.value = pk.lowpass || 6000;
+  lp.Q.value = Math.SQRT1_2;
   master.connect(lp);
   lp.connect(ac.destination);
   const attack = pk.attack || 0.016;
@@ -188,17 +193,12 @@ function playFile(src, volume) {
   try {
     const el = new Audio(src);
     el.volume = Math.max(0, Math.min(1, volume));
-    // Os arquivos também passam por um passa-baixa leve (menos agudo).
-    const ac = audioCtx();
-    // Só com o áudio já liberado; senão o arquivo tocaria mudo.
-    if (ac && ac.state === 'running' && ac.createMediaElementSource) {
-      try {
-        const node = ac.createMediaElementSource(el);
-        const lp = ac.createBiquadFilter();
-        lp.type = 'lowpass'; lp.frequency.value = 3200; lp.Q.value = 0.5;
-        node.connect(lp); lp.connect(ac.destination);
-      } catch { /* sem WebAudio: toca direto */ }
-    }
+    // BUG CORRIGIDO ("efeitos abafados"): os WAV/MP3 originais (16 bits,
+    // 44,1 kHz) passavam por um passa-baixa em 3,2 kHz via
+    // createMediaElementSource — e só quando o AudioContext já estava
+    // "running", então o MESMO som às vezes saía limpo e às vezes abafado.
+    // Os arquivos já são masterizados: tocam direto, sem filtro nenhum.
+    el.preload = 'auto';
     el.play().catch(() => {});
   } catch { /* som é só enfeite */ }
 }
@@ -225,7 +225,13 @@ export function playSound(name, volume = 0.5, { force = false, pack } = {}) {
   const vol = volume * sfx;
   if (vol <= 0) return;
   const p = pack || currentPack(prefs.soundPack);
-  if (p === 'classic' && SOUND_FILES[key]) return playFile(SOUND_FILES[key], vol);
+  // No modo "Automático (da estação)" o pacote sazonal (ex.: Dia das Bruxas
+  // em outubro) trocava TODOS os sons — inclusive os que têm gravação de boa
+  // qualidade — por síntese. Agora o automático só "fantasia" os sons que
+  // não têm arquivo; quem escolhe um pacote explicitamente continua ouvindo
+  // o pacote inteiro.
+  const autoPack = !pack && (!prefs.soundPack || prefs.soundPack === 'auto');
+  if (SOUND_FILES[key] && (p === 'classic' || autoPack)) return playFile(SOUND_FILES[key], vol);
   if (!MELODIES[key]) { if (SOUND_FILES[key]) playFile(SOUND_FILES[key], vol); return; }
   try { synth(key, p, vol); } catch { /* sem áudio */ }
 }

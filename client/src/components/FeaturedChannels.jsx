@@ -10,7 +10,7 @@ import '../styles/socialx.css';
 import { isPostPath } from '../utils/prettyLinks';
 
 // Canais em destaque, fixos no topo da lista de canais da comunidade
-// (Eventos, Fórum, Galeria e Loja — "Em breve"):
+// (Anúncios e Eventos, Fórum, Loja e Economia):
 // Eventos (eventos da comunidade), Feed (o Feed de posts, que antes era só
 // um botão do menu) e Galeria (fotos, vídeos e GIFs já postados). Parecem
 // canais — mesma altura e alinhamento — mas com um fundo de cor suave e
@@ -45,13 +45,15 @@ export const FEATURED = [
     hint: 'Jogo de cartas: colecione, monte seu baralho e batalhe', match: (p) => p.startsWith('/cartas'), tag: 'Jogar',
     feature: 'cardsWar', // desligada temporariamente (utils/features.js)
   },
+  // Anúncios e Eventos viraram UM canal (abas internas — ver
+  // pages/AnunciosEventosPage.jsx). Chave 'anuncios' mantida: é a que o
+  // CSS (.featured-anuncios, cor vermelha) e os testes já usam; o badge
+  // soma as novidades das duas abas e mostra "Ao vivo" quando há evento.
   {
-    key: 'anuncios', label: 'Anúncios', icon: 'megaphone', to: '/anuncios',
-    hint: 'Anúncios da staff', match: (p) => p.startsWith('/anuncios'),
-  },
-  {
-    key: 'eventos', label: 'Eventos', icon: 'calendar', to: '/comunidade/eventos',
-    hint: 'Eventos da comunidade', match: (p) => p.startsWith('/comunidade/eventos'),
+    key: 'anuncios', label: 'Anúncios e Eventos', icon: 'megaphone', to: '/anuncios',
+    hint: 'Anúncios da staff e eventos da comunidade',
+    match: (p) => p.startsWith('/anuncios') || p.startsWith('/comunidade/eventos') || p.startsWith('/evento/') || p.startsWith('/eventos'),
+    merges: ['anuncios', 'eventos'],
   },
   {
     // Chave 'feed' mantida (banco/rotas); na tela o nome é "Fórum".
@@ -59,9 +61,13 @@ export const FEATURED = [
     hint: 'Posts e Temas da comunidade', match: (p) => p === '/comunidades' || p.startsWith('/comunidades/') || isPostPath(p),
   },
   // Galeria saiu da lista (a página /comunidade/galeria continua existindo).
+  // Loja e Economia: mesma área (abas Visão geral · Missões · Loja · Passe
+  // · Histórico — ver components/HubTabs.jsx). O canal abre na Loja e
+  // fica ativo em qualquer aba da área.
   {
-    key: 'loja', label: 'Loja', icon: 'store', to: '/loja',
-    hint: 'Molduras, efeitos de perfil, versos de cartas e pacotes', match: (p) => p.startsWith('/loja'),
+    key: 'loja', label: 'Loja e Economia', icon: 'store', to: '/loja',
+    hint: 'Loja, moedas, gemas, missões e Passe do clube',
+    match: (p) => p.startsWith('/loja') || p.startsWith('/economia') || p.startsWith('/missoes'),
   },
 ].filter((f) => !f.feature || isFeatureEnabled(f.feature));
 
@@ -111,14 +117,16 @@ export default function FeaturedChannels({ canManage }) {
     let badge = null;
     // Bolinha vermelha "novo": anúncio/evento/coleção que saiu depois da
     // última vez que a pessoa abriu a seção (some ao abrir).
-    const newKey = { anuncios: 'anuncios', eventos: 'eventos', loja: 'colecoes' }[item.key];
-    const fresh = newKey && !active ? sectionCount(sectionBadges, newKey) : 0;
-    const what = { anuncios: ['anúncio novo', 'anúncios novos'], eventos: ['evento novo', 'eventos novos'], colecoes: ['coleção nova na Loja', 'coleções novas na Loja'] }[newKey] || [];
+    const newKeys = item.merges || [{ loja: 'colecoes' }[item.key] || item.key];
+    const fresh = active ? 0 : newKeys.reduce((n, k) => n + sectionCount(sectionBadges, k), 0);
+    const what = { anuncios: ['novidade', 'novidades'], loja: ['coleção nova na Loja', 'coleções novas na Loja'] }[item.key] || ['novidade', 'novidades'];
     const newBadge = fresh > 0 ? <span className="section-new-badge" title={`${fresh} ${fresh === 1 ? what[0] : what[1]}`} aria-label={`${fresh} ${fresh === 1 ? what[0] : what[1]}`}>{badgeLabel(fresh)}</span> : null;
-    if (newBadge && item.key !== 'eventos') badge = newBadge;
-    else if (newBadge && !(live > 0)) badge = newBadge;
-    else if (item.key === 'eventos' && live > 0) badge = <span className="featured-channel-live" title={`${live} evento${live === 1 ? '' : 's'} acontecendo agora`}>Ao vivo</span>;
-    else if (item.key === 'eventos' && upcoming > 0) badge = <span className="featured-channel-count" title={`${upcoming} evento${upcoming === 1 ? '' : 's'} em breve`}>{upcoming}</span>;
+    const hasEvents = (item.merges || []).includes('eventos');
+    // Novidade não vista primeiro (some ao abrir); depois "Ao vivo"; depois
+    // a contagem de eventos em breve.
+    if (newBadge) badge = newBadge;
+    else if (hasEvents && live > 0) badge = <span className="featured-channel-live" title={`${live} evento${live === 1 ? '' : 's'} acontecendo agora`}>Ao vivo</span>;
+    else if (hasEvents && upcoming > 0) badge = <span className="featured-channel-count" title={`${upcoming} evento${upcoming === 1 ? '' : 's'} em breve`}>{upcoming}</span>;
     else if (item.soon) badge = <span className="featured-channel-soon">Em breve</span>;
     else if (item.tag && !active) badge = <span className="featured-channel-tag">{item.tag}</span>;
     return (

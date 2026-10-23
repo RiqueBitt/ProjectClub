@@ -14,7 +14,8 @@ const { timingMiddleware } = require('./middleware/timing');
 const { invalidateOnWrite } = require('./services/sharedCache');
 const { maskInvisibleResponses } = require('./utils/presenceVisibility');
 const { honeypotMiddleware, blockedIpGuard } = require('./middleware/honeypot');
-const { getB2Client, isB2Configured } = require('./config/b2');
+const { getB2ReadClient, isB2Configured } = require('./config/b2');
+const { pipeline } = require('stream');
 const { GetObjectCommand } = require('@aws-sdk/client-s3');
 
 const authRoutes = require('./routes/auth');
@@ -323,7 +324,7 @@ function createApp() {
   app.get('/media/:key', async (req, res) => {
     if (!isB2Configured()) return res.status(404).end();
     try {
-      const client = getB2Client();
+      const client = getB2ReadClient();
       const result = await client.send(new GetObjectCommand({ Bucket: env.B2_BUCKET, Key: req.params.key }));
       // SEGURANÇA (auditoria de upload/storage): essa rota é quem serve
       // TUDO em produção (B2 configurado) — avatares, banners, anexos de
@@ -344,9 +345,13 @@ function createApp() {
       }
       if (result.ContentLength) res.setHeader('Content-Length', result.ContentLength);
       res.setHeader('Cache-Control', 'public, max-age=31536000, immutable');
-      result.Body.pipe(res);
+      // pipeline (em vez de .pipe): erro no meio do download (B2 cortou a
+      // conexão, cliente fechou a aba) fecha os dois lados — antes o erro
+      // do stream não tinha handler e o socket ficava pendurado.
+      pipeline(result.Body, res, () => {});
     } catch (err) {
-      res.status(404).end();
+      if (!res.headersSent) res.status(404).end();
+      else res.destroy();
     }
   });
 
@@ -412,6 +417,7 @@ function createApp() {
   // a imagem direto), só ficou um passo a mais no meio agora.
   app.use('/api/proxy', imageProxyRoutes);
   app.use('/api/unfurl', require('./routes/unfurl'));
+  app.use('/api/gifs', require('./routes/gifs'));
   app.use('/api/updates', updatesRoutes);
   app.use('/api/events', eventsRoutes);
   // Links bonitos (/canal/<nome>, /perfil/<@>...): resolve endereço → id.

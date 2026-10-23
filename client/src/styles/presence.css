@@ -168,3 +168,28 @@
 .mini-profile-presence-dot.status-dot.status-dot-mobile { width: 13px; height: 20px; border-radius: 5px; }
 .profile-modal-box .status-dot.status-dot-mobile.large,
 .profile-fullscreen-overlay .status-dot.status-dot-mobile.large { width: 17px; height: 26px; border-radius: 6px; }
+
+/* ============================================================
+   "Rodelinha" (bolinha de status) do miniperfil e do perfil completo
+   ------------------------------------------------------------
+   BUG CORRIGIDO: o tamanho e a posição vinham de TRÊS regras diferentes
+   brigando (global.css, presence.css e mini-profile-improvements.css). No
+   miniperfil a vencedora dava 28px de bolinha (18 + borda 5×2) — quase um
+   terço do avatar — e no perfil completo a bolinha de 32px ficava a −2px
+   do canto de um avatar de 128px, "flutuando" ~5px pra fora do círculo.
+   Agora uma regra só por lugar, com a posição calculada pra o CENTRO da
+   bolinha cair exatamente na borda do círculo (a 45°): distância do canto =
+   raio × (1 − cos 45°) ≈ raio × 0,293; right/bottom = isso − metade da
+   bolinha. Cores, formatos (lua, traço…) e o anel continuam iguais.
+   ============================================================ */
+/* Miniperfil: avatar de 92px (84 + borda 4×2) → canto a 13,5px; bolinha 24px. */
+.mini-profile-card .mini-profile-presence-dot.status-dot {
+  width: 16px; height: 16px; border-width: 4px; box-sizing: content-box;
+  right: 1.5px; bottom: 1.5px;
+}
+.mini-profile-card .mini-profile-avatar-wrap:has(.avatar-deco-wrap) .mini-profile-presence-dot.status-dot { right: 1.5px; bottom: 1.5px; }
+/* Perfil completo: avatar de 128px → canto a 18,7px; bolinha 32px. */
+.profile-fullscreen-overlay .profile-ig-header .avatar-wrap.large > .status-dot.large {
+  width: 22px; height: 22px; border-width: 5px; box-sizing: content-box;
+  right: 3px; bottom: 3px; top: auto; left: auto;
+}

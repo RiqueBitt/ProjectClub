@@ -840,14 +840,14 @@ function Attachment({ attachment, allImages, imageIndex }) {
     // vídeo abriria o lightbox por engano, mesmo só querendo pausar).
     return (
       <div className={`attachment-video-wrap ${!revealed ? 'is-spoiler' : ''}`}>
-        <video className="attachment-video" src={attachment.url} controls={revealed} preload="metadata" />
+        <video className="attachment-video" src={attachment.url} controls={revealed} preload="metadata" playsInline />
         {!revealed && (
           <button type="button" className="attachment-spoiler-reveal" onClick={() => setRevealed(true)}>
             <ChatIcon name="eye" size={15} /> Spoiler
           </button>
         )}
         {revealed && <button
-          type="button" className="attachment-video-expand" title="Ver em tela cheia"
+          type="button" className="attachment-video-expand" title="Ver em tela cheia" aria-label="Ver vídeo em tela cheia"
           onClick={() => useStore.getState().openLightbox([{ url: attachment.url, filename: attachment.filename, mimeType: attachment.mimeType }], 0)}
         >⤢</button>}
       </div>

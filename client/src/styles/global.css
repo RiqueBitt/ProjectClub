@@ -683,6 +683,8 @@ html.is-electron-app .app-shell { height: calc(100dvh - 32px); }
   transition: background-color .12s;
 }
 .top-search-bar-icon-btn:hover { background: var(--bg-modifier-hover); color: var(--header-primary); }
+.top-search-bar-icon-btn.top-staff-panel-btn.active { background: var(--bg-modifier-selected, var(--bg-modifier-hover)); }
+.top-search-bar-icon-btn.top-staff-panel-btn.active .top-search-bar-icon-mask { background-color: var(--header-primary); }
 .top-search-bar-badge {
   position: absolute; top: -2px; right: -2px; background: var(--red); color: #fff;
   font-size: 10px; font-weight: 700; min-width: 16px; height: 16px; border-radius: 999px;
@@ -3915,6 +3917,21 @@ a.embed-card-title:hover { text-decoration: underline; }
 .custom-audio-time { font-size: 11px; color: var(--text-muted); flex-shrink: 0; white-space: nowrap; }
 .custom-audio-player.compact { max-width: 180px; }
 .custom-audio-player.compact .custom-audio-play-btn { width: 26px; height: 26px; font-size: 10px; }
+/* Área de toque da barra: 28px de altura invisível em volta da trilha de
+   6px (dá pra acertar com o dedo e arrastar). touch-action:none impede a
+   página de rolar enquanto se arrasta a posição. */
+.custom-audio-track { touch-action: none; }
+.custom-audio-track::before { content: ''; position: absolute; left: -6px; right: -6px; top: -11px; bottom: -11px; }
+.custom-audio-track:focus-visible { outline: 2px solid var(--brand); outline-offset: 6px; }
+.custom-audio-play-btn:disabled { opacity: .5; cursor: not-allowed; }
+.custom-audio-error { font-size: 12px; color: var(--text-muted); }
+.custom-audio-error a { color: var(--text-link); font-weight: 600; }
+@media (pointer: coarse), (max-width: 600px) {
+  .custom-audio-play-btn { width: 40px; height: 40px; }
+  .custom-audio-player.compact .custom-audio-play-btn { width: 34px; height: 34px; }
+  .custom-audio-track-knob { width: 16px; height: 16px; }
+  .custom-audio-time { font-size: 12px; }
+}
 
 /* ---------- Ticket options (TicketsSettingsTab.jsx / TicketsChannelView.jsx) ---------- */
 .ticket-options-list { display: flex; flex-direction: column; gap: 8px; margin-bottom: 10px; }

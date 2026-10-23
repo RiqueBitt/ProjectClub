@@ -6,6 +6,8 @@ import '../styles/pages-kit.css';
 // Linux), cabeçalho "herói", abas em pílula, estado vazio, esqueleto de
 // carregamento e aviso flutuante.
 const PATHS = {
+  megaphone: 'M3 11v2a1 1 0 0 0 1 1h2l5 4V6L6 10H4a1 1 0 0 0-1 1zM15 9a3 3 0 0 1 0 6M18 6a7 7 0 0 1 0 12',
+  calendar: 'M7 3v3M17 3v3M4 8h16M5 5h14a1 1 0 0 1 1 1v13a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V6a1 1 0 0 1 1-1zM8 12h3v3H8z',
   coin: 'M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18ZM12 7.6l1.3 2.65 2.9.42-2.1 2.05.5 2.9L12 14.25l-2.6 1.37.5-2.9-2.1-2.05 2.9-.42z',
   gem: 'M7 3.5h10l4.5 5.2L12 21 2.5 8.7zM2.5 8.7h19M9.6 8.7 12 21l2.4-12.3M7 3.5l2.6 5.2L12 3.5l2.4 5.2L17 3.5',
   gift: 'M4 11h16v9H4zM3 7h18v4H3zM12 7v13M12 7c-2-4-6-3-5 0M12 7c2-4 6-3 5 0',

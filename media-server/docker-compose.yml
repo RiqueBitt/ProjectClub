@@ -55,7 +55,7 @@ services:
       --use-auth-secret --static-auth-secret=${TURN_SECRET}
       --fingerprint --no-multicast-peers --no-cli --no-tcp-relay
       --no-rfc5780 --no-stun-backward-compatibility --no-software-attribute
-      --stale-nonce=600 --user-quota=12 --total-quota=1200
+      --stale-nonce=600 --user-quota=48 --total-quota=1200
       --denied-peer-ip=0.0.0.0-255.255.255.255
       --denied-peer-ip=::-ffff:ffff:ffff:ffff:ffff:ffff:ffff:ffff
       --allowed-peer-ip=${MEDIA_PUBLIC_IP}

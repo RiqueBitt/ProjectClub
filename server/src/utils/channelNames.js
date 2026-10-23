@@ -75,7 +75,9 @@ function checkIconUpload(file) {
 }
 
 // Canais em destaque no topo da lista da comunidade.
-const FEATURED_KEYS = ['eventos', 'feed', 'galeria', 'loja', 'arena']; // 'feed' aparece como "Fórum"
+// 'anuncios' = canal unificado "Anúncios e Eventos" (antes não dava pra escondê-lo: o
+// switch existia nas Configurações da comunidade, mas o servidor ignorava a chave).
+const FEATURED_KEYS = ['anuncios', 'eventos', 'feed', 'galeria', 'loja', 'arena']; // 'feed' aparece como "Fórum"
 function parseHiddenFeatured(raw) {
   try {
     const list = JSON.parse(raw || '[]');

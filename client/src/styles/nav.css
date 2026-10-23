@@ -444,3 +444,32 @@ button.mention-chip.channel-mention-chip:hover { background: color-mix(in srgb, 
   margin-left: 6px; flex-shrink: 0; box-shadow: 0 0 0 2px color-mix(in srgb, var(--red, #f23f43) 30%, transparent);
 }
 @media (prefers-reduced-motion: reduce) { .section-new-badge { animation: none; } }
+
+/* ---------- Busca unificada: menu de resultados da barra do topo ---------- */
+.top-search-bar-form { position: relative; }
+.top-search-bar-kbd {
+  position: absolute; right: 10px; pointer-events: none;
+  font: 600 11px/1 var(--font-primary, inherit); color: var(--text-muted);
+  padding: 3px 6px; border-radius: 6px; border: 1px solid var(--border); background: var(--bg-secondary);
+}
+.top-search-dropdown {
+  position: absolute; top: calc(100% + 6px); left: 0; z-index: 1100;
+  width: max(100%, 440px); max-width: min(620px, calc(100vw - 24px));
+  max-height: min(64vh, 560px); display: flex; flex-direction: column; overflow: hidden;
+  background: var(--bg-secondary); border: 1px solid var(--border); border-radius: 14px;
+  box-shadow: 0 18px 48px -12px rgba(0, 0, 0, .5);
+  animation: qs-fade .12s ease-out;
+}
+/* No Normal 2.0 o campo fica à direita e estreito: o menu abre pra esquerda. */
+.layout-n2 .top-search-dropdown { left: auto; right: 0; }
+.top-search-dropdown .qs-results { padding-top: 6px; }
+.top-search-dropdown-footer { flex-shrink: 0; }
+.top-search-dropdown .qs-item-label { font-size: 14px; }
+.qs-kind-search .qs-item-icon { color: var(--brand); }
+.qs-kind-search .qs-item-label { color: var(--brand); }
+/* A lupa só aparece onde a barra de busca não cabe. */
+.top-search-mobile-btn { display: none; }
+@media (max-width: 600px) {
+  .top-search-bar-form { display: none; }
+  .top-search-mobile-btn { display: flex; }
+}

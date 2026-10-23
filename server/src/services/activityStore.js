@@ -31,8 +31,26 @@ async function getActivity(userId) {
   return raw ? JSON.parse(raw) : null;
 }
 
+// Várias de uma vez num único MGET. Antes, cada conexão fazia um GET por
+// pessoa online — depois de um deploy (N pessoas reconectando juntas)
+// isso virava N×N idas ao Redis.
+async function getActivities(userIds) {
+  const ids = [...new Set(userIds)].filter(Boolean);
+  if (!ids.length) return {};
+  const out = {};
+  for (let i = 0; i < ids.length; i += 500) {
+    const chunk = ids.slice(i, i + 500);
+    const raws = await redis.mget(chunk.map(keyFor));
+    raws.forEach((raw, j) => {
+      if (!raw) return;
+      try { out[chunk[j]] = JSON.parse(raw); } catch { /* entrada corrompida: ignora */ }
+    });
+  }
+  return out;
+}
+
 async function clearActivity(userId) {
   await redis.del(keyFor(userId));
 }
 
-module.exports = { setActivity, getActivity, clearActivity, ACTIVITY_TTL_SECONDS };
+module.exports = { setActivity, getActivity, getActivities, clearActivity, ACTIVITY_TTL_SECONDS };

@@ -37,6 +37,7 @@ httpServer.keepAliveTimeout = 65_000;
 httpServer.headersTimeout = 66_000;
 const io = initSockets(httpServer);
 app.set('io', io);
+require('./services/runtimeMetrics').startRuntimeMetrics({ io });
 
 // A small hand-rolled ANSI palette instead of pulling in a color library —
 // this is the only place in the whole server that cares about pretty

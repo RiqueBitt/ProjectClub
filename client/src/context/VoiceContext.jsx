@@ -14,6 +14,7 @@ import { buildScreenShareConfig, SCREEN_QUALITY_PRESETS, ALLOWED_FPS } from '../
 // sozinha, ela é refeita com credencial nova no MESMO canal, preservando a
 // sessão, o socket, o roster, as reações e o soundboard.
 import { createEngine, readJoinResponse, VOICE_PROVIDER } from '../voice/engineRegistry.js';
+import { preloadMediasoup } from '../voice/mediasoupEngine.js';
 import { pickNoiseModel, currentHighQualityAvailability, NOISE_QUALITY, NOISE_MODELS } from '../voice/noiseModels.js';
 // Item pedido: "no .apk, se sair do app, continua na call em segundo
 // plano" — sem isso, o Android mata o áudio da chamada poucos segundos
@@ -146,6 +147,16 @@ const VOICE_SYNC_MS = 20000;
 export function VoiceProvider({ children }) {
   const { user } = useAuth();
   const { socket } = useSocket();
+  // A biblioteca de mídia (mediasoup-client) era baixada só no clique de
+  // entrar quando a pessoa entrava pela barra lateral — atraso na entrada.
+  // Baixa em segundo plano assim que o app fica ocioso.
+  useEffect(() => {
+    if (!user) return undefined;
+    const idle = window.requestIdleCallback || ((fn) => setTimeout(fn, 2500));
+    const cancel = window.cancelIdleCallback || clearTimeout;
+    const h = idle(() => preloadMediasoup(), { timeout: 8000 });
+    return () => cancel(h);
+  }, [user]);
 
   const [call, setCall] = useState(null); // { serverId, channelId, channelName, channelType }
   const [muted, setMuted] = useState(false);
@@ -358,9 +369,17 @@ export function VoiceProvider({ children }) {
   // Tela x câmera decidido na hora de mostrar (ver remoteVideoStreams).
   const { remoteCameraStreams, remoteScreenStreams } = useMemo(() => {
     const cams = {}; const screens = {};
-    Object.entries(remoteVideoStreams).forEach(([uid, stream]) => {
-      if (participants[uid]?.screenSharing) screens[uid] = stream;
-      else cams[uid] = stream;
+    // BUG CORRIGIDO ("câmera e tela da mesma pessoa se sobrescrevem"):
+    // antes era UM vídeo por pessoa e "é tela?" vinha do estado do socket
+    // principal (screenSharing) — câmera + tela ao mesmo tempo, o último a
+    // chegar sumia com o outro; e com o aviso de screenSharing atrasado, a
+    // tela aparecia como câmera (bloco pequeno, camada baixa). Agora cada
+    // fonte tem seu lugar, decidido pelo próprio servidor de mídia.
+    Object.entries(remoteVideoStreams).forEach(([uid, v]) => {
+      if (!v) return;
+      if (v.screen) screens[uid] = v.screen;
+      if (v.camera) cams[uid] = v.camera;
+      if (v.unknown) { if (participants[uid]?.screenSharing && !v.screen) screens[uid] = v.unknown; else if (!v.camera) cams[uid] = v.unknown; }
     });
     return { remoteCameraStreams: cams, remoteScreenStreams: screens };
   }, [remoteVideoStreams, participants]);
@@ -535,11 +554,23 @@ export function VoiceProvider({ children }) {
       onRemoteAudio: (uid, stream) => setRemoteAudioStreams((s) => ({ ...s, [String(uid)]: stream })),
       // Som da tela separado (volume próprio); null = parou.
       onRemoteScreenAudio: (uid, stream) => setRemoteScreenAudioStreams((s) => (stream ? { ...s, [String(uid)]: stream } : dropKey(s, String(uid)))),
-      onRemoteVideo: (uid, stream) => setRemoteVideoStreams((s) => ({ ...s, [String(uid)]: stream })),
-      onRemoteRemove: (uid, kind) => {
+      onRemoteVideo: (uid, stream, source) => setRemoteVideoStreams((s) => {
+        const k = String(uid);
+        const slot = source === 'screen' || source === 'camera' ? source : 'unknown';
+        return { ...s, [k]: { ...(s[k] || {}), [slot]: stream } };
+      }),
+      onRemoteRemove: (uid, kind, source) => {
         const uidStr = String(uid);
         if (kind === 'audio' || kind === 'all') setRemoteAudioStreams((s) => dropKey(s, uidStr));
-        if (kind === 'video' || kind === 'all') setRemoteVideoStreams((s) => dropKey(s, uidStr));
+        if (kind === 'video' && (source === 'screen' || source === 'camera')) {
+          // Só a fonte que parou: a outra (câmera ou tela) continua na tela.
+          setRemoteVideoStreams((s) => {
+            const cur = s[uidStr];
+            if (!cur) return s;
+            const next = { ...cur }; delete next[source]; delete next.unknown;
+            return Object.keys(next).length ? { ...s, [uidStr]: next } : dropKey(s, uidStr);
+          });
+        } else if (kind === 'video' || kind === 'all') setRemoteVideoStreams((s) => dropKey(s, uidStr));
         if (kind === 'all') { setMediaUids((s) => dropKey(s, uidStr)); setRemoteScreenAudioStreams((s) => dropKey(s, uidStr)); }
       },
     };

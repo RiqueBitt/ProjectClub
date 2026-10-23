@@ -90,7 +90,7 @@
 //          separado, igual ao "volume da transmissão" do Discord; sem esse
 //          callback o som da tela vai junto no onRemoteAudio, como antes)
 //   onRemoteVideo(uid, MediaStream, kind)
-//   onRemoteRemove(uid, 'audio'|'video'|'all')
+//   onRemoteRemove(uid, 'audio'|'video'|'all', source?)  source = 'camera'|'screen' (só vídeo)
 //   onConnectionStats({ rtt, sendLoss, connected })  (~a cada 2s)
 //   onTelemetry({ type, ... }), onError(err, info)
 // API nova documentada em docs/voz-discord-api.md.
@@ -167,8 +167,6 @@ const ICE_DISCONNECTED_GRACE_MS = 2500;
 // Depois de um ICE restart, quanto esperar o transport voltar a 'connected'.
 const ICE_RESTART_TIMEOUT_MS = 8000;
 const MAX_ICE_RESTARTS = 2;
-// Join: com mídia dos outros pra receber, a recepção tem que conectar nisso.
-const MEDIA_CONNECT_TIMEOUT_MS = 12000;
 // Transport usado (produce/consume) que NUNCA conectou nesse tempo → falha do provedor.
 const FIRST_CONNECT_WATCH_MS = 15000;
 const MAX_TOKEN_REFRESHES = 2;
@@ -519,8 +517,17 @@ export class MediasoupEngine {
     this.device = new Device();
     await this.device.load({ routerRtpCapabilities: welcome.routerRtpCapabilities });
 
-    this.sendTransport = await this._createTransport('send');
-    this.recvTransport = await this._createTransport('recv');
+    // Os dois transports em paralelo (antes um esperava o outro: uma ida e
+    // volta a mais ao servidor de mídia em toda entrada/reconexão).
+    // Se um falhar, o outro (já criado) é fechado — senão a RTCPeerConnection
+    // dele ficava aberta, órfã, a cada tentativa que falhava.
+    const [sendR, recvR] = await Promise.allSettled([this._createTransport('send'), this._createTransport('recv')]);
+    if (sendR.status === 'rejected' || recvR.status === 'rejected') {
+      for (const r of [sendR, recvR]) if (r.status === 'fulfilled') { try { r.value.close(); } catch { /* ok */ } }
+      throw (sendR.status === 'rejected' ? sendR.reason : recvR.reason);
+    }
+    this.sendTransport = sendR.value;
+    this.recvTransport = recvR.value;
     if (this.disposed) { this._closeAll(); return; }
 
     if (first) this.cb.onJoined?.(this.myId);
@@ -551,35 +558,17 @@ export class MediasoupEngine {
     this._startStats();
     this._startKeepalive();
 
-    // Join "verdadeiro": com mídia pra receber, só termina quando a recepção
-    // conecta — senão o provedor falhou (o VoiceContext troca de provedor).
+    // Entrada: espera só os consumes serem criados. ANTES também esperava o
+    // ICE/DTLS da recepção conectar (até 12s) — herança da época em que
+    // havia vários provedores pra trocar. Com o servidor próprio isso só
+    // atrasava a entrada (a pessoa ficava "conectando" e não aparecia na
+    // lista dos outros) e, em rede que precisa de TURN/TCP, derrubava a
+    // entrada inteira com ICE_TIMEOUT em vez de seguir tentando. Quem cuida
+    // de "a mídia nunca conectou" agora é o _watchFirstConnect (já armado em
+    // cada consume/produce), que avisa onMediaFailed e dispara a recuperação.
     if (first && consumes.length) {
       await Promise.allSettled(consumes);
-      if (this.disposed) return;
-      if (this.consumers.size > 0 && this.recvTransport) await this._waitConnected(this.recvTransport, MEDIA_CONNECT_TIMEOUT_MS);
     }
-  }
-
-  _waitConnected(transport, ms) {
-    if (!transport || transport.connectionState === 'connected') return Promise.resolve();
-    return new Promise((resolve, reject) => {
-      let timer = null;
-      const off = () => { clearTimeout(timer); try { transport.removeListener('connectionstatechange', on); } catch { /* ok */ } };
-      const on = (s) => {
-        if (s === 'connected') { off(); resolve(); }
-        else if (s === 'closed') { off(); const e = new Error('transport fechado antes de conectar'); e.code = 'TRANSPORT_CLOSED'; reject(e); }
-      };
-      timer = setTimeout(() => {
-        off();
-        if (this.disposed) { resolve(); return; }
-        // A sessão foi refeita no meio e a nova já conectou: tudo certo.
-        if (this.recvTransport && this.recvTransport !== transport && this.recvTransport.connectionState === 'connected') { resolve(); return; }
-        const e = new Error('a mídia não conectou (ICE/DTLS)');
-        e.code = 'ICE_TIMEOUT';
-        reject(e);
-      }, ms);
-      transport.on('connectionstatechange', on);
-    });
   }
 
   _ts(transport) {
@@ -1606,7 +1595,7 @@ export class MediasoupEngine {
     this.consumers.delete(cid);
     try { c.consumer.close(); } catch { /* ok */ }
     if (c.kind === 'audio') this._emitPeerAudio(c.peerId);
-    else this.cb.onRemoteRemove?.(c.peerId, 'video');
+    else this.cb.onRemoteRemove?.(c.peerId, 'video', c.source === 'screen' ? 'screen' : 'camera');
   }
 
   // ---------- recepção sob medida (vídeo) ----------
@@ -1683,9 +1672,20 @@ export class MediasoupEngine {
     const uid = String(peerId);
     this.consumingProducers.add(producerId);
     try {
-      const info = await this._request('consume', {
+      const ask = () => this._request('consume', {
         transportId: transport.id, producerId, rtpCapabilities: this.device.rtpCapabilities,
       });
+      // Sala cheia, entrando: muitos consumes de uma vez podiam bater no
+      // limite de mensagens do servidor de mídia — e esse consume não era
+      // repetido nunca (aquela pessoa ficava muda pra você). Tenta de novo
+      // com espera crescente.
+      let info;
+      for (let attempt = 0; ; attempt += 1) {
+        try { info = await ask(); break; } catch (err) {
+          if (attempt >= 3 || !/muitas requisi/.test(String(err?.message)) || this.disposed || this.recvTransport !== transport) throw err;
+          await sleep(500 * (attempt + 1));
+        }
+      }
       if (this.disposed || this.recvTransport !== transport) return;
       const consumer = await transport.consume({
         id: info.consumerId, producerId: info.producerId, kind: info.kind, rtpParameters: info.rtpParameters, appData: info.appData,

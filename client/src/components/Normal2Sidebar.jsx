@@ -5,7 +5,7 @@ import { useStore, isChannelUnread, isConversationUnread, useMyRoleIds } from '.
 import { useAuth } from '../context/AuthContext.jsx';
 import ChannelSidebar from './ChannelSidebar.jsx';
 import DonationGoalBar from './DonationGoalBar.jsx';
-import { ITEMS, STAFF_ITEM, visibleNavItems } from './MainSidebar.jsx';
+import { ITEMS, visibleNavItems } from './MainSidebar.jsx';
 import { useFeaturedVisibility } from './FeaturedChannels.jsx';
 import { useClaimableMissions } from '../utils/missionBadge';
 
@@ -55,14 +55,13 @@ function N2Nav() {
     return !v;
   });
   const badgeFor = useBadges(user);
-  const isStaff = user?.platformRole === 'ADMIN' || user?.platformRole === 'MODERATOR';
   // O Feed agora é um canal em destaque no topo da lista de canais; o
   // botão do menu só volta se a staff esconder esse canal.
   const isFeaturedVisible = useFeaturedVisibility();
   const disabledSystems = useStore((s) => s.disabledSystems);
   const shownItems = visibleNavItems(N2_ITEMS, disabledSystems, user);
   const baseItems = isFeaturedVisible('feed') ? shownItems.filter((i) => i.to !== '/comunidades') : shownItems;
-  const items = isStaff ? [...baseItems, STAFF_ITEM] : baseItems;
+  const items = baseItems; // Painel: botão na barra superior (TopSearchBar.jsx)
 
   return (
     <div className={`n2-nav${compact ? ' is-compact' : ''}`}>

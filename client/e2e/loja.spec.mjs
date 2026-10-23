@@ -36,7 +36,8 @@ test('loja segue o tema, com vitrine, filtros, detalhe e confirmação', async (
   expect(await page.evaluate(() => document.documentElement.dataset.theme || document.body.dataset.theme || '')).not.toBe('light');
 
   await expect(page.getByRole('heading', { name: 'Novidades' })).toBeVisible();
-  await expect(page.getByRole('heading', { name: 'Exclusivos de apoio' })).toBeVisible();
+  // Seção renomeada para "Loja exclusiva" na rodada Loja → Assinatura (#127).
+  await expect(page.getByRole('heading', { name: 'Loja exclusiva' }).first()).toBeVisible();
   await shot(page, 'inicio', info);
 
   // Categoria + filtro de disponibilidade.

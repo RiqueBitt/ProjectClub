@@ -101,6 +101,7 @@ export default function ImageLightbox() {
           src={image.url}
           controls
           autoPlay
+          playsInline
           onClick={(e) => e.stopPropagation()}
         />
       ) : (

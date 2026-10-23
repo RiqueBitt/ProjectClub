@@ -27,7 +27,7 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: write
-    timeout-minutes: 20
+    timeout-minutes: 35
     # Os testes são divididos em 4 máquinas que rodam ao mesmo tempo.
     strategy:
       fail-fast: false

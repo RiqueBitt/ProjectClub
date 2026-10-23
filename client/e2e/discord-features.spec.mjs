@@ -59,8 +59,9 @@ test('loja: coração da lista de desejos, presentes e códigos, comparar planos
   await expect(page.getByRole('heading', { name: 'Resgatar código' })).toBeVisible();
   await expect(page.getByRole('heading', { name: 'Insígnia de Presentes' })).toBeVisible();
   await shot(page, 'loja-presentes', info);
-  await page.getByRole('button', { name: /Comparar planos/ }).click();
-  await expect(page.locator('.room-plans')).toBeVisible();
+  // "Comparar planos" virou o item "Assinatura" no topo do menu da Loja (#127).
+  await page.locator('.room-nav-sub', { hasText: 'Assinatura' }).click();
+  await expect(page.locator('.room-subs')).toBeVisible();
   await shot(page, 'loja-planos', info);
   expect(errors).toEqual([]);
 });

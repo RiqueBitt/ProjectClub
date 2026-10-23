@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { getMyEconomy, claimDaily, listChests, listMissions, claimMission, getEconomyHistory, getMissionSeason, claimSeasonReward } from '../api/endpoints';
 import { useSocket } from '../context/SocketContext.jsx';
 import { EmptyState, Ico, PageHero, PillTabs, Skeleton, Toast, Unavailable } from '../components/PagesKit.jsx';
@@ -86,7 +86,12 @@ function MissionCard({ m, onClaim, busy, compact }) {
 // Hub da Economia: saldo, baú diário, missões, histórico e atalhos.
 export default function EconomyPage({ initialTab = 'geral' }) {
   const { socket } = useSocket();
-  const [tab, setTab] = useState(initialTab);
+  // ?aba=temporada|historico|missoes|geral — usado pela barra de abas da
+  // Loja (HubTabs) pra voltar direto pra aba certa da Economia.
+  const [searchParams] = useSearchParams();
+  const abaParam = searchParams.get('aba');
+  const validAba = ['geral', 'missoes', 'temporada', 'historico'].includes(abaParam) ? abaParam : null;
+  const [tab, setTab] = useState(() => validAba || initialTab);
   const [eco, setEco] = useState(null);
   const [chests, setChests] = useState([]);
   const [missionData, setMissionData] = useState(null); // { missions, resets }
@@ -99,7 +104,7 @@ export default function EconomyPage({ initialTab = 'geral' }) {
   const [claimingId, setClaimingId] = useState(null);
   const [now, setNow] = useState(() => Date.now());
 
-  useEffect(() => { setTab(initialTab); }, [initialTab]);
+  useEffect(() => { setTab(validAba || initialTab); }, [initialTab, validAba]);
 
   const refresh = useCallback(() => getMyEconomy().then(setEco).catch((err) => {
     if (err?.response?.status === 503) setUnavailable(true);
@@ -262,6 +267,11 @@ export default function EconomyPage({ initialTab = 'geral' }) {
   const tabs = [
     { id: 'geral', label: 'Visão geral', icon: 'grid' },
     { id: 'missoes', label: 'Missões', icon: 'bolt', count: readyCount },
+    // Economia + Loja unificadas: a Loja é uma aba desta área, logo à
+    // esquerda do Passe (abre a página da Loja com a mesma barra de abas
+    // no topo — ver components/HubTabs.jsx). Compras continuam validadas
+    // só no servidor (shopController), nada mudou nas regras.
+    { id: 'loja', label: 'Loja', icon: 'store' },
     // Passe do clube: exclusivo de Assinantes (botão dourado). Quem não assina
     // vai direto pra Loja → Assinatura.
     { id: 'temporada', label: 'Passe do clube', icon: 'crown', count: season?.isSupporter ? (seasonReady || undefined) : undefined, className: 'pk-tab-gold' },
@@ -299,7 +309,11 @@ export default function EconomyPage({ initialTab = 'geral' }) {
 
         <PillTabs
           tabs={tabs} value={tab} label="Seções da Economia" className="eco-tabs"
-          onChange={(id) => { if (id === 'temporada' && season && !season.isSupporter) navigate('/loja?secao=assinatura'); else setTab(id); }}
+          onChange={(id) => {
+            if (id === 'loja') navigate('/loja');
+            else if (id === 'temporada' && season && !season.isSupporter) navigate('/loja?secao=assinatura');
+            else setTab(id);
+          }}
         />
 
         {tab === 'geral' && (

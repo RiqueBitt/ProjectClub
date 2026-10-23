@@ -38,13 +38,41 @@ function getOnlineIdsCached() {
 // Retrato de presença pra quem conecta: só quem tem sessão viva (mais a
 // própria pessoa), com "Invisível" virando "Offline" pros outros. O
 // cliente trata a lista como completa — quem não está nela, está offline.
+// As LINHAS do banco também ficam compartilhadas por alguns segundos (antes
+// só a lista de ids era cacheada e cada conexão refazia o findMany de todo
+// mundo online — O(N²) numa reconexão em massa, com o Prisma limitado a
+// poucas conexões, enfileirando tudo e levando o load do servidor a ~20).
+// O "Invisível vira Offline" continua sendo aplicado por quem está vendo.
+let presenceRowsCache = { at: 0, promise: null };
+function getPresenceRowsCached() {
+  const now = Date.now();
+  if (presenceRowsCache.promise && now - presenceRowsCache.at < 3000) return presenceRowsCache.promise;
+  const promise = (async () => {
+    const ids = await getOnlineIdsCached();
+    if (!ids.length) return [];
+    return prisma.user.findMany({ where: { id: { in: ids } }, select: { id: true, status: true, customStatus: true } });
+  })().catch((err) => { presenceRowsCache = { at: 0, promise: null }; throw err; });
+  presenceRowsCache = { at: now, promise };
+  return promise;
+}
+// Mudança de status durante os 3s do cache: corrige a linha em cache em vez
+// de invalidar (invalidar a cada conexão nova traria o O(N²) de volta).
+function patchPresenceRowsCache(user) {
+  const { promise } = presenceRowsCache;
+  if (!promise || !user?.id) return;
+  promise.then((rows) => {
+    const row = rows.find((r) => r.id === user.id);
+    if (row) { row.status = user.status; if (user.customStatus !== undefined) row.customStatus = user.customStatus; }
+    else if (user.status && user.status !== 'OFFLINE') rows.push({ id: user.id, status: user.status, customStatus: user.customStatus ?? null });
+  }).catch(() => {});
+}
+
 async function buildPresenceSnapshot(viewerId) {
-  const ids = new Set(await getOnlineIdsCached());
-  if (viewerId) ids.add(viewerId);
-  if (!ids.size) return [];
-  const rows = await prisma.user.findMany({
-    where: { id: { in: [...ids] } }, select: { id: true, status: true, customStatus: true },
-  });
+  let rows = await getPresenceRowsCached();
+  if (viewerId && !rows.some((u) => u.id === viewerId)) {
+    const me = await prisma.user.findUnique({ where: { id: viewerId }, select: { id: true, status: true, customStatus: true } });
+    if (me) rows = [...rows, me];
+  }
   return rows.map((u) => {
     const status = visibleStatus(u.status, u.id === viewerId);
     return { userId: u.id, status, customStatus: u.customStatus, mobile: status !== 'OFFLINE' && devicePresence.onMobile(u.id) };
@@ -63,6 +91,13 @@ async function isRestrictedChannel(channelId) {
   restrictedChannelCache.set(channelId, { at: Date.now(), restricted });
   if (restrictedChannelCache.size > 2000) restrictedChannelCache.clear();
   return restricted;
+}
+
+function cleanActivityImage(raw) {
+  if (!raw) return undefined;
+  const v = String(raw);
+  if (v.startsWith('data:')) return v.length <= 65536 && /^data:image\/(png|jpe?g|webp|gif);base64,/i.test(v) ? v : undefined;
+  return /^https?:\/\//i.test(v) ? v.slice(0, 2048) : undefined;
 }
 
 // Mesma atividade (só uma reconfirmação)? Spotify: mesma faixa e o
@@ -206,8 +241,15 @@ function initSockets(httpServer) {
     // show online" gap. Tightened so a truly-dead connection is caught
     // within ~16s instead, while still being loose enough not to
     // false-positive on a momentarily busy tab.
-    pingInterval: 8000,
-    pingTimeout: 8000,
+    // BUG CORRIGIDO (instabilidade da VPS): 8s/8s era apertado demais. Com
+    // o servidor ocupado (pausa de GC, rajada de reconexões), os pongs
+    // atrasavam e o Socket.IO derrubava TODO MUNDO de uma vez; todos
+    // reconectavam juntos, o que gerava ainda mais carga — um ciclo que se
+    // realimentava. 15s/20s ainda detecta conexão morta em ~35s, e o
+    // "ficou offline" rápido continua vindo do heartbeat de presença
+    // (TTL no Redis) e do OFFLINE_GRACE_MS, não daqui.
+    pingInterval: 15000,
+    pingTimeout: 20000,
     // Compressão do WebSocket (vem desligada no Socket.IO 4): só pra
     // mensagens >= 1KB (lista de membros, mensagem com embed, sync de
     // presença), nível baixo (pouca CPU) e SEM "context takeover" — cada
@@ -392,8 +434,7 @@ function initSockets(httpServer) {
       // online agora (offline nunca tem atividade de verdade) — evita
       // buscar no Redis pra todo mundo à toa.
       const onlineIds = snapshot.filter((u) => u.status !== 'OFFLINE').map((u) => u.userId);
-      const activityEntries = await Promise.all(onlineIds.map(async (uid) => [uid, await activityStore.getActivity(uid)]));
-      const activitiesMap = Object.fromEntries(activityEntries.filter(([, activity]) => activity));
+      const activitiesMap = await activityStore.getActivities(onlineIds).catch(() => ({}));
       socket.emit('activity:sync', activitiesMap);
 
       // Abrir o site (ou uma nova aba/dispositivo) conta como atividade —
@@ -839,17 +880,39 @@ function initSockets(httpServer) {
     // perdido: alguém que "sumiu" da tela, estado de tela/câmera velho).
     // Se não está mais (caiu, servidor reiniciou), avisa pra ela entrar
     // de novo sozinha — sem precisar sair e entrar na mão.
-    socket.on('voice:sync', async ({ channelId } = {}) => {
+    // Serializado com o voice:join da mesma pessoa+canal (mesma trava): um
+    // sync que chegava no meio da reconexão disputava a vaga com o join.
+    socket.on('voice:sync', ({ channelId } = {}) => {
+      if (typeof channelId !== 'string' || !channelId) return undefined;
+      return voiceStore.withLock(`join:${userId}:${channelId}`, () => handleVoiceSync(channelId))
+        .catch((err) => console.error('[socket] voice:sync falhou:', err?.message || err));
+    });
+    const handleVoiceSync = async (channelId) => {
       try {
-        if (!channelId) return;
         const self = await voiceStore.getParticipant(channelId, userId);
         if (!self) { socket.emit('voice:not-in-room', { channelId }); return; }
         if (self.socketId && self.socketId !== socket.id) {
-          // Outra conexão é a "dona" da vaga. Se ela ainda está viva, é
-          // outro dispositivo de verdade — este aqui sai. Se já morreu
-          // (reconexão cujo voice:join se perdeu), adota a vaga.
+          // Outra conexão é a "dona" da vaga. BUG CORRIGIDO ("sai da
+          // chamada sozinho" / reconexões repetidas): se ela ainda parecia
+          // viva, o sync mandava ESTE socket sair. Só que, numa reconexão
+          // (celular voltando do segundo plano, wi-fi oscilando), o socket
+          // antigo continua "vivo" por alguns segundos até o ping vencer —
+          // e o sync chegava antes do voice:join de reconciliação,
+          // expulsando justamente o aparelho que estava na chamada. O sync
+          // não expulsa uma conexão MAIS NOVA que a dona (reconexão do
+          // mesmo aparelho): só espera o voice:join de reconciliação.
           const alive = await io.in(self.socketId).fetchSockets().catch(() => []);
-          if (alive.length > 0) { socket.emit('voice:kicked-by-other-device', { channelId }); return; }
+          if (alive.length > 0) {
+            // Exceção: este socket JÁ esteve na sala (entrou por ele) e a vaga
+            // passou pra outro — outro aparelho entrou depois e o aviso de
+            // expulsão se perdeu: aí sim sai. Uma conexão nova de reconexão
+            // ainda não está na sala dela (salas são por socket). Também sai
+            // se a dona for uma conexão mais nova que esta.
+            const ownerIssued = alive[0]?.handshake?.issued || 0;
+            const mineIssued = socket.handshake?.issued || 0;
+            if (socket.rooms.has(`voice:${channelId}`) || ownerIssued > mineIssued) socket.emit('voice:kicked-by-other-device', { channelId });
+            return;
+          }
           await voiceStore.updateParticipant(channelId, userId, { socketId: socket.id });
         }
         clearVoiceGrace(userId, channelId);
@@ -861,7 +924,7 @@ function initSockets(httpServer) {
         socket.emit('voice:joined', { channelId, participants: list, myRole: self.role || 'speaker', sync: true });
         ytWatch.sendState(socket, channelId); // "Assistir juntos": estado atual do vídeo
       } catch (err) { console.error('[socket] voice:sync falhou:', err?.message || err); }
-    });
+    };
 
     // BUG CORRIGIDO ("abro o site e diz que não tem ninguém na call, mas
     // tem gente"): a lista de quem está em cada canal de voz só chegava
@@ -1040,6 +1103,7 @@ function initSockets(httpServer) {
     // Agora só sai de verdade quem é o dono atual da vaga.
     socket.on('voice:leave', async ({ channelId } = {}) => {
       try {
+        speakingMemberCheck.delete(channelId); // saiu: para de retransmitir "falando" na hora
         const p = await voiceStore.getParticipant(channelId, userId);
         if (p && p.socketId && p.socketId !== socket.id) {
           const owner = await io.in(p.socketId).fetchSockets().catch(() => []);
@@ -1149,9 +1213,38 @@ function initSockets(httpServer) {
     // utils/speakingRelay.js) — o último valor nunca se perde.
     const speakingRelays = new Map(); // channelId -> relay
     socket.once('disconnect', () => { for (const r of speakingRelays.values()) r.dispose(); speakingRelays.clear(); });
+    // "Ainda está na sala?" — conferido no Redis no máximo a cada 5s por
+    // canal (antes era uma leitura do Redis a CADA pacote de "falando").
+    const speakingMemberCheck = new Map(); // channelId -> { at, ok }
+    const speakingPublicRoster = new Map(); // channelId -> Promise<boolean>
     socket.on('voice:speaking', async ({ channelId, speaking } = {}) => {
       if (typeof channelId !== 'string' || !channelId) return;
-      if (!(await voiceStore.hasParticipant(channelId, userId))) return;
+      // Mesma promessa compartilhada (ordem preservada) — ver abaixo.
+      let chk = speakingMemberCheck.get(channelId);
+      if (!chk || Date.now() - chk.at > 5000) {
+        if (speakingMemberCheck.size > 8) speakingMemberCheck.clear();
+        chk = { at: Date.now(), ok: voiceStore.hasParticipant(channelId, userId).catch(() => false) };
+        speakingMemberCheck.set(channelId, chk);
+      }
+      if (!(await chk.ok)) return;
+      // Canal privado/restrito: o "está falando" vai só pra quem está na
+      // chamada — antes ia pra comunidade inteira e vazava quem estava
+      // falando num canal que a pessoa nem enxerga (o roster já respeitava
+      // isso, o speaking não). Calculado ANTES de olhar o mapa de relays: com
+      // um await entre "tem relay?" e "guarda o relay", dois pacotes seguidos
+      // criavam dois relays e o "parou de falar" podia sair antes do
+      // "falando" (anel verde preso aceso).
+      // A MESMA promessa pra todos os pacotes do canal: assim eles continuam
+      // na ordem em que chegaram (cada await resolve na fila, em ordem).
+      let pr = speakingPublicRoster.get(channelId);
+      if (!pr) {
+        pr = (channelId.startsWith('dm:') || channelId.startsWith('clan:'))
+          ? Promise.resolve(true)
+          : isRestrictedChannel(channelId).then((r) => !r, () => false);
+        if (speakingPublicRoster.size > 8) speakingPublicRoster.clear();
+        speakingPublicRoster.set(channelId, pr);
+      }
+      const publicRoster = await pr;
       let relay = speakingRelays.get(channelId);
       if (!relay) {
         if (speakingRelays.size > 8) { for (const r of speakingRelays.values()) r.dispose(); speakingRelays.clear(); }
@@ -1160,7 +1253,8 @@ function initSockets(httpServer) {
           send: (value) => {
             // Só falar de fato conta como atividade.
             if (value) voiceStore.updateParticipant(channelId, userId, { lastActiveAt: Date.now() }).catch(() => {});
-            socket.to(`voice:${channelId}`).to(rosterRoomFor(channelId)).emit('voice:speaking', { channelId, userId, speaking: value });
+            const target = publicRoster ? socket.to(`voice:${channelId}`).to(rosterRoomFor(channelId)) : socket.to(`voice:${channelId}`);
+            target.emit('voice:speaking', { channelId, userId, speaking: value });
           },
         });
         speakingRelays.set(channelId, relay);
@@ -1272,7 +1366,12 @@ function initSockets(httpServer) {
           // outros tipos (logo de jogo/app, que são links curtos de
           // verdade). 300KB de string já cobre uma capa de álbum
           // pequena com folga.
-          imageUrl: activity.imageUrl ? String(activity.imageUrl).slice(0, 300000) : undefined,
+          // Limite revisto: cada troca de faixa ia pra TODOS os sockets
+          // e cada conexão nova recebia a capa de todo mundo — com 300KB
+          // por pessoa isso pesava nos buffers do servidor. Capa em data
+          // URL até ~64KB (uma capa 300×300 JPEG tem ~25–40KB); maior que
+          // isso é descartada (cortar a string só quebrava a imagem).
+          imageUrl: cleanActivityImage(activity.imageUrl),
           startedAt: Number.isFinite(activity.startedAt) ? activity.startedAt : Date.now(),
           durationMs: Number.isFinite(activity.durationMs) ? activity.durationMs : undefined,
           progressMs: Number.isFinite(activity.progressMs) ? activity.progressMs : undefined,
@@ -1383,10 +1482,22 @@ function initSockets(httpServer) {
   // ---------- Tolerância de queda de conexão em chamadas de voz ----------
   const VOICE_GRACE_MS = 12000;
   const voiceGraceTimers = new Map(); // `${userId}|${channelId}` -> timeout
+  const VOICE_GRACE_MAX_EXTENSIONS = 5;
+  const voiceGraceExtensions = new Map(); // `${userId}|${channelId}` -> nº de extensões
   function clearVoiceGrace(userId, channelId) {
     const key = `${userId}|${channelId}`;
     if (voiceGraceTimers.has(key)) { clearTimeout(voiceGraceTimers.get(key)); voiceGraceTimers.delete(key); }
+    voiceGraceExtensions.delete(key); // voltou/saiu: a próxima queda começa do zero
   }
+  // BUG CORRIGIDO ("participante some da lista sem sair da chamada"): a
+  // presença na voz dependia só do socket PRINCIPAL. Se ele caía e não
+  // voltava em 12s, a pessoa saía da lista de todo mundo — mas a mídia dela
+  // (WebSocket separado, direto no servidor de mídia) continuava perfeita.
+  // Ela seguia falando "invisível" e, quando o socket voltava, entrava de
+  // novo (som de entrada, piscada na lista). Agora, antes de tirar, pergunta
+  // ao servidor de mídia: se a mídia ainda está viva, estende a tolerância
+  // (até VOICE_GRACE_MAX_EXTENSIONS vezes). Servidor de mídia fora do ar ou
+  // antigo (sem /peer) = comportamento de antes.
   function scheduleVoiceGrace(userId, channelId, deadSocketId) {
     clearVoiceGrace(userId, channelId);
     const key = `${userId}|${channelId}`;
@@ -1395,7 +1506,15 @@ function initSockets(httpServer) {
       try {
         const p = await voiceStore.getParticipant(channelId, userId);
         // Já voltou com outro socket (ou já saiu) — nada a fazer.
-        if (!p || (p.socketId && p.socketId !== deadSocketId)) return;
+        if (!p || (p.socketId && p.socketId !== deadSocketId)) { voiceGraceExtensions.delete(key); return; }
+        const extended = voiceGraceExtensions.get(key) || 0;
+        if (extended < VOICE_GRACE_MAX_EXTENSIONS && await mediaControl.isPeerAlive({ channelId, peerId: userId })) {
+          scheduleVoiceGrace(userId, channelId, deadSocketId); // (zera a contagem —)
+          if (voiceGraceExtensions.size > 5000) voiceGraceExtensions.clear();
+          voiceGraceExtensions.set(key, extended + 1); // (— e aqui volta, +1)
+          return;
+        }
+        voiceGraceExtensions.delete(key);
         await leaveVoice(io, null, channelId, userId);
       } catch (err) { console.error('[socket] limpeza de voz atrasada falhou:', err?.message || err); }
     }, VOICE_GRACE_MS));
@@ -1691,6 +1810,7 @@ function initSockets(httpServer) {
   // "Offline".
   function emitPresence(io, user) {
     if (!user) return;
+    patchPresenceRowsCache(user);
     const payload = {
       userId: user.id, status: user.status, customStatus: user.customStatus ?? null,
       // Emoji do status personalizado (undefined = este evento não sabe;

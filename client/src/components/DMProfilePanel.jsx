@@ -110,7 +110,9 @@ export default function DMProfilePanel({ onToggle }) {
           <div className="dmp-head">
             <div className="avatar-wrap large">
               <div className="avatar xlarge">
-                <UserAvatar user={user} size={80} />
+                {/* 70 = caixa de 80px menos a borda de 5px dos dois lados (antes
+                    80: a foto era cortada sem moldura e "crescia" com moldura). */}
+                <UserAvatar user={user} size={70} />
               </div>
               <PresenceDot status={status} userId={user.id} large title={STATUS_LABEL[status]} />
             </div>
