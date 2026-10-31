@@ -156,7 +156,7 @@ fun MoreTab(repo: Repository, actions: HomeActions, nav: com.projectclub.android
                 Line(Icons.Outlined.Settings, "Configurações", PC.Brand) { nav.settings() }
                 Line(Icons.Outlined.Inbox, "Caixa de entrada", PC.Brand) { nav.inbox() }
                 Line(Icons.Outlined.Bookmark, "Mensagens favoritas", PC.Yellow) { nav.inbox(1) }
-                Line(Icons.Outlined.Campaign, "Anúncios", PC.Announce) { nav.announcements() }
+                Line(Icons.Outlined.Campaign, "Novidades", PC.Announce) { nav.announcements() }
                 Line(Icons.Outlined.PhotoLibrary, "Galeria", Color(0xFFF472B6)) { nav.gallery() }
                 Line(Icons.Outlined.SupportAgent, "Suporte", PC.Green) { actions.openWeb("/tickets") }
                 if (me?.platformRole == "ADMIN" || me?.platformRole == "MODERATOR") Line(Icons.Outlined.AdminPanelSettings, "Painel da equipe", PC.Yellow) { actions.openWeb("/admin") }

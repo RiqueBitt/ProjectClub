@@ -2,7 +2,7 @@ import { test, expect } from '@playwright/test';
 import { handler, imageHandler, ME } from './mock-api.mjs';
 
 // Mudancinhas: um botão só pra emoji/figurinha/GIF, número vermelho de não
-// lidas no canal, bolinha "novo" em Anúncios (some ao abrir), insígnias no
+// lidas no canal, bolinha "novo" em Novidades (some ao abrir), insígnias no
 // topo do perfil completo e a barra do tema Windows 2000 sem vazar.
 test.beforeEach(async ({ page }) => {
   await page.addInitScript(() => {
@@ -33,7 +33,7 @@ test('barra de mensagem: um botão só abre emoji, figurinhas e GIFs em abas', a
   await expect(page.getByPlaceholder('Buscar GIFs...')).toBeVisible();
 });
 
-test('canal com mensagens novas mostra o número vermelho; Anúncios mostra "novo" e apaga ao abrir', async ({ page }) => {
+test('canal com mensagens novas mostra o número vermelho; Novidades mostra "novo" e apaga ao abrir', async ({ page }) => {
   const seen = [];
   let anuncios = 3;
   await page.route('**/api/**', (route) => {
@@ -52,9 +52,11 @@ test('canal com mensagens novas mostra o número vermelho; Anúncios mostra "nov
   if (isPhone) return; // no celular a lista de canais fica atrás do menu; a lógica é a mesma
   await expect(page.locator('.unread-count-badge', { hasText: '7' })).toBeVisible();
   await expect(page.locator('.unread-count-badge.has-mention', { hasText: '99+' })).toBeVisible();
-  const novo = page.locator('.featured-anuncios .section-new-badge');
+  // Novidades (antes o canal em destaque "Anúncios e Eventos") fica no menu principal.
+  const item = page.locator('.n2-nav-item[href="/anuncios"]');
+  const novo = item.locator('.n2-nav-badge');
   await expect(novo).toHaveText('3');
-  await page.locator('.featured-anuncios').click();
+  await item.click();
   await expect(page).toHaveURL(/\/anuncios/);
   await expect.poll(() => seen).toContain('/section-badges/anuncios/seen');
   await expect(novo).toHaveCount(0);

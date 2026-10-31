@@ -71,7 +71,7 @@ fun AnnouncementsScreen(repo: Repository, nav: AppNav) {
     LaunchedEffect(Unit) { load() }
 
     Column(Modifier.fillMaxSize().background(PC.Bg)) {
-        PcTopBar("Anúncios", Icons.Outlined.Campaign, navigation = { IconButton(onClick = nav::back) { Icon(Icons.AutoMirrored.Outlined.ArrowBack, "Voltar", tint = PC.Text) } })
+        PcTopBar("Novidades", Icons.Outlined.Campaign, navigation = { IconButton(onClick = nav::back) { Icon(Icons.AutoMirrored.Outlined.ArrowBack, "Voltar", tint = PC.Text) } })
         val l = list
         when {
             l == null && error != null -> EmptyState(Icons.Outlined.CloudOff, "Não deu pra abrir", error ?: "", Modifier.padding(top = 40.dp)) {

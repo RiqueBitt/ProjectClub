@@ -91,7 +91,7 @@ function Editor({ initial, onClose, onSaved }) {
 
 export default function AnunciosPage() {
   const socket = useSocket()?.socket || null;
-  useMarkSectionSeen('anuncios'); // abriu Anúncios: apaga a bolinha "novo"
+  useMarkSectionSeen('anuncios'); // abriu Novidades: apaga a bolinha "novo"
   const [data, setData] = useState(null);
   const [editing, setEditing] = useState(null);
 
@@ -118,7 +118,7 @@ export default function AnunciosPage() {
         <header className="an-head">
           <span className="an-head-icon"><Ico d={I.megaphone} size={22} /></span>
           <div>
-            <h1>Anúncios</h1>
+            <h1>Novidades</h1>
             <p>Novidades e avisos oficiais da staff do Project Club.</p>
           </div>
           {data?.canManage && (

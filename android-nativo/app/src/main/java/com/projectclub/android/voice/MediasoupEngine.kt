@@ -427,6 +427,7 @@ class MediasoupEngine(private val context: Context, private val events: Events) 
             track, listOf(enc), "{\"opusStereo\":false,\"opusDtx\":true,\"opusFec\":true,\"opusNack\":true,\"opusMaxAverageBitrate\":64000}", null,
             "{\"source\":\"mic\",\"paused\":$startPaused}",
         )
+        detachLibraryTrack(p)
         produceFailure?.let { err ->
             produceFailure = null
             runCatching { p.close() }; runCatching { p.dispose() }
@@ -497,6 +498,25 @@ class MediasoupEngine(private val context: Context, private val events: Events) 
             info.getString("id"), info.getJSONObject("iceParameters").toString(), info.getJSONArray("iceCandidates").toString(),
             info.getJSONObject("dtlsParameters").toString(), null, rtcConfig,
         )
+    }
+
+    /**
+     * CAUSA DA "QUEDA NATIVA" AO ENTRAR/SAIR DA VOZ (SIGSEGV): o Producer do
+     * libmediasoup-android 0.21.0 cria, no construtor, um SEGUNDO objeto Java
+     * da MESMA trilha nativa (RTCUtils.createMediaStreamTrack sobre o ponteiro
+     * cru de GetTrack(), sem AddRef) e chama dispose() nele no close()/dispose().
+     * Isso solta uma referência que não é dele: a trilha do microfone (ou da
+     * tela) era liberada enquanto o WebRTC e o NOSSO micTrack ainda a usavam —
+     * e o micTrack.dispose() do leave() (≈2 s depois) liberava de novo
+     * memória já liberada. Os relatórios de queda batem com isso: o app caía
+     * ~2 s depois de desmontar a sessão (desistiu → reconectou / saiu).
+     *
+     * A trilha é NOSSA (criada e liberada aqui): tira a cópia do Producer.
+     * `track = null` só zera o cache Java — não mexe no envio (o nativeReplaceTrack
+     * só roda pra valor não nulo).
+     */
+    private fun detachLibraryTrack(p: Producer) {
+        runCatching { p.track = null }.onFailure { trace("não deu pra soltar a trilha do producer: ${it.message}") }
     }
 
     private suspend fun consume(g: Int, p: JSONObject) {
@@ -953,7 +973,7 @@ class MediasoupEngine(private val context: Context, private val events: Events) 
             screenProducer = st.produce(
                 object : Producer.Listener { override fun onTransportClose(producer: Producer) {} },
                 track, listOf(enc), null, null, "{\"source\":\"screen\"}",
-            )
+            ).also { detachLibraryTrack(it) }
             produceFailure?.let { err ->
                 produceFailure = null
                 screenProducer?.let { sp -> runCatching { sp.close() }; runCatching { sp.dispose() } }

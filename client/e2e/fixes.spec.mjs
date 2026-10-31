@@ -53,23 +53,14 @@ for (const vp of VIEWPORTS) {
   test.describe(`correções (${vp.name}px)`, () => {
     test.use({ viewport: { width: vp.width, height: vp.height } });
 
-    test('Guerra das Cartas: /cartas mostra "Em breve" e some do menu', async ({ page }) => {
+    test('Guerra das Cartas religada: /cartas abre o jogo (sem o "Em breve")', async ({ page }) => {
       const cardsCalls = [];
       page.on('request', (r) => { if (/\/api\/cards\//.test(r.url())) cardsCalls.push(r.url()); });
-      const errors = [];
-      page.on('pageerror', (e) => errors.push(e.message));
       // Link de convite antigo (deep link invite/<código> → /cartas?sala=).
       await page.goto('/cartas?sala=ABCD12');
-      await expect(page.getByText('Em breve')).toBeVisible({ timeout: 20_000 });
-      await expect(page.getByText(/Guerra das Cartas está temporariamente desativado/)).toBeVisible();
-      await expect(page.getByText('Algo deu errado')).toHaveCount(0);
-      await page.screenshot({ path: `${SHOTS}/cartas-desativado-${vp.name}.png` });
-      await page.goto('/inicio');
-      await expect(page.locator('.home-hero')).toBeVisible({ timeout: 20_000 });
-      await expect(page.locator('a[href="/cartas"]')).toHaveCount(0);
-      await expect(page.locator('.tcg-promo, .arena-promo')).toHaveCount(0);
-      expect(cardsCalls, 'nenhuma chamada à API do jogo').toEqual([]);
-      expect(errors).toEqual([]);
+      await expect.poll(() => cardsCalls.length, { timeout: 20_000 }).toBeGreaterThan(0);
+      await expect(page.getByText(/Guerra das Cartas está temporariamente desativado/)).toHaveCount(0);
+      await page.screenshot({ path: `${SHOTS}/cartas-ligado-${vp.name}.png` });
     });
 
     test('Baú: imagem sem borda transparente e card sem espaço vazio', async ({ page }) => {
