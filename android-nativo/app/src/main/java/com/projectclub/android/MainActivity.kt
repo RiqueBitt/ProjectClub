@@ -14,6 +14,8 @@ import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.ui.draw.clip
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -248,16 +250,36 @@ class MainActivity : ComponentActivity() {
             }
         }
 
+        // Dentro do chat: a mesma faixa, embaixo da caixa de mensagem (só em chamada).
+        val chatCallBar: @Composable () -> Unit = {
+            if (call.channelName != null && call.status != CallStatus.Idle) {
+                Row(
+                    Modifier.fillMaxWidth().padding(start = 10.dp, end = 10.dp, bottom = 8.dp)
+                        .clip(RoundedCornerShape(16.dp)).background(PC.Green).clickable { actions.openCall() }
+                        .padding(horizontal = 14.dp, vertical = 9.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Icon(Icons.Filled.Mic, null, tint = Color.White, modifier = Modifier.size(18.dp))
+                    Spacer(Modifier.width(8.dp))
+                    Text(
+                        (if (call.sharingScreen) "Compartilhando a tela · " else "Em chamada · ") + call.title,
+                        color = Color.White, fontWeight = FontWeight.Bold, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f),
+                    )
+                    Text("Voltar", color = Color.White)
+                }
+            }
+        }
+
         androidx.compose.runtime.CompositionLocalProvider(com.projectclub.android.ui.profile.LocalOpenUser provides { id: String -> miniUser = id }) {
         NavHost(nav, startDestination = "home") {
             composable("home") { HomeScreen(app.repo, actions, appNav, homeTab, { homeTab = it }, callBar) }
             composable("chat/channel/{id}", arguments = listOf(navArgument("id") { type = NavType.StringType })) { e ->
                 val id = e.arguments?.getString("id").orEmpty()
-                ChatScreen(app.repo, Room(channelId = id), onBack = { nav.popBackStack() }, onCall = actions.joinVoice, onOpenWeb = actions.openWeb)
+                ChatScreen(app.repo, Room(channelId = id), onBack = { nav.popBackStack() }, onCall = actions.joinVoice, onOpenWeb = actions.openWeb, callBar = chatCallBar)
             }
             composable("chat/dm/{id}", arguments = listOf(navArgument("id") { type = NavType.StringType })) { e ->
                 val id = e.arguments?.getString("id").orEmpty()
-                ChatScreen(app.repo, Room(conversationId = id), onBack = { nav.popBackStack() }, onCall = actions.joinVoice, onOpenWeb = actions.openWeb)
+                ChatScreen(app.repo, Room(conversationId = id), onBack = { nav.popBackStack() }, onCall = actions.joinVoice, onOpenWeb = actions.openWeb, callBar = chatCallBar)
             }
             composable("voice") { VoiceScreen(app.voice, app.repo, onBack = { nav.popBackStack() }) }
             featureScreens(app.repo, appNav)

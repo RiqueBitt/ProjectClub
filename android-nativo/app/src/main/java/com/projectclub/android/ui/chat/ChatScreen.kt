@@ -21,6 +21,7 @@ import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -121,7 +122,11 @@ private val QUICK = listOf("👍", "❤️", "😂", "😮", "😢", "🔥", "�
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun ChatScreen(repo: Repository, room: Room, onBack: () -> Unit, onCall: (channelName: String, title: String) -> Unit, onOpenWeb: (String) -> Unit) {
+fun ChatScreen(
+    repo: Repository, room: Room, onBack: () -> Unit, onCall: (channelName: String, title: String) -> Unit, onOpenWeb: (String) -> Unit,
+    /** Faixa "Em chamada" embaixo da caixa de mensagem (vazia fora de chamada: não ocupa espaço). */
+    callBar: @Composable () -> Unit = {},
+) {
     val vm: ChatViewModel = viewModel(key = "chat-${room.id}", factory = ChatViewModel.Factory(repo, room))
     val state by vm.state.collectAsState()
     val me by repo.me.collectAsState()
@@ -176,6 +181,10 @@ fun ChatScreen(repo: Repository, room: Room, onBack: () -> Unit, onCall: (channe
 
     Scaffold(
         containerColor = PC.Bg,
+        // Sem margem de baixo do Scaffold: a caixa de mensagem já soma a barra
+        // de navegação do Android (navigationBarsPadding). Com as duas, sobrava
+        // um vão vazio do tamanho dessa barra embaixo da caixa.
+        contentWindowInsets = WindowInsets(0, 0, 0, 0),
         snackbarHost = { androidx.compose.material3.SnackbarHost(snack) },
         topBar = {
             TopAppBar(
@@ -254,16 +263,19 @@ fun ChatScreen(repo: Repository, room: Room, onBack: () -> Unit, onCall: (channe
                 }
             }
             TypingLine(state.typing.keys.mapNotNull { repo.user(it)?.name })
-            Composer(
-                text = text, onText = { text = it; vm.onTyping(it) },
-                state = state, roomName = title,
-                onAttach = { picker.launch("*/*") },
-                onRemoveFile = vm::removeFile,
-                onCancel = { vm.setReply(null); vm.setEditing(null); if (state.editing != null) text = "" },
-                onSend = { val t = text; text = ""; vm.send(t) { failed -> if (text.isBlank()) text = failed } },
-                onPicker = { showPicker = true },
-                onSchedule = { scheduling = true },
-            )
+            Column(Modifier.fillMaxWidth().background(PC.Bg).navigationBarsPadding()) {
+                Composer(
+                    text = text, onText = { text = it; vm.onTyping(it) },
+                    state = state, roomName = title,
+                    onAttach = { picker.launch("*/*") },
+                    onRemoveFile = vm::removeFile,
+                    onCancel = { vm.setReply(null); vm.setEditing(null); if (state.editing != null) text = "" },
+                    onSend = { val t = text; text = ""; vm.send(t) { failed -> if (text.isBlank()) text = failed } },
+                    onPicker = { showPicker = true },
+                    onSchedule = { scheduling = true },
+                )
+                callBar()
+            }
         }
     }
 
@@ -544,7 +556,7 @@ private fun Composer(
     onPicker: () -> Unit,
     onSchedule: () -> Unit = {},
 ) {
-    Column(Modifier.fillMaxWidth().background(PC.Bg).navigationBarsPadding().padding(horizontal = 10.dp, vertical = 8.dp).clip(RoundedCornerShape(26.dp)).background(PC.Surface).border(1.dp, PC.Line, RoundedCornerShape(26.dp))) {
+    Column(Modifier.fillMaxWidth().background(PC.Bg).padding(horizontal = 10.dp, vertical = 8.dp).clip(RoundedCornerShape(26.dp)).background(PC.Surface).border(1.dp, PC.Line, RoundedCornerShape(26.dp))) {
         val banner = state.editing?.let { "Editando mensagem" } ?: state.replyTo?.let { "Respondendo a ${it.author?.name ?: "mensagem"}" }
         if (banner != null) Row(Modifier.fillMaxWidth().padding(start = 16.dp, end = 4.dp, top = 4.dp), verticalAlignment = Alignment.CenterVertically) {
             Text(banner, color = PC.Muted, style = MaterialTheme.typography.labelSmall, modifier = Modifier.weight(1f))
