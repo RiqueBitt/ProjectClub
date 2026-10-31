@@ -90,7 +90,6 @@ async function ensureAccount() {
     data: {
       email: EMAIL, username: USERNAME, displayName: DISPLAY_NAME, passwordHash,
       emailVerified: true, status: 'OFFLINE',
-      tagEmoji: '🤖', tagText: 'IA',
       bio: 'Assistente de IA do Project Club. Me chame com @pingu e eu respondo! Só respondo em texto. 🐧',
       profileColor: '#38BDF8', profileNameColor: '#38BDF8',
     },
@@ -105,7 +104,7 @@ async function ensureAccount() {
 
 const PROFILE_FIELDS = {
   id: true, username: true, displayName: true, avatarUrl: true, bannerUrl: true, bio: true,
-  profileColor: true, profileNameColor: true, tagEmoji: true, tagText: true,
+  profileColor: true, profileNameColor: true,
 };
 const HEX = /^#[0-9a-fA-F]{6}$/;
 
@@ -156,8 +155,6 @@ async function updateFromAdmin(body = {}) {
     if (!HEX.test(String(body[k]))) throw bad('Cor inválida (use o formato #RRGGBB).');
     data[k] = String(body[k]);
   }
-  if (body.tagEmoji !== undefined) data.tagEmoji = String(body.tagEmoji || '').trim().slice(0, 16) || null;
-  if (body.tagText !== undefined) data.tagText = String(body.tagText || '').trim().slice(0, 12) || null;
   if (Object.keys(data).length) await db().user.update({ where: { id: pinguId }, data });
   if (body.instructions !== undefined) {
     const text = String(body.instructions || '').replace(/\r/g, '').trim();

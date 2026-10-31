@@ -4,17 +4,15 @@ import UserAvatar from '../UserAvatar.jsx';
 import '../../styles/pingu-admin.css';
 
 // Painel da Equipe → Comunidade → Pingu (assistente de IA).
-// Edita o perfil do Pingu (nome, foto, capa, bio, cores, tag) e o que ele
+// Edita o perfil do Pingu (nome, foto, capa, bio, cores) e o que ele
 // sabe sobre o Project Club — o texto entra nas instruções da IA na hora.
-const EMPTY = { displayName: '', bio: '', profileNameColor: '#38BDF8', profileColor: '#38BDF8', tagEmoji: '', tagText: '', instructions: '' };
+const EMPTY = { displayName: '', bio: '', profileNameColor: '#38BDF8', profileColor: '#38BDF8', instructions: '' };
 
 const fromState = (s) => ({
   displayName: s.user?.displayName || '',
   bio: s.user?.bio || '',
   profileNameColor: s.user?.profileNameColor || '#38BDF8',
   profileColor: s.user?.profileColor || '#38BDF8',
-  tagEmoji: s.user?.tagEmoji || '',
-  tagText: s.user?.tagText || '',
   instructions: s.instructions || '',
 });
 
@@ -59,7 +57,7 @@ export default function PinguAdmin() {
             {preview && <UserAvatar user={preview} size={64} noDecoration />}
             <div className="pga-names">
               <strong style={{ color: form.profileNameColor }}>{form.displayName || 'Pingu'}</strong>
-              <span className="dim">@{u?.username || 'pingu'}{(form.tagEmoji || form.tagText) && <span className="pga-tag">{form.tagEmoji} {form.tagText}</span>}</span>
+              <span className="dim">@{u?.username || 'pingu'} · Assistente de IA</span>
             </div>
             <span className={`pga-status ${state.online ? 'on' : ''}`}>{state.enabled ? (state.online ? 'Online' : 'Offline (IA fora do ar)') : 'Desligado'}</span>
           </div>
@@ -82,8 +80,6 @@ export default function PinguAdmin() {
         <div className="pga-row">
           <label>Cor do nome<input type="color" value={form.profileNameColor} onChange={set('profileNameColor')} /></label>
           <label>Cor do perfil<input type="color" value={form.profileColor} onChange={set('profileColor')} /></label>
-          <label>Emoji da tag<input value={form.tagEmoji} maxLength={16} placeholder="🤖" onChange={set('tagEmoji')} /></label>
-          <label>Texto da tag<input value={form.tagText} maxLength={12} placeholder="IA" onChange={set('tagText')} /></label>
         </div>
 
         <h3>O que o Pingu sabe</h3>

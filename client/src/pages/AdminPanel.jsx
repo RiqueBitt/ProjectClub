@@ -147,7 +147,7 @@ const TABS = {
   workshopGames: { label: 'Steam Workshop', desc: 'Jogos ligados ao Steam Workshop.' },
   gamebananaGames: { label: 'GameBanana', desc: 'Jogos ligados ao GameBanana.' },
   sistema: { label: 'Sistemas', desc: 'Ligue ou desligue economia, ranks e outros sistemas.' },
-  pingu: { label: 'Pingu (IA)', desc: 'Perfil do assistente de IA (nome, foto, capa, bio, cores) e o que ele sabe sobre o Project Club.' },
+  pingu: { label: 'Pingu (IA)', desc: 'Perfil do assistente de IA (nome, foto, capa, bio e cores) e o que ele sabe sobre o Project Club.' },
   servidorVoz: { label: 'Servidor de voz', desc: 'Servidor de mídia próprio das chamadas: status e chaves (URL, segredo e TURN).' },
   maintenance: { label: 'Manutenção', desc: 'Coloca a plataforma "em reforma" para todos, menos a equipe.' },
   reload: { label: 'Reload', desc: 'Recarrega a presença online de usuários.' },
