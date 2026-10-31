@@ -185,6 +185,13 @@ export const setMessagePostIcon = (id, file) => {
 // --- Comunidade: perfil da comunidade, categorias, canais, cargos, emojis, moderação ---
 export const getCommunity = () => api.get('/community').then((r) => r.data);
 export const getCommunitySettings = () => api.get('/admin/community').then((r) => r.data);
+// Pingu (assistente de IA) — Painel da Equipe → Pingu.
+export const getPinguAdmin = () => api.get('/admin/pingu').then((r) => r.data);
+export const updatePinguAdmin = (data) => api.patch('/admin/pingu', data).then((r) => r.data);
+export const uploadPinguImage = (kind, file) => {
+  const fd = new FormData(); fd.append(kind, file);
+  return api.post(`/admin/pingu/${kind}`, fd).then((r) => r.data);
+};
 export const uploadCommunityIcon = (file) => {
   const fd = new FormData(); fd.append('icon', file);
   return api.post('/admin/community/icon', fd).then((r) => r.data);

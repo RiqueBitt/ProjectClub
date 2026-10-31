@@ -35,5 +35,25 @@ test('a resposta sai sem pensamento, sem imagem e sem @todos', () => {
 });
 
 test('resposta muito longa é cortada', () => {
-  assert.ok(t.cleanAnswer('a'.repeat(5000)).length <= 1800);
+  assert.ok(t.cleanAnswer('a'.repeat(5000)).length <= 601);
+});
+
+test('resposta simples: sem negrito, título nem lista', () => {
+  const out = t.cleanAnswer('## Moedas\n**Oi!** Dá pra ganhar assim:\n- missões\n- baú diário');
+  assert.ok(!/[#*]/.test(out));
+  assert.ok(!/^- /m.test(out));
+});
+
+test('resposta cortada pelo limite termina na última frase completa', () => {
+  const out = t.cleanAnswer('Você ganha moedas nas missões. Também tem o baú diário. E ainda dá pra', { truncated: true });
+  assert.equal(out, 'Você ganha moedas nas missões. Também tem o baú diário.');
+});
+
+test('o que a staff ensinou entra nas instruções, com o nome atual', () => {
+  t.setSettings({ name: 'Pinguzinho', instructions: 'O baú diário dá 50 moedas.' });
+  const p = t.systemPrompt();
+  assert.match(p, /Você é o Pinguzinho/);
+  assert.match(p, /O baú diário dá 50 moedas\./);
+  t.setSettings({ name: 'Pingu', instructions: '' });
+  assert.doesNotMatch(t.systemPrompt(), /O que você sabe/);
 });

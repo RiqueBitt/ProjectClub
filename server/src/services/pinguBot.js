@@ -34,16 +34,22 @@ const ANSWER_TIMEOUT_MS = 120_000;
 const QUEUE_MAX = 6;
 const USER_COOLDOWN_MS = 8_000;
 const MAX_QUESTION = 800;
-const MAX_ANSWER = 1800;
-const CONTEXT_MESSAGES = 6;
+const MAX_ANSWER = 600;
+// Velocidade (2 vCPU, sem placa de vídeo): o qwen3.5 relê o prompt INTEIRO a
+// cada pergunta (~37 tokens/s) e escreve ~10 tokens/s — medido na VPS. Então:
+// instruções curtas, sem o histórico do canal (só a mensagem do Pingu quando
+// alguém responde ele) e resposta curta. Ficou em ~4–8 s (antes 13–26 s).
+const CONTEXT_CHARS = 240;
+const NUM_CTX = 1024;
+const NUM_PREDICT = 120;
+const MAX_INSTRUCTIONS = 2000;
 
-const SYSTEM_PROMPT = [
-  'Você é o Pingu, o assistente de IA do Project Club — uma comunidade brasileira com chat, canais de voz, Fórum, Economia (moedas e gemas, missões, Loja e Passe do clube), Guerra das Cartas (jogo de cartas colecionáveis), Ranks e Conquistas, Novidades (anúncios e eventos) e apps para PC, Linux e Android.',
-  'Responda SEMPRE em português do Brasil, de forma simpática, curta e direta (no máximo uns 4 parágrafos curtos). Pode usar um emoji de pinguim 🐧 de vez em quando.',
-  'Você SÓ responde com texto. Você NÃO cria, gera nem edita imagens, desenhos, áudios, vídeos ou arquivos, e NÃO faz ações no site (banir, dar moedas, mudar cargos, enviar mensagens para outras pessoas). Se pedirem algo assim, diga com gentileza que só consegue responder perguntas em texto.',
-  'Se não souber algo sobre o Project Club, diga que não sabe e sugira perguntar à equipe ou abrir um ticket em Suporte. Não invente regras, preços, datas nem nomes da equipe.',
-  'Nunca peça senhas, códigos ou dados pessoais. Recuse com educação pedidos perigosos, ilegais ou de ódio.',
-].join('\n');
+const BASE_PROMPT = (name) => `Você é o ${name}, assistente do Project Club (comunidade brasileira com chat, voz, Fórum, Economia, Loja e Guerra das Cartas). Responda em português do Brasil, simples e amigável, em 1 a 3 frases curtas, sem listas nem negrito. Só responda em texto: não crie imagens nem faça ações no site. Quando não souber algo do Project Club, admita e indique a equipe. Não invente regras, preços ou datas e nunca peça senhas.`;
+
+let settings = { name: DISPLAY_NAME, instructions: '' };
+const systemPrompt = () => (settings.instructions
+  ? `${BASE_PROMPT(settings.name)}\nO que você sabe sobre o Project Club:\n${settings.instructions}`
+  : BASE_PROMPT(settings.name));
 
 let io = null;
 let pinguId = null;
@@ -95,6 +101,85 @@ async function ensureAccount() {
   return created.id;
 }
 
+// ---------------- perfil e o que ele sabe (Painel da Equipe → Pingu) ----------------
+
+const PROFILE_FIELDS = {
+  id: true, username: true, displayName: true, avatarUrl: true, bannerUrl: true, bio: true,
+  profileColor: true, profileNameColor: true, tagEmoji: true, tagText: true,
+};
+const HEX = /^#[0-9a-fA-F]{6}$/;
+
+async function loadSettings() {
+  const [user, row] = await Promise.all([
+    pinguId ? db().user.findUnique({ where: { id: pinguId }, select: { displayName: true } }) : null,
+    db().platformSettings.findUnique({ where: { id: 'singleton' }, select: { pinguInstructions: true } }).catch(() => null),
+  ]);
+  settings = {
+    name: user?.displayName || DISPLAY_NAME,
+    instructions: String(row?.pinguInstructions || '').trim().slice(0, MAX_INSTRUCTIONS),
+  };
+}
+
+async function adminState() {
+  if (!pinguId && enabled()) pinguId = await ensureAccount();
+  const user = pinguId ? await db().user.findUnique({ where: { id: pinguId }, select: PROFILE_FIELDS }) : null;
+  return {
+    enabled: enabled(), online, model: config().model, queue: queue.length + (busy ? 1 : 0),
+    user, instructions: settings.instructions, maxInstructions: MAX_INSTRUCTIONS,
+  };
+}
+
+/** Avisa todo mundo da mudança no perfil (lista de membros, mensagens antigas, miniperfil). */
+async function broadcastProfile() {
+  require('./sharedCache').invalidateShared('community');
+  const { PUBLIC_USER_FIELDS } = require('../controllers/authController');
+  const u = await db().user.findUnique({ where: { id: pinguId }, select: PUBLIC_USER_FIELDS }).catch(() => null);
+  if (u) io?.to('community').emit('user:update', u);
+}
+
+/**
+ * Edita o perfil e o que o Pingu sabe. Só o que veio no corpo muda; texto
+ * vazio limpa (bio/instruções). Lança Error com .status 400 pra dado ruim.
+ */
+async function updateFromAdmin(body = {}) {
+  if (!pinguId) pinguId = await ensureAccount();
+  const bad = (msg) => Object.assign(new Error(msg), { status: 400 });
+  const data = {};
+  if (body.displayName !== undefined) {
+    const name = String(body.displayName || '').replace(/\s+/g, ' ').trim();
+    if (name.length < 2 || name.length > 32) throw bad('O nome precisa ter de 2 a 32 caracteres.');
+    data.displayName = name;
+  }
+  if (body.bio !== undefined) data.bio = String(body.bio || '').trim().slice(0, 300) || null;
+  for (const k of ['profileColor', 'profileNameColor']) {
+    if (body[k] === undefined) continue;
+    if (!HEX.test(String(body[k]))) throw bad('Cor inválida (use o formato #RRGGBB).');
+    data[k] = String(body[k]);
+  }
+  if (body.tagEmoji !== undefined) data.tagEmoji = String(body.tagEmoji || '').trim().slice(0, 16) || null;
+  if (body.tagText !== undefined) data.tagText = String(body.tagText || '').trim().slice(0, 12) || null;
+  if (Object.keys(data).length) await db().user.update({ where: { id: pinguId }, data });
+  if (body.instructions !== undefined) {
+    const text = String(body.instructions || '').replace(/\r/g, '').trim();
+    if (text.length > MAX_INSTRUCTIONS) throw bad(`O texto pode ter até ${MAX_INSTRUCTIONS} caracteres.`);
+    await db().platformSettings.upsert({
+      where: { id: 'singleton' }, update: { pinguInstructions: text || null }, create: { id: 'singleton', pinguInstructions: text || null },
+    });
+  }
+  await loadSettings();
+  if (Object.keys(data).length) await broadcastProfile();
+  return adminState();
+}
+
+/** Foto (avatarUrl) ou capa (bannerUrl) nova, já enviada pro armazenamento. */
+async function setImageFromAdmin(field, url) {
+  if (!['avatarUrl', 'bannerUrl'].includes(field) || !url) throw Object.assign(new Error('Envie uma imagem.'), { status: 400 });
+  if (!pinguId) pinguId = await ensureAccount();
+  await db().user.update({ where: { id: pinguId }, data: { [field]: url } });
+  await broadcastProfile();
+  return adminState();
+}
+
 // ---------------- presença ----------------
 
 async function setOnline(next) {
@@ -134,31 +219,32 @@ function cleanQuestion(text) {
   return String(text || '').replace(/(^|[^\w@])@pingu\b[,:]?/ig, '$1').replace(/\s+/g, ' ').trim().slice(0, MAX_QUESTION);
 }
 
-/** Resposta segura pra postar: sem "pensamento", sem imagens, sem @todos, tamanho limitado. */
-function cleanAnswer(text) {
+/** Corta no fim da última frase completa (a resposta pode parar no meio por causa do limite). */
+function finishSentence(t) {
+  if (/[.!?…)"'🐧\p{Extended_Pictographic}]\s*$/u.test(t)) return t;
+  const cut = Math.max(t.lastIndexOf('. '), t.lastIndexOf('! '), t.lastIndexOf('? '), t.lastIndexOf('.\n'));
+  return cut > t.length * 0.4 ? t.slice(0, cut + 1) : `${t.trimEnd()}…`;
+}
+
+/** Resposta segura e simples pra postar: sem "pensamento", sem imagens, sem @todos, sem enfeite de markdown. */
+function cleanAnswer(text, { truncated = false } = {}) {
   let t = String(text || '');
   t = t.replace(/<think>[\s\S]*?<\/think>/gi, '');
   t = t.replace(/!\[[^\]]*\]\([^)]*\)/g, ''); // imagem em markdown
+  t = t.replace(/\*\*([^*]+)\*\*/g, '$1').replace(/__([^_]+)__/g, '$1'); // negrito
+  t = t.replace(/^\s{0,3}#{1,6}\s+/gm, ''); // títulos
+  t = t.replace(/^\s*(?:[-*•]|\d+[.)])\s+/gm, ''); // listas viram frases
   t = t.replace(/@(everyone|here|todos|aqui)\b/gi, '@​$1');
   t = t.replace(/\n{3,}/g, '\n\n').trim();
-  if (t.length > MAX_ANSWER) t = `${t.slice(0, MAX_ANSWER - 1).trimEnd()}…`;
-  return t;
+  if (t.length > MAX_ANSWER) { t = t.slice(0, MAX_ANSWER); truncated = true; }
+  return truncated && t ? finishSentence(t) : t;
 }
 
-async function buildChat(job) {
-  const history = await db().message.findMany({
-    where: { channelId: job.channelId, threadId: job.threadId || null, id: { not: job.messageId } },
-    orderBy: { createdAt: 'desc' }, take: CONTEXT_MESSAGES,
-    select: { content: true, authorId: true, author: { select: { displayName: true } } },
-  }).catch(() => []);
-  const messages = [{ role: 'system', content: SYSTEM_PROMPT }];
-  for (const m of history.reverse()) {
-    const text = String(m.content || '').trim().slice(0, 300);
-    if (!text) continue;
-    if (m.authorId === pinguId) messages.push({ role: 'assistant', content: text });
-    else messages.push({ role: 'user', content: `${m.author?.displayName || 'Alguém'}: ${text}` });
-  }
-  messages.push({ role: 'user', content: `${job.authorName}: ${job.question || 'Oi!'}` });
+function buildChat(job) {
+  const messages = [{ role: 'system', content: systemPrompt() }];
+  // Respondendo o Pingu: a mensagem dele entra pra ele saber do que se trata.
+  if (job.previousAnswer) messages.push({ role: 'assistant', content: job.previousAnswer });
+  messages.push({ role: 'user', content: job.question || 'Oi!' });
   return messages;
 }
 
@@ -192,14 +278,14 @@ async function answer(job) {
         timeoutMs: ANSWER_TIMEOUT_MS,
         body: {
           model: config().model,
-          messages: await buildChat(job),
+          messages: buildChat(job),
           stream: false,
           think: false,
           keep_alive: '24h',
-          options: { num_ctx: 2048, num_predict: 320, temperature: 0.6 },
+          options: { num_ctx: NUM_CTX, num_predict: NUM_PREDICT, temperature: 0.5, top_p: 0.9 },
         },
       });
-      text = cleanAnswer(res?.message?.content);
+      text = cleanAnswer(res?.message?.content, { truncated: res?.done_reason === 'length' });
     } catch (err) {
       console.warn('[pingu] falha ao responder:', err.message);
       await checkHealth();
@@ -238,6 +324,9 @@ function onChannelMessage(ioServer, { message, channel, mentionRows, threadRoot 
     const job = {
       channelId: message.channelId, channel, threadId: message.threadId || null, threadRoot: threadRoot || null,
       messageId: message.id, authorName: message.author?.displayName || 'Alguém',
+      previousAnswer: message.replyTo?.authorId === pinguId
+        ? String(message.replyTo.content || '').replace(/\s+/g, ' ').trim().slice(0, CONTEXT_CHARS) || null
+        : null,
       question: cleanQuestion(message.content),
     };
     if (!online) {
@@ -269,6 +358,7 @@ async function start(ioServer) {
     console.error('[pingu] não deu pra preparar a conta:', err?.message || err);
     return;
   }
+  await loadSettings().catch((err) => console.warn('[pingu] configurações:', err?.message || err));
   // Começa offline de verdade (restart do servidor) e confere a IA.
   online = true;
   await setOnline(false);
@@ -277,4 +367,4 @@ async function start(ioServer) {
   healthTimer.unref?.();
 }
 
-module.exports = { start, onChannelMessage, _test: { isForPingu, cleanQuestion, cleanAnswer, setPinguId: (id) => { pinguId = id; } } };
+module.exports = { start, onChannelMessage, adminState, updateFromAdmin, setImageFromAdmin, _test: { isForPingu, cleanQuestion, cleanAnswer, systemPrompt, setSettings: (v) => { settings = { ...settings, ...v }; }, setPinguId: (id) => { pinguId = id; } } };
