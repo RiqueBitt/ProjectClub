@@ -1,0 +1,3 @@
+sem report.json: Cannot find module './client/test-results/report.json'
+Require stack:
+- /home/runner/work/ProjectClub/ProjectClub/[eval]
