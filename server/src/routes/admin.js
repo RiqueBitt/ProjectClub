@@ -21,6 +21,25 @@ router.get('/metrics', ctrl.getMetrics);
 router.get('/errors', require('../services/errorLog').listErrors);
 
 router.get('/community', ctrl.getCommunitySettings);
+// Pingu (assistente de IA): perfil e o que ele sabe — ver services/pinguBot.js.
+{
+  const pingu = require('../services/pinguBot');
+  const { logAction } = require('../services/audit');
+  const send = (fn, action) => async (req, res, next) => {
+    try {
+      const state = await fn(req);
+      if (action) logAction(req.app.get('io'), { actorId: req.user.id, action, targetType: 'USER', targetId: state?.user?.id || null }).catch(() => {});
+      res.json(state);
+    } catch (err) {
+      if (err?.status === 400) return res.status(400).json({ error: err.message });
+      next(err);
+    }
+  };
+  router.get('/pingu', send(() => pingu.adminState()));
+  router.patch('/pingu', send((req) => pingu.updateFromAdmin(req.body || {}), 'PINGU_UPDATE'));
+  router.post('/pingu/avatar', uploadImage.single('avatar'), send((req) => pingu.setImageFromAdmin('avatarUrl', req.file?.url), 'PINGU_AVATAR'));
+  router.post('/pingu/banner', uploadImage.single('banner'), send((req) => pingu.setImageFromAdmin('bannerUrl', req.file?.url), 'PINGU_BANNER'));
+}
 router.patch('/community', ctrl.updateCommunitySettings);
 router.post('/community/icon', uploadImage.single('icon'), ctrl.uploadCommunityIcon);
 router.post('/community/banner', uploadImage.single('banner'), ctrl.uploadCommunityBanner);

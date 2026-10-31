@@ -74,6 +74,7 @@ import { StaffHealthTab, StaffUserSearchTab } from '../components/admin/StaffToo
 // Painel de saúde completo (erros agrupados, calls, servidor de mídia, backups).
 import StaffOpsPanel from '../components/admin/StaffOpsPanel.jsx';
 import VoiceServerAdmin from '../components/admin/VoiceServerAdmin.jsx';
+import PinguAdmin from '../components/admin/PinguAdmin.jsx';
 import { CardsAdminCards, CardsAdminPacks, CardsAdminSettings, CardsAdminPlayers, CardsAdminTrades, CardsAdminMatches, CardsAdminStats, CardsAdminCampaign, CardsAdminTournaments, CardsAdminBoards } from '../cards/CardsAdmin.jsx';
 
 // ============================================================
@@ -146,6 +147,7 @@ const TABS = {
   workshopGames: { label: 'Steam Workshop', desc: 'Jogos ligados ao Steam Workshop.' },
   gamebananaGames: { label: 'GameBanana', desc: 'Jogos ligados ao GameBanana.' },
   sistema: { label: 'Sistemas', desc: 'Ligue ou desligue economia, ranks e outros sistemas.' },
+  pingu: { label: 'Pingu (IA)', desc: 'Perfil do assistente de IA (nome, foto, capa, bio, cores) e o que ele sabe sobre o Project Club.' },
   servidorVoz: { label: 'Servidor de voz', desc: 'Servidor de mídia próprio das chamadas: status e chaves (URL, segredo e TURN).' },
   maintenance: { label: 'Manutenção', desc: 'Coloca a plataforma "em reforma" para todos, menos a equipe.' },
   reload: { label: 'Reload', desc: 'Recarrega a presença online de usuários.' },
@@ -181,7 +183,7 @@ const HIDDEN_TABS = new Set([
 const TAB_GROUPS = [
   { label: 'Pessoas', icon: 'people', tabs: ['busca', 'inscricoes', 'users', 'badges', 'roles'] },
   { label: 'Moderação', icon: 'shield', tabs: ['reports', 'automodDm', 'moderacao', 'modReports', 'logs', 'honeypot'] },
-  { label: 'Comunidade', icon: 'community', tabs: ['channels', 'emojis', 'stickers', 'clubs', 'clanIcons', 'achievements', 'gifMove'] },
+  { label: 'Comunidade', icon: 'community', tabs: ['channels', 'pingu', 'emojis', 'stickers', 'clubs', 'clanIcons', 'achievements', 'gifMove'] },
   { label: 'Conteúdo', icon: 'content', tabs: ['feeds', 'updates', 'events', 'announcements', 'appCatalog'] },
   { label: 'Economia', icon: 'economy', tabs: ['economia', 'decoracoes', 'apoio', 'metaDoacao', 'casas', 'album'] },
   { label: 'Guerra das Cartas', icon: 'cards', tabs: ['cartasEstatisticas', 'cartasCartas', 'cartasPacotes', 'cartasCampanha', 'cartasTorneios', 'cartasFundos', 'cartasRegras', 'cartasJogadores', 'cartasTrocas', 'cartasPartidas'] },
@@ -358,6 +360,7 @@ export default function AdminPanel() {
           {tab === 'saude' && <StaffHealthTab />}
           {tab === 'painelSaude' && <StaffOpsPanel />}
           {tab === 'servidorVoz' && <VoiceServerAdmin />}
+          {tab === 'pingu' && <PinguAdmin />}
           {tab === 'busca' && <StaffUserSearchTab />}
           {tab === 'cartasCartas' && <CardsAdminCards />}
           {tab === 'cartasPacotes' && <CardsAdminPacks />}
