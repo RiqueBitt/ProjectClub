@@ -24,7 +24,10 @@ concurrency:
 
 jobs:
   e2e:
-    runs-on: ubuntu-latest
+    # Fixo no 24.04: o ubuntu-latest começou a migrar pro Ubuntu 26 (out/2026)
+    # e o "playwright install --with-deps" desta versão do Playwright não
+    # tem os pacotes do sistema pra ele — o passo "Instalar o navegador" falhava.
+    runs-on: ubuntu-24.04
     permissions:
       contents: write
     timeout-minutes: 35
