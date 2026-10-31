@@ -38,6 +38,8 @@ httpServer.headersTimeout = 66_000;
 const io = initSockets(httpServer);
 app.set('io', io);
 require('./services/runtimeMetrics').startRuntimeMetrics({ io });
+// Pingu (assistente de IA no Ollama da VPS): conta, presença e respostas.
+require('./services/pinguBot').start(io).catch((err) => console.error('[pingu] falha ao iniciar:', err?.message || err));
 
 // A small hand-rolled ANSI palette instead of pulling in a color library —
 // this is the only place in the whole server that cares about pretty

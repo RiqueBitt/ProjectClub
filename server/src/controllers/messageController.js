@@ -754,6 +754,11 @@ async function createMessageInner(req, res) {
         console.error('[mention] falha ao avisar menções:', err.message);
       });
     }
+    // Pingu (IA): @pingu ou resposta a uma mensagem dele — responde depois,
+    // sem atrasar este envio (ver services/pinguBot.js).
+    if (access?.channel) {
+      require('../services/pinguBot').onChannelMessage(io, { message, channel: access.channel, mentionRows, threadRoot });
+    }
     // Resposta no tópico: contador/prévia na raiz + aviso pra quem participa.
     if (threadRoot) {
       threadsService.afterThreadReply(io, { root: threadRoot, message, channel: access?.channel }).catch((err) => {
