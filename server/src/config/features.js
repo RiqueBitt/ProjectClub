@@ -9,11 +9,11 @@ const FEATURES = Object.freeze({
   browser: true,   // Navegador do Project Club: conferir páginas/sugestões (/api/browser)
   cinema: false,   // Filmes e Séries: Internet Archive (/api/archive) e catálogo/Pluto (/api/catalog)
   // Guerra das Cartas (jogo de cartas: /api/cards, salas, batalhas, convites,
-  // trocas, mercado, torneios). DESATIVADO TEMPORARIAMENTE: as rotas
+  // trocas, mercado, torneios). Religado em out/2026. Com false as rotas
   // respondem 503 "temporariamente desativado", a varredura de turnos não
   // liga e as missões CARDS_* somem da lista. Baús diários e o resto da
-  // Economia NÃO dependem disto e continuam funcionando.
-  cardsWar: false,
+  // Economia NÃO dependem disto.
+  cardsWar: true,
 });
 
 function isFeatureEnabled(key) {

@@ -41,7 +41,7 @@ export default function Tournaments({ me, onWatch, onReload }) {
       <div className="tcg-section-head"><p>Torneios eliminatórios organizados pela equipe. Quando começar, cada partida é um duelo PvP normal — fique atento aos avisos!</p></div>
       {err && <p className="tcg-error">{err}</p>}
       {list === null && <p className="tcg-empty">Carregando…</p>}
-      {list?.length === 0 && <p className="tcg-empty">Nenhum torneio no momento. A equipe avisa em Anúncios quando abrir um.</p>}
+      {list?.length === 0 && <p className="tcg-empty">Nenhum torneio no momento. A equipe avisa em Novidades quando abrir um.</p>}
       {list?.map((t) => (
         <article key={t.id} className={`tcg-tourn is-${t.status.toLowerCase()}`}>
           <header>

@@ -7,15 +7,13 @@ import { useCommunityEvents } from '../utils/useCommunityEvents';
 import { useSectionBadges, sectionCount, badgeLabel } from '../utils/sectionBadges';
 import '../styles/channels.css';
 import '../styles/socialx.css';
-import { isPostPath } from '../utils/prettyLinks';
 
-// Canais em destaque, fixos no topo da lista de canais da comunidade
-// (Anúncios e Eventos, Fórum, Loja e Economia):
-// Eventos (eventos da comunidade), Feed (o Feed de posts, que antes era só
-// um botão do menu) e Galeria (fotos, vídeos e GIFs já postados). Parecem
-// canais — mesma altura e alinhamento — mas com um fundo de cor suave e
-// ícone próprio. A staff pode esconder cada um (Configurações da
-// comunidade, ou clique direito aqui).
+// Canais em destaque, fixos no topo da lista de canais da comunidade:
+// Guerra das Cartas e Economia (pedido do dono, out/2026). Parecem canais
+// — mesma altura e alinhamento — mas com um fundo de cor suave e ícone
+// próprio. A staff pode esconder cada um (Configurações da comunidade, ou
+// clique direito aqui). Anúncios e Eventos virou "Novidades" e foi pro
+// menu principal (MainSidebar.jsx); o Fórum já está lá também.
 
 const PATHS = {
   megaphone: 'M3 11v2a1 1 0 0 0 1 1h2l5 4V6L6 10H4a1 1 0 0 0-1 1zM15 9a3 3 0 0 1 0 6M18 6a7 7 0 0 1 0 12',
@@ -26,6 +24,8 @@ const PATHS = {
   forum: 'M3 5h12v9H8l-4 3v-3H3zM18 9h3v9h-1v3l-4-3h-5v-2',
   // Loja: sacola
   store: 'M5 8h14l-1 12H6L5 8zM9 8V6a3 3 0 0 1 6 0v2M9 12h.01M15 12h.01',
+  // Economia: moeda com estrela
+  coin: 'M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18zM12 7.6l1.3 2.65 2.9.42-2.1 2.05.5 2.9L12 14.25l-2.6 1.37.5-2.9-2.1-2.05 2.9-.42z',
   // Guerra das Cartas: duas cartas em leque
   cards: 'M8 4h9a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2zM4 7.5 6 7M4 7.5v10.2a2 2 0 0 0 1.6 2L6 20M12.5 9l1.3 2.6 2.7.4-2 1.9.5 2.7-2.5-1.3-2.5 1.3.5-2.7-2-1.9 2.7-.4z',
 };
@@ -38,36 +38,20 @@ export function FeaturedGlyph({ name, size = 16 }) {
   );
 }
 
-// Guerra das Cartas fica em primeiro, acima dos Anúncios (pedido).
+// Guerra das Cartas em primeiro, Economia logo abaixo (pedido).
 export const FEATURED = [
   {
     key: 'arena', label: 'Guerra das Cartas', icon: 'cards', to: '/cartas',
     hint: 'Jogo de cartas: colecione, monte seu baralho e batalhe', match: (p) => p.startsWith('/cartas'), tag: 'Jogar',
-    feature: 'cardsWar', // desligada temporariamente (utils/features.js)
+    feature: 'cardsWar', // interruptor em utils/features.js
   },
-  // Anúncios e Eventos viraram UM canal (abas internas — ver
-  // pages/AnunciosEventosPage.jsx). Chave 'anuncios' mantida: é a que o
-  // CSS (.featured-anuncios, cor vermelha) e os testes já usam; o badge
-  // soma as novidades das duas abas e mostra "Ao vivo" quando há evento.
+  // Economia: mesma área da Loja (abas Visão geral · Missões · Loja · Passe
+  // · Histórico — ver components/HubTabs.jsx). Chave 'loja' mantida: é a
+  // que a visibilidade salva por comunidade e o CSS (.featured-loja) usam.
   {
-    key: 'anuncios', label: 'Anúncios e Eventos', icon: 'megaphone', to: '/anuncios',
-    hint: 'Anúncios da staff e eventos da comunidade',
-    match: (p) => p.startsWith('/anuncios') || p.startsWith('/comunidade/eventos') || p.startsWith('/evento/') || p.startsWith('/eventos'),
-    merges: ['anuncios', 'eventos'],
-  },
-  {
-    // Chave 'feed' mantida (banco/rotas); na tela o nome é "Fórum".
-    key: 'feed', label: 'Fórum', icon: 'forum', to: '/comunidades',
-    hint: 'Posts e Temas da comunidade', match: (p) => p === '/comunidades' || p.startsWith('/comunidades/') || isPostPath(p),
-  },
-  // Galeria saiu da lista (a página /comunidade/galeria continua existindo).
-  // Loja e Economia: mesma área (abas Visão geral · Missões · Loja · Passe
-  // · Histórico — ver components/HubTabs.jsx). O canal abre na Loja e
-  // fica ativo em qualquer aba da área.
-  {
-    key: 'loja', label: 'Loja e Economia', icon: 'store', to: '/loja',
-    hint: 'Loja, moedas, gemas, missões e Passe do clube',
-    match: (p) => p.startsWith('/loja') || p.startsWith('/economia') || p.startsWith('/missoes'),
+    key: 'loja', label: 'Economia', icon: 'coin', to: '/economia',
+    hint: 'Moedas, gemas, missões, Loja e Passe do clube',
+    match: (p) => p.startsWith('/economia') || p.startsWith('/missoes') || p.startsWith('/loja'),
   },
 ].filter((f) => !f.feature || isFeatureEnabled(f.feature));
 

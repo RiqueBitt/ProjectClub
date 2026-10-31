@@ -374,7 +374,7 @@ export function NotificationExtras() {
         </Field>
         <Row title="Resumo da semana" hint="Toda segunda: menções que você perdeu, eventos da semana e novidades da Loja." on={p.weeklyDigest !== false} onChange={(v) => setExtra({ weeklyDigest: v })} />
         <Row title="Avisar meus amigos quando eu atualizar meu perfil" on={p.shareProfileUpdates !== false} onChange={(v) => setExtra({ shareProfileUpdates: v })} />
-        <Row title="Sai um anúncio novo" hint="Notificação no celular (push) e no PC quando a equipe publica em Anúncios." on={p.notifyAnnouncements !== false} onChange={(v) => setExtra({ notifyAnnouncements: v })} />
+        <Row title="Sai um anúncio novo" hint="Notificação no celular (push) e no PC quando a equipe publica em Novidades." on={p.notifyAnnouncements !== false} onChange={(v) => setExtra({ notifyAnnouncements: v })} />
         <Row title="Sai um evento novo" hint="Notificação no celular (push) e no PC quando um evento da comunidade é criado." on={p.notifyEvents !== false} onChange={(v) => setExtra({ notifyEvents: v })} />
         <Row title="Indicador de mensagens não lidas no ícone do app" hint="Bolinha vermelha na barra de tarefas (PC) e número no ícone (Android)." on={p.unreadBadge !== false} onChange={(v) => setExtra({ unreadBadge: v })} />
       </Panel>

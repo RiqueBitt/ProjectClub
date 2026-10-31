@@ -5,7 +5,7 @@ import { useSectionBadges, sectionCount } from '../utils/sectionBadges';
 const AnunciosPage = lazy(() => import('./AnunciosPage.jsx'));
 const CommunityEventsPage = lazy(() => import('./CommunityEventsPage.jsx'));
 
-// "Anúncios e Eventos" — um canal só, com abas internas pra não misturar
+// "Novidades" (antes "Anúncios e Eventos") — um canal só, com abas internas pra não misturar
 // comunicado comum com informação de evento. Cada aba é a página que já
 // existia, com os mesmos dados (StaffAnnouncement / Event + RSVP),
 // permissões (staff publica, todos leem) e links (/anuncios,
@@ -16,7 +16,7 @@ export default function AnunciosEventosPage({ tab = 'anuncios' }) {
   return (
     <div className="hub-frame ae-hub">
       <HubTabs
-        tabs={ANNOUNCE_EVENTS_TABS} value={tab} label="Anúncios e Eventos"
+        tabs={ANNOUNCE_EVENTS_TABS} value={tab} label="Novidades"
         extra={{ anuncios: { count: fresh('anuncios') }, eventos: { count: fresh('eventos') } }}
       />
       <Suspense fallback={<div className="pk-page" />}>

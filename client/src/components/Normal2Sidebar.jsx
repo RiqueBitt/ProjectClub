@@ -6,7 +6,8 @@ import { useAuth } from '../context/AuthContext.jsx';
 import ChannelSidebar from './ChannelSidebar.jsx';
 import DonationGoalBar from './DonationGoalBar.jsx';
 import { ITEMS, visibleNavItems } from './MainSidebar.jsx';
-import { useFeaturedVisibility } from './FeaturedChannels.jsx';
+import { FEATURED, useFeaturedVisibility } from './FeaturedChannels.jsx';
+import { useSectionBadges, sectionCount } from '../utils/sectionBadges';
 import { useClaimableMissions } from '../utils/missionBadge';
 
 // Layout "Normal 2.0": uma coluna só à esquerda, no estilo Discord —
@@ -33,7 +34,9 @@ export function useBadges(user) {
   const allChannels = [...channels, ...categories.flatMap((c) => c.channels || [])];
   const unreadChannels = allChannels.filter((ch) => isChannelUnread(ch, channelReadAt, user.id, myRoleIds)).length;
   const claimableMissions = useClaimableMissions(); // missões prontas pra resgatar
+  const sections = useSectionBadges(); // anúncios/eventos que saíram depois da última visita
   return (to) => {
+    if (to === '/anuncios') return sectionCount(sections, 'anuncios') + sectionCount(sections, 'eventos');
     if (to === '/economia') return claimableMissions;
     if (to === '/dms') return unreadConversations + pendingIncoming;
     if (to === '/notifications') return unreadChannels + unreadConversations + pendingIncoming;
@@ -55,12 +58,13 @@ function N2Nav() {
     return !v;
   });
   const badgeFor = useBadges(user);
-  // O Feed agora é um canal em destaque no topo da lista de canais; o
-  // botão do menu só volta se a staff esconder esse canal.
+  // Se o Fórum voltar a ser um canal em destaque (FEATURED), o botão do
+  // menu some pra não duplicar — e volta se a staff esconder esse canal.
   const isFeaturedVisible = useFeaturedVisibility();
   const disabledSystems = useStore((s) => s.disabledSystems);
   const shownItems = visibleNavItems(N2_ITEMS, disabledSystems, user);
-  const baseItems = isFeaturedVisible('feed') ? shownItems.filter((i) => i.to !== '/comunidades') : shownItems;
+  const forumFeatured = FEATURED.some((f) => f.key === 'feed') && isFeaturedVisible('feed');
+  const baseItems = forumFeatured ? shownItems.filter((i) => i.to !== '/comunidades') : shownItems;
   const items = baseItems; // Painel: botão na barra superior (TopSearchBar.jsx)
 
   return (
