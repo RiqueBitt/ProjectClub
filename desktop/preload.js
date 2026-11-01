@@ -1,0 +1,242 @@
+// Ponte mínima e explícita entre o site (que roda isolado, sem acesso
+// direto ao Node/Electron — contextIsolation ligado em main.js) e o app
+// nativo — expõe SÓ uma função de leitura (a própria versão instalada),
+// nada de escrita/execução de comando/acesso a arquivo. É isso que
+// permite o site saber "que versão do app está rodando" pra comparar
+// com a mais recente publicada (ver utils/nativeUpdateCheck.js) e
+// avisar quando tem atualização — sem esse preload, o JS da página não
+// teria nenhum jeito de descobrir isso (window.navigator.userAgent não
+// diz a versão do NOSSO app, só do Chromium/Electron em si).
+const { contextBridge, ipcRenderer, webFrame } = require('electron');
+
+// Dados de abertura que o main.js já manda junto na criação da janela
+// (webPreferences.additionalArguments --pc-boot=<base64 JSON>): versão e
+// caminho do .exe respondem na hora, sem ida e volta de IPC no carregamento.
+// Se não vier (versão antiga do main), cai pro IPC normal.
+let boot = {};
+try {
+  const arg = (process.argv || []).find((a) => typeof a === 'string' && a.startsWith('--pc-boot='));
+  if (arg) boot = JSON.parse(Buffer.from(arg.slice('--pc-boot='.length), 'base64').toString('utf8')) || {};
+} catch { boot = {}; }
+
+contextBridge.exposeInMainWorld('electronAPI', {
+  getAppVersion: () => (boot.version ? Promise.resolve(boot.version) : ipcRenderer.invoke('get-app-version')),
+  // Item pedido: "separe claramente os downloads para Windows e
+  // Linux" — a aba Apps precisa saber em qual SO o app desktop está
+  // rodando, pra destacar a seção certa (o botão de instalar só
+  // funciona pra plataforma atual de qualquer forma). process.platform
+  // já existe nativamente no processo do preload, só nunca tinha sido
+  // exposto pro lado do site.
+  platform: process.platform,
+  // Item pedido: "adicione nas configurações do usuário ele poder
+  // aumentar ou diminuir o zoom quanto quiser" — zoom NATIVO do
+  // Chromium (não CSS), chamado direto aqui no preload (mesmo
+  // processo/contexto do renderer, só com privilégios extras antes do
+  // contextIsolation separar os dois "mundos") — sem precisar de
+  // nenhuma volta de IPC até o processo principal e de volta, e sem o
+  // problema de "sobra"/corte de conteúdo que o CSS "zoom" property
+  // causava nesse app especificamente (já relatado e corrigido antes).
+  setZoomFactor: (factor) => webFrame.setZoomFactor(factor),
+  getAppInstallPath: () => (boot.installPath ? Promise.resolve(boot.installPath) : ipcRenderer.invoke('get-app-install-path')),
+  // Chamada de voz começou/terminou: com chamada ativa o app não reduz a
+  // prioridade da janela em segundo plano (áudio e timers em dia).
+  setVoiceCallActive: (active) => ipcRenderer.send('voice:active', !!active),
+  // Som do PC na transmissão de tela, no Linux (PipeWire/venmic). Fluxo do
+  // site: `await supported()` → `await start()` → getUserMedia no
+  // dispositivo cujo rótulo contém 'vencord-screen-share' → `stop()` ao
+  // parar de transmitir. Ver docs/voz-discord-api.md ("Desktop: áudio da tela").
+  screenAudio: {
+    supported: () => ipcRenderer.invoke('screen-audio:supported').catch(() => false),
+    start: () => ipcRenderer.invoke('screen-audio:start'),
+    stop: () => ipcRenderer.invoke('screen-audio:stop'),
+    deviceLabel: 'vencord-screen-share',
+  },
+  // Apertar-pra-falar global (app fora de foco) — ver desktop/globalPtt.js.
+  // configure({ enabled, code: KeyboardEvent.code, prompt? }) → { ok, reason? }
+  // (reason: 'accessibility' no macOS sem permissão, 'unavailable',
+  // 'unsupported-key', 'error'). onDown/onUp devolvem a função pra parar.
+  globalPtt: {
+    configure: (opts) => ipcRenderer.invoke('ptt:configure', opts || {}).catch(() => ({ ok: false, reason: 'error' })),
+    onDown: (cb) => { const h = () => { try { cb(); } catch { /* ok */ } }; ipcRenderer.on('ptt:down', h); return () => ipcRenderer.removeListener('ptt:down', h); },
+    onUp: (cb) => { const h = () => { try { cb(); } catch { /* ok */ } }; ipcRenderer.on('ptt:up', h); return () => ipcRenderer.removeListener('ptt:up', h); },
+  },
+  // Item pedido: "crie uma barra que não seja do Windows, de fechar
+  // aba, minimizar, aumentar etc" — API exposta pro TitleBar.jsx.
+  windowMinimize: () => ipcRenderer.invoke('window-minimize'),
+  windowMoveBy: (dx, dy) => ipcRenderer.send('window-move-by', dx, dy),
+  // Atualização do app (botão verde na barra): estado, instalar agora e avisos.
+  update: {
+    getStatus: () => ipcRenderer.invoke('update:get-status'),
+    install: () => ipcRenderer.invoke('update:install'),
+    onStatus: (callback) => {
+      const handler = (_e, status) => callback(status);
+      ipcRenderer.on('update:status', handler);
+      return () => ipcRenderer.removeListener('update:status', handler);
+    },
+  },
+  windowMaximizeToggle: () => ipcRenderer.invoke('window-maximize-toggle'),
+  windowClose: () => ipcRenderer.invoke('window-close'),
+  windowIsMaximized: () => ipcRenderer.invoke('window-is-maximized'),
+  onWindowMaximizedChanged: (callback) => {
+    const listener = (_event, isMaximized) => callback(isMaximized);
+    ipcRenderer.on('window-maximized-changed', listener);
+    return () => ipcRenderer.removeListener('window-maximized-changed', listener);
+  },
+  openExternal: (url) => ipcRenderer.invoke('open-external', url),
+  focusWindow: () => ipcRenderer.invoke('focus-window'),
+  setUnreadCount: (count) => ipcRenderer.invoke('set-unread-count', count),
+  // Ícone do app escolhido em Configurações → Aparência (data URL PNG; null = padrão).
+  setAppIcon: (dataUrl) => ipcRenderer.invoke('set-app-icon', dataUrl || null),
+  // Item pedido: "Rich Presence" — o app de desktop detecta jogo/Spotify
+  // sozinho (ver activityDetector.js) e AVISA o site sempre que muda,
+  // sem o site precisar perguntar. onActivityDetected registra quem vai
+  // escutar esses avisos (ver utils/nativeActivity.js) — like um
+  // addEventListener, não um pedido de resposta única.
+  onActivityDetected: (callback) => {
+    ipcRenderer.on('activity:detected', (_event, activity) => callback(activity));
+  },
+  // Item pedido: "Sistema... Iniciar com o sistema... Minimizar para
+  // bandeja... Abrir links no aplicativo... Confirmar saída... Essas
+  // funções podem existir no '.exe' sem necessariamente existirem na
+  // versão web" — o site chama isso toda vez que o UserSettings da
+  // pessoa carrega ou muda (ver useStore.js), e o processo principal
+  // (main.js) usa esses valores de verdade pra decidir como se
+  // comportar. Envio "fire and forget" (ipcRenderer.send, não invoke)
+  // — não precisa de resposta, só avisar.
+  updateSettings: (settings) => ipcRenderer.send('settings:update', settings),
+  // Item pedido: "Sobreposição no jogo (overlay)... A overlay deve
+  // receber eventos do Project Club: Nova mensagem, Menção, Convite,
+  // Pedido de amizade, Entrada em chamada" — chamado pelo mesmo
+  // notifyUser() de SocketContext.jsx que já dispara a notificação
+  // nativa comum, pra cada um desses eventos. main.js decide sozinho
+  // se deve mostrar de verdade (overlayEnabled/overlayNotifications
+  // ligados + um jogo detectado rodando agora).
+  showOverlayNotification: (payload) => ipcRenderer.send('overlay:notify', payload),
+  // Item pedido: "criar uma nova integração... ProjectMC... o usuário
+  // poderá visualizar e baixar o launcher... O usuário poderá escolher
+  // se deseja ou não instalar... o Project Club deve conseguir
+  // detectar a atualização e atualizar somente os arquivos
+  // necessários... o launcher também deve poder ser iniciado
+  // separadamente" — ponte pra desktop/projectMcManager.js (via
+  // main.js). `id` é opcional em todas (default 'projectmc' do lado do
+  // main.js) — pensado pra outros módulos de jogo/app reaproveitarem a
+  // mesma ponte no futuro, só passando um id diferente.
+  projectMc: {
+    getStatus: (id) => ipcRenderer.invoke('projectmc:get-status', id),
+    checkUpdate: (id) => ipcRenderer.invoke('projectmc:check-update', id),
+    install: (id) => ipcRenderer.invoke('projectmc:install', id),
+    launch: (id) => ipcRenderer.invoke('projectmc:launch', id),
+    uninstall: (id) => ipcRenderer.invoke('projectmc:uninstall', id),
+    onProgress: (callback) => {
+      ipcRenderer.on('projectmc:progress', (_event, data) => callback(data));
+    },
+  },
+  // Sistema de Mods (Apps → Mods) — ponte pra desktop/steamDetector.js
+  // (detecção 100% local da Steam, item pedido 30: "o servidor deve
+  // receber somente os dados necessários") e desktop/modsManager.js
+  // (download + instalação, item pedido 13: só o app desktop tem acesso
+  // de verdade às pastas do jogo, nunca o navegador).
+  // Nexus Mods (fonte do Vortex): links nxm:// abertos pelo app.
+  nexus: {
+    getLinkHandler: () => ipcRenderer.invoke('nexus:get-link-handler'),
+    setLinkHandler: (enabled) => ipcRenderer.invoke('nexus:set-link-handler', !!enabled),
+    consumePending: () => ipcRenderer.invoke('nexus:consume-pending'),
+    // Janela de download com login salvo (o link nxm:// é pego lá dentro).
+    openDownload: (url) => ipcRenderer.invoke('nexus:open-download', url),
+    clearDownloadLogin: () => ipcRenderer.invoke('nexus:clear-download-login'),
+    onLink: (callback) => {
+      const handler = (_e, link) => callback(link);
+      ipcRenderer.on('nexus:nxm-link', handler);
+      return () => ipcRenderer.removeListener('nexus:nxm-link', handler);
+    },
+  },
+  // VPN do Project Club (botão ao lado do globo). Ver vpnManager.js.
+  vpn: {
+    version: 1,
+    getState: () => ipcRenderer.invoke('vpn:get-state'),
+    connect: (configText, server) => ipcRenderer.invoke('vpn:connect', String(configText || ''), server || null),
+    disconnect: () => ipcRenderer.invoke('vpn:disconnect'),
+    onState: (callback) => {
+      const handler = (_e, st) => callback(st);
+      ipcRenderer.on('vpn:state', handler);
+      return () => ipcRenderer.removeListener('vpn:state', handler);
+    },
+  },
+  // Navegador do Project Club (abas dentro do app). Ver browserEngine.js.
+  browser: {
+    version: 2,
+    getState: () => ipcRenderer.invoke('browser:get-state'),
+    setPrefs: (patch) => ipcRenderer.invoke('browser:set-prefs', patch),
+    setSiteAdblock: (host, enabled) => ipcRenderer.invoke('browser:site-adblock', host, enabled),
+    permissionReply: (id, allow, remember) => ipcRenderer.invoke('browser:permission-reply', id, allow, remember),
+    listPermissions: () => ipcRenderer.invoke('browser:list-permissions'),
+    forgetPermissions: (origin) => ipcRenderer.invoke('browser:forget-permissions', origin),
+    allowHttp: (host) => ipcRenderer.invoke('browser:allow-http', host),
+    allowDangerous: (host) => ipcRenderer.invoke('browser:allow-dangerous', host),
+    suggest: (q) => ipcRenderer.invoke('browser:suggest', q),
+    clearData: (opts) => ipcRenderer.invoke('browser:clear-data', opts),
+    clearPrivate: (partition) => ipcRenderer.invoke('browser:clear-private', partition),
+    downloadAction: (id, action) => ipcRenderer.invoke('browser:download-action', id, action),
+    updateLists: () => ipcRenderer.invoke('browser:update-lists'),
+    openSystem: (url) => ipcRenderer.invoke('browser:open-system', url),
+    savePdf: (webContentsId) => ipcRenderer.invoke('browser:pdf', webContentsId),
+    // Perfil em arquivos no computador (favoritos, histórico, abas, senhas).
+    profile: {
+      load: () => ipcRenderer.invoke('browser:profile-load'),
+      save: (key, data) => ipcRenderer.invoke('browser:profile-save', key, data),
+      openFolder: () => ipcRenderer.invoke('browser:profile-open-folder'),
+      clearDownloads: () => ipcRenderer.invoke('browser:profile-clear-downloads'),
+    },
+    passwords: {
+      decide: (id, action) => ipcRenderer.invoke('browser:pw-decide', id, action),
+      fill: (webContentsId, entryId) => ipcRenderer.invoke('browser:pw-fill', webContentsId, entryId),
+      list: () => ipcRenderer.invoke('browser:pw-list'),
+      reveal: (id) => ipcRenderer.invoke('browser:pw-reveal', id),
+      remove: (id) => ipcRenderer.invoke('browser:pw-delete', id),
+      forgetNever: (origin) => ipcRenderer.invoke('browser:pw-forget-never', origin),
+      removeAll: () => ipcRenderer.invoke('browser:pw-delete-all'),
+    },
+    on: (event, callback) => {
+      const ok = ['open-tab', 'blocked', 'permission', 'download', 'shortcut', 'crashed', 'context-action', 'engine', 'dangerous', 'https-upgraded', 'external', 'pw-offer', 'pw-available'];
+      if (!ok.includes(event)) return () => {};
+      const handler = (_e, data) => callback(data);
+      ipcRenderer.on(`browser:${event}`, handler);
+      return () => ipcRenderer.removeListener(`browser:${event}`, handler);
+    },
+  },
+  mods: {
+    detectSteamGames: () => ipcRenderer.invoke('mods:detect-steam-games'),
+    selectGameFolder: () => ipcRenderer.invoke('mods:select-game-folder'),
+    install: (payload) => ipcRenderer.invoke('mods:install', payload),
+    uninstall: (payload) => ipcRenderer.invoke('mods:uninstall', payload),
+    listInstalled: (gameInstallPath, steamAppId) => ipcRenderer.invoke('mods:list-installed', steamAppId ? { gameInstallPath, steamAppId } : gameInstallPath),
+    // Varredura dos mods já instalados (detectados + Project Club) e
+    // perfil de instalação do jogo (loader, pastas, tipos de arquivo).
+    scanInstalled: (gameInstallPath, steamAppId) => ipcRenderer.invoke('mods:scan-installed', { gameInstallPath, steamAppId }),
+    getInstallProfile: (gameInstallPath, steamAppId) => ipcRenderer.invoke('mods:get-install-profile', { gameInstallPath, steamAppId }),
+    setEnabled: (payload) => ipcRenderer.invoke('mods:set-enabled', payload),
+    applyProfile: (payload) => ipcRenderer.invoke('mods:apply-profile', payload),
+    listWorkshopItems: (gameInstallPath, workshopAppId) => ipcRenderer.invoke('mods:list-workshop-items', { gameInstallPath, workshopAppId }),
+    openFolder: (gameInstallPath, steamAppId) => ipcRenderer.invoke('mods:open-folder', steamAppId ? { gameInstallPath, steamAppId } : gameInstallPath),
+    pickLocalFile: () => ipcRenderer.invoke('mods:pick-local-file'),
+    installLocal: (payload) => ipcRenderer.invoke('mods:install-local', payload),
+    listConfigFiles: (gameInstallPath) => ipcRenderer.invoke('mods:list-config-files', gameInstallPath),
+    readConfigFile: (gameInstallPath, filename) => ipcRenderer.invoke('mods:read-config-file', { gameInstallPath, filename }),
+    writeConfigFile: (gameInstallPath, filename, content) => ipcRenderer.invoke('mods:write-config-file', { gameInstallPath, filename, content }),
+    saveModpackLocal: (payload) => ipcRenderer.invoke('mods:save-modpack-local', payload),
+    listLocalModpacks: (gameKey) => ipcRenderer.invoke('mods:list-local-modpacks', gameKey),
+    deleteLocalModpack: (gameKey, packName) => ipcRenderer.invoke('mods:delete-local-modpack', { gameKey, packName }),
+    // Item pedido: "pegue a interface e tudo do Gale [Thunderstore Mod
+    // Manager] e funda com o que eu já tenho" — instala um pacote do
+    // Thunderstore por vez (o ModsPage.jsx chama isso uma vez pra cada
+    // item da árvore de dependência já resolvida, na ordem certa, mais
+    // uma vez pro mod pedido em si — ver installThunderstorePackage em
+    // desktop/modsManager.js).
+    installThunderstore: (payload) => ipcRenderer.invoke('mods:install-thunderstore', payload),
+    onProgress: (callback) => {
+      const listener = (_event, data) => callback(data);
+      ipcRenderer.on('mods:progress', listener);
+      return () => ipcRenderer.removeListener('mods:progress', listener);
+    },
+  },
+});

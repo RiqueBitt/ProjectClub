@@ -1,0 +1,573 @@
+name: Build Apps (Windows + Linux + Android)
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'desktop/**'
+      - 'client/android/**'
+      # App Android nativo: é ele que sai como ProjectClub.apk.
+      - 'android-nativo/**'
+      - 'client/src/**'
+      # Mudanças na parte nativa do app Android (plugins, config, tela de
+      # conexão nativa em client/android) também precisam gerar um .apk novo.
+      - 'client/package.json'
+      - 'client/capacitor.config.json'
+      - '.github/workflows/build-apps.yml'
+  workflow_dispatch:
+    inputs:
+      force_native_update:
+        description: 'Android: obrigar todo mundo a instalar o .apk desta versão (minNativeVersion = esta versão)'
+        type: boolean
+        default: false
+
+jobs:
+  # Item pedido: "versionamento semântico de verdade (v1.2.0), com
+  # changelog automático a partir dos commits" — em vez de uma versão só
+  # data+hash (que nunca dizia "o que mudou" nem se era uma mudança
+  # grande ou pequena), agora calcula vMAJOR.MINOR.PATCH de verdade a
+  # partir das mensagens de commit desde a última tag (convenção
+  # "Conventional Commits" — feat:, fix:, BREAKING CHANGE: — bem
+  # conhecida e usada por muitos projetos open source), e monta um
+  # changelog de verdade com a lista do que mudou. Esse changelog vira
+  # tanto as notas da GitHub Release quanto o texto da "Atualização" que
+  # o app mostra pra quem tem uma versão mais antiga.
+  compute-version:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    outputs:
+      version: ${{ steps.v.outputs.version }}
+      changelog_b64: ${{ steps.v.outputs.changelog_b64 }}
+      last_tag: ${{ steps.v.outputs.last_tag }}
+      desktop_changed: ${{ steps.v.outputs.desktop_changed }}
+      apps_changed: ${{ steps.v.outputs.apps_changed }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0 # precisa do histórico completo pra achar a última tag e os commits desde ela
+      # Limpeza: uma release errada ("vandroid-nativo...") virou a "mais
+      # recente" e quebrou os links de download do site (404). Some com ela.
+      - name: Remover release com versão inválida
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          for t in $(gh release list --repo "${{ github.repository }}" --limit 50 --json tagName -q '.[].tagName' | grep -vE '^v[0-9]+\.[0-9]+\.[0-9]+$' | grep -v '^android-nativo$' || true); do
+            echo "Apagando release inválida: $t"
+            gh release delete "$t" --repo "${{ github.repository }}" --cleanup-tag -y || true
+          done
+      - id: v
+        shell: bash
+        run: |
+          set -e
+          # Só tags de versão (vX.Y.Z): a release fixa "android-nativo" (app nativo)
+          # também cria tag, e antes ela virava a "última versão" e quebrava tudo.
+          LAST_TAG=$(git describe --tags --abbrev=0 --match 'v[0-9]*.[0-9]*.[0-9]*' 2>/dev/null || echo "")
+          if [ -z "$LAST_TAG" ]; then
+            LAST_TAG="v0.0.0"
+            COMMITS=$(git log --pretty=format:"%s")
+          else
+            COMMITS=$(git log "$LAST_TAG"..HEAD --pretty=format:"%s")
+          fi
+
+          MAJOR=$(echo "$LAST_TAG" | sed 's/^v//' | cut -d. -f1)
+          MINOR=$(echo "$LAST_TAG" | sed 's/^v//' | cut -d. -f2)
+          PATCH=$(echo "$LAST_TAG" | sed 's/^v//' | cut -d. -f3)
+
+          # Convenção: "feat!:" ou "BREAKING CHANGE" no corpo = versão
+          # maior (quebra compatibilidade); "feat:" sozinho = versão
+          # média (recurso novo); qualquer outra coisa (fix:, chore:,
+          # docs:, ou sem prefixo nenhum) = versão de correção — sempre
+          # sobe PELO MENOS o patch, nunca gera a mesma versão duas vezes.
+          if echo "$COMMITS" | grep -qiE "^feat!|BREAKING CHANGE"; then
+            MAJOR=$((MAJOR + 1)); MINOR=0; PATCH=0
+          elif echo "$COMMITS" | grep -qiE "^feat(\(|:)"; then
+            MINOR=$((MINOR + 1)); PATCH=0
+          else
+            PATCH=$((PATCH + 1))
+          fi
+          VERSION="v${MAJOR}.${MINOR}.${PATCH}"
+          echo "Última versão: $LAST_TAG -> Nova versão: $VERSION"
+
+          # Changelog = lista dos commits desde a última tag, sem os hashes
+          # de merge automáticos do GitHub e sem linhas vazias — em
+          # base64 pra atravessar os outputs do GitHub Actions sem quebrar
+          # por causa de aspas/quebra de linha nas mensagens de commit.
+          CHANGELOG=$(echo "$COMMITS" | grep -v "^Merge " | sed 's/^/- /')
+          if [ -z "$CHANGELOG" ]; then CHANGELOG="- Ajustes internos."; fi
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          # App de PC/Linux só ganha versão nova quando o código DELE muda
+          # (desktop/). Ele só abre o site hospedado: mudança no site não
+          # precisa de instalador novo. Sem isso, cada deploy virava uma
+          # "atualização" e o botão Atualizar ficava em loop.
+          DESKTOP_CHANGED=true
+          if [ "$LAST_TAG" != "v0.0.0" ] && [ "${{ github.event_name }}" != "workflow_dispatch" ] && git diff --quiet "$LAST_TAG" HEAD -- desktop/; then DESKTOP_CHANGED=false; fi
+          echo "Desktop mudou desde $LAST_TAG? $DESKTOP_CHANGED"
+          echo "last_tag=$LAST_TAG" >> "$GITHUB_OUTPUT"
+          echo "desktop_changed=$DESKTOP_CHANGED" >> "$GITHUB_OUTPUT"
+          # Post "Nova versão disponível" no site só quando algum APP mudou de
+          # verdade (PC/Linux ou Android nativo) — não a cada deploy do site.
+          APPS_CHANGED=$DESKTOP_CHANGED
+          if [ "$APPS_CHANGED" = "false" ] && ! git diff --quiet "$LAST_TAG" HEAD -- android-nativo/ client/android/; then APPS_CHANGED=true; fi
+          echo "apps_changed=$APPS_CHANGED" >> "$GITHUB_OUTPUT"
+          echo "changelog_b64=$(echo "$CHANGELOG" | base64 -w 0)" >> "$GITHUB_OUTPUT"
+
+  build-windows:
+    needs: compute-version
+    permissions:
+      contents: write
+    runs-on: windows-latest
+    defaults:
+      run:
+        working-directory: desktop
+    steps:
+      - uses: actions/checkout@v4
+      # Desktop sem mudança: reaproveita o instalador da versão anterior
+      # (mesmo arquivo, mesmo latest.yml com a versão antiga) em vez de
+      # gerar outro — os apps instalados não veem "atualização" à toa.
+      - name: Reaproveitar o app da versão anterior (desktop sem mudança)
+        id: reuse
+        if: needs.compute-version.outputs.desktop_changed == 'false'
+        shell: bash
+        working-directory: .
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -e
+          PREV="${{ needs.compute-version.outputs.last_tag }}"
+          VERSION="${{ needs.compute-version.outputs.version }}"
+          REPO="${{ github.repository }}"
+          mkdir -p "$RUNNER_TEMP/prev"
+          if ! gh release download "$PREV" --repo "$REPO" --dir "$RUNNER_TEMP/prev" -p 'ProjectClub-Setup-Windows.exe' -p 'ProjectClub-Setup-Windows.exe.blockmap' -p 'latest.yml' --clobber; then
+            echo "Versão anterior sem os arquivos; vai gerar de novo."; exit 0
+          fi
+          for f in ProjectClub-Setup-Windows.exe ProjectClub-Setup-Windows.exe.blockmap latest.yml; do [ -f "$RUNNER_TEMP/prev/$f" ] || { echo "Falta $f na $PREV; vai gerar de novo."; exit 0; }; done
+          gh release view "$VERSION" --repo "$REPO" >/dev/null 2>&1 || \
+            gh release create "$VERSION" --repo "$REPO" --title "$VERSION" --notes "Gerado automaticamente pelo GitHub Actions." --latest || true
+          for f in ProjectClub-Setup-Windows.exe ProjectClub-Setup-Windows.exe.blockmap latest.yml; do
+            for i in 1 2 3; do gh release upload "$VERSION" "$RUNNER_TEMP/prev/$f" --repo "$REPO" --clobber && break || sleep 10; done
+          done
+          echo "ok=true" >> "$GITHUB_OUTPUT"
+      - uses: actions/setup-node@v4
+        if: steps.reuse.outputs.ok != 'true'
+        with:
+          node-version: 22
+      - name: Instalar dependências
+        if: steps.reuse.outputs.ok != 'true'
+        run: npm install
+      - name: Gravar a versão no app
+        if: steps.reuse.outputs.ok != 'true'
+        shell: bash
+        run: npm version "${{ needs.compute-version.outputs.version }}" --no-git-tag-version --allow-same-version
+      # VPN do app (vpnManager.js): o OpenVPN oficial vai dentro do instalador.
+      - name: Baixar e conferir o OpenVPN embutido
+        if: steps.reuse.outputs.ok != 'true'
+        shell: pwsh
+        run: ./scripts/fetch-openvpn.ps1
+      - name: Gerar o instalador .exe
+        if: steps.reuse.outputs.ok != 'true'
+        run: npm run build:win
+      # Item pedido: sistema de atualização automática (electron-updater,
+      # mesma biblioteca usada pelo GoldApple Launcher — confirmei pelo
+      # formato dos arquivos publicados nas releases dele no GitHub:
+      # latest.yml + .blockmap, a marca registrada dessa biblioteca).
+      #
+      # O electron-builder já gera esse latest.yml sozinho durante o
+      # build acima — só que ele aponta pro nome ORIGINAL do instalador
+      # (com a versão no nome, tipo "Project Club Setup 1.0.27.exe"). Só
+      # que o passo seguinte RENOMEIA o .exe pra um nome FIXO (pra
+      # manter uma URL de download sempre igual pro site) — sem corrigir
+      # o latest.yml pra apontar pro nome novo, o electron-updater dos
+      # apps já instalados tentaria baixar um arquivo com o nome errado,
+      # que não existe na release. Esse passo corrige o latest.yml pra
+      # apontar pro nome fixo certo (o hash sha512 continua o mesmo —
+      # é do CONTEÚDO do arquivo, não do nome dele).
+      - name: Corrigir latest.yml pro nome fixo do instalador
+        if: steps.reuse.outputs.ok != 'true'
+        shell: bash
+        run: |
+          set -e
+          # No runner Windows o comando certo é "python" (sem o 3) — e
+          # o módulo PyYAML não vem garantido pré-instalado, então
+          # instala explicitamente antes de usar, pra não arriscar o
+          # passo falhar por um módulo faltando.
+          pip install pyyaml --quiet
+          python -c "
+          import yaml, glob, os
+          exe_name = os.path.basename(glob.glob('dist/*.exe')[0])
+          with open('dist/latest.yml') as f:
+              data = yaml.safe_load(f)
+          data['path'] = 'ProjectClub-Setup-Windows.exe'
+          for entry in data.get('files', []):
+              entry['url'] = 'ProjectClub-Setup-Windows.exe'
+          with open('dist/latest.yml', 'w') as f:
+              yaml.safe_dump(data, f, default_flow_style=False, sort_keys=False)
+          blockmap_src = f'dist/{exe_name}.blockmap'
+          if os.path.exists(blockmap_src):
+              os.rename(blockmap_src, 'dist/ProjectClub-Setup-Windows.exe.blockmap')
+          print('latest.yml corrigido, exe original era:', exe_name)
+          "
+      # Publica como asset de uma GitHub Release (não mais como arquivo
+      # dentro de uma pasta comum do repositório) — sem limite de 100MB
+      # (releases aceitam até 2GB por arquivo), e sem risco de corrida
+      # com os outros dois jobs rodando ao mesmo tempo: cada um só sobe
+      # o SEU PRÓPRIO arquivo pra dentro da mesma release "latest", sem
+      # precisar dar git push (que é o que causava a disputa antes).
+      #
+      # BUG CORRIGIDO ("o .apk e o .AppImage não estavam baixando pelo
+      # site"): antes o nome final do arquivo publicado vinha da sintaxe
+      # "caminho#Rótulo" do `gh release upload` — só que isso troca só o
+      # RÓTULO exibido na tela do GitHub, não o nome de verdade do
+      # arquivo (que é o que forma a URL de download). O site linkava pra
+      # "ProjectClub-Setup-Windows.exe", mas o arquivo publicado
+      # continuava com o nome que o electron-builder/gradle geram sozinhos
+      # (ex: "Project.Club.Setup.1.0.0.exe") — 404 pra quem clicava no
+      # site. Agora o arquivo é copiado/renomeado de verdade ANTES de
+      # subir, então o nome publicado é exatamente o que o site espera.
+      - name: Publicar na Release "latest"
+        if: steps.reuse.outputs.ok != 'true'
+        shell: bash
+        env:
+          OWN_TOKEN: ${{ github.token }}
+        run: |
+          set -e
+          EXE_PATH=$(ls dist/*.exe | head -n 1)
+          cp "$EXE_PATH" "$RUNNER_TEMP/ProjectClub-Setup-Windows.exe"
+          cp "dist/ProjectClub-Setup-Windows.exe.blockmap" "$RUNNER_TEMP/ProjectClub-Setup-Windows.exe.blockmap"
+          cp "dist/latest.yml" "$RUNNER_TEMP/latest.yml"
+          # Publica neste repositório (lugar oficial dos downloads).
+          publish() {
+            REPO="$1"
+            # Item pedido: "não quero que apague as versões antigas" — cada
+            # build agora cria a SUA PRÓPRIA release (marcada com a versão
+            # de verdade, tipo v1.2.3), em vez de sempre reescrever a
+            # mesma release fixa "latest" por cima. --latest marca essa
+            # release nova como a mais recente pro GitHub (então o link
+            # .../releases/latest/download/... — usado tanto pelo site
+            # quanto pelo electron-updater — continua funcionando sozinho,
+            # sempre apontando pra versão mais nova automaticamente) — mas
+            # as releases anteriores continuam existindo, intactas,
+            # acessíveis pra quem quiser baixar uma versão antiga.
+            VERSION="${{ needs.compute-version.outputs.version }}"
+            gh release view "$VERSION" --repo "$REPO" >/dev/null 2>&1 || \
+              gh release create "$VERSION" --repo "$REPO" --title "$VERSION" \
+                --notes "Gerado automaticamente pelo GitHub Actions." --latest || true
+            for i in 1 2 3; do gh release upload "$VERSION" "$RUNNER_TEMP/ProjectClub-Setup-Windows.exe" --repo "$REPO" --clobber && break || { echo "Tentativa $i falhou, esperando..."; sleep 10; }; done
+            # Item pedido: sistema de atualização automática — esses 2
+            # arquivos são o que o electron-updater, já instalado nos
+            # apps das pessoas, vai procurar sozinho pra saber se tem
+            # versão nova (latest.yml) e baixar só a diferença de bytes
+            # em vez do instalador inteiro de novo (.blockmap).
+            for i in 1 2 3; do gh release upload "$VERSION" "$RUNNER_TEMP/ProjectClub-Setup-Windows.exe.blockmap" --repo "$REPO" --clobber && break || { echo "Tentativa $i falhou, esperando..."; sleep 10; }; done
+            for i in 1 2 3; do gh release upload "$VERSION" "$RUNNER_TEMP/latest.yml" --repo "$REPO" --clobber && break || { echo "Tentativa $i falhou, esperando..."; sleep 10; }; done
+          }
+          export GH_TOKEN="$OWN_TOKEN"; publish "${{ github.repository }}"
+
+  build-linux:
+    needs: compute-version
+    permissions:
+      contents: write
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: desktop
+    steps:
+      - uses: actions/checkout@v4
+      # Desktop sem mudança: reaproveita o instalador da versão anterior
+      # (mesmo arquivo, mesmo latest.yml com a versão antiga) em vez de
+      # gerar outro — os apps instalados não veem "atualização" à toa.
+      - name: Reaproveitar o app da versão anterior (desktop sem mudança)
+        id: reuse
+        if: needs.compute-version.outputs.desktop_changed == 'false'
+        shell: bash
+        working-directory: .
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -e
+          PREV="${{ needs.compute-version.outputs.last_tag }}"
+          VERSION="${{ needs.compute-version.outputs.version }}"
+          REPO="${{ github.repository }}"
+          mkdir -p "$RUNNER_TEMP/prev"
+          if ! gh release download "$PREV" --repo "$REPO" --dir "$RUNNER_TEMP/prev" -p 'ProjectClub-Linux.AppImage' -p 'latest-linux.yml' --clobber; then
+            echo "Versão anterior sem os arquivos; vai gerar de novo."; exit 0
+          fi
+          for f in ProjectClub-Linux.AppImage latest-linux.yml; do [ -f "$RUNNER_TEMP/prev/$f" ] || { echo "Falta $f na $PREV; vai gerar de novo."; exit 0; }; done
+          gh release view "$VERSION" --repo "$REPO" >/dev/null 2>&1 || \
+            gh release create "$VERSION" --repo "$REPO" --title "$VERSION" --notes "Gerado automaticamente pelo GitHub Actions." --latest || true
+          for f in ProjectClub-Linux.AppImage latest-linux.yml; do
+            for i in 1 2 3; do gh release upload "$VERSION" "$RUNNER_TEMP/prev/$f" --repo "$REPO" --clobber && break || sleep 10; done
+          done
+          echo "ok=true" >> "$GITHUB_OUTPUT"
+      - uses: actions/setup-node@v4
+        if: steps.reuse.outputs.ok != 'true'
+        with:
+          node-version: 22
+      - name: Instalar dependências
+        if: steps.reuse.outputs.ok != 'true'
+        run: npm install
+      - name: Gravar a versão no app
+        if: steps.reuse.outputs.ok != 'true'
+        run: npm version "${{ needs.compute-version.outputs.version }}" --no-git-tag-version --allow-same-version
+      - name: Gerar o AppImage
+        if: steps.reuse.outputs.ok != 'true'
+        run: npm run build:linux
+      # Mesmo raciocínio da correção feita no job do Windows: o
+      # electron-builder gera o latest-linux.yml apontando pro nome
+      # ORIGINAL do AppImage (com a versão no nome), mas o passo
+      # seguinte renomeia o arquivo pra um nome FIXO (pra manter a URL
+      # de download sempre igual no site) — sem essa correção, o
+      # electron-updater instalado nos apps das pessoas tentaria baixar
+      # um arquivo com o nome errado.
+      - name: Corrigir latest-linux.yml pro nome fixo do AppImage
+        if: steps.reuse.outputs.ok != 'true'
+        run: |
+          set -e
+          pip install pyyaml --quiet
+          python3 -c "
+          import yaml, glob, os
+          appimage_name = os.path.basename(glob.glob('dist/*.AppImage')[0])
+          with open('dist/latest-linux.yml') as f:
+              data = yaml.safe_load(f)
+          data['path'] = 'ProjectClub-Linux.AppImage'
+          for entry in data.get('files', []):
+              entry['url'] = 'ProjectClub-Linux.AppImage'
+          with open('dist/latest-linux.yml', 'w') as f:
+              yaml.safe_dump(data, f, default_flow_style=False, sort_keys=False)
+          blockmap_src = f'dist/{appimage_name}.blockmap'
+          if os.path.exists(blockmap_src):
+              os.rename(blockmap_src, 'dist/ProjectClub-Linux.AppImage.blockmap')
+          print('AppImage original era:', appimage_name)
+          "
+      - name: Publicar na Release "latest"
+        if: steps.reuse.outputs.ok != 'true'
+        env:
+          OWN_TOKEN: ${{ github.token }}
+        run: |
+          set -e
+          APPIMAGE_PATH=$(ls dist/*.AppImage | head -n 1)
+          cp "$APPIMAGE_PATH" "$RUNNER_TEMP/ProjectClub-Linux.AppImage"
+          cp "dist/latest-linux.yml" "$RUNNER_TEMP/latest-linux.yml"
+          # Publica neste repositório (lugar oficial dos downloads).
+          publish() {
+            REPO="$1"
+            # Item pedido: "não quero que apague as versões antigas" —
+            # mesmo raciocínio do Windows: cada build cria a SUA PRÓPRIA
+            # release (com a versão de verdade), em vez de reescrever
+            # sempre a mesma release "latest" por cima.
+            VERSION="${{ needs.compute-version.outputs.version }}"
+            gh release view "$VERSION" --repo "$REPO" >/dev/null 2>&1 || \
+              gh release create "$VERSION" --repo "$REPO" --title "$VERSION" \
+                --notes "Gerado automaticamente pelo GitHub Actions." --latest || true
+            for i in 1 2 3; do gh release upload "$VERSION" "$RUNNER_TEMP/ProjectClub-Linux.AppImage" --repo "$REPO" --clobber && break || { echo "Tentativa $i falhou, esperando..."; sleep 10; }; done
+            for i in 1 2 3; do gh release upload "$VERSION" "$RUNNER_TEMP/latest-linux.yml" --repo "$REPO" --clobber && break || { echo "Tentativa $i falhou, esperando..."; sleep 10; }; done
+            # O .blockmap só existe se o electron-builder decidiu gerar um
+            # (depende de configuração/versão) — sobe só se existir de
+            # verdade, sem quebrar o passo se não tiver sido gerado.
+            if [ -f "dist/ProjectClub-Linux.AppImage.blockmap" ]; then
+              cp "dist/ProjectClub-Linux.AppImage.blockmap" "$RUNNER_TEMP/ProjectClub-Linux.AppImage.blockmap"
+              for i in 1 2 3; do gh release upload "$VERSION" "$RUNNER_TEMP/ProjectClub-Linux.AppImage.blockmap" --repo "$REPO" --clobber && break || { echo "Tentativa $i falhou, esperando..."; sleep 10; }; done
+            fi
+          }
+          export GH_TOKEN="$OWN_TOKEN"; publish "${{ github.repository }}"
+
+  build-android:
+    needs: compute-version
+    permissions:
+      contents: write
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          # O Capacitor CLI 8.x exige Node 22+ de verdade (os outros dois
+          # jobs usam Node 20 sem problema — só o Capacitor é mais exigente).
+          node-version: 22
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 21
+      # O runner do GitHub (ubuntu-latest) já vem com o Android SDK
+      # instalado em $ANDROID_HOME — a action setup-android@v3 vinha
+      # falhando ao baixar as ferramentas e travava o APK. Agora ela só
+      # roda como reserva, e o build usa o SDK que já existe no runner.
+      # O runner já vem com o Android SDK; a action só fica de reserva.
+      - name: Instalar o Android SDK
+        uses: android-actions/setup-android@v3
+        continue-on-error: true
+      - name: Usar o Android SDK do runner
+        run: |
+          SDK="${ANDROID_HOME:-${ANDROID_SDK_ROOT:-/usr/local/lib/android/sdk}}"
+          echo "ANDROID_HOME=$SDK" >> "$GITHUB_ENV"
+          echo "ANDROID_SDK_ROOT=$SDK" >> "$GITHUB_ENV"
+          SDKM="$SDK/cmdline-tools/latest/bin/sdkmanager"
+          if [ -x "$SDKM" ]; then yes | "$SDKM" --licenses > /dev/null || true; fi
+        continue-on-error: true
+      - name: Usar o Android SDK do runner
+        run: |
+          SDK="${ANDROID_HOME:-${ANDROID_SDK_ROOT:-/usr/local/lib/android/sdk}}"
+          echo "ANDROID_HOME=$SDK" >> "$GITHUB_ENV"
+          echo "ANDROID_SDK_ROOT=$SDK" >> "$GITHUB_ENV"
+          SDKM="$SDK/cmdline-tools/latest/bin/sdkmanager"
+          if [ -x "$SDKM" ]; then yes | "$SDKM" --licenses > /dev/null || true; fi
+          ls "$SDK/platforms" || true
+      # O ProjectClub.apk oficial agora é o APP NATIVO (android-nativo/), com
+      # o mesmo pacote (com.projectclub.app) e a mesma chave do app antigo:
+      # quem tem o app antigo recebe o nativo como atualização normal.
+      # android-native.json: diz ao app antigo se ele precisa baixar este .apk
+      # (impressão digital do projeto nativo; mudou = atualização obrigatória).
+      - name: Impressão digital da parte nativa (android-native.json)
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VERSION: ${{ needs.compute-version.outputs.version }}
+          FORCE_NATIVE: ${{ github.event.inputs.force_native_update || 'false' }}
+        run: |
+          set -e
+          NATIVE_HASH=$(git ls-files -z android-nativo | sort -z | xargs -0 sha256sum | sha256sum | cut -d' ' -f1)
+          echo "Impressão digital nativa: $NATIVE_HASH"
+          mkdir -p "$RUNNER_TEMP/prev-native"
+          PREV=""
+          for TAG in $(gh release list --repo "${{ github.repository }}" --exclude-drafts --limit 30 --json tagName -q '.[].tagName'); do
+            [ "$TAG" = "$VERSION" ] && continue
+            if gh release download "$TAG" --repo "${{ github.repository }}" --pattern android-native.json --dir "$RUNNER_TEMP/prev-native" --clobber >/dev/null 2>&1; then
+              PREV="$RUNNER_TEMP/prev-native/android-native.json"; echo "Release anterior com android-native.json: $TAG"; break
+            fi
+          done
+          python3 .github/scripts/android_native_manifest.py "$PREV" "$NATIVE_HASH" "$VERSION" "$FORCE_NATIVE" > "$RUNNER_TEMP/android-native.json"
+          cat "$RUNNER_TEMP/android-native.json"
+      - uses: gradle/actions/setup-gradle@v4
+      - name: Firebase (se já estiver configurado)
+        env:
+          GS: ${{ secrets.GOOGLE_SERVICES_JSON_BASE64 }}
+        run: |
+          if [ -n "$GS" ]; then echo "$GS" | base64 -d > android-nativo/app/google-services.json; echo "Firebase ligado"; else echo "Sem Firebase"; fi
+      - name: Decodificar a chave de assinatura
+        run: echo "${{ secrets.ANDROID_KEYSTORE_BASE64 }}" | base64 -d > android-nativo/app/release.keystore
+      - name: Gerar o .apk assinado (app nativo)
+        working-directory: android-nativo
+        env:
+          ANDROID_KEYSTORE_PATH: release.keystore
+          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+          KLIPY_KEY: ${{ secrets.KLIPY_KEY }}
+        run: |
+          set -o pipefail
+          export APP_VERSION="${{ needs.compute-version.outputs.version }}"
+          # versionCode = minutos desde 1970: sempre maior que o do app antigo (1)
+          # e que o de qualquer build anterior do nativo.
+          export APP_VERSION_CODE=$(( $(date +%s) / 60 ))
+          chmod +x gradlew
+          ./gradlew assembleRelease --stacktrace 2>&1 | tee /tmp/gradle.log || {
+            ERR=$(grep -m6 -E "^e: |What went wrong|Error:|error:" -A6 /tmp/gradle.log | tr '\n' ' ' | cut -c1-3500)
+            echo "::error title=Android build falhou::${ERR:-sem detalhe no log}"
+            exit 1
+          }
+      - name: Publicar na Release "latest"
+        env:
+          OWN_TOKEN: ${{ github.token }}
+        run: |
+          set -e
+          # Com APK por processador (splits), o oficial é o universal.
+          APK_PATH=$(find android-nativo/app/build/outputs/apk/release -name "*universal*.apk" | head -n 1)
+          [ -n "$APK_PATH" ] || APK_PATH=$(find android-nativo/app/build/outputs/apk/release -name "*.apk" | head -n 1)
+          cp "$APK_PATH" "$RUNNER_TEMP/ProjectClub.apk"
+          # Publica neste repositório (lugar oficial dos downloads).
+          publish() {
+            REPO="$1"
+            # Item pedido: "não quero que apague as versões antigas" —
+            # mesmo raciocínio dos outros dois: cada build cria a SUA
+            # PRÓPRIA release (com a versão de verdade), em vez de
+            # reescrever sempre a mesma release "latest" por cima.
+            VERSION="${{ needs.compute-version.outputs.version }}"
+            gh release view "$VERSION" --repo "$REPO" >/dev/null 2>&1 || \
+              gh release create "$VERSION" --repo "$REPO" --title "$VERSION" \
+                --notes "Gerado automaticamente pelo GitHub Actions." --latest || true
+            for i in 1 2 3; do gh release upload "$VERSION" "$RUNNER_TEMP/ProjectClub.apk" --repo "$REPO" --clobber && break || { echo "Tentativa $i falhou, esperando..."; sleep 10; }; done
+            # Diz ao servidor (GET /api/mobile/update) se este .apk é
+            # obrigatório ou se os apps já instalados continuam servindo.
+            for i in 1 2 3; do gh release upload "$VERSION" "$RUNNER_TEMP/android-native.json" --repo "$REPO" --clobber && break || { echo "Tentativa $i falhou, esperando..."; sleep 10; }; done
+          }
+          export GH_TOKEN="$OWN_TOKEN"; publish "${{ github.repository }}"
+
+  # Item pedido: "quando lançar uma nova release, quero que apareça no
+  # app pedindo pra atualizar, e quando atualizar mande uma mensagem
+  # falando o que tem de novo" — só roda DEPOIS que os 3 builds
+  # terminarem com sucesso (needs), então version.json e a "Atualização"
+  # só aparecem quando os arquivos de verdade já estão publicados — nunca
+  # antes, o que anunciaria uma versão que ainda não existe pra baixar.
+  finalize:
+    needs: [compute-version, build-windows, build-linux, build-android]
+    # O app de PC (Windows/Linux) não fica mais preso esperando o Android:
+    # se os dois de PC deram certo, a versão é publicada mesmo que o
+    # build do Android tenha falhado.
+    if: ${{ !cancelled() && needs.build-windows.result == 'success' && needs.build-linux.result == 'success' }}
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Decodificar o changelog
+        id: changelog
+        run: |
+          echo "${{ needs.compute-version.outputs.changelog_b64 }}" | base64 -d > /tmp/changelog.txt
+          echo "text<<CHANGELOG_EOF" >> "$GITHUB_OUTPUT"
+          cat /tmp/changelog.txt >> "$GITHUB_OUTPUT"
+          echo "CHANGELOG_EOF" >> "$GITHUB_OUTPUT"
+
+      # Cria a tag oficial (vMAJOR.MINOR.PATCH) no repositório principal —
+      # só depois que os 3 apps já publicaram com sucesso (needs acima),
+      # pra nunca marcar uma versão que não terminou de ser gerada.
+      # GITHUB_TOKEN (automático, sem precisar de secret próprio) já tem
+      # permissão de escrita neste MESMO repositório.
+      - name: Criar a tag de versão
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -e
+          git config user.name "Project Club CI"
+          git config user.email "noreply@projectclub.local"
+          VERSION="${{ needs.compute-version.outputs.version }}"
+          # BUG CORRIGIDO ("Criar a tag de versão" falhando): se dois
+          # builds rodarem sem nenhum commit novo entre eles (ex: disparo
+          # manual repetido), a versão calculada é EXATAMENTE a mesma —
+          # criar uma tag que já existe falha. Isso não é um erro de
+          # verdade (só significa "essa versão já foi marcada"), então
+          # detecta e pula em vez de derrubar o job inteiro.
+          # A release (criada pelos jobs de build) já pode ter criado a tag no
+          # GitHub — confere lá, não só no clone local (que vem sem tags).
+          if git rev-parse "$VERSION" >/dev/null 2>&1 || git ls-remote --exit-code --tags origin "refs/tags/$VERSION" >/dev/null 2>&1; then
+            echo "Tag $VERSION já existe — pulando (nenhum commit novo desde a última vez)."
+          else
+            git tag -a "$VERSION" -m "$(cat /tmp/changelog.txt)"
+            git push origin "$VERSION"
+          fi
+
+      - name: Atualizar as notas da GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release edit "${{ needs.compute-version.outputs.version }}" --repo "${{ github.repository }}" \
+            --title "Project Club ${{ needs.compute-version.outputs.version }}" \
+            --notes-file /tmp/changelog.txt || true
+
+      - name: Avisar o site (Atualizações + verificação de versão nova)
+        if: needs.compute-version.outputs.apps_changed == 'true'
+        env:
+          CI_UPDATE_SECRET: ${{ secrets.CI_UPDATE_SECRET }}
+        run: |
+          python3 -c "
+          import json, urllib.request
+          notes = open('/tmp/changelog.txt', encoding='utf-8').read().strip()
+          body = json.dumps({'version': '${{ needs.compute-version.outputs.version }}', 'notes': notes}).encode()
+          req = urllib.request.Request(
+              'https://projectclub.shardweb.app/api/system/publish-release',
+              data=body, method='POST',
+              headers={'Content-Type': 'application/json', 'X-CI-Secret': '$CI_UPDATE_SECRET'},
+          )
+          try:
+              urllib.request.urlopen(req, timeout=15)
+              print('Site avisado com sucesso.')
+          except Exception as e:
+              print('Aviso: não foi possível notificar o site (site fora do ar?):', e)
+          "

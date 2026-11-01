@@ -1,0 +1,2051 @@
+import UnreadCountBadge from './UnreadCountBadge.jsx';
+import { convertEmoticons } from '../utils/extraPrefs';
+import { setConversationInbox } from '../api/endpoints';
+import MiniJogosComposerButton from '../minijogos/MiniJogosComposerButton.jsx';
+import { Fragment, Suspense, memo, useEffect, useMemo, useRef, useState, useLayoutEffect } from 'react';
+import { lazyWithRetry as lazy } from '../utils/lazyWithRetry';
+import { useElementHeight } from '../utils/useElementHeight';
+import { createPortal } from 'react-dom';
+import { useParams, useNavigate } from 'react-router-dom';
+import { useStore, roomKeyFor, isChannelUnread } from '../store/useStore';
+import { useAuth } from '../context/AuthContext.jsx';
+import { useSocket } from '../context/SocketContext.jsx';
+import { useVoice } from '../context/VoiceContext.jsx';
+import { preloadMediasoup } from '../voice/mediasoupEngine.js';
+import { resolveDesktopGifMenuStyle, resolveMobileGifMenuStyle } from '../utils/gifMenuLayout';
+import { cssZoom } from '../utils/cssZoom';
+import { mergeLatestMessages } from '../utils/messageMerge';
+import { listMessages } from '../api/endpoints';
+import { deliverMessage } from '../utils/messageSender';
+import { loadCachedRoom, saveCachedRoom, forgetCachedRoom } from '../utils/messageCache';
+import { useSwipeToReply } from '../utils/useSwipeToReply';
+import { compressImageFile, isCompressibleType, COMPRESS_MIN_BYTES } from '../utils/imageCompress';
+import { queueRead } from '../utils/readMarker';
+import Message from './Message.jsx';
+import ErrorBoundary from './ErrorBoundary.jsx';
+import RulesChannelView from './RulesChannelView.jsx';
+import EmojiPicker from './EmojiPicker.jsx';
+import RichMessageInput from './RichMessageInput.jsx';
+import UserAvatar from './UserAvatar.jsx';
+import ThreadPanel, { ThreadsButton } from './ThreadPanel.jsx';
+import StatusEmoji from './StatusEmoji.jsx';
+import MessageContextModal from './modals/MessageContextModal.jsx';
+import { windowReachesLoaded } from '../utils/chatFeatures';
+import PollComposerModal from './modals/PollComposerModal.jsx';
+import GroupSettingsModal from './modals/GroupSettingsModal.jsx';
+import ScheduleMessageModal from './modals/ScheduleMessageModal.jsx';
+import ScheduledMessagesChip from './ScheduledMessagesChip.jsx';
+import ConversationIcon from './ConversationIcon.jsx';
+import ChannelSwitcher from './ChannelSwitcher.jsx';
+import { DMSwitcher } from './DMQuick.jsx';
+import ChannelTypeIcon from './ChannelTypeIcon.jsx';
+import { CustomIcon, hasCustomIcon } from './ChannelIcon.jsx';
+import { getMyCommunityPermissions, hasPermission } from '../utils/permissions';
+import { TYPE_ICON } from '../utils/channelIcons';
+import PresenceDot from './PresenceDot.jsx';
+import { usePopoverCoordination } from '../utils/popoverCoordinator';
+import ChatIcon from './ChatIcons.jsx';
+import { STATUS_LABEL } from '../utils/status';
+import PenguinAvatar, { isPenguinAvatarUrl, penguinColorFromUrl } from './PenguinAvatar.jsx';
+import { usePinnedMessages, PinnedButton, PinnedStrip } from './PinnedMessages.jsx';
+import NavIcon from './NavIcons.jsx';
+import ChannelSearchPanel from './ChannelSearchPanel.jsx';
+import { SeenReceipt } from './MessageExtras.jsx';
+import ImageCropModal, { canCropFile } from './ImageCropModal.jsx';
+import { requestEdit, loadDraft, saveDraft } from '../utils/chatComposerBus';
+import '../styles/chat.css';
+import '../styles/nav.css';
+import '../styles/speed.css';
+import { channelPath } from '../utils/prettyLinks';
+// Tela de canal de voz: pacote próprio, baixado só ao abrir um canal de voz.
+const VoiceChannelView = lazy(() => import('./VoiceChannelView.jsx'));
+
+// BUG CORRIGIDO: <img src={dmOther.avatarUrl}> quebrava (bloqueado pela
+// CSP img-src) quando a outra pessoa da DM tem avatar de pinguim
+// (pseudo-URL "penguin:<cor>", não uma URL de rede de verdade) — ver
+// PenguinAvatar.jsx.
+function HeaderAvatarImg({ url, size = 28 }) {
+  if (isPenguinAvatarUrl(url)) return <PenguinAvatar color={penguinColorFromUrl(url)} size={size} />;
+  return <img src={url} alt="" />;
+}
+
+// Below 900px .members-list becomes an off-canvas drawer (see global.css) —
+// this button, next to the channel name in the header, is what pulls
+// it in from the right, since there's no room to show it inline alongside
+// the chat anymore. Hidden on desktop/tablet-wide via CSS, where the
+// members list is already visible inline.
+// Item pedido: "colocar ícones melhores no mobile que representem a
+// página de membros" — a seta "❮" antes não dizia nada sobre o que o
+// botão fazia; 👥 já comunica "membros" antes mesmo de tocar.
+// (Agora um ícone SVG de pessoas — emoji vira quadradinho em alguns sistemas.)
+function MembersToggleButton({ title = 'Membros da comunidade' }) {
+  const toggleMobileMembers = useStore((s) => s.toggleMobileMembers);
+  return (
+    <button className="icon-btn mobile-members-toggle chat-header-btn" onClick={toggleMobileMembers} title={title} aria-label={title}><ChatIcon name="users" /></button>
+  );
+}
+
+// Separador de dia entre mensagens: "Hoje", "Ontem" ou "08 de outubro".
+function dayKeyOf(date) {
+  const d = new Date(date);
+  return `${d.getFullYear()}-${d.getMonth()}-${d.getDate()}`;
+}
+function dayLabelOf(iso) {
+  const d = new Date(iso);
+  const today = new Date();
+  const yesterday = new Date(); yesterday.setDate(today.getDate() - 1);
+  const key = dayKeyOf(d);
+  if (key === dayKeyOf(today)) return 'Hoje';
+  if (key === dayKeyOf(yesterday)) return 'Ontem';
+  return d.toLocaleDateString('pt-BR', { day: '2-digit', month: 'long', ...(d.getFullYear() !== today.getFullYear() ? { year: 'numeric' } : {}) });
+}
+function DaySeparator({ iso }) {
+  return (
+    <div className="chat-day-sep" role="separator">
+      <span className="chat-day-sep-label">{dayLabelOf(iso)}</span>
+    </div>
+  );
+}
+
+const TYPING_TIMEOUT = 3000;
+// Mensagens seguidas da mesma pessoa dentro desse intervalo ficam agrupadas
+// (sem repetir avatar/nome; a hora aparece no canto esquerdo ao passar o mouse).
+const GROUP_WINDOW_MS = 7 * 60 * 1000;
+
+// Prévia da mensagem respondida, mostrada acima do campo de digitar:
+// trecho de texto (sem tokens de canal/emoji crus) e miniatura se for imagem.
+const REPLY_BARE_IMAGE_RE = /^https?:\/\/\S+\.(gif|png|jpe?g|webp)(\?\S*)?$/i;
+const REPLY_LABEL_ATTACHMENT = 'Anexo';
+const REPLY_LABEL_STICKER = 'Figurinha';
+const REPLY_LABEL_POLL = 'Enquete';
+const REPLY_LABEL_IMAGE = 'Imagem';
+function replyPreviewOf(msg) {
+  if (!msg) return { text: '', thumb: null };
+  const raw = (msg.content || '').trim();
+  const firstImage = (msg.attachments || []).find((a) => a.mimeType?.startsWith('image/') && !a.isSpoiler);
+  if (raw && REPLY_BARE_IMAGE_RE.test(raw)) return { text: REPLY_LABEL_IMAGE, thumb: raw };
+  if (msg.stickerUrl) return { text: REPLY_LABEL_STICKER, thumb: msg.stickerUrl };
+  const text = raw
+    .replace(/<#[^>]+>/g, '#canal')
+    .replace(/\s+/g, ' ')
+    .slice(0, 140);
+  if (text) return { text, thumb: firstImage?.url || null };
+  if (firstImage) return { text: REPLY_LABEL_IMAGE, thumb: firstImage.url };
+  if (msg.attachments?.length) return { text: msg.attachments[0].filename || REPLY_LABEL_ATTACHMENT, thumb: null };
+  if (msg.poll) return { text: msg.poll.question || REPLY_LABEL_POLL, thumb: null };
+  return { text: REPLY_LABEL_ATTACHMENT, thumb: null };
+}
+
+function formatFileSize(bytes) {
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${Math.round(bytes / 1024)} KB`;
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+}
+
+// Matches the server's default MAX_UPLOAD_MB (server/.env) — validating
+// client-side too means someone gets told immediately, instead of only
+// after waiting for the whole file to upload and the server to reject it.
+// If MAX_UPLOAD_MB is changed on the server, update this to match.
+const MAX_UPLOAD_MB = 25;
+const MAX_UPLOAD_BYTES = MAX_UPLOAD_MB * 1024 * 1024;
+// Item pedido: "só pode enviar 10 imagem, arquivo etc de uma vez"
+const MAX_FILES_COUNT = 10;
+
+const MENTION_RE = /@([a-zA-Z0-9_ ]{0,24})$/;
+// "$nome" também marca pessoas (vira o mesmo @nome de sempre) e "#canal"
+// sugere canais de texto/voz (vira o token <#id>, ver channelMentions.js).
+// Só no começo ou depois de espaço, pra "R$ 10" ou "C#" não abrirem nada.
+const DOLLAR_MENTION_RE = /(^|\s)\$([^\s$]{0,24})$/;
+const CHANNEL_MENTION_TYPING_RE = /(^|\s)#([^\s#<>]{0,32})$/;
+const normName = (v) => (v || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/\s+/g, '');
+
+function findChannel(categories, channels, channelId) {
+  const all = [...channels, ...categories.flatMap((c) => c.channels)];
+  return all.find((c) => c.id === channelId) || null;
+}
+
+// Item pedido: otimização/velocidade. Uma referência ESTÁVEL e
+// compartilhada pra "sem tópicos" — `topics={algumMapa.get(id) || []}`
+// parece inofensivo, mas cria um ARRAY NOVO a cada render pra qualquer
+// mensagem sem tópico, mesmo quando nada mudou de verdade. Isso sozinho
+// já quebraria o React.memo(Message) logo abaixo (a comparação rasa vê
+// uma referência diferente e re-renderiza mesmo sem necessidade) — com
+// essa constante única reaproveitada sempre que não há tópicos, a
+// referência se mantém igual entre renders, e o memo funciona de
+// verdade.
+const EMPTY_TOPICS = [];
+// Mesma ideia pros seletores da store: `|| []` dentro do seletor cria um
+// array NOVO a cada mudança QUALQUER da store (presença, atividade,
+// digitando em outra sala...), e o zustand entende isso como "mudou" —
+// o chat inteiro re-renderizava a cada evento do socket, inclusive
+// enquanto a pessoa digitava (causa dos engasgos/pulos na digitação).
+const EMPTY_MESSAGES = [];
+const EMPTY_TYPING = [];
+
+// Rola a lista até o fim mexendo SÓ nela — scrollIntoView também rola os
+// "pais" (a página, o app-shell, a tela com o teclado do celular aberto),
+// o que fazia a interface inteira dar pulinhos enquanto digitava.
+function scrollListToBottom(list, behavior) {
+  if (!list) return;
+  const top = list.scrollHeight - list.clientHeight;
+  if (behavior && behavior !== 'auto' && typeof list.scrollTo === 'function') list.scrollTo({ top, behavior });
+  else list.scrollTop = top;
+}
+
+// Casca fina que só lê os parâmetros da rota. O contexto do roteador
+// muda a CADA render do MainApp (que re-renderiza a cada evento do
+// socket), e quem chama useParams re-renderiza junto — por isso o chat
+// de verdade (ChatWindowInner, com memo) recebe só os ids prontos e fica
+// imune a esses re-renders do pai (antes: 1 re-render do chat inteiro
+// por evento de presença/digitando, inclusive enquanto a pessoa digitava).
+// Links bonitos: as rotas /canal/:ref e /dm/:ref já resolvem o nome pro id
+// e passam pronto (ver PrettyRoutes.jsx); useParams fica de reserva.
+export default function ChatWindow({ kind, channelId: propChannelId, conversationId: propConversationId }) {
+  const params = useParams();
+  const conversationId = kind === 'conversation' ? (propConversationId ?? params.conversationId) : null;
+  const channelId = kind === 'channel' ? (propChannelId ?? params.channelId) : null;
+  return <ChatWindowMemo conversationId={conversationId || null} channelId={channelId || null} />;
+}
+
+function ChatWindowInner({ conversationId, channelId }) {
+  const roomKey = roomKeyFor({ conversationId, channelId });
+  const navigate = useNavigate();
+
+  const { user } = useAuth();
+  const { socket } = useSocket();
+  const voice = useVoice();
+  // Item pedido: "menu fica em cima da barra de escrever mensagens" —
+  // mede a altura real da barra pra posicionar o popover logo acima
+  // dela, se ajustando sozinho quando ela cresce (resposta ativa,
+  // arquivo anexado, etc — ver useElementHeight.js).
+  const [composerBarRef, composerBarHeight] = useElementHeight();
+
+  // Kept in the store purely so SocketContext.jsx's `message:new` handler
+  // can tell "is this message for the exact channel/DM I'm already looking
+  // at right now?" and skip the notification sound for it — without this,
+  // every incoming message played a sound even while its own conversation
+  // was open and on-screen. Cleared on unmount so switching away (closing
+  // the app, going back to the server list) doesn't leave a stale id behind
+  // that would wrongly keep suppressing sounds for a channel you've left.
+  const setActiveChannel = useStore((s) => s.setActiveChannel);
+  const setActiveConversation = useStore((s) => s.setActiveConversation);
+  useEffect(() => {
+    if (channelId) setActiveChannel(channelId);
+    else if (conversationId) setActiveConversation(conversationId);
+    return () => {
+      if (channelId) setActiveChannel(null);
+      else if (conversationId) setActiveConversation(null);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [channelId, conversationId]);
+  const messages = useStore((s) => s.messagesByRoom[roomKey] || EMPTY_MESSAGES);
+  // Every message whose replyToId points at another message *and* carries a
+  // title is a topic/thread root (see Message.jsx's "Criar tópico" action) —
+  // grouped by parent so each parent message can show its own topic pills.
+  const topicsByParent = useMemo(() => {
+    const map = new Map();
+    messages.forEach((mm) => {
+      if (mm.title && mm.replyToId) {
+        if (!map.has(mm.replyToId)) map.set(mm.replyToId, []);
+        map.get(mm.replyToId).push(mm);
+      }
+    });
+    return map;
+  }, [messages]);
+  const setRoomMessages = useStore((s) => s.setRoomMessages);
+  const typingUserIds = useStore((s) => s.typing[roomKey] || EMPTY_TYPING);
+  const conversations = useStore((s) => s.conversations);
+  const categories = useStore((s) => s.categories);
+  const channels = useStore((s) => s.channels);
+  const members = useStore((s) => s.members);
+  const roles = useStore((s) => s.roles);
+  const markConversationReadLocal = useStore((s) => s.markConversationReadLocal);
+  const markChannelReadLocal = useStore((s) => s.markChannelReadLocal);
+
+  const [content, setContent] = useState(() => loadDraft(roomKey));
+  // Anexos na bandeja: { id, file (original), spoiler, compressed (File
+  // menor, quando valeu a pena), saved (bytes economizados), compressing }.
+  const [files, setFiles] = useState([]);
+  // "Enviar original" na bandeja: pula a compressão das fotos desta vez.
+  const [sendOriginal, setSendOriginal] = useState(false);
+  // id do anexo -> { source: File, promise } da compressão em andamento.
+  const compressJobsRef = useRef(new Map());
+  const newFileEntry = (file) => ({
+    id: `f-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+    file, spoiler: false, compressed: null, saved: 0, compressing: isCompressibleType(file.type),
+  });
+  // Começa a comprimir a foto em segundo plano (sem travar a digitação).
+  const startCompression = (entry) => {
+    if (!entry.compressing) return entry;
+    const source = entry.file;
+    const promise = compressImageFile(source).then(({ file, saved }) => {
+      setFiles((list) => list.map((x) => (x.id === entry.id && x.file === source ? { ...x, compressed: file, saved, compressing: false } : x)));
+      return file;
+    });
+    compressJobsRef.current.set(entry.id, { source, promise });
+    if (compressJobsRef.current.size > 40) compressJobsRef.current.delete(compressJobsRef.current.keys().next().value);
+    return entry;
+  };
+  // Rascunho por canal/conversa: troca de sala salva o texto da anterior
+  // e carrega o da nova; enquanto digita, salva com um pequeno atraso.
+  const contentRef = useRef(content);
+  contentRef.current = content;
+  const draftRoomRef = useRef(roomKey);
+  useEffect(() => {
+    if (draftRoomRef.current !== roomKey) setContent(loadDraft(roomKey));
+    draftRoomRef.current = roomKey;
+    return () => saveDraft(roomKey, contentRef.current);
+  }, [roomKey]);
+  useEffect(() => {
+    const key = draftRoomRef.current;
+    const t = setTimeout(() => saveDraft(key, content), 300);
+    return () => clearTimeout(t);
+  }, [content]);
+  const [replyTo, setReplyTo] = useState(null);
+  // Ao clicar em Responder, o campo de mensagem já recebe o foco.
+  useEffect(() => {
+    if (!replyTo) return undefined;
+    const id = requestAnimationFrame(() => inputRef.current?.focus());
+    return () => cancelAnimationFrame(id);
+  }, [replyTo]);
+  // Item pedido ("pulinho" ao mandar mensagem): a barra de "respondendo
+  // a" e a de anexos pendentes somem instantaneamente quando a mensagem
+  // é enviada (o estado zera na hora) — sem transição nenhuma, o resto
+  // do campo de digitação e a lista de mensagens acima dela pulam de
+  // repente pro lugar novo. `replyToVisible`/`filesVisible` copiam o
+  // valor real, mas com um pequeno atraso só na hora de SUMIR — dá
+  // tempo da transição de CSS (ver .reply-bar/.pending-files no
+  // global.css) encolher suavemente antes do elemento realmente deixar
+  // de existir, em vez de piscar sumido na hora.
+  const [replyToVisible, setReplyToVisible] = useState(null);
+  const [filesVisible, setFilesVisible] = useState([]);
+  // Item pedido: "se enviar vários arquivos de imagem junto vai ficar
+  // um quadradinho de cada" — pré-visualização de verdade de cada
+  // imagem antes de mandar (não só o nome do arquivo em texto). Uma
+  // Object URL por arquivo, liberada quando o arquivo em questão sai
+  // da lista (evita vazar memória segurando imagem que ninguém vê
+  // mais).
+  const [filePreviews, setFilePreviews] = useState([]);
+  // Uma URL por ARQUIVO (não por render): a bandeja muda quando a
+  // compressão de uma foto termina, e recriar as URLs fazia as miniaturas piscarem.
+  const previewUrlsRef = useRef(new Map()); // File -> object URL
+  useEffect(() => {
+    const map = previewUrlsRef.current;
+    const live = new Set();
+    const urls = filesVisible.map((f) => {
+      if (!(f.file.type.startsWith('image/') || f.file.type.startsWith('video/'))) return null;
+      live.add(f.file);
+      if (!map.has(f.file)) map.set(f.file, URL.createObjectURL(f.file));
+      return map.get(f.file);
+    });
+    map.forEach((url, file) => { if (!live.has(file)) { URL.revokeObjectURL(url); map.delete(file); } });
+    setFilePreviews(urls);
+  }, [filesVisible]);
+  useEffect(() => () => {
+    previewUrlsRef.current.forEach((url) => URL.revokeObjectURL(url));
+    previewUrlsRef.current.clear();
+  }, []);
+  const [replyBarLeaving, setReplyBarLeaving] = useState(false);
+  const [filesBarLeaving, setFilesBarLeaving] = useState(false);
+  useEffect(() => {
+    if (replyTo) {
+      setReplyToVisible(replyTo);
+      setReplyBarLeaving(false);
+    } else if (replyToVisible) {
+      setReplyBarLeaving(true);
+      const t = setTimeout(() => { setReplyToVisible(null); setReplyBarLeaving(false); }, 150);
+      return () => clearTimeout(t);
+    }
+  }, [replyTo]); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => {
+    if (files.length > 0) {
+      setFilesVisible(files);
+      setFilesBarLeaving(false);
+    } else if (filesVisible.length > 0) {
+      setFilesBarLeaving(true);
+      const t = setTimeout(() => { setFilesVisible([]); setFilesBarLeaving(false); }, 150);
+      return () => clearTimeout(t);
+    }
+  }, [files]); // eslint-disable-line react-hooks/exhaustive-deps
+  const [searchOpen, setSearchOpen] = useState(false);
+  // Muda a cada Ctrl+F — refoca o campo mesmo com a busca já aberta.
+  const [searchFocusToken, setSearchFocusToken] = useState(0);
+  const [groupSettingsOpen, setGroupSettingsOpen] = useState(false);
+  // Índice do anexo (imagem) aberto no recorte, ou null.
+  const [cropIndex, setCropIndex] = useState(null);
+  // Item pedido: "adicione novamente o botão de GIF, e adicione mais
+  // um para abrir as figurinhas" — 3 botões, mas ainda o mesmo
+  // popover único por trás (com abas) — cada botão só diz qual aba
+  // abrir primeiro. null = fechado.
+  const [pickerTab, setPickerTab] = useState(null);
+  const emojiPickerOpen = pickerTab !== null;
+  usePopoverCoordination(emojiPickerOpen, () => setPickerTab(null));
+  // Tópico aberto no painel à direita (estado global: dá pra abrir de
+  // qualquer lugar — menu da mensagem, notificação, lista de tópicos).
+  const openThread = useStore((s) => s.openThread);
+  const setOpenTopic = (t) => {
+    if (!t) { useStore.getState().setOpenThread(null); return; }
+    useStore.getState().setOpenThread({ id: t.id, channelId: t.channelId || channelId, root: t });
+  };
+  // "Pular pra mensagem" antiga demais pra costurar na lista: modal de contexto.
+  const [contextView, setContextView] = useState(null);
+  const [pollComposerOpen, setPollComposerOpen] = useState(false);
+
+  // BUG CORRIGIDO ("o menu está muito pra esquerda e muito largo"):
+  // a tentativa anterior media a coluna de chat inteira (via
+  // useElementRect) e tentava ancorar o popover perto da borda dela
+  // via variáveis CSS — mas isso nunca produziu a posição certa na
+  // prática. Trocado pelo MESMO padrão já usado e comprovado pelo
+  // menu de reação de mensagens (ver Message.jsx): mede a posição
+  // REAL do próprio botão que abriu o popover (getBoundingClientRect)
+  // e calcula a posição em JS, passando um style pronto — muito mais
+  // direto e confiável do que tentar inferir onde uma coluna termina.
+  const emojiBtnRef = useRef(null);
+  // Emojis/Figurinhas/GIFs ficam num botão só — todas as abas ancoram nele.
+  const pickerBtnRefs = { emojis: emojiBtnRef, gifs: emojiBtnRef, stickers: emojiBtnRef };
+  const uiLayout = useStore((s) => s.uiLayout);
+  // Item pedido: "sistema de figurinhas" — EmojiPicker já tinha essa
+  // prop pronta pra receber (com a aba "Figurinhas" toda desenhada),
+  // só nunca era alimentada de dados reais.
+  const serverStickers = useStore((s) => s.serverStickers);
+  // BUG CORRIGIDO ("emoji não tem categoria, fica tudo junto"): a
+  // prop serverEmojis do EmojiPicker nunca era passada aqui — o
+  // emoji personalizado nunca aparecia na aba "Servidor" (que
+  // mostra as coleções direitinho), sempre caía na aba "Outros"
+  // (sem agrupamento nenhum por coleção, tudo misturado num monte
+  // só). PostDetailPage.jsx já fazia isso certo — mesma fonte
+  // (usableEmojis), só faltava aqui.
+  const usableEmojis = useStore((s) => s.usableEmojis);
+  // Item pedido: "quando colocar um emoji no seu texto... vai aparecer
+  // o emoji igual na barra de digitação" — mapa nome->url usado pelo
+  // RichMessageInput pra saber quais shortcodes têm imagem pra
+  // mostrar (os outros, tipo emoji de OUTRO servidor que a pessoa não
+  // pode usar aqui, continuam aparecendo como texto puro mesmo).
+  const composerEmojiMap = useMemo(() => Object.fromEntries(usableEmojis.map((e) => [e.name, e.url])), [usableEmojis]);
+  const [pickerStyle, setPickerStyle] = useState(null);
+  const PICKER_WIDTH = 380;
+  const PICKER_HEIGHT_VH = 40;
+  // useLayoutEffect (não useEffect): a posição é calculada ANTES da tela
+  // pintar. Com useEffect o seletor aparecia primeiro na posição padrão do
+  // CSS (meio/canto) e só depois "pulava" pro lugar certo.
+  useLayoutEffect(() => {
+    if (!emojiPickerOpen) { setPickerStyle(null); return; }
+    if (window.matchMedia('(max-width: 600px)').matches) {
+      // Item pedido: "GIFa Move... deve funcionar corretamente...
+      // em dispositivos mobile" — se a staff configurou uma posição
+      // customizada pro mobile, usa ela (sobrescreve o bottom sheet
+      // padrão); senão, deixa null pro CSS de sempre assumir. Agora
+      // vale pro menu inteiro (emoji/figurinha/GIF juntos no mesmo
+      // popover), não só pro GIF sozinho como antes.
+      setPickerStyle(resolveMobileGifMenuStyle(uiLayout?.gifMenuLayout));
+      return;
+    }
+    // Item pedido: "GIFa Move" — se a staff definiu uma posição/tamanho
+    // customizados (Painel da Staff -> GIFa Move), usa ela em vez do
+    // cálculo automático abaixo.
+    const custom = resolveDesktopGifMenuStyle(uiLayout?.gifMenuLayout);
+    if (custom) { setPickerStyle(custom); return; }
+    const btn = pickerBtnRefs[pickerTab]?.current;
+    if (!btn) return;
+    // Com o zoom CSS da interface (1.2 no desktop), getBoundingClientRect
+    // vem em pixels da tela, mas bottom/right de um elemento fixo são
+    // multiplicados pelo zoom — tudo é convertido pra mesma escala (CSS)
+    // antes de calcular, senão o seletor abria deslocado/fora da borda.
+    const z = cssZoom();
+    const raw = btn.getBoundingClientRect();
+    const rect = { top: raw.top / z, right: raw.right / z };
+    const vw = window.innerWidth / z;
+    const vh = window.innerHeight / z;
+    // (unidades vh do CSS já saem em pixels CSS de innerHeight/100.)
+    const estimatedHeight = Math.min(window.innerHeight * (PICKER_HEIGHT_VH / 100), vh - 24);
+    let bottom = vh - rect.top + 8;
+    if (vh - bottom - estimatedHeight < 8) bottom = Math.max(8, vh - estimatedHeight - 8);
+    // Alinha a borda DIREITA do popover com a borda direita do botão —
+    // "mais pra direita", perto de onde o botão realmente está, nunca
+    // ultrapassando a borda da tela do lado esquerdo.
+    let right = vw - rect.right;
+    const width = Math.min(PICKER_WIDTH, vw - 32);
+    if (vw - right - width < 8) right = Math.max(8, vw - width - 8);
+    setPickerStyle({ position: 'fixed', bottom: `${bottom}px`, right: `${right}px`, left: 'auto', top: 'auto', transform: 'none', width: `${width}px`, maxWidth: `${width}px` });
+  }, [emojiPickerOpen, uiLayout]);
+  const [attachMenuOpen, setAttachMenuOpen] = useState(false);
+  // "Enviar depois": modal de agendamento + token pra o chip recarregar.
+  const [scheduleOpen, setScheduleOpen] = useState(false);
+  const [scheduledToken, setScheduledToken] = useState(0);
+  const [mentionQuery, setMentionQuery] = useState(null); // null = not showing; '' or partial name otherwise
+  const [mentionTrigger, setMentionTrigger] = useState('@'); // '@' | '$' (pessoas) | '#' (canais)
+  const [mentionActive, setMentionActive] = useState(0);
+  const [recording, setRecording] = useState(false);
+  const [recordSeconds, setRecordSeconds] = useState(0);
+  const typingTimeoutRef = useRef(null);
+  const bottomRef = useRef(null);
+  const chatListRef = useRef(null);
+  const [loadingOlder, setLoadingOlder] = useState(false);
+  const [hasMoreOlder, setHasMoreOlder] = useState(true);
+  // Esqueleto enquanto a primeira página carrega (em vez da tela vazia
+  // piscando "início do canal" antes das mensagens chegarem).
+  const [initialLoading, setInitialLoading] = useState(true);
+  // A página nova não veio (sem conexão) e a tela mostra a cópia local.
+  const [cacheStale, setCacheStale] = useState(false);
+  const currentRoomRef = useRef(roomKey);
+  currentRoomRef.current = roomKey;
+  // Sala cuja 1ª página já chegou (ver a entrada na sala do socket).
+  const initialLoadDoneRef = useRef(null);
+  const inputRef = useRef(null);
+  const fileInputRef = useRef(null);
+  const mediaRecorderRef = useRef(null);
+  const recordedChunksRef = useRef([]);
+  const recordStreamRef = useRef(null);
+  const recordTimerRef = useRef(null);
+
+  const channel = channelId ? findChannel(categories, channels, channelId) : null;
+  // Who you're actually talking to, for the small avatar+status shown next
+  // to the title in a DM header — same "other member" lookup DMSidebar.jsx
+  // uses for its own rows, just scoped to whichever conversation is open.
+  const dmConvo = conversationId ? conversations.find((c) => c.id === conversationId) : null;
+  const dmOther = dmConvo && !dmConvo.isGroup ? dmConvo.members.find((m) => m.id !== user.id) : null;
+  const dmOtherPresence = useStore((s) => (dmOther ? s.presence[dmOther.id] : null));
+  const setInbox = (action) => {
+    const inbox = { accept: 'main', ignore: 'ignored', spam: 'spam' }[action];
+    useStore.getState().setConversations(useStore.getState().conversations.map((c) => (c.id === conversationId ? { ...c, inbox } : c)));
+    setConversationInbox(conversationId, action).catch(() => {});
+  };
+  const myPerms = getMyCommunityPermissions(roles, members, user.id, user.platformRole);
+  const canMentionEveryone = channel && hasPermission(myPerms, 'MENTION_EVERYONE');
+  // Item pedido: "remova os cargos do menu que mostra as fotos" —
+  // só pessoas (e @everyone/@here) aparecem na lista de sugestões
+  // agora; mencionar um cargo digitando o nome dele à mão ainda
+  // funciona normal como menção de verdade, só não sugere mais como
+  // opção clicável aqui.
+  // Só monta a lista quando o "@" está ativo (antes: varria todos os
+  // membros a cada tecla digitada, mesmo sem menção nenhuma).
+  const mentionCandidatesAt = channel && mentionQuery !== null && mentionTrigger === '@'
+    ? [
+        ...(canMentionEveryone ? [{ id: '@everyone', label: 'everyone', hint: 'Notificar todos no canal' }, { id: '@here', label: 'here', hint: 'Notificar quem está online' }] : []),
+        ...members
+          .map((m) => ({ id: m.user.id, label: m.user.displayName, hint: `@${m.user.username}`, avatarUrl: m.user.avatarUrl, profileColor: m.user.profileColor })),
+      ].filter((c) => !mentionQuery || c.label.toLowerCase().includes(mentionQuery.toLowerCase())).slice(0, 8)
+    : [];
+  // "$": só pessoas (membros do canal, ou quem está na conversa).
+  const dollarPeople = mentionTrigger !== '$' || mentionQuery === null ? []
+    : channel
+      ? members.map((m) => m.user)
+      : (conversations.find((c) => c.id === conversationId)?.members || []).filter((m) => m.id !== user.id);
+  const mentionCandidatesDollar = mentionTrigger === '$' && mentionQuery !== null
+    ? dollarPeople
+      .filter((u) => !mentionQuery || normName(u.displayName).includes(normName(mentionQuery)) || normName(u.username).includes(normName(mentionQuery)))
+      .slice(0, 8)
+      .map((u) => ({ id: u.id, label: u.displayName, hint: u.username ? `@${u.username}` : '', avatarUrl: u.avatarUrl, profileColor: u.profileColor }))
+    : [];
+  // "#": canais de texto e de voz da comunidade.
+  const mentionCandidatesChannel = mentionTrigger === '#' && mentionQuery !== null
+    ? [...channels, ...categories.flatMap((cat) => (cat.channels || []).map((c) => ({ ...c, _cat: cat.name })))]
+      .filter((c) => c.type !== 'RULES' && (!mentionQuery || normName(c.name).includes(normName(mentionQuery))))
+      .slice(0, 8)
+      .map((c) => ({ id: c.id, label: c.name, hint: c._cat || '', isChannel: true, isVoice: c.type === 'VOICE' || c.type === 'STAGE', channel: c }))
+    : [];
+  const mentionCandidates = mentionTrigger === '#' ? mentionCandidatesChannel : mentionTrigger === '$' ? mentionCandidatesDollar : mentionCandidatesAt;
+
+  // Item pedido: "quando marcar algum cargo ou membro... quero que
+  // apareça a foto de perfil do user" — todo nome que pode ser
+  // mencionado, com a foto de quem é pessoa (cargo/@everyone/@here
+  // não têm foto nenhuma pra mostrar, só o fundo destacado mesmo).
+  // Item pedido: "no chat e no menu de digitação é pra aparecer a
+  // caixinha com o @ sem foto de perfil" — só precisa saber QUAIS
+  // nomes são válidos pra virar um selo de menção (a foto foi
+  // removida do selo em si, ver RichMessageInput.jsx), então o valor
+  // de cada entrada não importa mais, só a chave (o nome).
+  const composerMentionMap = useMemo(() => {
+    const map = {};
+    if (canMentionEveryone) { map.everyone = true; map.here = true; }
+    roles.filter((r) => !r.isDefault && r.mentionable).forEach((r) => { map[r.name] = true; });
+    members.forEach((m) => { map[m.user.displayName] = true; });
+    return map;
+  }, [members, roles, canMentionEveryone]);
+
+  const title = useMemo(() => {
+    if (conversationId) {
+      const convo = conversations.find((c) => c.id === conversationId);
+      if (!convo) return '';
+      if (convo.isGroup) return convo.name || convo.members.map((m) => m.displayName).join(', ');
+      const other = convo.members.find((m) => m.id !== user.id);
+      return other?.displayName || '';
+    }
+    if (channel) {
+      const icon = TYPE_ICON[channel.type] || '#';
+      return `${icon} ${channel.name}`;
+    }
+    return '';
+  }, [conversationId, channel, conversations, user.id]);
+
+  // Leitura no servidor agrupada (no máx. 1 por sala a cada 2s e só se
+  // tem mensagem mais nova — ver utils/readMarker.js); a parte local
+  // (bolinhas de não lido) continua na hora.
+  const markRead = () => {
+    const newestAt = messages[messages.length - 1]?.createdAt;
+    if (conversationId) {
+      queueRead('conversation', conversationId, newestAt);
+      markConversationReadLocal(conversationId);
+    } else if (channelId) {
+      queueRead('channel', channelId, newestAt);
+      markChannelReadLocal(channelId);
+    }
+  };
+
+  const isCallChannel = channel && (channel.type === 'VOICE' || channel.type === 'STAGE');
+  // Item pedido: "deixando mais rápido pra entrar em canais de voz,
+  // principalmente no mobile" — adianta o download do SDK de voz do
+  // servidor próprio (mediasoup-client) em segundo plano. Antes isso rodava em
+  // QUALQUER chat aberto (todo mundo baixava o SDK de voz só por abrir o
+  // app); agora só quando a pessoa abre um canal de voz/palco — onde ela
+  // realmente vai entrar numa call. Entrar por outro lugar (ex.: ligar
+  // numa DM) baixa na hora de entrar, como sempre.
+  useEffect(() => { if (isCallChannel) preloadMediasoup(); }, [isCallChannel]);
+  const isNonChatChannel = isCallChannel || channel?.type === 'RULES';
+
+  // Não lidas: guarda a "última leitura" de quando a sala abriu (antes de
+  // marcar como lida) pra pôr a linha "Novas mensagens" no lugar certo.
+  const [unreadMark, setUnreadMark] = useState({ roomKey: null, readAt: null });
+  const [firstUnreadId, setFirstUnreadId] = useState(null);
+  const unreadComputedForRef = useRef(null);
+  const [unreadPillDismissed, setUnreadPillDismissed] = useState(false);
+  const [scrollPill, setScrollPill] = useState({ far: false, dividerAbove: false });
+  // Mensagens fixadas (alfinete no cabeçalho + faixa "Destaques").
+  const [pinsOpen, setPinsOpen] = useState(false);
+  const { pins, loading: pinsLoading, setPins } = usePinnedMessages({ conversationId, channelId, enabled: !isNonChatChannel });
+  useEffect(() => { setPinsOpen(false); }, [roomKey]);
+  // Aviso "Fulano fixou uma mensagem" → "Ver todas as fixadas".
+  useEffect(() => {
+    const open = () => setPinsOpen(true);
+    window.addEventListener('pc:open-pins', open);
+    return () => window.removeEventListener('pc:open-pins', open);
+  }, []);
+  // Trocou de canal: fecha o painel de tópico de outro canal e o contexto.
+  useEffect(() => {
+    setContextView(null);
+    const ot = useStore.getState().openThread;
+    if (ot && ot.channelId !== channelId) useStore.getState().setOpenThread(null);
+  }, [roomKey, channelId]);
+
+  useEffect(() => {
+    if (isNonChatChannel) return;
+    {
+      const st = useStore.getState();
+      let readAt = null;
+      if (channelId) {
+        const ch = findChannel(st.categories, st.channels, channelId);
+        readAt = st.channelReadAt[channelId] ?? ch?.myReadAt ?? null;
+      } else if (conversationId) {
+        readAt = st.conversations.find((c) => c.id === conversationId)?.lastReadAt ?? null;
+      }
+      setUnreadMark({ roomKey, readAt });
+      setFirstUnreadId(null);
+      unreadComputedForRef.current = null;
+      setUnreadPillDismissed(false);
+    }
+    setRoomMessages(roomKey, []);
+    setHasMoreOlder(true);
+    setInitialLoading(true);
+    setCacheStale(false);
+    initialLoadDoneRef.current = null;
+    const loadingKey = roomKey;
+    // Abertura instantânea: mostra na hora a cópia local das últimas
+    // mensagens desta sala (IndexedDB — utils/messageCache.js) enquanto a
+    // página nova chega; quando ela chega, mergeLatestMessages corrige o
+    // que mudou (apagadas, editadas, novas).
+    loadCachedRoom(user.id, loadingKey).then((cached) => {
+      if (!cached || currentRoomRef.current !== loadingKey || initialLoadDoneRef.current === loadingKey) return;
+      const current = useStore.getState().messagesByRoom[loadingKey] || [];
+      const ids = new Set(cached.map((m) => m.id));
+      setRoomMessages(loadingKey, [...cached, ...current.filter((m) => !ids.has(m.id))]);
+    }).catch(() => {});
+    listMessages({ conversationId, channelId }).then((d) => {
+      if (currentRoomRef.current === loadingKey) initialLoadDoneRef.current = loadingKey;
+      // Mesmo lote de render que as mensagens — senão o "início do canal"
+      // entra depois, por cima, e empurra a lista pra fora do final.
+      if (currentRoomRef.current === loadingKey) setInitialLoading(false);
+      // BUG CORRIGIDO ("mensagem some até recarregar"): a resposta
+      // SOBRESCREVIA a lista — qualquer mensagem que chegou pelo socket
+      // entre o pedido e a resposta (já mais nova que a "foto" do
+      // servidor) sumia. Agora junta as duas, sem duplicar.
+      const current = useStore.getState().messagesByRoom[roomKey] || [];
+      setRoomMessages(roomKey, mergeLatestMessages(current, d.messages).messages);
+      if (d.messages.length < 50) setHasMoreOlder(false);
+    }).catch((err) => {
+      if (currentRoomRef.current !== loadingKey) return;
+      const status = err?.response?.status;
+      // Sem acesso (saiu do grupo, canal ficou privado): nada da cópia local fica na tela.
+      if (status === 403 || status === 404) {
+        forgetCachedRoom(user.id, loadingKey);
+        setRoomMessages(loadingKey, (useStore.getState().messagesByRoom[loadingKey] || []).filter((m) => String(m.id).startsWith('temp-')));
+        return;
+      }
+      // Sem conexão: se a cópia local está na tela, avisa que pode estar desatualizada.
+      if ((useStore.getState().messagesByRoom[loadingKey] || []).length) setCacheStale(true);
+    }).finally(() => {
+      // Só some o esqueleto se ainda estamos na mesma sala.
+      if (currentRoomRef.current === loadingKey) setInitialLoading(false);
+    });
+    markRead();
+  }, [roomKey, isNonChatChannel]);
+
+  // Entrar na sala do socket (canal/conversa) pra receber mensagens em
+  // tempo real. BUG CORRIGIDO ("mensagens só aparecem recarregando"):
+  // antes isso só rodava ao TROCAR de sala — (1) se o chat abria antes do
+  // socket existir/conectar, nunca entrava na sala; (2) a cada queda e
+  // reconexão (Wi-Fi oscilando, notebook dormindo, app em segundo plano
+  // no celular) o servidor cria um socket NOVO, sem sala nenhuma de canal,
+  // e o chat aberto parava de receber mensagens até trocar de canal.
+  // Agora entra de novo a cada 'connect' e busca o que chegou enquanto a
+  // conexão estava caída (catch-up), juntando sem duplicar.
+  useEffect(() => {
+    if (!socket || isNonChatChannel) return undefined;
+    const joinRoom = (afterJoin) => {
+      const ack = (res) => { if (res?.ok) afterJoin?.(); };
+      if (channelId) socket.emit('channel:join', channelId, ack);
+      if (conversationId) socket.emit('conversation:join', conversationId, ack);
+    };
+    let catchUpSeq = 0;
+    const catchUp = () => {
+      const seq = ++catchUpSeq;
+      const key = roomKey;
+      listMessages({ conversationId, channelId }).then((d) => {
+        if (seq !== catchUpSeq || currentRoomRef.current !== key) return;
+        const current = useStore.getState().messagesByRoom[key] || [];
+        const { messages: merged, gap } = mergeLatestMessages(current, d.messages);
+        if (merged !== current) setRoomMessages(key, merged);
+        if (gap) setHasMoreOlder(true);
+        initialLoadDoneRef.current = key;
+        setCacheStale(false);
+      }).catch(() => {});
+    };
+    // A entrada na sala é assíncrona no servidor (checa permissão) — se a
+    // 1ª página já tinha chegado antes da confirmação, uma mensagem
+    // enviada nesse meio tempo não vinha nem na página nem pelo socket.
+    // Com a confirmação (ack) do servidor, busca de novo só nesse caso.
+    if (socket.connected) {
+      joinRoom(() => { if (initialLoadDoneRef.current === roomKey) catchUp(); });
+    }
+    let wasDisconnected = !socket.connected;
+    const onConnect = () => {
+      // Só busca de novo se estava sem conexão (queda/reconexão, ou o chat
+      // abriu antes do socket conectar) — com a conexão estável, a 1ª
+      // página pedida pelo efeito acima já basta.
+      const needsCatchUp = wasDisconnected;
+      wasDisconnected = false;
+      joinRoom(() => { if (needsCatchUp) catchUp(); });
+    };
+    const onDisconnect = () => { wasDisconnected = true; };
+    // Aba/janela escondida por muito tempo (notebook dormindo, celular em
+    // segundo plano): o socket pode nem perceber a queda — ao voltar,
+    // confere se perdeu alguma mensagem.
+    let hiddenAt = document.visibilityState === 'hidden' ? Date.now() : 0;
+    const onVisibility = () => {
+      if (document.visibilityState === 'hidden') { hiddenAt = Date.now(); return; }
+      if (hiddenAt && Date.now() - hiddenAt > 30000 && socket.connected) catchUp();
+      hiddenAt = 0;
+    };
+    socket.on('connect', onConnect);
+    socket.on('disconnect', onDisconnect);
+    document.addEventListener('visibilitychange', onVisibility);
+    return () => {
+      catchUpSeq += 1;
+      socket.off('connect', onConnect);
+      socket.off('disconnect', onDisconnect);
+      document.removeEventListener('visibilitychange', onVisibility);
+      // Sai da sala do canal ao trocar de canal — antes o socket ia
+      // acumulando TODAS as salas visitadas e recebia cada mensagem de
+      // cada uma até recarregar a página. (DMs continuam: o servidor põe
+      // o socket em todas as conversas ao conectar, pras notificações.)
+      // Menções em canais fechados chegam pelo 'mention:new'.
+      if (channelId) socket.emit('channel:leave', channelId);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [socket, roomKey, isNonChatChannel]);
+
+  // Mantém a cópia local (IndexedDB) das últimas mensagens desta sala —
+  // só depois que a página do servidor chegou (nunca regrava a cópia
+  // velha por cima). Gravação com atraso e em série (messageCache.js).
+  useEffect(() => {
+    if (isNonChatChannel || !messages.length || initialLoadDoneRef.current !== roomKey) return;
+    saveCachedRoom(user.id, roomKey, messages);
+  }, [messages, roomKey, isNonChatChannel, user.id]);
+
+  // Clicou numa notificação de menção: leva até a mensagem depois que a
+  // 1ª página do canal carregar (ver SocketContext → pendingJump).
+  const pendingJump = useStore((s) => s.pendingJump);
+  useEffect(() => {
+    if (!pendingJump || pendingJump.roomKey !== roomKey || initialLoading) return;
+    useStore.getState().setPendingJump(null);
+    jumpToMessage({ id: pendingJump.messageId, createdAt: pendingJump.createdAt });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pendingJump, roomKey, initialLoading]);
+
+  // Notificação de resposta em tópico: abre o painel quando o canal carregar.
+  const pendingThread = useStore((s) => s.pendingThread);
+  useEffect(() => {
+    if (!pendingThread || pendingThread.channelId !== channelId || initialLoading) return;
+    useStore.getState().setPendingThread(null);
+    useStore.getState().setOpenThread({ id: pendingThread.threadId, channelId });
+  }, [pendingThread, channelId, initialLoading]);
+
+  // Loads an older page (see the existing `before` cursor support already
+  // in messageController.listMessages on the server — this used to just
+  // never be called from anywhere, so scrolling up never revealed
+  // anything past the most recent 50 messages). Preserves scroll position
+  // by measuring how much taller the list got and offsetting scrollTop by
+  // exactly that, so prepending older messages doesn't yank the view.
+  const loadOlderMessages = async () => {
+    if (loadingOlder || !hasMoreOlder || messages.length === 0 || isNonChatChannel) return;
+    const list = chatListRef.current;
+    const prevScrollHeight = list?.scrollHeight || 0;
+    setLoadingOlder(true);
+    try {
+      const d = await listMessages({ conversationId, channelId, before: messages[0].createdAt, beforeId: messages[0].id });
+      if (d.messages.length === 0) { setHasMoreOlder(false); return; }
+      if (d.messages.length < 50) setHasMoreOlder(false);
+      useStore.getState().prependRoomMessages(roomKey, d.messages);
+      // Runs after the prepended messages have actually painted, so
+      // scrollHeight reflects the new (taller) content.
+      requestAnimationFrame(() => {
+        if (list) list.scrollTop += list.scrollHeight - prevScrollHeight;
+      });
+    } finally {
+      setLoadingOlder(false);
+    }
+  };
+
+  useEffect(() => {
+    const list = chatListRef.current;
+    if (!list) return undefined;
+    const onScroll = () => {
+      if (list.scrollTop < 60) loadOlderMessages();
+      // Manual scrolling is what actually decides whether we keep following
+      // new messages — scrolling away from the bottom releases the pin
+      // (matches the existing "don't yank them back down mid-read"
+      // behavior above), scrolling back down near it re-engages auto-scroll.
+      const distanceFromBottom = list.scrollHeight - list.scrollTop - list.clientHeight;
+      stickToBottomRef.current = distanceFromBottom <= 120;
+    };
+    list.addEventListener('scroll', onScroll);
+    return () => list.removeEventListener('scroll', onScroll);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [roomKey, loadingOlder, hasMoreOlder, messages]);
+
+  const hasInitializedScrollRef = useRef(false);
+  // Whether we should keep the view pinned to the newest message. Starts
+  // `true` on every fresh room open (so it opens on the latest messages,
+  // never wherever the previous channel happened to be scrolled) and only
+  // flips to `false` once the person deliberately scrolls up to read
+  // something older — set from the scroll handler below, not from message
+  // updates, so a burst of incoming messages can't fight a person who's
+  // mid-read.
+  const stickToBottomRef = useRef(true);
+  useEffect(() => {
+    hasInitializedScrollRef.current = false;
+    stickToBottomRef.current = true;
+  }, [roomKey]);
+
+  useEffect(() => {
+    if (isNonChatChannel) return;
+    // The room-switch effect above clears messages to `[]` while the new
+    // page is fetched (see the `setRoomMessages(roomKey, [])` call), which
+    // used to run through this same effect and consume the "first render
+    // of this room" flag on an empty list — before any real messages, let
+    // alone their final layout, existed. That left the *next* run (the one
+    // with the actual 50 messages) mistakenly treated as a follow-up
+    // scroll-position check instead of a fresh room open, computed against
+    // a stale scrollTop still left over from whatever channel was open
+    // before. Skipping the empty transient here means the flag only gets
+    // consumed once there's something real to scroll to.
+    if (messages.length === 0) return;
+    const list = chatListRef.current;
+    const distanceFromBottom = list ? list.scrollHeight - list.scrollTop - list.clientHeight : 0;
+    const shouldAutoScroll = !hasInitializedScrollRef.current || stickToBottomRef.current || distanceFromBottom <= 120;
+    hasInitializedScrollRef.current = true;
+    if (shouldAutoScroll) {
+      stickToBottomRef.current = true;
+      scrollListToBottom(list);
+    }
+    // A new message arrived while this room is open — count it as read too.
+    markRead();
+    // BUG CORRIGIDO ("quando abro o chat não vai mais para a última
+    // mensagem"): a dependência era só messages.length — mas trocar
+    // entre dois canais/conversas que por acaso têm a MESMA quantidade
+    // de mensagens (comum, já que 50 é o tamanho padrão de página pra
+    // qualquer canal com histórico suficiente) faz messages.length
+    // nunca mudar de um pro outro, então este efeito nunca rodava de
+    // novo e o scroll ficava preso na posição do canal anterior. O id
+    // da última mensagem muda sempre que a sala muda de verdade (ou
+    // quando uma mensagem nova chega), independente da contagem total
+    // ser igual ou não — é a dependência certa pro que o efeito
+    // realmente quer saber ("a mensagem mais recente mudou?").
+  }, [messages[messages.length - 1]?.id, isNonChatChannel]);
+
+  // Attachments, images, embeds and link previews inside messages finish
+  // loading after this initial paint and can grow the list's height —
+  // without this, opening a channel could visually land a few pixels short
+  // of the true bottom once a late-loading image pushes new content below
+  // the fold. Re-pins to the bottom whenever the list's height changes
+  // while we're still supposed to be stuck to it, so the "latest messages"
+  // guarantee holds even for content that loads in asynchronously.
+  useEffect(() => {
+    const list = chatListRef.current;
+    if (!list || isNonChatChannel || typeof ResizeObserver === 'undefined') return undefined;
+    const observer = new ResizeObserver(() => {
+      if (stickToBottomRef.current) scrollListToBottom(list);
+    });
+    observer.observe(list);
+    // O tamanho da própria lista não muda quando uma imagem termina de
+    // carregar lá dentro (só o conteúdo cresce) — então também escuta o
+    // "load" das imagens/vídeos (fase de captura) pra continuar no final.
+    const onMediaLoad = () => { if (stickToBottomRef.current) scrollListToBottom(list); };
+    list.addEventListener('load', onMediaLoad, true);
+    list.addEventListener('loadedmetadata', onMediaLoad, true);
+    return () => {
+      observer.disconnect();
+      list.removeEventListener('load', onMediaLoad, true);
+      list.removeEventListener('loadedmetadata', onMediaLoad, true);
+    };
+  }, [roomKey, isNonChatChannel]);
+
+  // Primeira mensagem não lida (calculada uma vez, quando a 1ª página chega).
+  useEffect(() => {
+    if (isNonChatChannel || initialLoading || unreadComputedForRef.current === roomKey) return;
+    if (unreadMark.roomKey !== roomKey) return;
+    unreadComputedForRef.current = roomKey;
+    const readAt = unreadMark.readAt ? new Date(unreadMark.readAt) : null;
+    if (!readAt || messages.length === 0) return;
+    const first = messages.find((m) => !m.pending && !String(m.id).startsWith('temp-') && m.authorId !== user.id && new Date(m.createdAt) > readAt);
+    if (first) setFirstUnreadId(first.id);
+  }, [initialLoading, messages, roomKey, unreadMark, isNonChatChannel, user.id]);
+
+  // Pílulas flutuantes: "Pular para não lidas" (linha acima da tela) e
+  // "Voltar ao fim" (longe do final).
+  useEffect(() => {
+    const list = chatListRef.current;
+    if (!list || isNonChatChannel) return undefined;
+    let raf = 0;
+    const check = () => {
+      raf = 0;
+      const far = list.scrollHeight - list.scrollTop - list.clientHeight > 500;
+      const sep = list.querySelector('.chat-unread-sep');
+      const dividerAbove = !!sep && sep.getBoundingClientRect().bottom < list.getBoundingClientRect().top + 4;
+      setScrollPill((prev) => (prev.far === far && prev.dividerAbove === dividerAbove ? prev : { far, dividerAbove }));
+    };
+    const onScroll = () => { if (!raf) raf = requestAnimationFrame(check); };
+    list.addEventListener('scroll', onScroll, { passive: true });
+    check();
+    return () => { list.removeEventListener('scroll', onScroll); if (raf) cancelAnimationFrame(raf); };
+  }, [roomKey, isNonChatChannel, firstUnreadId, messages.length]);
+
+  const scrollBehavior = () => (window.matchMedia?.('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth');
+  const jumpToUnread = () => {
+    const sep = chatListRef.current?.querySelector('.chat-unread-sep');
+    if (!sep) return;
+    stickToBottomRef.current = false;
+    sep.scrollIntoView({ block: 'center', behavior: scrollBehavior() });
+  };
+  const jumpToBottom = () => {
+    stickToBottomRef.current = true;
+    scrollListToBottom(chatListRef.current, scrollBehavior());
+  };
+  // Leva até uma mensagem (busca, fixada, notificação, link). Primeiro
+  // tenta algumas páginas antigas; se ainda não achou, pede a janela em
+  // volta dela (GET /messages?around=) e costura na lista quando encosta
+  // no que já está carregado (sem buraco) — senão mostra o contexto num
+  // modal. Resposta de tópico abre o painel do tópico.
+  const jumpToMessage = async (target) => {
+    const find = () => chatListRef.current?.querySelector(`.message[data-message-id="${target.id}"]`);
+    stickToBottomRef.current = false;
+    if (target.threadId && channelId) {
+      setOpenTopic({ id: target.threadId, channelId });
+      return;
+    }
+    let el = find();
+    for (let guard = 0; !el && guard < 3; guard += 1) {
+      const cur = useStore.getState().messagesByRoom[roomKey] || [];
+      if (cur.length === 0 || new Date(cur[0].createdAt) <= new Date(target.createdAt)) break;
+      let d;
+      try { d = await listMessages({ conversationId, channelId, before: cur[0].createdAt, beforeId: cur[0].id }); } catch { break; }
+      if (currentRoomRef.current !== roomKey) return;
+      if (!d.messages.length) { setHasMoreOlder(false); break; }
+      if (d.messages.length < 50) setHasMoreOlder(false);
+      useStore.getState().prependRoomMessages(roomKey, d.messages);
+      await new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)));
+      el = find();
+    }
+    if (!el && !isNonChatChannel) {
+      let d = null;
+      try { d = await listMessages({ conversationId, channelId, around: target.id }); } catch { d = null; }
+      if (currentRoomRef.current !== roomKey) return;
+      if (d?.threadId && channelId) { setOpenTopic({ id: d.threadId, channelId }); return; }
+      if (d?.messages?.length) {
+        const win = [...d.messages];
+        let loaded = useStore.getState().messagesByRoom[roomKey] || [];
+        let reached = !d.hasMoreNewer || windowReachesLoaded(win, loaded);
+        // Busca as páginas entre a janela e a lista carregada (até 10).
+        for (let i = 0; !reached && i < 10; i += 1) {
+          const last = win[win.length - 1];
+          let page;
+          try { page = await listMessages({ conversationId, channelId, after: last.createdAt, afterId: last.id }); } catch { break; }
+          if (currentRoomRef.current !== roomKey) return;
+          win.push(...(page.messages || []));
+          loaded = useStore.getState().messagesByRoom[roomKey] || [];
+          reached = !page.hasMoreNewer || !page.messages?.length || windowReachesLoaded(win, loaded);
+        }
+        if (reached) {
+          const oldestLoaded = loaded[0];
+          const older = oldestLoaded ? win.filter((m) => new Date(m.createdAt) < new Date(oldestLoaded.createdAt)) : win;
+          if (older.length) useStore.getState().prependRoomMessages(roomKey, older);
+          setHasMoreOlder(!!d.hasMoreOlder);
+          await new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)));
+          el = find();
+        } else {
+          setContextView({ messages: d.messages, targetId: target.id });
+          return;
+        }
+      }
+    }
+    if (!el) { useStore.getState().pushNotice('Não deu pra encontrar essa mensagem no histórico.'); return; }
+    el.scrollIntoView({ block: 'center', behavior: scrollBehavior() });
+    el.classList.remove('nav-flash');
+    void el.offsetWidth;
+    el.classList.add('nav-flash');
+    setTimeout(() => el.classList.remove('nav-flash'), 2000);
+  };
+
+  // Item pedido: otimização/velocidade — `typing:start` estava sendo
+  // mandado em TODA tecla digitada, sem parar — escrever uma frase de
+  // 50 caracteres mandava 50 eventos pro servidor, que aí retransmite
+  // cada um pra todo mundo no canal (e cada um deles atualiza o "Fulano
+  // está digitando..." de novo do outro lado à toa). Só precisa avisar
+  // UMA VEZ quando a pessoa COMEÇA a digitar — o temporizador de
+  // "parou de digitar" (isTypingRef) continua sendo reiniciado a cada
+  // tecla normalmente, só o EMIT de início que passa a ser só um por
+  // sessão de digitação.
+  const isTypingRef = useRef(false);
+  const notifyTyping = () => {
+    if (!isTypingRef.current) {
+      isTypingRef.current = true;
+      socket?.emit('typing:start', { conversationId, channelId });
+    }
+    clearTimeout(typingTimeoutRef.current);
+    typingTimeoutRef.current = setTimeout(() => {
+      isTypingRef.current = false;
+      socket?.emit('typing:stop', { conversationId, channelId });
+    }, TYPING_TIMEOUT);
+  };
+
+  const onContentChange = (value) => {
+    setContent(value);
+    notifyTyping();
+    const ch = value.match(CHANNEL_MENTION_TYPING_RE);
+    const dl = !ch && value.match(DOLLAR_MENTION_RE);
+    const m = !ch && !dl && value.match(MENTION_RE);
+    if (ch) { setMentionTrigger('#'); setMentionQuery(ch[2]); } else if (dl) { setMentionTrigger('$'); setMentionQuery(dl[2]); } else { setMentionTrigger('@'); setMentionQuery(m ? m[1] : null); }
+    setMentionActive(0);
+  };
+
+  const insertText = (text) => {
+    setContent((c) => `${c}${text} `);
+    inputRef.current?.focus();
+  };
+
+  // Shared by both attach buttons (and the audio recorder below) — rejects
+  // anything over the size limit right away instead of letting it upload
+  // and fail on the server after the fact.
+  // Foto grande que dá pra comprimir não é recusada aqui: a compressão
+  // (utils/imageCompress.js) normalmente a traz bem pra baixo do limite.
+  const overLimit = (f) => f.size > MAX_UPLOAD_BYTES && !(isCompressibleType(f.type) && f.size <= MAX_UPLOAD_BYTES * 4);
+  const addFiles = (incoming) => {
+    const tooBig = incoming.filter(overLimit);
+    let ok = incoming.filter((f) => !overLimit(f));
+    if (tooBig.length > 0) {
+      useStore.getState().pushNotice(
+        tooBig.length === 1
+          ? `"${tooBig[0].name}" é maior que ${MAX_UPLOAD_MB}MB e não foi anexado.`
+          : `${tooBig.length} arquivos maiores que ${MAX_UPLOAD_MB}MB não foram anexados.`,
+      );
+    }
+    // Item pedido: "só pode enviar 10 imagem, arquivo etc de uma vez"
+    // — considera o que já está anexado (não só o que acabou de ser
+    // escolhido agora), já que dá pra anexar em várias vezes seguidas
+    // antes de mandar a mensagem.
+    const spaceLeft = MAX_FILES_COUNT - files.length;
+    if (ok.length > spaceLeft) {
+      useStore.getState().pushNotice(`Só dá pra anexar até ${MAX_FILES_COUNT} arquivos de uma vez — ${ok.length - Math.max(0, spaceLeft)} não foram adicionados.`);
+      ok = ok.slice(0, Math.max(0, spaceLeft));
+    }
+    // Item pedido: "o ícone de olho vai marcar imagem com spoiler" —
+    // cada arquivo já entra com spoiler: false por padrão; o botão de
+    // olho na miniatura (ver JSX abaixo) alterna isso depois.
+    if (ok.length > 0) {
+      const entries = ok.map((file) => startCompression(newFileEntry(file)));
+      setFiles((f) => [...f, ...entries]);
+    }
+  };
+
+  // --- Voice message recording ---
+  const startRecording = async () => {
+    if (!navigator.mediaDevices?.getUserMedia || typeof MediaRecorder === 'undefined') {
+      useStore.getState().pushNotice('Gravar áudio não é suportado neste navegador.');
+      return;
+    }
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      recordStreamRef.current = stream;
+      recordedChunksRef.current = [];
+      // Not every browser supports every mime type — let the browser pick
+      // its own default (undefined options) if webm/opus isn't available,
+      // rather than throwing on construction.
+      const mimeType = MediaRecorder.isTypeSupported?.('audio/webm;codecs=opus') ? 'audio/webm;codecs=opus' : undefined;
+      const recorder = new MediaRecorder(stream, mimeType ? { mimeType } : undefined);
+      mediaRecorderRef.current = recorder;
+      recorder.ondataavailable = (e) => { if (e.data.size > 0) recordedChunksRef.current.push(e.data); };
+      recorder.onstop = () => {
+        stream.getTracks().forEach((t) => t.stop());
+        recordStreamRef.current = null;
+        const blob = new Blob(recordedChunksRef.current, { type: recorder.mimeType || 'audio/webm' });
+        if (blob.size > 0) {
+          const ext = (recorder.mimeType || 'audio/webm').includes('ogg') ? 'ogg' : 'webm';
+          const file = new File([blob], `audio-${Date.now()}.${ext}`, { type: blob.type });
+          addFiles([file]);
+        }
+      };
+      recorder.start();
+      setRecording(true);
+      setRecordSeconds(0);
+      recordTimerRef.current = setInterval(() => setRecordSeconds((s) => s + 1), 1000);
+    } catch (err) {
+      useStore.getState().pushNotice('Não foi possível acessar o microfone.');
+    }
+  };
+
+  const stopRecording = (discard) => {
+    clearInterval(recordTimerRef.current);
+    setRecording(false);
+    setRecordSeconds(0);
+    if (discard) recordedChunksRef.current = [];
+    const recorder = mediaRecorderRef.current;
+    if (recorder && recorder.state !== 'inactive') {
+      if (discard) recorder.onstop = () => { recordStreamRef.current?.getTracks().forEach((t) => t.stop()); recordStreamRef.current = null; };
+      recorder.stop();
+    }
+  };
+
+  useEffect(() => () => {
+    clearInterval(recordTimerRef.current);
+    recordStreamRef.current?.getTracks().forEach((t) => t.stop());
+  }, []);
+
+  const pickMention = (candidate) => {
+    if (mentionTrigger === '#') setContent((c) => c.replace(CHANNEL_MENTION_TYPING_RE, (_, pre) => `${pre}<#${candidate.id}> `));
+    else if (mentionTrigger === '$') setContent((c) => c.replace(DOLLAR_MENTION_RE, (_, pre) => `${pre}@${candidate.label} `));
+    else setContent((c) => c.replace(MENTION_RE, `@${candidate.label} `));
+    setMentionQuery(null);
+    inputRef.current?.focus();
+  };
+
+  // Builds a placeholder message shown immediately in the list, before the
+  // server round-trip finishes — see `resolveOptimisticMessage` in the store
+  // for how it gets swapped for the real one (or dropped if the real-time
+  // socket echo beats the HTTP response back).
+  // `nonce` vai junto no envio e volta no eco do socket/na resposta — é
+  // o que permite trocar a otimista pela real no mesmo lugar (e com a
+  // mesma chave de render, sem a mensagem "piscar" ou remontar).
+  const makeOptimisticMessage = (overrides) => {
+    const id = `temp-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+    return {
+      id,
+      nonce: id,
+      authorId: user.id,
+      author: user,
+      conversationId: conversationId || null,
+      channelId: channelId || null,
+      replyToId: null,
+      replyTo: null,
+      title: null,
+      attachments: [],
+      reactions: [],
+      mentions: [],
+      createdAt: new Date().toISOString(),
+      edited: false,
+      pinned: false,
+      pending: true,
+      ...overrides,
+    };
+  };
+
+  const sendGif = async (url) => {
+    const fd = new FormData();
+    if (conversationId) fd.append('conversationId', conversationId);
+    if (channelId) fd.append('channelId', channelId);
+    fd.append('content', url);
+
+    const optimistic = makeOptimisticMessage({ content: url });
+    fd.append('nonce', optimistic.nonce);
+    useStore.getState().addMessage(roomKey, optimistic);
+    // Falhou por falta de conexão: entra na fila offline (mesmo nonce).
+    deliverMessage({ roomKey, optimisticId: optimistic.id, buildForm: () => fd });
+  };
+
+  // A sticker isn't inserted as text like an emoji shortcode — it's sent as
+  // its own standalone message right away, via the dedicated Message.stickerUrl
+  // field (small, chrome-free — deliberately NOT the embed system GIFs/rich
+  // links use, see Message.jsx), no new upload needed since the sticker's
+  // image already lives on the server (see StickerManagerModal.jsx).
+  //
+  // BUG CORRIGIDO ("abro o menu de figurinha, clico e não acontece
+  // nada"): chamava setEmojiPickerOpen(false) — uma função que nunca
+  // existiu neste componente (emojiPickerOpen é só um valor calculado
+  // a partir de pickerTab, sem "setter" próprio; quem fecha o popover
+  // de verdade é setPickerTab(null), igual o resto do arquivo já faz
+  // em onClose/onPick). Isso estourava um erro ANTES até de montar o
+  // FormData ou chamar sendMessage — a figurinha nunca chegava a ser
+  // enviada, e o clique parecia simplesmente não fazer nada.
+  const sendSticker = async (sticker) => {
+    setPickerTab(null);
+    const fd = new FormData();
+    if (conversationId) fd.append('conversationId', conversationId);
+    if (channelId) fd.append('channelId', channelId);
+    fd.append('stickerUrl', sticker.url);
+
+    const optimistic = makeOptimisticMessage({ content: null, stickerUrl: sticker.url });
+    fd.append('nonce', optimistic.nonce);
+    useStore.getState().addMessage(roomKey, optimistic);
+    deliverMessage({ roomKey, optimisticId: optimistic.id, buildForm: () => fd });
+  };
+
+  // Envia o que está no compositor. Falhas: ver utils/messageSender.js —
+  // sem conexão vai pra fila offline (reenvio sozinho, mesmo nonce); recusa
+  // do servidor mostra "Tentar de novo" (agora também pra anexos: os
+  // arquivos ficam guardados na memória até enviar ou descartar).
+  const onSubmit = async (e) => {
+    e.preventDefault();
+    if (!content.trim() && files.length === 0) return;
+    // Emoticons → emoji (Configurações → Aparência → Caixa de chat).
+    const trimmedContent = convertEmoticons(content.trim());
+    const pendingFiles = files;
+    const pendingReplyTo = replyTo;
+    const keepOriginal = sendOriginal;
+    // Compressões ainda em andamento (foto recém-anexada): o envio espera.
+    const jobs = pendingFiles.map((f) => compressJobsRef.current.get(f.id));
+
+    setContent('');
+    setFiles([]);
+    setReplyTo(null);
+    setSendOriginal(false);
+    isTypingRef.current = false;
+    clearTimeout(typingTimeoutRef.current);
+    socket?.emit('typing:stop', { conversationId, channelId });
+
+    const optimistic = makeOptimisticMessage({
+      content: trimmedContent || null,
+      replyToId: pendingReplyTo?.id || null,
+      replyTo: pendingReplyTo || null,
+      ...(pendingFiles.length ? { upload: { pct: 0 }, uploadCount: pendingFiles.length } : {}),
+    });
+    useStore.getState().addMessage(roomKey, optimistic);
+
+    // Os arquivos finais (comprimidos ou originais) são resolvidos uma vez
+    // só e reaproveitados nas novas tentativas.
+    let finalFiles = null;
+    const buildForm = async () => {
+      if (!finalFiles) {
+        finalFiles = await Promise.all(pendingFiles.map(async (f, i) => {
+          if (keepOriginal) return f.file;
+          if (f.compressed) return f.compressed;
+          const job = jobs[i];
+          if (job && job.source === f.file) return (await job.promise) || f.file;
+          return f.file;
+        }));
+      }
+      const tooBig = finalFiles.find((file) => file.size > MAX_UPLOAD_BYTES);
+      if (tooBig) {
+        // Formato de erro do servidor (4xx) — vira "falhou" com o aviso, nunca fila.
+        const err = new Error('arquivo grande demais');
+        err.response = { status: 413, data: { error: `"${tooBig.name}" continua maior que ${MAX_UPLOAD_MB}MB.` } };
+        throw err;
+      }
+      const fd = new FormData();
+      if (conversationId) fd.append('conversationId', conversationId);
+      if (channelId) fd.append('channelId', channelId);
+      if (trimmedContent) fd.append('content', trimmedContent);
+      if (pendingReplyTo) fd.append('replyToId', pendingReplyTo.id);
+      finalFiles.forEach((file) => fd.append('attachments', file));
+      if (pendingFiles.some((f) => f.spoiler)) fd.append('spoilerFlags', JSON.stringify(pendingFiles.map((f) => f.spoiler)));
+      fd.append('nonce', optimistic.nonce);
+      return fd;
+    };
+    deliverMessage({ roomKey, optimisticId: optimistic.id, buildForm, trackUpload: pendingFiles.length > 0 });
+  };
+
+
+  // Ícone do tipo do canal num quadradinho com tom da marca, no cabeçalho.
+  const channelHeaderIcon = channel ? (
+    <span className="chat-header-icon" aria-hidden="true">
+      {/* Ícone personalizado do canal (emoji/imagem), quando houver. */}
+      {hasCustomIcon(channel) ? <CustomIcon item={channel} className="chat-header-custom-icon" />
+        : channel.type === 'TEXT' || !channel.type ? <ChatIcon name="hash" size={18} /> : <ChannelTypeIcon type={channel.type} className="chat-header-type-icon" />}
+    </span>
+  ) : null;
+
+  // Linhas da lista de mensagens memorizadas: digitar no composer muda o
+  // estado deste componente a cada tecla — sem isso, a lista inteira
+  // (dezenas de mensagens + separadores) era reconciliada a cada letra.
+  const messageRows = useMemo(() => {
+    let lastAuthor = null;
+    let lastTime = 0;
+    let lastDay = null;
+    return messages.map((m) => {
+      // Dia novo (ou resposta) sempre começa um grupo novo, com autor.
+      const dayKey = dayKeyOf(m.createdAt);
+      const newDay = dayKey !== lastDay;
+      const showAuthor = newDay || !!m.replyTo || m.authorId !== lastAuthor || new Date(m.createdAt) - lastTime > GROUP_WINDOW_MS;
+      lastAuthor = m.authorId;
+      lastTime = new Date(m.createdAt);
+      lastDay = dayKey;
+      return (
+        <Fragment key={m.nonce || m.id}>
+          {newDay && <DaySeparator iso={m.createdAt} />}
+          {m.id === firstUnreadId && (
+            <div className="chat-unread-sep" role="separator" aria-label="Novas mensagens">
+              <span className="chat-unread-sep-label">Novas mensagens</span>
+            </div>
+          )}
+          <Message
+            message={m}
+            showAuthor={showAuthor}
+            onReply={setReplyTo}
+            topics={topicsByParent.get(m.id) || EMPTY_TOPICS}
+            onOpenTopic={setOpenTopic}
+          />
+        </Fragment>
+      );
+    });
+    // setReplyTo/setOpenTopic são setters estáveis do useState.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [messages, firstUnreadId, topicsByParent]);
+
+  // Celular: arrastar uma mensagem pra direita responde a ela (ver
+  // utils/useSwipeToReply.js — convive com a gaveta e a rolagem).
+  useSwipeToReply(chatListRef, (messageId) => {
+    const msg = (useStore.getState().messagesByRoom[roomKey] || []).find((m) => m.id === messageId);
+    if (msg && !msg.deleted) setReplyTo(msg);
+  }, !isNonChatChannel);
+
+  // Arrastar arquivos pra janela e Ctrl+V em qualquer lugar do canal
+  // (não só dentro do campo de texto) anexam direto, sem clicar no clipe.
+  const addFilesRef = useRef(addFiles);
+  addFilesRef.current = addFiles;
+  const [dropActive, setDropActive] = useState(false);
+  useEffect(() => {
+    if (isCallChannel || channel?.type === 'RULES') return undefined;
+    let depth = 0;
+    const hasFiles = (e) => [...(e.dataTransfer?.types || [])].includes('Files');
+    const onEnter = (e) => { if (!hasFiles(e)) return; e.preventDefault(); depth += 1; setDropActive(true); };
+    const onOver = (e) => { if (!hasFiles(e)) return; e.preventDefault(); e.dataTransfer.dropEffect = 'copy'; };
+    const onLeave = (e) => { if (!hasFiles(e)) return; depth = Math.max(0, depth - 1); if (!depth) setDropActive(false); };
+    const onDrop = (e) => {
+      if (!hasFiles(e)) return;
+      e.preventDefault(); depth = 0; setDropActive(false);
+      const list = [...(e.dataTransfer.files || [])];
+      if (list.length) { addFilesRef.current(list); inputRef.current?.focus(); }
+    };
+    const onPaste = (e) => {
+      if (e.defaultPrevented) return;
+      const t = e.target;
+      if (t && (t.closest?.('input, textarea, [contenteditable="true"], .modal-box, [role="dialog"]'))) return;
+      const list = [...(e.clipboardData?.files || [])];
+      if (!list.length) return;
+      e.preventDefault();
+      addFilesRef.current(list);
+      inputRef.current?.focus();
+    };
+    window.addEventListener('dragenter', onEnter);
+    window.addEventListener('dragover', onOver);
+    window.addEventListener('dragleave', onLeave);
+    window.addEventListener('drop', onDrop);
+    document.addEventListener('paste', onPaste);
+    return () => {
+      window.removeEventListener('dragenter', onEnter);
+      window.removeEventListener('dragover', onOver);
+      window.removeEventListener('dragleave', onLeave);
+      window.removeEventListener('drop', onDrop);
+      document.removeEventListener('paste', onPaste);
+    };
+  }, [isCallChannel, channel?.type]);
+
+  // Ctrl+F (ou Cmd+F) dentro de um canal/conversa abre a busca do chat
+  // em vez da busca do navegador.
+  useEffect(() => {
+    if (isNonChatChannel) return undefined;
+    const onKey = (e) => {
+      if (!(e.ctrlKey || e.metaKey) || e.shiftKey || e.altKey) return;
+      if (e.key !== 'f' && e.key !== 'F') return;
+      if (document.querySelector('.modal-overlay, .chat-crop-overlay')) return;
+      e.preventDefault();
+      setSearchOpen(true);
+      setSearchFocusToken((t) => t + 1);
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [isNonChatChannel]);
+  useEffect(() => { setSearchOpen(false); setCropIndex(null); }, [roomKey]);
+
+  // Esc cancela a resposta mesmo com o foco fora do campo de digitar
+  // (dentro do campo, quem cuida é o onKeyDownExtra lá embaixo).
+  const pickerOpenRef = useRef(false);
+  pickerOpenRef.current = emojiPickerOpen;
+  useEffect(() => {
+    if (!replyTo) return undefined;
+    const onKey = (e) => {
+      if (e.key !== 'Escape' || e.defaultPrevented || pickerOpenRef.current) return;
+      const t = e.target;
+      if (t?.closest?.('input, textarea, select, [contenteditable="true"], .modal-overlay, [role="dialog"]')) return;
+      if (document.querySelector('.modal-overlay, .chat-crop-overlay')) return;
+      setReplyTo(null);
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [replyTo]);
+
+  if (isCallChannel) {
+    return (
+      <section className="chat-window">
+        {channelId && <ChannelSwitcher currentChannelId={channelId} />}
+        <header className="chat-header">
+          {channelHeaderIcon}
+          <div className="chat-title-block">
+            <ChatTitleOrCategoryChannels title={channel?.name || title} currentChannelId={channelId} />
+          </div>
+          <MembersToggleButton />
+        </header>
+        <ErrorBoundary compact resetKey={channel?.id}>
+          <Suspense fallback={null}><VoiceChannelView channel={channel} /></Suspense>
+        </ErrorBoundary>
+      </section>
+    );
+  }
+
+  if (channel?.type === 'RULES') {
+    return (
+      <section className="chat-window">
+        {channelId && <ChannelSwitcher currentChannelId={channelId} />}
+        <header className="chat-header">
+          {channelHeaderIcon}
+          <div className="chat-title-block">
+            <ChatTitleOrCategoryChannels title={channel?.name || title} currentChannelId={channelId} />
+          </div>
+          <MembersToggleButton />
+        </header>
+        <RulesChannelView channel={channel} />
+      </section>
+    );
+  }
+
+  // Quantas não lidas a partir da linha "Novas mensagens".
+  const firstUnreadIdx = firstUnreadId ? messages.findIndex((m) => m.id === firstUnreadId) : -1;
+  const unreadCount = firstUnreadIdx < 0 ? 0 : messages.slice(firstUnreadIdx).filter((m) => m.authorId !== user.id).length;
+
+  const dmStatus = dmOther ? (dmOtherPresence?.status || dmOther.status || 'OFFLINE') : null;
+  const dmCustomStatus = dmOther ? (dmOtherPresence?.customStatus ?? dmOther.customStatus) : null;
+  // Emoji do status: o da presença (atualizado em tempo real) quando ela sabe.
+  const dmCustomEmoji = dmOther
+    ? (dmOtherPresence && dmOtherPresence.customStatusEmoji !== undefined ? dmOtherPresence.customStatusEmoji : dmOther.customStatusEmoji)
+    : null;
+  // Quem está digitando, pelo nome (cai em "Alguém" se não achar).
+  const typingOthers = typingUserIds.filter((id) => id !== user.id);
+  const typingNames = typingOthers.map((id) => (
+    members.find((mm) => mm.user.id === id)?.user.displayName
+    || dmConvo?.members.find((mm) => mm.id === id)?.displayName
+    || 'Alguém'
+  ));
+  const typingText = typingNames.length === 0 ? ''
+    : typingNames.length === 1 ? <><b>{typingNames[0]}</b> está digitando…</>
+      : typingNames.length === 2 ? <><b>{typingNames[0]}</b> e <b>{typingNames[1]}</b> estão digitando…</>
+        : 'Várias pessoas estão digitando…';
+
+  return (
+    <section className="chat-window chat-v2">
+      {dropActive && <div className="chat-drop-overlay" aria-hidden="true"><div className="chat-drop-box">Solte para enviar no chat</div></div>}
+      {channelId && <ChannelSwitcher currentChannelId={channelId} />}
+      {conversationId && <DMSwitcher currentId={conversationId} />}
+      <header className={`chat-header ${dmOther ? 'is-dm' : ''}`}>
+        {channelHeaderIcon}
+        {dmOther && (
+          <div className="avatar-wrap small chat-header-avatar">
+            <div className="avatar small" style={{ background: dmOther.profileColor || '#F2894D' }}>
+              {dmOther.avatarUrl ? <HeaderAvatarImg url={dmOther.avatarUrl} size={34} /> : title[0]?.toUpperCase()}
+            </div>
+            <PresenceDot status={dmStatus} userId={dmOther?.id} />
+          </div>
+        )}
+        {dmConvo?.isGroup && (
+          <button className="chat-header-avatar clickable icon-btn" title="Configurações do grupo" onClick={() => setGroupSettingsOpen(true)}>
+            <ConversationIcon conversation={dmConvo} size="small" />
+          </button>
+        )}
+        <div className="chat-title-block">
+          <ChatTitleOrCategoryChannels title={channel?.name || title} currentChannelId={channelId} />
+          {dmOther && (
+            <span className="chat-header-sub truncate">
+              <span className={`chat-header-status status-${dmStatus.toLowerCase()}`}>{STATUS_LABEL[dmStatus] || 'Offline'}</span>
+              {(dmCustomStatus || dmCustomEmoji) && <> · {dmCustomEmoji && <StatusEmoji emoji={dmCustomEmoji} className="chat-header-status-emoji" />}{dmCustomEmoji && dmCustomStatus ? ' ' : ''}{dmCustomStatus}</>}
+            </span>
+          )}
+          {dmConvo?.isGroup && <span className="chat-header-sub truncate">{dmConvo.members.length} membros</span>}
+          {channel?.topic && <span className="chat-header-sub truncate" title={channel.topic}>{channel.topic}</span>}
+        </div>
+        <div className="chat-header-actions">
+          <PinnedButton
+            pins={pins} loading={pinsLoading} open={pinsOpen} setOpen={setPinsOpen}
+            canUnpin={channelId ? hasPermission(myPerms, 'MANAGE_MESSAGES') : !!conversationId}
+            onJump={jumpToMessage}
+            onUnpinned={(id) => setPins((prev) => prev.filter((x) => x.id !== id))}
+          />
+          {channelId && (!channel?.type || channel.type === 'TEXT') && <ThreadsButton channelId={channelId} />}
+          <button className={`icon-btn chat-header-btn ${searchOpen ? 'on' : ''}`} onClick={() => setSearchOpen((v) => !v)} title="Buscar mensagens (Ctrl+F)" aria-label="Buscar mensagens"><ChatIcon name="search" /></button>
+          {conversationId && (
+            <button
+              className={`icon-btn chat-header-btn ${voice.call?.channelId === `dm:${conversationId}` ? 'on' : ''}`}
+              title={voice.call?.channelId === `dm:${conversationId}` ? 'Você está nesta chamada' : 'Ligar'}
+              aria-label="Ligar"
+              onClick={() => {
+                if (voice.call?.channelId === `dm:${conversationId}`) return;
+                voice.joinChannel(null, `dm:${conversationId}`, title, 'DM');
+              }}
+            >
+              <ChatIcon name="phone" />
+            </button>
+          )}
+          {channelId && <MembersToggleButton />}
+          {conversationId && <MembersToggleButton title="Perfil" />}
+        </div>
+      </header>
+
+      <ChannelSearchPanel
+        open={searchOpen}
+        onClose={() => setSearchOpen(false)}
+        conversationId={conversationId}
+        channelId={channelId}
+        listRef={chatListRef}
+        messagesKey={messages}
+        focusToken={searchFocusToken}
+        onJump={jumpToMessage}
+      />
+
+      <PinnedStrip roomKey={roomKey} pins={pins} onJump={jumpToMessage} onOpenList={() => setPinsOpen(true)} />
+
+      {channel?.ticket && (channel.ticket.bannerImageUrl || channel.ticket.welcomeText) && (
+        <TicketChannelBanner ticket={channel.ticket} />
+      )}
+
+      <div className="message-list" ref={chatListRef} role="log" aria-label="Mensagens" aria-live="off">
+        {loadingOlder && <div className="message-list-loading-older dim">Carregando mensagens antigas...</div>}
+        {initialLoading && messages.length === 0 && <ChatSkeleton />}
+        {cacheStale && (
+          <div className="chat-cache-stale" role="status">
+            <ChatIcon name="clock" size={13} /> Sem conexão — mostrando as mensagens salvas neste aparelho.
+          </div>
+        )}
+        {!initialLoading && !hasMoreOlder && (
+          <ChatIntro channel={channel} dmOther={dmOther} dmConvo={dmConvo} title={title} />
+        )}
+        {messageRows}
+        {(() => {
+          // "Visto" (DM 1:1): a última mensagem é minha e a outra pessoa
+          // já leu depois dela. otherReadAt só vem se as DUAS deixam a
+          // confirmação de leitura ligada (ver conversationController).
+          const last = messages[messages.length - 1];
+          const readAt = dmOther ? dmConvo?.otherReadAt : null;
+          if (!readAt || !last || last.authorId !== user.id || String(last.id).startsWith('temp-')) return null;
+          return new Date(last.createdAt) <= new Date(readAt) ? <SeenReceipt at={readAt} /> : null;
+        })()}
+        <div ref={bottomRef} />
+      </div>
+
+      {/* Pílula flutuante: pular pras não lidas / voltar ao fim. */}
+      <div className="chat-jump-anchor">
+        {firstUnreadId && scrollPill.dividerAbove && !unreadPillDismissed ? (
+          <div className="chat-jump-pill is-unread">
+            <button type="button" className="chat-jump-pill-main" onClick={jumpToUnread}>
+              <NavIcon name="arrowUp" size={15} />
+              <span>Pular para não lidas</span>
+              {unreadCount > 0 && <span className="chat-jump-pill-count">{unreadCount >= 50 ? '50+' : unreadCount}</span>}
+            </button>
+            <button type="button" className="chat-jump-pill-x" onClick={() => setUnreadPillDismissed(true)} aria-label="Dispensar" title="Dispensar"><NavIcon name="close" size={13} /></button>
+          </div>
+        ) : scrollPill.far ? (
+          <button type="button" className="chat-jump-pill" onClick={jumpToBottom}>
+            <NavIcon name="arrowDown" size={15} />
+            <span>Voltar ao fim</span>
+          </button>
+        ) : null}
+      </div>
+
+      {openThread && channel && openThread.channelId === channelId && (
+        <ThreadPanel
+          key={openThread.id}
+          channel={channel}
+          threadId={openThread.id}
+          initialRoot={openThread.root || null}
+          onClose={() => setOpenTopic(null)}
+          onJumpToParent={(parent) => jumpToMessage(parent)}
+        />
+      )}
+      {contextView && (
+        <MessageContextModal
+          messages={contextView.messages}
+          targetId={contextView.targetId}
+          onClose={() => setContextView(null)}
+          onOpenTopic={setOpenTopic}
+        />
+      )}
+      {pollComposerOpen && (
+        <PollComposerModal
+          channelId={channel?.id}
+          conversationId={conversationId}
+          onClose={() => setPollComposerOpen(false)}
+        />
+      )}
+      {groupSettingsOpen && dmConvo?.isGroup && (
+        <GroupSettingsModal conversation={dmConvo} onClose={() => setGroupSettingsOpen(false)} />
+      )}
+      {cropIndex !== null && files[cropIndex] && (
+        <ImageCropModal
+          file={files[cropIndex].file}
+          onCancel={() => setCropIndex(null)}
+          onApply={(cropped) => {
+            const target = files[cropIndex];
+            const replaced = startCompression({ ...target, file: cropped, compressed: null, saved: 0, compressing: isCompressibleType(cropped.type) });
+            setFiles((list) => list.map((x) => (x.id === target.id ? replaced : x)));
+            setCropIndex(null);
+            inputRef.current?.focus();
+          }}
+        />
+      )}
+
+      {!!channel?.slowModeSeconds && (
+        <div className="slow-mode-hint" title="Modo lento ativo neste canal">
+          <ChatIcon name="clock" size={14} /> Modo lento: {formatSlowModeDuration(channel.slowModeSeconds)} entre mensagens
+        </div>
+      )}
+
+      {dmConvo && dmConvo.inbox && dmConvo.inbox !== 'main' && (
+        <div className={`dm-request-banner ${dmConvo.inbox === 'spam' ? 'spam' : ''}`} role="status">
+          <span>
+            {dmConvo.inbox === 'spam'
+              ? 'Essa conversa foi pro Spam. Cuidado com links e pedidos de dados.'
+              : `${dmOther?.displayName || 'Esta pessoa'} não é seu amigo e quer conversar. Responder ou aceitar move a conversa pras suas mensagens.`}
+          </span>
+          <button type="button" className="ok" onClick={() => setInbox('accept')}>{dmConvo.inbox === 'spam' ? 'Não é spam' : 'Aceitar'}</button>
+          {dmConvo.inbox === 'request' && <button type="button" onClick={() => setInbox('spam')}>Marcar spam</button>}
+          <button type="button" onClick={() => { setInbox('ignore'); navigate('/dms'); }}>Ignorar</button>
+        </div>
+      )}
+      <form className="message-input-bar chat-composer" ref={composerBarRef} onSubmit={onSubmit}>
+        <ScheduledMessagesChip channelId={channelId} conversationId={conversationId} refreshToken={scheduledToken} />
+        {scheduleOpen && (
+          <ScheduleMessageModal
+            content={content.trim()} channelId={channelId} conversationId={conversationId} replyToId={replyTo?.id}
+            onClose={() => setScheduleOpen(false)}
+            onScheduled={() => { setContent(''); setReplyTo(null); setScheduledToken((t) => t + 1); }}
+          />
+        )}
+        {replyToVisible && (() => {
+          // Prévia de quem/o que está sendo respondido: avatar, nome,
+          // trecho do texto e miniatura (imagem/figurinha/GIF). Clicar leva
+          // até a mensagem; X ou Esc cancela.
+          const preview = replyPreviewOf(replyToVisible);
+          return (
+            <div className={`reply-bar chat-composer-banner chat-reply-banner ${replyBarLeaving ? 'leaving' : ''}`}>
+              <ChatIcon name="reply" size={15} className="chat-composer-banner-icon" />
+              <button type="button" className="chat-reply-target" onClick={() => jumpToMessage(replyToVisible)} title="Ir para a mensagem">
+                <UserAvatar user={replyToVisible.author} size={24} />
+                <span className="chat-reply-text">
+                  <span className="chat-reply-label">
+                    <span>Respondendo a</span>
+                    <b className="truncate">{replyToVisible.author?.displayName}</b>
+                  </span>
+                  <span className="chat-reply-snippet truncate">{preview.text}</span>
+                </span>
+              </button>
+              {preview.thumb && <img className="chat-reply-thumb" src={preview.thumb} alt="" />}
+              <kbd className="chat-reply-esc" aria-hidden="true">Esc</kbd>
+              <button type="button" className="icon-btn-small chat-composer-banner-close" title="Cancelar resposta (Esc)" aria-label="Cancelar resposta" onClick={() => setReplyTo(null)}><ChatIcon name="close" size={14} /></button>
+            </div>
+          );
+        })()}
+        {filesVisible.length > 0 && (
+          <div className={`pending-files ${filesBarLeaving ? 'leaving' : ''}`}>
+            {/* Item pedido: "se enviar vários arquivo de imagem junto
+                vai ficar um quadradinho de cada... o ícone de olho...
+                marcar imagem com spoiler" — imagem vira uma
+                miniatura de verdade, com o botão de olho pra marcar
+                spoiler (fica destacado quando ativo) e o de lixeira
+                pra remover; arquivo que não é imagem (vídeo, áudio,
+                documento) continua como antes — um chip de texto
+                simples, já que não faz sentido mostrar miniatura de
+                algo que não é imagem. */}
+            {filesVisible.map((f, i) => {
+              const isImage = f.file.type.startsWith('image/');
+              // Tamanho que vai subir de verdade (já comprimido, se valeu a pena).
+              const willCompress = !sendOriginal && !!f.compressed;
+              const sizeLabel = f.compressing && !sendOriginal && f.file.size > COMPRESS_MIN_BYTES ? 'Otimizando…'
+                : willCompress ? `${formatFileSize(f.compressed.size)} · −${formatFileSize(f.saved)}`
+                  : formatFileSize(f.file.size);
+              const isVideo = f.file.type.startsWith('video/');
+              const toggleSpoiler = () => setFiles(files.map((x, idx) => (idx === i ? { ...x, spoiler: !x.spoiler } : x)));
+              const remove = () => setFiles(files.filter((_, idx) => idx !== i));
+              if (!isImage && !isVideo) {
+                return (
+                  <span key={f.id || i} className="chip chat-pending-chip">
+                    <ChatIcon name="file" size={14} />
+                    <span className="truncate">{f.file.name}</span>
+                    <span className="chat-pending-size">{formatFileSize(f.file.size)}</span>
+                    <button type="button" title="Remover" aria-label="Remover" onClick={remove}><ChatIcon name="close" size={13} /></button>
+                  </span>
+                );
+              }
+              return (
+                <div key={f.id || i} className={`pending-file-thumb ${f.spoiler ? 'is-spoiler' : ''}`}>
+                  <div className="pending-file-media">
+                    {filePreviews[i] && (isImage
+                      ? <img src={filePreviews[i]} alt="" />
+                      : <video src={filePreviews[i]} muted preload="metadata" playsInline />)}
+                    {isVideo && <span className="pending-file-kind">Vídeo</span>}
+                  </div>
+                  <div className="pending-file-thumb-actions">
+                    {isImage && canCropFile(f.file) && (
+                      <button type="button" className="pending-file-spoiler-btn pending-file-crop-btn" title="Recortar" aria-label="Recortar" onClick={() => setCropIndex(i)}>
+                        <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M6 2v14a2 2 0 0 0 2 2h14" /><path d="M18 22V8a2 2 0 0 0-2-2H2" /></svg>
+                      </button>
+                    )}
+                    <button
+                      type="button" className={`pending-file-spoiler-btn ${f.spoiler ? 'active' : ''}`}
+                      title={f.spoiler ? 'Remover spoiler' : 'Marcar como spoiler'}
+                      aria-label={f.spoiler ? 'Remover spoiler' : 'Marcar como spoiler'}
+                      aria-pressed={f.spoiler}
+                      onClick={toggleSpoiler}
+                    ><ChatIcon name="eye" size={15} /></button>
+                    <button type="button" className="pending-file-remove-btn" title="Remover" aria-label="Remover" onClick={remove}><ChatIcon name="close" size={15} /></button>
+                  </div>
+                  {f.spoiler && <span className="pending-file-spoiler-tag">Spoiler</span>}
+                  <span className="pending-file-thumb-name truncate" title={f.file.name}>{f.file.name}</span>
+                  <span className={`pending-file-thumb-size ${willCompress ? 'is-saved' : ''}`} title={willCompress ? `Foto otimizada: de ${formatFileSize(f.file.size)} para ${formatFileSize(f.compressed.size)}` : undefined}>{sizeLabel}</span>
+                </div>
+              );
+            })}
+            {filesVisible.some((f) => f.compressed || (f.compressing && f.file.size > COMPRESS_MIN_BYTES)) && (() => {
+              const savedTotal = filesVisible.reduce((n, f) => n + (f.compressed ? f.saved : 0), 0);
+              return (
+                <label className={`pending-files-original ${sendOriginal ? 'on' : ''}`} title="Sem marcar, fotos grandes são reduzidas (até 2560px) pra enviar mais rápido">
+                  <input type="checkbox" checked={sendOriginal} onChange={(e) => setSendOriginal(e.target.checked)} />
+                  <span>Enviar original</span>
+                  {!sendOriginal && savedTotal > 0 && <small>economiza {formatFileSize(savedTotal)}</small>}
+                </label>
+              );
+            })()}
+          </div>
+        )}
+        {mentionQuery !== null && mentionCandidates.length > 0 && (
+          <div className="mention-autocomplete">
+            <div className="mention-autocomplete-head">
+              {mentionTrigger === '#' ? 'Canais' : 'Marcar pessoas'}
+              <span>{mentionTrigger === '#' ? '#' : mentionTrigger} · ↑↓ e Enter</span>
+            </div>
+            {mentionCandidates.map((c, idx) => (
+              <button
+                key={c.id} type="button"
+                className={idx === mentionActive ? 'is-active' : ''}
+                onMouseDown={(e) => e.preventDefault()}
+                onMouseEnter={() => setMentionActive(idx)}
+                onClick={() => pickMention(c)}
+              >
+                {c.isChannel ? (
+                  <span className="mention-autocomplete-left">
+                    <span className="mention-autocomplete-channel-icon"><NavIcon name={c.isVoice ? 'voice' : 'hash'} size={15} /></span>
+                    <span className="mention-autocomplete-name truncate">{c.label}</span>
+                  </span>
+                ) : (
+                <span className="mention-autocomplete-left">
+                  {/* Item pedido: "o user que não tem foto de perfil...
+                      fundo azul, a inicial do nome" — @everyone/@here
+                      não são pessoas (sem avatar ou nome de verdade
+                      pra mostrar), só quem é uma pessoa de verdade
+                      ganha um avatar aqui — com foto se tiver, ou o
+                      mesmo reserva colorido+inicial que já aparece em
+                      qualquer outro lugar do app quando não tem foto. */}
+                  {c.id !== '@everyone' && c.id !== '@here' && (
+                    <UserAvatar user={{ avatarUrl: c.avatarUrl, displayName: c.label, profileColor: c.profileColor }} size={20} />
+                  )}
+                  <span className="mention-autocomplete-name">@{c.label}</span>
+                </span>
+                )}
+                <span className="dim truncate">{c.isChannel ? (c.isVoice ? `Voz${c.hint ? ` · ${c.hint}` : ''}` : c.hint) : c.hint}</span>
+              </button>
+            ))}
+          </div>
+        )}
+        {recording && (
+          <div className="reply-bar recording-bar chat-composer-banner">
+            <span className="recording-dot" /> <span>Gravando áudio... <b>{formatDuration(recordSeconds)}</b></span>
+            <button type="button" className="icon-btn-small chat-composer-banner-close" title="Cancelar" aria-label="Cancelar" onClick={() => stopRecording(true)}><ChatIcon name="close" size={14} /></button>
+            <button type="button" className="icon-btn-small chat-composer-banner-ok" title="Concluir e anexar" aria-label="Concluir e anexar" onClick={() => stopRecording(false)}><ChatIcon name="check" size={14} /></button>
+          </div>
+        )}
+        <div className="message-input-row">
+          <input
+            ref={fileInputRef}
+            type="file" multiple hidden
+            onChange={(e) => { addFiles(Array.from(e.target.files)); e.target.value = ''; }}
+          />
+          <div className="composer-picker-anchor">
+            <button type="button" className={`icon-btn attach-plus-btn chat-composer-btn ${attachMenuOpen ? 'on' : ''}`} title="Adicionar" aria-label="Adicionar" onClick={() => setAttachMenuOpen((v) => !v)}><ChatIcon name="plus" /></button>
+            {attachMenuOpen && (
+              <div className="attach-menu">
+                <button type="button" onClick={() => { fileInputRef.current?.click(); setAttachMenuOpen(false); }}>
+                  <ChatIcon name="file" size={16} /> Enviar arquivos
+                </button>
+                <button type="button" disabled={!content.trim()} title={content.trim() ? 'Agendar o envio desta mensagem' : 'Escreva a mensagem primeiro'} onClick={() => { setScheduleOpen(true); setAttachMenuOpen(false); }}>
+                  <ChatIcon name="clock" size={16} /> Enviar depois
+                </button>
+                {channel && hasPermission(myPerms, 'CREATE_POLLS') && (
+                  <button type="button" onClick={() => { setPollComposerOpen(true); setAttachMenuOpen(false); }}>
+                    <ChatIcon name="poll" size={16} /> Criar enquete
+                  </button>
+                )}
+              </div>
+            )}
+          </div>
+          <button
+            type="button"
+            className={`icon-btn chat-composer-btn ${recording ? 'danger-toggle' : ''}`}
+            title={recording ? 'Parar gravação' : 'Gravar áudio'}
+            aria-label={recording ? 'Parar gravação' : 'Gravar áudio'}
+            onClick={() => (recording ? stopRecording(false) : startRecording())}
+          >
+            <ChatIcon name="mic" />
+          </button>
+          <RichMessageInput
+            inputRef={inputRef}
+            className="message-input"
+            placeholder={channel ? `Conversar em #${channel.name}` : `Conversar com ${title || ''}`}
+            value={content}
+            onChange={onContentChange}
+            emojiMap={composerEmojiMap}
+            mentionMap={composerMentionMap}
+            onSubmit={() => onSubmit({ preventDefault: () => {} })}
+            onPasteFiles={(fs) => addFiles(fs)}
+            onKeyDownExtra={(e) => {
+              // Esc com a lista de sugestões fechada: cancela a resposta.
+              if (e.key === 'Escape' && replyTo && (mentionQuery === null || mentionCandidates.length === 0)) {
+                e.preventDefault();
+                setReplyTo(null);
+                return true;
+              }
+              // Seta pra cima com o campo vazio: edita sua última mensagem.
+              if (e.key === 'ArrowUp' && !content.trim() && files.length === 0 && (mentionQuery === null || mentionCandidates.length === 0)) {
+                const mine = [...messages].reverse().find((m) => m.authorId === user.id && !m.pending && !m.failed && !m.deleted && !String(m.id).startsWith('temp-') && m.content);
+                if (mine && requestEdit(mine.id)) { e.preventDefault(); return true; }
+                return false;
+              }
+              if (mentionQuery === null || mentionCandidates.length === 0) return false;
+              if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+                e.preventDefault();
+                const n = mentionCandidates.length;
+                setMentionActive((i) => (e.key === 'ArrowDown' ? (i + 1) % n : (i - 1 + n) % n));
+                return true;
+              }
+              if (e.key === 'Enter' || e.key === 'Tab') {
+                e.preventDefault();
+                pickMention(mentionCandidates[Math.min(mentionActive, mentionCandidates.length - 1)]);
+                return true;
+              }
+              if (e.key === 'Escape') { e.preventDefault(); setMentionQuery(null); return true; }
+              return false;
+            }}
+          />
+          <div className="composer-picker-anchor">
+            {/* Um botão só pra Emojis, Figurinhas e GIFs (igual ao celular):
+                abre o seletor com abas, na última aba usada. */}
+            <button ref={emojiBtnRef} type="button" className={`icon-btn chat-composer-btn chat-media-picker-btn ${emojiPickerOpen ? 'on' : ''}`} title="Emojis, figurinhas e GIFs" aria-label="Emojis, figurinhas e GIFs" aria-haspopup="dialog" aria-expanded={emojiPickerOpen} onClick={() => setPickerTab((t) => (t ? null : readLastPickerTab()))}>
+              <ChatIcon name="smile" />
+            </button>
+            <MiniJogosComposerButton />
+            {emojiPickerOpen && createPortal(
+              <EmojiPicker
+                key={pickerTab}
+                variant="composer-centered"
+                style={{ '--composer-height': `${composerBarHeight}px`, ...(pickerStyle || {}) }}
+                serverStickers={serverStickers}
+                serverEmojis={usableEmojis}
+                initialTab={pickerTab}
+                onPick={insertText}
+                onPickSticker={sendSticker}
+                onPickGif={sendGif}
+                onTabChange={saveLastPickerTab}
+                onClose={() => setPickerTab(null)}
+              />,
+              document.body,
+            )}
+          </div>
+          <button type="submit" className={`icon-btn send-btn chat-send-btn ${content.trim() || files.length ? 'ready' : ''}`} title="Enviar (botão direito: enviar depois)" aria-label="Enviar" onContextMenu={(e) => { if (content.trim() && !files.length) { e.preventDefault(); setScheduleOpen(true); } }}><ChatIcon name="send" size={18} /></button>
+        </div>
+        {/* Linha reservada pro "digitando…" — altura fixa, não empurra nada. */}
+        <div className="chat-typing" aria-live="polite">
+          {typingOthers.length > 0 && (
+            <>
+              <span className="chat-typing-dots" aria-hidden="true"><i /><i /><i /></span>
+              <span className="truncate">{typingText}</span>
+            </>
+          )}
+        </div>
+      </form>
+    </section>
+  );
+}
+
+// Última aba do seletor de emoji/figurinha/GIF (só conveniência local).
+const PICKER_TAB_KEY = 'pc.composerPickerTab';
+const PICKER_TABS = ['emojis', 'stickers', 'gifs'];
+function readLastPickerTab() {
+  try { const t = localStorage.getItem(PICKER_TAB_KEY); return PICKER_TABS.includes(t) ? t : 'emojis'; } catch { return 'emojis'; }
+}
+function saveLastPickerTab(t) {
+  if (!PICKER_TABS.includes(t)) return;
+  try { localStorage.setItem(PICKER_TAB_KEY, t); } catch { /* sem armazenamento: tudo bem */ }
+}
+
+const ChatWindowMemo = memo(ChatWindowInner);
+
+function formatDuration(totalSeconds) {
+  const m = Math.floor(totalSeconds / 60);
+  const s = totalSeconds % 60;
+  return `${m}:${String(s).padStart(2, '0')}`;
+}
+
+// Readable label for the slow-mode hint above the composer (e.g. "30
+// segundos", "2 minutos", "1 hora") — same duration list as
+// EditChannelModal.jsx's SLOW_MODE_OPTIONS, just formatted for a sentence
+// instead of a dropdown.
+function formatSlowModeDuration(totalSeconds) {
+  if (totalSeconds < 60) return `${totalSeconds} segundo${totalSeconds === 1 ? '' : 's'}`;
+  if (totalSeconds < 3600) {
+    const m = Math.round(totalSeconds / 60);
+    return `${m} minuto${m === 1 ? '' : 's'}`;
+  }
+  const h = Math.round(totalSeconds / 3600);
+  return `${h} hora${h === 1 ? '' : 's'}`;
+}
+
+// Persistent header shown at the top of a ticket's own channel — a snapshot
+// (see Ticket.bannerImageUrl's schema comment) of whatever banner/text the
+// ticket was opened with, taken once at creation and never re-derived from
+// the option/settings afterwards. Lives here instead of as a chat Message
+// because a Message needs a real author, and authoring it as the ticket's
+// opener made every new ticket look like the member had written themselves
+// a welcome note.
+function TicketChannelBanner({ ticket }) {
+  return (
+    <div className="ticket-channel-banner">
+      {ticket.bannerImageUrl && <img src={ticket.bannerImageUrl} alt="" />}
+      {ticket.welcomeText && <p>{ticket.welcomeText}</p>}
+    </div>
+  );
+}
+
+// Item pedido: "deixe as categorias normal, mas os canais em vez de
+// aparecerem do lado dela, faça aparecer numa barrinha onde fica o
+// nome do canal que você está" — no lugar do título normal do canal,
+// quando uma categoria está aberta (ver ChannelSwitcher.jsx, que
+// controla openCategoryId no store global), mostra os canais dela
+// pra escolher ali mesmo, na área onde o nome do canal atual sempre
+// aparece.
+function ChatTitleOrCategoryChannels({ title, currentChannelId }) {
+  const { user } = useAuth();
+  const navigate = useNavigate();
+  const categories = useStore((s) => s.categories);
+  const channelReadAt = useStore((s) => s.channelReadAt);
+  const openCategoryId = useStore((s) => s.openCategoryId);
+  const setOpenCategoryId = useStore((s) => s.setOpenCategoryId);
+  const members = useStore((s) => s.members);
+  const openCategory = categories.find((c) => c.id === openCategoryId);
+  const myRoleIds = members.find((m) => m.user.id === user.id)?.roleIds || [];
+
+  if (!openCategory) return <span className="chat-title truncate">{title}</span>;
+
+  return (
+    <div className="chat-title-category-channels">
+      {(openCategory.channels || []).map((ch) => {
+        const unread = isChannelUnread(ch, channelReadAt, user.id, myRoleIds);
+        const active = ch.id === currentChannelId;
+        return (
+          <button
+            type="button" key={ch.id}
+            className={`chat-title-category-channel ${active ? 'active' : ''} ${unread ? 'unread' : ''}`}
+            onClick={() => { setOpenCategoryId(null); if (ch.id !== currentChannelId) navigate(channelPath(ch)); }}
+          >
+            {hasCustomIcon(ch) ? <CustomIcon item={ch} className="channel-hash channel-custom-icon" /> : <ChannelTypeIcon type={ch.type} />}
+            <span className="truncate">{ch.name}</span>
+            <UnreadCountBadge channel={ch} active={active} unread={unread} />
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
+// Topo da conversa: aparece quando não há mais mensagens antigas pra
+// carregar — "início do canal" / "início da conversa". Fica empurrado pra
+// baixo (margin-top:auto) quando há poucas mensagens.
+function ChatIntro({ channel, dmOther, dmConvo, title }) {
+  if (channel) {
+    return (
+      <div className="chat-intro">
+        <div className="chat-intro-icon"><ChatIcon name="hash" size={30} /></div>
+        <h2 className="chat-intro-title">Bem-vindo(a) a #{channel.name}</h2>
+        <p className="chat-intro-text">Este é o início do canal <b>#{channel.name}</b>. {channel.topic || 'Diga oi e comece a conversa!'}</p>
+      </div>
+    );
+  }
+  if (dmOther) {
+    return (
+      <div className="chat-intro">
+        <UserAvatar user={dmOther} size={72} className="chat-intro-avatar" />
+        <h2 className="chat-intro-title">{dmOther.displayName}</h2>
+        {dmOther.username && <div className="chat-intro-handle">@{dmOther.username}</div>}
+        <p className="chat-intro-text">Este é o início da sua conversa com <b>{dmOther.displayName}</b>.</p>
+      </div>
+    );
+  }
+  if (dmConvo?.isGroup) {
+    return (
+      <div className="chat-intro">
+        <div className="chat-intro-group"><ConversationIcon conversation={dmConvo} size="large" /></div>
+        <h2 className="chat-intro-title">{title}</h2>
+        <p className="chat-intro-text">Este é o início do grupo <b>{title}</b>.</p>
+      </div>
+    );
+  }
+  return null;
+}
+
+// Esqueleto pulsando enquanto a primeira página de mensagens carrega.
+function ChatSkeleton() {
+  return (
+    <div className="chat-skeleton" aria-hidden="true">
+      {[68, 42, 82, 55].map((w, i) => (
+        <div key={i} className="chat-skeleton-row">
+          <span className="chat-skeleton-avatar" />
+          <div className="chat-skeleton-lines">
+            <span className="chat-skeleton-line short" />
+            <span className="chat-skeleton-line" style={{ width: `${w}%` }} />
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}

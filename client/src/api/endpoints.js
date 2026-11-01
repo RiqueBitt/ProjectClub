@@ -1,0 +1,814 @@
+import { api } from './client';
+
+// --- Auth ---
+export const registerUser = (payload) => api.post('/auth/register', payload).then((r) => r.data);
+export const loginUser = (payload) => api.post('/auth/login', payload).then((r) => r.data);
+export const submitApplication = (payload) => api.post('/applications', payload).then((r) => r.data);
+export const adminListApplications = (status) => api.get('/applications/admin/all', { params: status ? { status } : {} }).then((r) => r.data);
+export const approveApplication = (id) => api.post(`/applications/admin/${id}/approve`).then((r) => r.data);
+export const rejectApplication = (id, reason) => api.post(`/applications/admin/${id}/reject`, { reason }).then((r) => r.data);
+export const logoutUser = () => api.post('/auth/logout').then((r) => r.data);
+export const fetchMe = () => api.get('/auth/me').then((r) => r.data);
+export const sendVerificationCode = () => api.post('/auth/verify-email/send').then((r) => r.data);
+export const confirmVerificationCode = (code) => api.post('/auth/verify-email/confirm', { code }).then((r) => r.data);
+export const forgotPassword = (email) => api.post('/auth/forgot-password', { email }).then((r) => r.data);
+export const resetPassword = (token, newPassword) => api.post('/auth/reset-password', { token, newPassword }).then((r) => r.data);
+export const setup2FA = (password) => api.post('/auth/2fa/setup', { password }).then((r) => r.data);
+export const confirm2FA = (code) => api.post('/auth/2fa/confirm', { code }).then((r) => r.data);
+// Desativar exige senha + código do app autenticador OU um código de recuperação.
+export const disable2FA = (password, { code, recoveryCode } = {}) => api.post('/auth/2fa/disable', { password, code, recoveryCode }).then((r) => r.data);
+export const getRecoveryCodesStatus = () => api.get('/auth/2fa/recovery-codes').then((r) => r.data);
+export const regenerateRecoveryCodes = (password) => api.post('/auth/2fa/recovery-codes', { password }).then((r) => r.data);
+export const changePassword = (currentPassword, newPassword) => api.post('/auth/change-password', { currentPassword, newPassword }).then((r) => r.data);
+export const deleteAccount = (password) => api.post('/auth/delete-account', { password }).then((r) => r.data);
+export const listSessions = () => api.get('/auth/sessions').then((r) => r.data);
+export const revokeSession = (id) => api.delete(`/auth/sessions/${id}`).then((r) => r.data);
+export const revokeOtherSessions = () => api.delete('/auth/sessions/other').then((r) => r.data);
+// Entrar com Google/Discord/GitHub (ver server/src/controllers/oauthController.js).
+export const getOAuthProviders = () => api.get('/auth/oauth/providers').then((r) => r.data);
+export const oauthStartUrl = (provider, from = 'login') => `/api/auth/oauth/${encodeURIComponent(provider)}/start?from=${from}`;
+export const completeOAuth2FA = (payload) => api.post('/auth/oauth/2fa', payload).then((r) => r.data);
+export const getOAuthSignup = () => api.get('/auth/oauth/signup').then((r) => r.data);
+export const cancelOAuthSignup = () => api.delete('/auth/oauth/signup').then((r) => r.data);
+export const listOAuthAccounts = () => api.get('/auth/oauth/accounts').then((r) => r.data);
+export const linkOAuthAccount = (provider) => api.post(`/auth/oauth/${encodeURIComponent(provider)}/link`).then((r) => r.data);
+export const unlinkOAuthAccount = (provider) => api.delete(`/auth/oauth/accounts/${encodeURIComponent(provider)}`).then((r) => r.data);
+
+// --- Users / profile ---
+export const updateProfile = (payload) => api.patch('/users/me', payload).then((r) => r.data);
+export const setActiveTag = (active) => api.patch('/users/me/tag', { active }).then((r) => r.data);
+export const setPreferredTheme = (theme) => api.patch('/users/me/theme', { theme }).then((r) => r.data);
+export const setLayoutStyle = (layoutStyle) => api.patch('/users/me/layout-style', { layoutStyle }).then((r) => r.data);
+export const setChatZoom = (zoom) => api.patch('/users/me/chat-zoom', { zoom }).then((r) => r.data);
+export const setInterfaceZoom = (zoom) => api.patch('/users/me/interface-zoom', { zoom }).then((r) => r.data);
+// Item pedido: "sistema completo de configurações... GET/PATCH/POST
+// settings/reset"
+export const getUserSettings = () => api.get('/users/me/settings').then((r) => r.data);
+export const updateUserSettings = (patch) => api.patch('/users/me/settings', patch).then((r) => r.data);
+export const resetUserSettings = () => api.post('/users/me/settings/reset').then((r) => r.data);
+export const setEmojiStyle = (emojiStyle) => api.patch('/users/me/emoji-style', { emojiStyle }).then((r) => r.data);
+export const updateUsername = (username) => api.patch('/users/me/username', { username }).then((r) => r.data);
+// crop = enquadramento "x,y,zoom" (só GIF: o servidor recorta todos os
+// quadros). Vai ANTES do arquivo no FormData pro multer já ter o campo
+// quando o arquivo chega (ver server/src/middleware/upload.js).
+export const uploadAvatar = (file, crop) => {
+  const fd = new FormData();
+  if (crop) fd.append('crop', crop);
+  fd.append('avatar', file);
+  return api.post('/users/me/avatar', fd).then((r) => r.data);
+};
+export const uploadBanner = (file, framing) => {
+  const fd = new FormData();
+  if (framing) fd.append('framing', framing); // enquadramento "x,y,zoom" (GIF)
+  fd.append('banner', file);
+  return api.post('/users/me/banner', fd).then((r) => r.data);
+};
+export const uploadMiniProfileBanner = (file, framing) => {
+  const fd = new FormData();
+  if (framing) fd.append('framing', framing); // enquadramento "x,y,zoom" (GIF)
+  fd.append('banner', file);
+  return api.post('/users/me/mini-banner', fd).then((r) => r.data);
+};
+export const uploadIdCard = (file, framing) => {
+  const fd = new FormData();
+  if (framing) fd.append('framing', framing); // enquadramento "x,y,zoom" da placa
+  fd.append('idCard', file);
+  return api.post('/users/me/id-card', fd).then((r) => r.data);
+};
+export const removeIdCard = () => api.delete('/users/me/id-card').then((r) => r.data);
+export const setStatus = (status) => api.patch('/users/me/status', { status }).then((r) => r.data);
+export const setCustomStatus = (payload) => api.patch('/users/me/custom-status', payload).then((r) => r.data);
+export const searchUsers = (q, opts = {}) => api.get('/users/search', { params: { q: String(q || '').replace(/^@+/, ''), ...(opts.self ? { self: 1 } : {}) }, ...(opts.signal ? { signal: opts.signal } : {}) }).then((r) => r.data);
+// Mesmo perfil pedido por vários lugares ao mesmo tempo (miniperfil,
+// painel da DM, Início — todos no mesmo tique do refresh ao vivo) vira
+// UMA requisição só.
+const profileInflight = new Map();
+export const getUserProfile = (id) => {
+  if (profileInflight.has(id)) return profileInflight.get(id);
+  const p = api.get(`/users/${id}`).then((r) => r.data).finally(() => profileInflight.delete(id));
+  profileInflight.set(id, p);
+  return p;
+};
+export const voteProfile = (id, value) => api.post(`/users/${id}/vote`, { value }).then((r) => r.data);
+export const listUsableEmojis = () => api.get('/users/me/usable-emojis').then((r) => r.data);
+export const listFavoriteGifs = () => api.get('/users/me/favorite-gifs').then((r) => r.data);
+export const addFavoriteGif = (gif) => api.post('/users/me/favorite-gifs', gif).then((r) => r.data);
+export const removeFavoriteGif = (gifId) => api.delete(`/users/me/favorite-gifs/${encodeURIComponent(gifId)}`).then((r) => r.data);
+// Busca de GIFs pelo servidor (a chave da KLIPY fica só lá).
+export const searchGifsApi = (q, { signal, limit = 24 } = {}) => api.get('/gifs/search', { params: { q, limit }, signal }).then((r) => r.data);
+export const listGifCategories = () => api.get('/gifs/categories').then((r) => r.data);
+// Item pedido: "Jogos adicionados... Cada jogo deve possuir um
+// identificador interno" — mesmo padrão de favorite-gifs acima.
+export const listRegisteredGames = () => api.get('/users/me/games').then((r) => r.data);
+export const addRegisteredGame = (payload) => api.post('/users/me/games', payload).then((r) => r.data);
+export const removeRegisteredGame = (id) => api.delete(`/users/me/games/${id}`).then((r) => r.data);
+// Item pedido: "Atalhos personalizados... verificar se já existe
+// outro comando usando a combinação" — setShortcut é um upsert por
+// action (reatribui a tecla de uma ação já existente).
+export const listMyShortcuts = () => api.get('/users/me/shortcuts').then((r) => r.data);
+export const setShortcut = (action, keyCombination) => api.put('/users/me/shortcuts', { action, keyCombination }).then((r) => r.data);
+export const deleteShortcut = (id) => api.delete(`/users/me/shortcuts/${id}`).then((r) => r.data);
+
+// --- Friends ---
+export const listFriends = () => api.get('/friends').then((r) => r.data);
+export const sendFriendRequest = (username, message) => api.post('/friends/request', { username, ...(message ? { message } : {}) }).then((r) => r.data);
+export const respondFriendRequest = (id, action) => api.post(`/friends/${id}/respond`, { action }).then((r) => r.data);
+export const removeFriend = (id) => api.delete(`/friends/${id}`).then((r) => r.data);
+export const blockUser = (username) => api.post('/friends/block', { username }).then((r) => r.data);
+export const listBlockedUsers = () => api.get('/friends/blocked').then((r) => r.data);
+export const unblockUser = (userId) => api.delete(`/friends/block/${userId}`).then((r) => r.data);
+// Denúncia de perfil (botão "Denunciar" do modal de perfil).
+// Denúncia rápida: category é uma das chaves de REPORT_CATEGORIES (ver
+// components/modals/ReportDialog.jsx / server reportController.js).
+export const reportUserProfile = (userId, category, details) => api.post(`/users/${userId}/report`, { category, details }).then((r) => r.data);
+
+// --- Conversations / DMs ---
+export const listConversations = () => api.get('/conversations').then((r) => r.data);
+export const createConversation = (userIds, name) => api.post('/conversations', { userIds, name }).then((r) => r.data);
+export const markConversationRead = (id) => api.post(`/conversations/${id}/read`).then((r) => r.data);
+export const addConversationMember = (id, userId) => api.post(`/conversations/${id}/members`, { userId }).then((r) => r.data);
+export const renameConversation = (id, name) => api.patch(`/conversations/${id}`, { name }).then((r) => r.data);
+export const uploadConversationIcon = (id, file) => {
+  const fd = new FormData(); fd.append('icon', file);
+  return api.post(`/conversations/${id}/icon`, fd).then((r) => r.data);
+};
+export const leaveConversation = (id) => api.delete(`/conversations/${id}/members/me`).then((r) => r.data);
+// Só o dono do grupo pode remover outra pessoa.
+export const removeConversationMember = (id, userId) => api.delete(`/conversations/${id}/members/${userId}`).then((r) => r.data);
+
+// --- Messages (shared by DMs and channels) ---
+export const listMessages = (params) => api.get('/messages', { params }).then((r) => r.data);
+export const searchMessages = (params, opts = {}) => api.get('/messages/search', { params, ...(opts.signal ? { signal: opts.signal } : {}) }).then((r) => r.data);
+// A sala vai também na query: o servidor checa permissão/spam ANTES de
+// receber os anexos (ver precheckCreateMessage no messageController).
+// O nonce também vai na query: num reenvio (fila offline) de uma mensagem
+// que já tinha sido criada, o servidor devolve a pronta sem receber os
+// anexos de novo. `opts`: onUploadProgress (barra de envio) e signal
+// (cancelar o upload).
+export const sendMessage = (formData, opts = {}) => {
+  const params = {};
+  const get = (k) => (typeof formData?.get === 'function' ? formData.get(k) : null);
+  const channelId = get('channelId');
+  const conversationId = get('conversationId');
+  const nonce = get('nonce');
+  if (channelId) params.channelId = channelId;
+  if (conversationId) params.conversationId = conversationId;
+  if (nonce) params.nonce = nonce;
+  return api.post('/messages', formData, {
+    params,
+    ...(opts.onUploadProgress ? { onUploadProgress: opts.onUploadProgress } : {}),
+    ...(opts.signal ? { signal: opts.signal } : {}),
+  }).then((r) => r.data);
+};
+export const getMessageEdits = (id) => api.get(`/messages/${id}/edits`).then((r) => r.data);
+export const forwardMessage = (id, target) => api.post(`/messages/${id}/forward`, target).then((r) => r.data);
+export const unfurlLink = (url) => api.get('/unfurl', { params: { url } }).then((r) => r.data);
+export const getChannelStates = () => api.get('/community/channels/read-states').then((r) => r.data);
+export const createPoll = (payload) => api.post('/polls', payload).then((r) => r.data);
+export const votePoll = (pollId, optionIndex) => api.post(`/polls/${pollId}/vote`, { optionIndex }).then((r) => r.data);
+export const editMessage = (id, content) => api.patch(`/messages/${id}`, { content }).then((r) => r.data);
+export const deleteMessage = (id, reason) => api.delete(`/messages/${id}`, { data: { reason } }).then((r) => r.data);
+export const togglePinMessage = (id) => api.post(`/messages/${id}/pin`).then((r) => r.data);
+export const toggleArchiveTopic = (id) => api.post(`/messages/${id}/archive`).then((r) => r.data);
+// Tópicos de um canal (ativos primeiro, depois arquivados).
+export const listThreads = (channelId) => api.get('/messages/threads', { params: { channelId } }).then((r) => r.data);
+export const reactToMessage = (id, emoji) => api.post(`/messages/${id}/react`, { emoji }).then((r) => r.data);
+// Quem reagiu com um emoji (menu do chip de reação) — paginado por cursor.
+export const getMessageReactors = (id, emoji, cursor) => api
+  .get(`/messages/${id}/reactions/${encodeURIComponent(emoji)}`, { params: cursor ? { cursor } : {} })
+  .then((r) => r.data);
+export const setMessagePostIcon = (id, file) => {
+  const fd = new FormData(); fd.append('icon', file);
+  return api.post(`/messages/${id}/icon`, fd).then((r) => r.data);
+};
+
+// --- Comunidade: perfil da comunidade, categorias, canais, cargos, emojis, moderação ---
+export const getCommunity = () => api.get('/community').then((r) => r.data);
+export const getCommunitySettings = () => api.get('/admin/community').then((r) => r.data);
+// Pingu (assistente de IA) — Painel da Equipe → Pingu.
+export const getPinguAdmin = () => api.get('/admin/pingu').then((r) => r.data);
+export const updatePinguAdmin = (data) => api.patch('/admin/pingu', data).then((r) => r.data);
+export const uploadPinguImage = (kind, file) => {
+  const fd = new FormData(); fd.append(kind, file);
+  return api.post(`/admin/pingu/${kind}`, fd).then((r) => r.data);
+};
+export const uploadCommunityIcon = (file) => {
+  const fd = new FormData(); fd.append('icon', file);
+  return api.post('/admin/community/icon', fd).then((r) => r.data);
+};
+export const uploadCommunityBanner = (file) => {
+  const fd = new FormData(); fd.append('banner', file);
+  return api.post('/admin/community/banner', fd).then((r) => r.data);
+};
+
+// --- Economia (adaptado do bot Robbie — moedas + baú diário; loja de
+// cores, empregos e cassino foram removidos por pedido do usuário) ---
+export const getMyEconomy = () => api.get('/economy').then((r) => r.data);
+export const claimDaily = () => api.post('/economy/daily').then((r) => r.data);
+export const listChests = () => api.get('/economy/chests').then((r) => r.data);
+export const getEconomyHistory = (params = {}) => api.get('/economy/history', { params }).then((r) => r.data);
+// Missões diárias/semanais (Economia)
+export const listMissions = () => api.get('/missions').then((r) => r.data);
+export const claimMission = (id) => api.post(`/missions/${id}/claim`).then((r) => r.data);
+export const getMissionSeason = () => api.get('/missions/season').then((r) => r.data);
+export const claimSeasonReward = (level, track) => api.post('/missions/season/claim', { level, track }).then((r) => r.data);
+export const trackMissionEvent = (type) => api.post('/missions/track', { type }).then((r) => r.data);
+export const adminListMissions = () => api.get('/missions/admin/all').then((r) => r.data);
+export const adminCreateMission = (payload) => api.post('/missions/admin', payload).then((r) => r.data);
+export const adminUpdateMission = (id, payload) => api.patch(`/missions/admin/${id}`, payload).then((r) => r.data);
+export const adminDeleteMission = (id) => api.delete(`/missions/admin/${id}`).then((r) => r.data);
+
+export const adminListChests = () => api.get('/economy/admin/chests').then((r) => r.data);
+export const adminCreateChest = (payload) => api.post('/economy/admin/chests', payload).then((r) => r.data);
+export const adminUpdateChest = (id, payload) => api.patch(`/economy/admin/chests/${id}`, payload).then((r) => r.data);
+export const adminDeleteChest = (id) => api.delete(`/economy/admin/chests/${id}`).then((r) => r.data);
+
+export const getRank = () => api.get('/economy/rank').then((r) => r.data);
+export const listLeaderboard = () => api.get('/economy/leaderboard').then((r) => r.data);
+
+// --- Casas/decoração (adaptado do bot Robbie — fase 3) ---
+export const listHouseCatalog = () => api.get('/houses/catalog/houses').then((r) => r.data);
+export const buyHouse = (id) => api.post(`/houses/catalog/houses/${id}/buy`).then((r) => r.data);
+export const listFurnitureCatalog = () => api.get('/houses/catalog/furniture').then((r) => r.data);
+export const buyFurniture = (id) => api.post(`/houses/catalog/furniture/${id}/buy`).then((r) => r.data);
+export const listMyHouses = () => api.get('/houses/mine').then((r) => r.data);
+export const getHouseLayout = (houseId) => api.get(`/houses/mine/${houseId}`).then((r) => r.data);
+export const setActiveHouse = (houseId) => api.post(`/houses/mine/${houseId}/active`).then((r) => r.data);
+export const saveHouseLayout = (houseId, items) => api.put(`/houses/mine/${houseId}/layout`, { items }).then((r) => r.data);
+export const getHouseGallery = () => api.get('/houses/gallery').then((r) => r.data);
+export const listMapBackgrounds = () => api.get('/houses/catalog/maps').then((r) => r.data);
+export const buyMapBackground = (id) => api.post(`/houses/catalog/maps/${id}/buy`).then((r) => r.data);
+export const adminCreateMapBackground = (formData) => api.post('/houses/admin/catalog/maps', formData).then((r) => r.data);
+export const adminUpdateMapBackground = (id, formData) => api.patch(`/houses/admin/catalog/maps/${id}`, formData).then((r) => r.data);
+export const adminDeleteMapBackground = (id) => api.delete(`/houses/admin/catalog/maps/${id}`).then((r) => r.data);
+export const setHouseMapBackground = (houseId, mapBackgroundId, groupPosition) => api.patch(`/houses/mine/${houseId}/map`, { mapBackgroundId, groupPosition }).then((r) => r.data);
+
+// --- Figurinhas/álbum (adaptado do bot Robbie — fase 4) ---
+export const getStickerCollection = (page) => api.get('/stickers', { params: page ? { page } : {} }).then((r) => r.data);
+export const buyStickerCapsules = (quantity) => api.post('/stickers/capsules/buy', { quantity }).then((r) => r.data);
+export const openAllCapsules = () => api.post('/stickers/capsules/open-all').then((r) => r.data);
+export const pasteSticker = (id) => api.post(`/stickers/${id}/paste`).then((r) => r.data);
+export const adminGetAlbumLayout = () => api.get('/stickers/admin/album-layout').then((r) => r.data);
+export const adminUpdateAlbumSettings = (payload) => api.patch('/stickers/admin/album-layout/settings', payload).then((r) => r.data);
+export const adminUpsertAlbumSlot = (slotKey, payload) => api.put(`/stickers/admin/album-layout/slots/${slotKey}`, payload).then((r) => r.data);
+export const adminAssignStickerPosition = (id, page, slotKey) => api.patch(`/stickers/admin/${id}/position`, { page, slotKey }).then((r) => r.data);
+export const updateCommunitySettings = (payload) => api.patch('/admin/community', payload).then((r) => r.data);
+
+// --- Emojis da comunidade ---
+export const listEmojis = () => api.get('/community/emojis').then((r) => r.data);
+export const createEmoji = (file, payload) => {
+  const fd = new FormData();
+  fd.append('emoji', file);
+  Object.entries(payload || {}).forEach(([k, v]) => v !== undefined && fd.append(k, v));
+  return api.post('/community/emojis', fd).then((r) => r.data);
+};
+export const updateEmoji = (id, payload) => api.patch(`/community/emojis/${id}`, payload).then((r) => r.data);
+export const deleteEmoji = (id) => api.delete(`/community/emojis/${id}`).then((r) => r.data);
+// Item pedido: "sistema de figurinhas" — mesmo padrão de
+// listEmojis/createEmoji/deleteEmoji acima.
+export const listServerStickers = () => api.get('/community/stickers').then((r) => r.data);
+export const createServerSticker = (file, name, collectionId) => {
+  const fd = new FormData();
+  fd.append('sticker', file);
+  fd.append('name', name);
+  if (collectionId) fd.append('collectionId', collectionId);
+  return api.post('/community/stickers', fd).then((r) => r.data);
+};
+export const deleteServerSticker = (id) => api.delete(`/community/stickers/${id}`).then((r) => r.data);
+export const updateServerSticker = (id, payload) => api.patch(`/community/stickers/${id}`, payload).then((r) => r.data);
+// Pacote de figurinhas personalizadas (Assinante: 5, Super Assinante: 15) —
+// só a própria pessoa usa. GET devolve { stickers, hidden, limit, tier }.
+export const listPersonalStickers = () => api.get('/personal-stickers').then((r) => r.data);
+export const uploadPersonalSticker = (file, name) => {
+  const fd = new FormData();
+  fd.append('sticker', file);
+  if (name) fd.append('name', name);
+  return api.post('/personal-stickers', fd).then((r) => r.data);
+};
+export const deletePersonalSticker = (id) => api.delete(`/personal-stickers/${id}`).then((r) => r.data);
+// Item pedido: "sistema de coleções de emoji personalizado e figurinha"
+// — kind é 'EMOJI' ou 'STICKER'.
+export const listAssetCollections = (kind) => api.get(`/community/collections/${kind}`).then((r) => r.data);
+export const createAssetCollection = (kind, name, iconFile) => {
+  const fd = new FormData();
+  fd.append('name', name);
+  fd.append('icon', iconFile);
+  return api.post(`/community/collections/${kind}`, fd).then((r) => r.data);
+};
+export const updateAssetCollection = (id, { name, iconFile } = {}) => {
+  const fd = new FormData();
+  if (name !== undefined) fd.append('name', name);
+  if (iconFile) fd.append('icon', iconFile);
+  return api.patch(`/community/collections/${id}`, fd).then((r) => r.data);
+};
+export const deleteAssetCollection = (id) => api.delete(`/community/collections/${id}`).then((r) => r.data);
+
+export const adminGetUserSecurityInfo = (userId) => api.get(`/admin/users/${userId}/security-info`).then((r) => r.data);
+export const getPlatformStatus = () => api.get('/platform/status').then((r) => r.data);
+export const getPlatformStats = () => api.get('/platform/stats').then((r) => r.data);
+export const adminSetMaintenanceMode = (enabled, message) => api.post('/admin/maintenance', { enabled, message }).then((r) => r.data);
+export const adminCreateAnnouncement = (payload) => api.post('/admin/announcements', payload).then((r) => r.data);
+export const adminUploadAnnouncementBanner = (id, file) => {
+  const fd = new FormData(); fd.append('banner', file);
+  return api.post(`/admin/announcements/${id}/banner`, fd).then((r) => r.data);
+};
+export const adminListAnnouncements = () => api.get('/admin/announcements').then((r) => r.data);
+export const getActiveAnnouncement = () => api.get('/platform/announcements/active').then((r) => r.data);
+export const dismissAnnouncement = (id) => api.post(`/platform/announcements/${id}/dismiss`).then((r) => r.data);
+
+// --- Categorias ---
+// Aceitam só o nome (texto, como antes) ou um objeto { name, iconEmoji, iconUrl }.
+export const createCategory = (nameOrPayload) => api.post('/community/categories', typeof nameOrPayload === 'string' ? { name: nameOrPayload } : nameOrPayload).then((r) => r.data);
+export const updateCategory = (id, nameOrPayload) => api.patch(`/community/categories/${id}`, typeof nameOrPayload === 'string' ? { name: nameOrPayload } : nameOrPayload).then((r) => r.data);
+export const uploadCategoryIcon = (id, file) => {
+  const fd = new FormData(); fd.append('icon', file);
+  return api.post(`/community/categories/${id}/icon`, fd).then((r) => r.data);
+};
+export const reorderCategories = (order) => api.post('/community/categories/reorder', { order }).then((r) => r.data);
+export const deleteCategory = (id) => api.delete(`/community/categories/${id}`).then((r) => r.data);
+export const listCategoryOverwrites = (id) => api.get(`/community/categories/${id}/overwrites`).then((r) => r.data);
+export const setCategoryOverwrite = (id, payload) => api.post(`/community/categories/${id}/overwrites`, payload).then((r) => r.data);
+export const deleteCategoryOverwrite = (id, overwriteId) => api.delete(`/community/categories/${id}/overwrites/${overwriteId}`).then((r) => r.data);
+
+// --- Canais ---
+export const createChannel = (payload) => api.post('/community/channels', payload).then((r) => r.data);
+export const updateChannel = (id, payload) => api.patch(`/community/channels/${id}`, payload).then((r) => r.data);
+export const reorderChannels = (order) => api.post('/community/channels/reorder', { order }).then((r) => r.data);
+export const deleteChannel = (id) => api.delete(`/community/channels/${id}`).then((r) => r.data);
+export const markChannelRead = (id) => api.post(`/community/channels/${id}/read`).then((r) => r.data);
+export const listChannelOverwrites = (id) => api.get(`/community/channels/${id}/overwrites`).then((r) => r.data);
+export const setChannelOverwrite = (id, payload) => api.post(`/community/channels/${id}/overwrites`, payload).then((r) => r.data);
+export const deleteChannelOverwrite = (id, overwriteId) => api.delete(`/community/channels/${id}/overwrites/${overwriteId}`).then((r) => r.data);
+export const syncChannelOverwrites = (id) => api.post(`/community/channels/${id}/overwrites/sync`).then((r) => r.data);
+// Ícone do canal (imagem pequena) — emoji/remover vão pelo updateChannel.
+export const uploadChannelIcon = (id, file) => {
+  const fd = new FormData(); fd.append('icon', file);
+  return api.post(`/community/channels/${id}/icon`, fd).then((r) => r.data);
+};
+// Canais em destaque (Eventos/Feed/Galeria) e Galeria da comunidade.
+export const updateFeaturedChannels = (payload) => api.patch('/community/featured-channels', payload).then((r) => r.data);
+export const listCommunityGallery = (params = {}) => api.get('/community/gallery', { params }).then((r) => r.data);
+
+// --- Cargos ---
+export const listRoles = () => api.get('/community/roles').then((r) => r.data);
+export const createRole = (payload) => api.post('/community/roles', payload).then((r) => r.data);
+export const updateRole = (id, payload) => api.patch(`/community/roles/${id}`, payload).then((r) => r.data);
+export const deleteRole = (id) => api.delete(`/community/roles/${id}`).then((r) => r.data);
+export const duplicateRole = (id) => api.post(`/community/roles/${id}/duplicate`).then((r) => r.data);
+export const reorderRoles = (order) => api.post('/community/roles/reorder', { order }).then((r) => r.data);
+export const uploadRoleIcon = (id, file) => {
+  const fd = new FormData(); fd.append('icon', file);
+  return api.post(`/community/roles/${id}/icon`, fd).then((r) => r.data);
+};
+export const assignRole = (userId, roleId) => api.post(`/community/members/${userId}/roles/${roleId}`).then((r) => r.data);
+export const unassignRole = (userId, roleId) => api.delete(`/community/members/${userId}/roles/${roleId}`).then((r) => r.data);
+
+// --- Moderação ---
+export const listBans = () => api.get('/community/bans').then((r) => r.data);
+export const banMember = (userId, payload) => api.post(`/community/bans/${userId}`, payload).then((r) => r.data);
+export const unbanMember = (userId) => api.delete(`/community/bans/${userId}`).then((r) => r.data);
+export const timeoutMember = (userId, payload) => api.post(`/community/members/${userId}/timeout`, payload).then((r) => r.data);
+export const removeTimeout = (userId) => api.delete(`/community/members/${userId}/timeout`).then((r) => r.data);
+export const listWarnings = (userId) => api.get(userId ? `/community/members/${userId}/warnings` : '/community/warnings').then((r) => r.data);
+export const warnMember = (userId, reason) => api.post(`/community/members/${userId}/warnings`, { reason }).then((r) => r.data);
+export const deleteWarning = (warningId) => api.delete(`/community/warnings/${warningId}`).then((r) => r.data);
+export const listAuditLog = (cursor) => api.get('/community/audit-log', { params: cursor ? { cursor } : {} }).then((r) => r.data);
+
+// --- AutoMod ---
+export const listAutoModRules = () => api.get('/community/automod').then((r) => r.data);
+export const createAutoModRule = (payload) => api.post('/community/automod', payload).then((r) => r.data);
+export const updateAutoModRule = (id, payload) => api.patch(`/community/automod/${id}`, payload).then((r) => r.data);
+export const deleteAutoModRule = (id) => api.delete(`/community/automod/${id}`).then((r) => r.data);
+
+// --- Platform admin ---
+export const adminGetStats = () => api.get('/admin/stats').then((r) => r.data);
+export const adminListAuditLog = (params = {}) => api.get('/admin/audit-log', { params }).then((r) => r.data);
+export const adminGetMetrics = () => api.get('/admin/metrics').then((r) => r.data);
+export const adminListUsers = (q) => api.get('/admin/users', { params: q ? { q } : {} }).then((r) => r.data);
+export const adminListUsersPage = (params) => api.get('/admin/users', { params }).then((r) => r.data);
+// Meta de doações (barrinha verde da barra lateral)
+export const getDonationGoal = () => api.get('/donation-goal').then((r) => r.data);
+export const updateDonationGoal = (payload) => api.put('/donation-goal', payload).then((r) => r.data);
+export const listDonationEntries = () => api.get('/donation-goal/entries').then((r) => r.data);
+export const addDonationEntry = (payload) => api.post('/donation-goal/entries', payload).then((r) => r.data);
+export const removeDonationEntry = (id) => api.delete(`/donation-goal/entries/${id}`).then((r) => r.data);
+export const adminUpdateUser = (id, payload) => api.patch(`/admin/users/${id}`, payload).then((r) => r.data);
+export const adminBanUser = (id, reason) => api.post(`/admin/users/${id}/ban`, { reason }).then((r) => r.data);
+export const adminUnbanUser = (id) => api.delete(`/admin/users/${id}/ban`).then((r) => r.data);
+export const adminSuspendUser = (id, hours, reason) => api.post(`/admin/users/${id}/suspend`, { hours, reason }).then((r) => r.data);
+export const adminUnsuspendUser = (id) => api.delete(`/admin/users/${id}/suspend`).then((r) => r.data);
+export const adminSetPlatformRole = (id, role) => api.patch(`/admin/users/${id}/role`, { role }).then((r) => r.data);
+export const adminListBadges = () => api.get('/admin/badges').then((r) => r.data);
+export const adminCreateBadge = (payload) => api.post('/admin/badges', payload).then((r) => r.data);
+export const adminUpdateBadge = (id, payload) => api.patch(`/admin/badges/${id}`, payload).then((r) => r.data);
+export const adminDeleteBadge = (id) => api.delete(`/admin/badges/${id}`).then((r) => r.data);
+export const adminUploadBadgeIcon = (id, file) => {
+  const fd = new FormData(); fd.append('icon', file);
+  return api.post(`/admin/badges/${id}/icon`, fd).then((r) => r.data);
+};
+export const adminGrantBadge = (id, badgeId) => api.post(`/admin/users/${id}/badges`, { badgeId }).then((r) => r.data);
+export const adminRevokeBadge = (id, badgeId) => api.delete(`/admin/users/${id}/badges/${badgeId}`).then((r) => r.data);
+export const adminSetUserLevel = (id, level) => api.patch(`/admin/users/${id}/level`, { level }).then((r) => r.data);
+export const adminAddUserXp = (id, amount) => api.post(`/admin/users/${id}/xp`, { amount }).then((r) => r.data);
+export const adminAddUserCurrency = (id, { coins, gems }) => api.post(`/admin/users/${id}/currency`, { coins, gems }).then((r) => r.data);
+
+// --- Administração de casas e móveis ---
+export const adminListHouseCatalog = () => api.get('/houses/admin/catalog/houses').then((r) => r.data);
+export const adminCreateHouse = (payload) => api.post('/houses/admin/catalog/houses', payload).then((r) => r.data);
+export const adminUpdateHouse = (id, payload) => api.patch(`/houses/admin/catalog/houses/${id}`, payload).then((r) => r.data);
+export const adminSetStarterHouse = (id) => api.post(`/houses/admin/houses/${id}/starter`).then((r) => r.data);
+export const adminClearStarterHouse = () => api.post('/houses/admin/houses/starter/clear').then((r) => r.data);
+export const adminSetStarterMap = (id) => api.post(`/houses/admin/maps/${id}/starter`).then((r) => r.data);
+export const adminClearStarterMap = () => api.post('/houses/admin/maps/starter/clear').then((r) => r.data);
+export const adminListHouseGroups = () => api.get('/houses/admin/groups').then((r) => r.data);
+export const adminSetHouseGroup = (id, payload) => api.post(`/houses/admin/groups/${id}`, payload).then((r) => r.data);
+export const adminDeleteHouseGroup = (id) => api.delete(`/houses/admin/groups/${id}`).then((r) => r.data);
+export const adminDeleteHouse = (id) => api.delete(`/houses/admin/catalog/houses/${id}`).then((r) => r.data);
+
+export const adminListFurnitureCategories = () => api.get('/houses/admin/catalog/furniture-categories').then((r) => r.data);
+export const adminCreateFurnitureCategory = (payload) => api.post('/houses/admin/catalog/furniture-categories', payload).then((r) => r.data);
+
+export const adminListFurnitureCatalog = () => api.get('/houses/admin/catalog/furniture').then((r) => r.data);
+export const adminCreateFurniture = (formData) => api.post('/houses/admin/catalog/furniture', formData).then((r) => r.data);
+export const adminUpdateFurniture = (id, formData) => api.patch(`/houses/admin/catalog/furniture/${id}`, formData).then((r) => r.data);
+export const adminDeleteFurniture = (id) => api.delete(`/houses/admin/catalog/furniture/${id}`).then((r) => r.data);
+
+// --- Toggles de sistema ---
+export const getSystemToggles = () => api.get('/admin/system-toggles').then((r) => r.data);
+export const adminUpdateSystemToggles = (system, enabled) => api.patch('/admin/system-toggles', { system, enabled }).then((r) => r.data);
+
+// --- Moderação de recados de casa ---
+export const adminListHouseComments = () => api.get('/houses/admin/comments').then((r) => r.data);
+export const adminDeleteHouseCommentMod = (commentId) => api.delete(`/houses/admin/comments/${commentId}`).then((r) => r.data);
+
+// --- Tickets de suporte (adaptado do /ticket do bot Robbie) ---
+export const listMyTickets = () => api.get('/tickets/mine').then((r) => r.data);
+export const createTicket = (subject, content) => api.post('/tickets', { subject, content }).then((r) => r.data);
+export const getTicket = (id) => api.get(`/tickets/${id}`).then((r) => r.data);
+export const addTicketMessage = (id, content) => api.post(`/tickets/${id}/messages`, { content }).then((r) => r.data);
+export const adminListTickets = (status) => api.get('/tickets/admin/all', { params: status ? { status } : {} }).then((r) => r.data);
+export const claimTicket = (id) => api.post(`/tickets/${id}/claim`).then((r) => r.data);
+export const closeTicket = (id) => api.post(`/tickets/${id}/close`).then((r) => r.data);
+
+// --- Editor de Interface (staff reorganiza/redimensiona os menus principais) ---
+export const getUiLayout = () => api.get('/ui-layout').then((r) => r.data);
+export const updateUiLayout = (device, config) => api.put(`/ui-layout/${device}`, config).then((r) => r.data);
+export const resetUiLayout = (device) => api.delete(`/ui-layout/${device}`).then((r) => r.data);
+
+// --- Automod de DM (sinalização de palavras + visualização secreta pra staff) ---
+export const adminListAutomodFlags = (status) => api.get('/admin/automod-flags', { params: status ? { status } : {} }).then((r) => r.data);
+export const adminGetFlaggedConversation = (id) => api.get(`/admin/automod-flags/${id}/conversation`).then((r) => r.data);
+export const adminResolveAutomodFlag = (id, status) => api.post(`/admin/automod-flags/${id}/resolve`, { status }).then((r) => r.data);
+export const reportMessage = (messageId, category, details) => api.post('/messages/report', { messageId, category, details }).then((r) => r.data);
+export const adminListReports = (status) => api.get('/admin/reports', { params: status ? { status } : {} }).then((r) => r.data);
+export const adminGetReportedContext = (id) => api.get(`/admin/reports/${id}/context`).then((r) => r.data);
+export const adminResolveReport = (id, status) => api.post(`/admin/reports/${id}/resolve`, { status }).then((r) => r.data);
+
+// --- Sistema de segurança "isca" (honeypot) ---
+export const adminListHoneypotHits = () => api.get('/admin/honeypot/hits').then((r) => r.data);
+export const adminListBlockedIps = () => api.get('/admin/honeypot/blocked').then((r) => r.data);
+export const adminUnblockIp = (ip) => api.delete(`/admin/honeypot/blocked/${encodeURIComponent(ip)}`).then((r) => r.data);
+export const adminReloadUserPresence = () => api.post('/admin/reload-user-presence').then((r) => r.data);
+export const adminDeleteUserAccount = (id, confirmUsername) => api.delete(`/admin/users/${id}`, { data: { confirmUsername } }).then((r) => r.data);
+
+// --- Fusão com o Reddit clone (fase 2) — Clubes (staff-only), categorias, posts, votos e comentários ---
+export const listCommunities = () => api.get('/communities').then((r) => r.data);
+export const createCommunity = (payload) => api.post('/communities', payload).then((r) => r.data);
+export const getCommunityBySlug = (slug) => api.get(`/communities/${slug}`).then((r) => r.data);
+export const updateCommunity = (slug, payload) => api.patch(`/communities/${slug}`, payload).then((r) => r.data);
+export const uploadCommunityIconForSlug = (slug, file) => {
+  const fd = new FormData(); fd.append('icon', file);
+  return api.post(`/communities/${slug}/icon`, fd).then((r) => r.data);
+};
+export const deleteCommunity = (slug) => api.delete(`/communities/${slug}`).then((r) => r.data);
+
+export const createClubCategory = (slug, payload) => api.post(`/communities/${slug}/categories`, payload).then((r) => r.data);
+export const updateClubCategory = (id, payload) => api.patch(`/communities/categories/${id}`, payload).then((r) => r.data);
+export const uploadClubCategoryImage = (id, kind, file) => {
+  const fd = new FormData(); fd.append('image', file);
+  return api.post(`/communities/categories/${id}/${kind === 'banner' ? 'banner' : 'icon'}`, fd).then((r) => r.data);
+};
+export const deleteClubCategory = (id) => api.delete(`/communities/categories/${id}`).then((r) => r.data);
+
+export const listPosts = (params, opts = {}) => api.get('/posts', { params, ...(opts.signal ? { signal: opts.signal } : {}) }).then((r) => r.data);
+export const createPost = (payload) => api.post('/posts', payload).then((r) => r.data);
+export const uploadPostImage = (file) => {
+  const fd = new FormData(); fd.append('image', file);
+  return api.post('/posts/upload-image', fd).then((r) => r.data);
+};
+export const getPost = (id) => api.get(`/posts/${id}`).then((r) => r.data);
+export const deletePost = (id) => api.delete(`/posts/${id}`).then((r) => r.data);
+export const votePost = (id, value) => api.post(`/posts/${id}/vote`, { value }).then((r) => r.data);
+
+export const listPostComments = (postId) => api.get(`/posts/${postId}/comments`).then((r) => r.data);
+export const addPostComment = (postId, content, parentId) => api.post(`/posts/${postId}/comments`, { content, parentId }).then((r) => r.data);
+export const votePostComment = (commentId, value) => api.post(`/posts/comments/${commentId}/vote`, { value }).then((r) => r.data);
+export const deletePostComment = (commentId) => api.delete(`/posts/comments/${commentId}`).then((r) => r.data);
+
+// --- Conquistas ---
+export const listAchievements = () => api.get('/achievements').then((r) => r.data);
+export const setDisplayedAchievements = (slot, achievementIds) => api.patch('/users/me/displayed-achievements', { slot, achievementIds }).then((r) => r.data);
+export const adminListAchievements = () => api.get('/achievements/admin').then((r) => r.data);
+export const adminCreateAchievement = (payload) => api.post('/achievements/admin', payload).then((r) => r.data);
+export const adminUpdateAchievement = (id, payload) => api.patch(`/achievements/admin/${id}`, payload).then((r) => r.data);
+export const adminUploadAchievementIcon = (id, file) => {
+  const fd = new FormData(); fd.append('icon', file);
+  return api.post(`/achievements/admin/${id}/icon`, fd).then((r) => r.data);
+};
+export const adminDeleteAchievement = (id) => api.delete(`/achievements/admin/${id}`).then((r) => r.data);
+
+// --- Atualizações (changelog) ---
+export const listUpdates = () => api.get('/updates').then((r) => r.data);
+export const createUpdate = (payload) => api.post('/updates', payload).then((r) => r.data);
+export const updateUpdateEntry = (id, payload) => api.patch(`/updates/${id}`, payload).then((r) => r.data);
+export const deleteUpdateEntry = (id) => api.delete(`/updates/${id}`).then((r) => r.data);
+
+// Item pedido: "sistema de eventos integrado ao painel da Staff"
+export const listEvents = () => api.get('/events').then((r) => r.data);
+export const createEvent = (payload) => api.post('/events', payload).then((r) => r.data);
+export const updateEvent = (id, payload) => api.patch(`/events/${id}`, payload).then((r) => r.data);
+export const deleteEvent = (id) => api.delete(`/events/${id}`).then((r) => r.data);
+export const uploadEventBanner = (id, file) => {
+  const fd = new FormData(); fd.append('banner', file);
+  return api.post(`/events/${id}/banner`, fd).then((r) => r.data);
+};
+export const uploadEventIcon = (id, file) => {
+  const fd = new FormData(); fd.append('icon', file);
+  return api.post(`/events/${id}/icon`, fd).then((r) => r.data);
+};
+
+// Item pedido: "vídeos publicados no canal do YouTube" (categoria Início)
+export const listYoutubeVideos = () => api.get('/youtube/videos').then((r) => r.data);
+// Navegador do "Assistir juntos" (busca/em alta/a seguir/canal/sugestões)
+export const ytSearch = (q, continuation) => api.get('/youtube/search', { params: { q, continuation } }).then((r) => r.data);
+export const ytTrending = (category, continuation) => api.get('/youtube/trending', { params: { category, continuation } }).then((r) => r.data);
+export const ytRelated = (id) => api.get(`/youtube/related/${encodeURIComponent(id)}`).then((r) => r.data);
+export const ytChannel = (id) => api.get(`/youtube/channel/${encodeURIComponent(id)}`).then((r) => r.data);
+export const ytSuggest = (q) => api.get('/youtube/suggest', { params: { q } }).then((r) => r.data);
+// Cinema (Internet Archive): filmes, séries, desenhos e anime de domínio público.
+export const cineHome = () => api.get('/archive/home').then((r) => r.data);
+export const cineSearch = ({ q = '', cat = 'populares', sort = 'populares', page = 1 } = {}) => api.get('/archive/search', { params: { q, cat, sort, page } }).then((r) => r.data);
+export const cineItem = (id) => api.get(`/archive/item/${encodeURIComponent(id)}`).then((r) => r.data);
+export const cineSubtitle = (id, file) => api.get(`/archive/subtitle/${encodeURIComponent(id)}`, { params: { file }, responseType: 'text', transformResponse: (d) => d }).then((r) => r.data);
+// Cinema → Lançamentos (catálogo recente: TMDB/MyAnimeList/TVmaze/iTunes).
+export const catHome = () => api.get('/catalog/home').then((r) => r.data);
+export const catList = (name, page = 1) => api.get(`/catalog/list/${encodeURIComponent(name)}`, { params: { page } }).then((r) => r.data);
+export const catSearch = (q, kind = 'todos') => api.get('/catalog/search', { params: { q, kind } }).then((r) => r.data);
+export const catItem = (id) => api.get(`/catalog/item/${encodeURIComponent(id)}`).then((r) => r.data);
+export const plutoMeta = () => api.get('/catalog/pluto/meta').then((r) => r.data);
+export const plutoList = ({ type, yearFrom, genre, lang, sort, q, page }) => api.get('/catalog/pluto', { params: { type, yearFrom, genre: genre || undefined, lang: lang || undefined, sort, q: q || undefined, page } }).then((r) => r.data);
+
+// Item pedido: "posts da comunidade em destaque durante o mês" (categoria Início)
+export const listFeaturedPosts = () => api.get('/posts/featured').then((r) => r.data);
+
+// --- Push notifications (Android) ---
+export const registerPushToken = (token, platform) => api.post('/push/register', { token, platform }).then((r) => r.data);
+export const unregisterPushToken = (token) => api.post('/push/unregister', { token }).then((r) => r.data);
+
+// --- Voz (servidor de mídia próprio) ---
+// Entrada: checa acesso e devolve as credenciais do servidor de voz
+// ({ provider:'projectclub', projectclub:{ url, token, ... } }).
+export const getVoiceJoin = (channelName) =>
+  api.get('/voice/join', { params: { channelName } }).then((r) => r.data);
+// Telemetria: não conseguiu conectar no servidor de voz (só vai pro log do
+// servidor). Nunca lança: é só um aviso.
+export const reportVoiceConnectFailure = (code, channelName) =>
+  api.post('/voice/report', { provider: 'projectclub', code, channelName }).then((r) => r.data).catch(() => null);
+// Painel da staff "Servidor de voz" (admin): status + chaves do servidor próprio.
+export const getVoiceServer = () => api.get('/voice/server').then((r) => r.data);
+export const setVoiceServerConfig = (values) => api.post('/voice/server/config', { values }).then((r) => r.data);
+
+// --- Item pedido: sistemas estilo Orkut ---
+export const writeTestimonial = (targetId, text) => api.post(`/testimonials/${targetId}`, { text }).then((r) => r.data);
+export const listApprovedTestimonials = (targetId, page = 1) => api.get(`/testimonials/${targetId}`, { params: { page } }).then((r) => r.data);
+export const listPendingTestimonials = () => api.get('/testimonials/pending/mine').then((r) => r.data);
+export const respondTestimonial = (id, action) => api.post(`/testimonials/${id}/respond`, { action }).then((r) => r.data);
+export const deleteTestimonial = (id) => api.delete(`/testimonials/${id}`).then((r) => r.data);
+
+export const writeScrap = (targetId, text) => api.post(`/scraps/${targetId}`, { text }).then((r) => r.data);
+export const listScraps = (targetId, page = 1) => api.get(`/scraps/${targetId}`, { params: { page } }).then((r) => r.data);
+export const deleteScrap = (id) => api.delete(`/scraps/${id}`).then((r) => r.data);
+
+export const getFanStatus = (targetId) => api.get(`/fans/${targetId}`).then((r) => r.data);
+export const toggleFan = (targetId) => api.post(`/fans/${targetId}/toggle`).then((r) => r.data);
+
+export const voteRanking = (targetId, category) => api.post(`/rankings/${targetId}`, { category }).then((r) => r.data);
+export const myRankingVotes = () => api.get('/rankings/mine').then((r) => r.data);
+export const topRankingsAmongFriends = () => api.get('/rankings/top-among-friends').then((r) => r.data);
+
+export const registerProfileVisit = (targetId) => api.post(`/profile-visits/${targetId}`).then((r) => r.data);
+export const listProfileVisitors = (targetId) => api.get(`/profile-visits/${targetId}`).then((r) => r.data);
+
+export const uploadPhoto = (file, caption) => {
+  const fd = new FormData();
+  fd.append('photo', file);
+  if (caption) fd.append('caption', caption);
+  return api.post('/photos', fd).then((r) => r.data);
+};
+export const listPhotosByOwner = (ownerId, page = 1) => api.get(`/photos/owner/${ownerId}`, { params: { page } }).then((r) => r.data);
+export const getPhoto = (id) => api.get(`/photos/${id}`).then((r) => r.data);
+export const deletePhoto = (id) => api.delete(`/photos/${id}`).then((r) => r.data);
+export const commentOnPhoto = (id, text) => api.post(`/photos/${id}/comments`, { text }).then((r) => r.data);
+export const deletePhotoComment = (commentId) => api.delete(`/photos/comments/${commentId}`).then((r) => r.data);
+
+export const getTraitStatus = (targetId) => api.get(`/traits/${targetId}`).then((r) => r.data);
+export const toggleTrait = (targetId, trait) => api.post(`/traits/${targetId}/toggle`, { trait }).then((r) => r.data);
+
+export const sendRelationshipRequest = (partnerId) => api.post('/relationships/request', { partnerId }).then((r) => r.data);
+export const respondRelationship = (id, action) => api.post(`/relationships/${id}/respond`, { action }).then((r) => r.data);
+export const endRelationship = () => api.post('/relationships/end').then((r) => r.data);
+export const listPendingRelationships = () => api.get('/relationships/pending/mine').then((r) => r.data);
+
+export const upcomingBirthdaysAmongFriends = () => api.get('/birthdays/upcoming').then((r) => r.data);
+
+export const createProfilePoll = (question, options) => api.post('/profile-polls', { question, options }).then((r) => r.data);
+export const listProfilePollsByAuthor = (authorId) => api.get(`/profile-polls/author/${authorId}`).then((r) => r.data);
+export const voteProfilePoll = (id, optionId) => api.post(`/profile-polls/${id}/vote`, { optionId }).then((r) => r.data);
+export const deleteProfilePoll = (id) => api.delete(`/profile-polls/${id}`).then((r) => r.data);
+
+// Item pedido: "sistema completo chamado Clans" — API do front pro
+// backend de server/src/routes/clans.js.
+export const listPublicClans = () => api.get('/clans').then((r) => r.data);
+export const getMyClan = () => api.get('/clans/mine').then((r) => r.data);
+export const getClan = (id) => api.get(`/clans/${id}`).then((r) => r.data);
+export const createClan = (payload) => api.post('/clans', payload).then((r) => r.data);
+export const updateClan = (id, payload) => api.patch(`/clans/${id}`, payload).then((r) => r.data);
+export const joinClan = (id) => api.post(`/clans/${id}/join`).then((r) => r.data);
+export const leaveClan = () => api.post('/clans/leave').then((r) => r.data);
+export const transferClanOwnership = (id, targetUserId) => api.post(`/clans/${id}/transfer`, { targetUserId }).then((r) => r.data);
+export const setClanMemberRole = (id, userId, role) => api.patch(`/clans/${id}/members/${userId}/role`, { role }).then((r) => r.data);
+export const kickClanMember = (id, userId) => api.delete(`/clans/${id}/members/${userId}`).then((r) => r.data);
+export const respondClanJoinRequest = (id, requestId, approve) => api.patch(`/clans/${id}/requests/${requestId}`, { approve }).then((r) => r.data);
+export const createClanTag = (id, tag) => api.post(`/clans/${id}/tags`, { tag }).then((r) => r.data);
+export const deleteClanTag = (id, tagId) => api.delete(`/clans/${id}/tags/${tagId}`).then((r) => r.data);
+export const setMyClanTag = (tagId) => api.patch('/clans/me/tag', { tagId }).then((r) => r.data);
+// Item pedido: "Somente por convite — entrada apenas através de convite".
+export const createClanInvite = (id, userId) => api.post(`/clans/${id}/invites`, { userId }).then((r) => r.data);
+export const listMyClanInvites = () => api.get('/clans/invites/mine').then((r) => r.data);
+export const respondClanInvite = (inviteId, accept) => api.patch(`/clans/invites/${inviteId}`, { accept }).then((r) => r.data);
+export const listClanMessages = (id) => api.get(`/clans/${id}/messages`).then((r) => r.data);
+export const sendClanMessage = (id, content) => api.post(`/clans/${id}/messages`, { content }).then((r) => r.data);
+export const deleteClanMessage = (id, messageId) => api.delete(`/clans/${id}/messages/${messageId}`).then((r) => r.data);
+export const listClanIcons = () => api.get('/clans/icons').then((r) => r.data);
+export const createClanIcon = (file, name) => {
+  const fd = new FormData();
+  fd.append('icon', file);
+  fd.append('name', name);
+  return api.post('/clans/icons', fd).then((r) => r.data);
+};
+export const deleteClanIcon = (id) => api.delete(`/clans/icons/${id}`).then((r) => r.data);
+// Item pedido: "adicione uma nova categoria chamada Clubes [no painel
+// da Staff]... lista com todos os clubes... ver mensagens... editar...
+// excluir, inclusive de outros usuários".
+export const adminListClans = () => api.get('/admin/clans').then((r) => r.data);
+export const adminGetClan = (id) => api.get(`/admin/clans/${id}`).then((r) => r.data);
+export const adminListClanMessages = (id) => api.get(`/admin/clans/${id}/messages`).then((r) => r.data);
+export const adminUpdateClan = (id, payload) => api.patch(`/admin/clans/${id}`, payload).then((r) => r.data);
+export const adminDeleteClan = (id, reason) => api.delete(`/admin/clans/${id}`, { data: { reason } }).then((r) => r.data);
+
+// Item pedido: "melhore também essa aba de apps, adicione ícone,
+// banner... tudo sendo configurado do painel da staff" — catálogo de
+// apps/jogos (banner, ícone, descrição, espaço necessário).
+export const listAppCatalog = () => api.get('/app-catalog').then((r) => r.data);
+export const adminListAppCatalog = () => api.get('/admin/app-catalog').then((r) => r.data);
+export const adminCreateAppCatalogItem = (payload) => api.post('/admin/app-catalog', payload).then((r) => r.data);
+export const adminUpdateAppCatalogItem = (id, payload) => api.patch(`/admin/app-catalog/${id}`, payload).then((r) => r.data);
+export const adminDeleteAppCatalogItem = (id) => api.delete(`/admin/app-catalog/${id}`).then((r) => r.data);
+export const adminUploadAppCatalogBanner = (id, file) => {
+  const fd = new FormData(); fd.append('banner', file);
+  return api.post(`/admin/app-catalog/${id}/banner`, fd).then((r) => r.data);
+};
+export const adminUploadAppCatalogIcon = (id, file) => {
+  const fd = new FormData(); fd.append('icon', file);
+  return api.post(`/admin/app-catalog/${id}/icon`, fd).then((r) => r.data);
+};
+// Item pedido: "as screenshots... adicionadas, removidas e editadas
+// pelo painel da staff" — mesmo padrão de upload de banner/ícone acima.
+export const adminAddAppScreenshot = (id, file) => {
+  const fd = new FormData(); fd.append('screenshot', file);
+  return api.post(`/admin/app-catalog/${id}/screenshots`, fd).then((r) => r.data);
+};
+export const adminDeleteAppScreenshot = (screenshotId) => api.delete(`/admin/app-catalog/screenshots/${screenshotId}`).then((r) => r.data);
+export const adminReorderAppScreenshots = (id, screenshotIds) => api.patch(`/admin/app-catalog/${id}/screenshots/reorder`, { screenshotIds }).then((r) => r.data);
+
+// ---------- Sistema de Mods (Apps → Mods) ----------
+// steamAppIds detectados localmente pelo app desktop (ver utils/mods.js) —
+// o servidor só recebe a lista de AppIDs, nunca lê disco/registro
+// diretamente (item pedido 30).
+export const matchSteamGames = (steamAppIds) => api.post('/mods/steam-match', { steamAppIds }).then((r) => r.data);
+export const getModioGame = (modioGameId) => api.get(`/mods/games/${modioGameId}`).then((r) => r.data);
+export const getModioGameTags = (modioGameId) => api.get(`/mods/games/${modioGameId}/tags`).then((r) => r.data);
+export const listMods = (modioGameId, params) => api.get(`/mods/games/${modioGameId}/mods`, { params }).then((r) => r.data);
+export const getMod = (modioGameId, modioModId) => api.get(`/mods/games/${modioGameId}/mods/${modioModId}`).then((r) => r.data);
+export const getModDownload = (modioGameId, modioModId) => api.post(`/mods/games/${modioGameId}/mods/${modioModId}/download`).then((r) => r.data);
+export const toggleModFavorite = (modioGameId, modioModId) => api.post(`/mods/games/${modioGameId}/mods/${modioModId}/favorite`).then((r) => r.data);
+export const toggleModUp = (modioGameId, modioModId) => api.post(`/mods/games/${modioGameId}/mods/${modioModId}/up`).then((r) => r.data);
+export const listModComments = (modioModId) => api.get(`/mods/mods/${modioModId}/comments`).then((r) => r.data);
+export const addModComment = (modioGameId, modioModId, content) => api.post(`/mods/games/${modioGameId}/mods/${modioModId}/comments`, { content }).then((r) => r.data);
+export const deleteModComment = (commentId) => api.delete(`/mods/comments/${commentId}`).then((r) => r.data);
+export const reportMod = (modioModId, reason) => api.post(`/mods/mods/${modioModId}/report`, { reason }).then((r) => r.data);
+
+// Perfis (item pedido 15)
+export const listModProfiles = (modioGameId) => api.get(`/mods/games/${modioGameId}/profiles`).then((r) => r.data);
+export const createModProfile = (modioGameId, name) => api.post(`/mods/games/${modioGameId}/profiles`, { name }).then((r) => r.data);
+export const deleteModProfile = (profileId) => api.delete(`/mods/profiles/${profileId}`).then((r) => r.data);
+export const upsertModProfileItem = (profileId, payload) => api.post(`/mods/profiles/${profileId}/items`, payload).then((r) => r.data);
+export const removeModProfileItem = (profileId, itemId) => api.delete(`/mods/profiles/${profileId}/items/${itemId}`).then((r) => r.data);
+
+// Coleções (item pedido 19) — públicas pra qualquer pessoa logada ver e
+// instalar; só o autor edita/apaga.
+export const listModCollections = (modioGameId) => api.get(`/mods/games/${modioGameId}/collections`).then((r) => r.data);
+export const createModCollection = (modioGameId, payload) => api.post(`/mods/games/${modioGameId}/collections`, payload).then((r) => r.data);
+export const deleteModCollection = (collectionId) => api.delete(`/mods/collections/${collectionId}`).then((r) => r.data);
+export const addModCollectionItem = (collectionId, payload) => api.post(`/mods/collections/${collectionId}/items`, payload).then((r) => r.data);
+export const removeModCollectionItem = (collectionId, modioModId) => api.delete(`/mods/collections/${collectionId}/items/${modioModId}`).then((r) => r.data);
+
+// ---------- Steam Workshop (Terraria/tModLoader, Payday 2, Payday 3) ----------
+export const matchWorkshopGames = (steamAppIds) => api.post('/workshop/steam-match', { steamAppIds }).then((r) => r.data);
+export const listWorkshopItems = (workshopAppId, params) => api.get(`/workshop/games/${workshopAppId}/items`, { params }).then((r) => r.data);
+export const getWorkshopItem = (publishedFileId) => api.get(`/workshop/items/${publishedFileId}`).then((r) => r.data);
+export const adminListWorkshopGameMappings = () => api.get('/admin/workshop/game-mappings').then((r) => r.data);
+export const adminCreateWorkshopGameMapping = (payload) => api.post('/admin/workshop/game-mappings', payload).then((r) => r.data);
+export const adminUpdateWorkshopGameMapping = (id, payload) => api.patch(`/admin/workshop/game-mappings/${id}`, payload).then((r) => r.data);
+export const adminDeleteWorkshopGameMapping = (id) => api.delete(`/admin/workshop/game-mappings/${id}`).then((r) => r.data);
+
+// ---------- GameBanana (sem login/chave nenhuma) ----------
+export const matchGameBananaGames = (steamAppIds) => api.post('/gamebanana/steam-match', { steamAppIds }).then((r) => r.data);
+export const browseGameBanana = (gameBananaGameId, params) => api.get(`/gamebanana/games/${gameBananaGameId}/browse`, { params }).then((r) => r.data);
+export const getGameBananaMod = (modId) => api.get(`/gamebanana/mods/${modId}`).then((r) => r.data);
+export const adminListGameBananaMappings = () => api.get('/admin/gamebanana/game-mappings').then((r) => r.data);
+export const adminCreateGameBananaMapping = (payload) => api.post('/admin/gamebanana/game-mappings', payload).then((r) => r.data);
+export const adminUpdateGameBananaMapping = (id, payload) => api.patch(`/admin/gamebanana/game-mappings/${id}`, payload).then((r) => r.data);
+export const adminDeleteGameBananaMapping = (id) => api.delete(`/admin/gamebanana/game-mappings/${id}`).then((r) => r.data);
+
+// ---------- Thunderstore (sem login/chave nenhuma — jogos com BepInEx) ----------
+export const matchThunderstoreGames = (steamAppIds) => api.post('/thunderstore/steam-match', { steamAppIds }).then((r) => r.data);
+export const listThunderstoreCategories = (community) => api.get(`/thunderstore/${community}/categories`).then((r) => r.data);
+export const listThunderstorePackages = (community, params) => api.get(`/thunderstore/${community}/packages`, { params }).then((r) => r.data);
+export const getThunderstorePackage = (community, fullName) => api.get(`/thunderstore/${community}/packages/${encodeURIComponent(fullName)}`).then((r) => r.data);
+export const adminListThunderstoreMappings = () => api.get('/admin/thunderstore/game-mappings').then((r) => r.data);
+export const adminCreateThunderstoreMapping = (payload) => api.post('/admin/thunderstore/game-mappings', payload).then((r) => r.data);
+export const adminUpdateThunderstoreMapping = (id, payload) => api.patch(`/admin/thunderstore/game-mappings/${id}`, payload).then((r) => r.data);
+export const adminDeleteThunderstoreMapping = (id) => api.delete(`/admin/thunderstore/game-mappings/${id}`).then((r) => r.data);
+
+// Admin — mapeamento de jogos (Steam AppID → jogo no mod.io) e moderação
+// de denúncias.
+export const adminListModGameMappings = () => api.get('/admin/mods/game-mappings').then((r) => r.data);
+export const adminCreateModGameMapping = (payload) => api.post('/admin/mods/game-mappings', payload).then((r) => r.data);
+export const adminUpdateModGameMapping = (id, payload) => api.patch(`/admin/mods/game-mappings/${id}`, payload).then((r) => r.data);
+export const adminDeleteModGameMapping = (id) => api.delete(`/admin/mods/game-mappings/${id}`).then((r) => r.data);
+export const adminListModReports = (status) => api.get('/admin/mods/reports', { params: { status } }).then((r) => r.data);
+export const adminResolveModReport = (id, status) => api.patch(`/admin/mods/reports/${id}`, { status }).then((r) => r.data);
+
+// ---------- Pingentes ----------
+export const uploadMyCustomPendant = (file) => { const fd = new FormData(); fd.append('pendant', file); return api.post('/users/me/pendant/upload', fd).then((r) => r.data); };
+export const removeMyCustomPendant = () => api.delete('/users/me/pendant/upload').then((r) => r.data);
+
+// ---------- Modpacks públicos (qualquer jogo, chave = steamAppId) ----------
+export const listPublicModpacks = (params) => api.get('/modpacks', { params }).then((r) => r.data);
+export const listMyModpacks = (steamAppId) => api.get('/modpacks/mine', { params: steamAppId ? { steamAppId } : {} }).then((r) => r.data);
+export const listUserModpacks = (userId) => api.get(`/modpacks/user/${userId}`).then((r) => r.data);
+export const getModpack = (id) => api.get(`/modpacks/${id}`).then((r) => r.data);
+export const createModpack = (payload) => api.post('/modpacks', payload).then((r) => r.data);
+export const updateModpack = (id, payload) => api.patch(`/modpacks/${id}`, payload).then((r) => r.data);
+export const deleteModpack = (id) => api.delete(`/modpacks/${id}`).then((r) => r.data);
+export const uploadModpackCover = (id, file) => { const fd = new FormData(); fd.append('cover', file); return api.post(`/modpacks/${id}/cover`, fd).then((r) => r.data); };
+export const voteModpack = (id, value) => api.post(`/modpacks/${id}/vote`, { value }).then((r) => r.data);
+export const registerModpackDownload = (id) => api.post(`/modpacks/${id}/download`).then((r) => r.data);
+export const setFeaturedModpack = (payload) => api.put('/modpacks/featured', payload).then((r) => r.data);
+
+// Nexus Mods (fonte do Vortex) — ver server/src/services/nexusService.js.
+export const matchNexusGames = (steamAppIds, names) => api.post('/nexus/steam-match', { steamAppIds, names }).then((r) => r.data);
+export const getNexusMod = (domain, modId) => api.get(`/nexus/games/${domain}/mods/${modId}`).then((r) => r.data);
+export const getNexusDownload = (domain, modId, fileId, { key, expires } = {}) => api
+  .get(`/nexus/games/${domain}/mods/${modId}/files/${fileId}/download`, { params: { key: key || undefined, expires: expires || undefined } })
+  .then((r) => r.data);
+
+// ---- Mensagens agendadas ----
+export const scheduleMessage = (body) => api.post('/messages/scheduled', body).then((r) => r.data);
+export const listScheduledMessages = (params) => api.get('/messages/scheduled', { params }).then((r) => r.data);
+export const updateScheduledMessage = (id, body) => api.patch(`/messages/scheduled/${id}`, body).then((r) => r.data);
+export const cancelScheduledMessage = (id) => api.delete(`/messages/scheduled/${id}`).then((r) => r.data);
+
+// ---- Lembretes ----
+export const createReminder = (body) => api.post('/reminders', body).then((r) => r.data);
+export const previewReminderWhen = (when) => api.post('/reminders/preview', { when, tzOffset: new Date().getTimezoneOffset() }).then((r) => r.data);
+export const listReminders = () => api.get('/reminders').then((r) => r.data);
+export const deleteReminder = (id) => api.delete(`/reminders/${id}`).then((r) => r.data);
+
+// ---- Notificações por canal/categoria (silenciar + nível) ----
+export const listNotificationOverrides = () => api.get('/notification-overrides').then((r) => r.data);
+// type: 'channel' | 'category'; body: { level?, mute? } (ver notificationOverrideController.js)
+export const updateNotificationOverride = (type, id, body) => api.put(`/notification-overrides/${type}/${id}`, body).then((r) => r.data);
+// Caixa de Entrada → Respostas (respostas a mensagens minhas).
+export const listReplies = (params) => api.get('/messages/replies', { params }).then((r) => r.data);
+
+// --- Extras do perfil (Mural, Lista de desejos, Atividade, insígnias, nota) ---
+export const getProfileExtras = (userId) => api.get(`/users/${userId}/extras`).then((r) => r.data);
+export const saveProfileWidgets = (widgets) => api.put('/users/me/widgets', { widgets }).then((r) => r.data);
+export const getMyWishlist = () => api.get('/users/me/wishlist').then((r) => r.data);
+export const toggleWishlistItem = (kind, id, on) => api.post('/users/me/wishlist', { kind, id, on }).then((r) => r.data);
+export const saveUserNote = (userId, text) => api.put(`/users/${userId}/note`, { text }).then((r) => r.data);
+export const deactivateAccount = (password) => api.post('/auth/deactivate', { password }).then((r) => r.data);
+export const setConversationInbox = (id, action) => api.patch(`/conversations/${id}/inbox`, { action }).then((r) => r.data);
+export const setConversationPinned = (id, pinned) => api.patch(`/conversations/${id}/pin`, { pinned }).then((r) => r.data);

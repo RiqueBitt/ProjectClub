@@ -1,0 +1,324 @@
+/* ============================================================
+   Layout "Normal 2.0" (padrão) — Normal2Sidebar.jsx
+   ------------------------------------------------------------
+   Uma coluna à esquerda (banner da comunidade + menu + canais), o chat
+   no meio e os membros à direita, com uma barra de topo fina que mostra
+   onde a pessoa está. Todas as cores vêm das variáveis do TEMA ativo
+   (--bg-*, --text-*, --brand…), então funciona em qualquer tema.
+   Tudo fica sob .app-shell.layout-n2 / .n2-*: os outros layouts não
+   mudam. Importado depois de global.css em main.jsx.
+   ============================================================ */
+
+/* Categoria recolhível (vale pra todos os layouts) */
+.category-toggle {
+  display: flex; align-items: center; gap: 4px; flex: 1; min-width: 0;
+  padding: 0; border: 0; background: none; text-align: left; cursor: pointer;
+  font: inherit; color: inherit; text-transform: inherit; letter-spacing: inherit;
+}
+.category-toggle:hover { color: var(--header-primary); }
+.n2-sidebar .category-toggle > .truncate { flex: 0 1 auto; }
+.n2-sidebar .category-toggle { justify-content: space-between; }
+.category-chevron { flex-shrink: 0; transition: transform .15s ease; }
+.category-label.is-collapsed .category-chevron { transform: rotate(-90deg); }
+
+/* ---------- Grade ---------- */
+/* Medidas no <html> (classe ligada em MainApp.jsx) pra valerem também
+   em elementos fixos fora da grade, como o perfil em tela cheia. */
+html.layout-n2-root { --n2-sidebar-width: 272px; --n2-top-height: 44px; }
+@media (max-width: 1100px) and (min-width: 601px) {
+  html.layout-n2-root { --n2-sidebar-width: 240px; }
+}
+.app-shell.layout-n2 {
+  grid-template-columns: var(--n2-sidebar-width) minmax(0, 1fr) var(--members-width, 240px);
+  grid-template-rows: calc(var(--n2-top-height) + env(safe-area-inset-top, 0px)) minmax(0, 1fr) auto;
+}
+/* Página sem lista de membros (Painel, Feeds, Apps…): o chat/página usa
+   também a 3ª coluna, em vez de deixar uma faixa vazia à direita. */
+@media (min-width: 601px) {
+  .app-shell.layout-n2:not(:has(.members-list)) {
+    grid-template-columns: var(--n2-sidebar-width) minmax(0, 1fr) 0;
+  }
+}
+
+/* Perfil em tela cheia: começa logo depois da coluna e da barra do topo
+   (antes usava as medidas do layout antigo e cobria a borda do menu). */
+html.layout-n2-root .profile-fullscreen-overlay {
+  top: calc(var(--n2-top-height) + env(safe-area-inset-top, 0px));
+  left: var(--n2-sidebar-width);
+}
+html.layout-n2-root.is-electron-app .profile-fullscreen-overlay {
+  top: calc(32px + var(--n2-top-height) + env(safe-area-inset-top, 0px));
+}
+
+/* ---------- Barra do topo ---------- */
+.layout-n2 .top-search-bar {
+  position: relative;
+  height: calc(var(--n2-top-height) + env(safe-area-inset-top, 0px));
+  padding-top: env(safe-area-inset-top, 0px);
+  padding-left: 12px; padding-right: 10px; gap: 8px;
+  background: var(--bg-deepest);
+  border-bottom: 1px solid var(--border);
+}
+.layout-n2 .top-search-bar-brand { display: none; }
+.layout-n2 .top-search-bar-form { flex: 0 1 220px; margin-left: auto; order: 2; }
+.layout-n2 .top-search-bar-input { height: 28px; font-size: 13px; border-radius: 6px; }
+.layout-n2 .top-search-bar-actions { margin-left: 0; order: 3; }
+.layout-n2 .top-search-bar-icon-btn { width: 30px; height: 30px; border-radius: 6px; }
+.layout-n2 .top-search-bar-icon-btn:hover { background: var(--bg-modifier-hover); }
+
+.n2-top-title {
+  position: absolute; left: 50%; top: calc(50% + env(safe-area-inset-top, 0px) / 2);
+  transform: translate(-50%, -50%);
+  display: flex; align-items: center; gap: 7px; max-width: 34%;
+  font-size: 14px; font-weight: 600; color: var(--header-primary);
+  pointer-events: none; white-space: nowrap;
+}
+.n2-top-title-icon {
+  width: 15px; height: 15px; flex-shrink: 0; background: var(--text-muted);
+  -webkit-mask-size: contain; mask-size: contain; -webkit-mask-repeat: no-repeat; mask-repeat: no-repeat;
+  -webkit-mask-position: center; mask-position: center;
+}
+
+/* ---------- Coluna da esquerda ---------- */
+.n2-sidebar {
+  background: var(--bg-secondary);
+  border-right: 1px solid var(--border);
+}
+.n2-sidebar > .sidebar {
+  flex: 1; min-height: 0; height: auto; position: relative;
+  background: transparent; padding-top: 0;
+}
+
+/* Banner da comunidade com o nome por cima (como o topo de servidor) */
+.n2-sidebar .sidebar-banner {
+  /* O banner aparece INTEIRO (contain), sem cortar o nome/logo que
+     costuma estar escrito nele; as sobras dos lados são preenchidas com
+     uma cópia desfocada da própria imagem. */
+  position: relative; isolation: isolate; overflow: hidden;
+  height: auto; aspect-ratio: 2 / 1; max-height: 160px;
+  background-image: none !important;
+}
+.n2-sidebar .sidebar-banner::before {
+  content: ''; position: absolute; inset: -20px; z-index: -1;
+  background: var(--banner) center / cover no-repeat;
+  filter: blur(18px) brightness(.8);
+}
+.n2-sidebar .sidebar-banner::after {
+  content: ''; position: absolute; inset: 0;
+  background:
+    linear-gradient(180deg, rgba(0, 0, 0, .55) 0%, rgba(0, 0, 0, 0) 42%, rgba(0, 0, 0, 0) 70%, var(--bg-secondary) 100%),
+    var(--banner) center / contain no-repeat;
+}
+.n2-sidebar .sidebar-banner + .sidebar-header {
+  position: absolute; top: 0; left: 0; right: 0; z-index: 2;
+  border-bottom: 0; background: transparent;
+  color: #fff; text-shadow: 0 1px 3px rgba(0, 0, 0, .6);
+}
+.n2-sidebar .sidebar-banner + .sidebar-header:hover { background: rgba(0, 0, 0, .18); }
+.n2-sidebar .sidebar-header { padding: 11px 12px 11px 14px; font-size: 15px; font-weight: 700; }
+.n2-sidebar .sidebar-header .ui-icon { filter: none; }
+.n2-sidebar .sidebar-banner + .sidebar-header .ui-icon { filter: brightness(0) invert(1); }
+
+/* ---------- Menu ---------- */
+.n2-nav {
+  display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 6px; align-items: start;
+  padding: 10px 8px 12px 10px;
+  border-bottom: 1px solid var(--border);
+  flex-shrink: 0;
+}
+.n2-nav-list { grid-column: 1; grid-row: 1; display: flex; flex-direction: column; gap: 5px; min-width: 0; }
+.n2-nav-item {
+  position: relative;
+  display: flex; align-items: center; gap: 10px;
+  height: 36px; padding: 0 12px; border-radius: 8px;
+  background: var(--bg-primary); border: 1px solid var(--border);
+  color: var(--text-normal); font-size: 13.5px; font-weight: 600; text-decoration: none;
+  transition: background-color .12s ease, border-color .12s ease, color .12s ease;
+}
+.n2-nav-item:hover { background: var(--bg-modifier-hover); color: var(--header-primary); }
+.n2-nav-item.active {
+  background: color-mix(in srgb, var(--brand) 16%, var(--bg-primary));
+  border-color: color-mix(in srgb, var(--brand) 55%, transparent);
+  color: var(--header-primary);
+}
+.n2-nav-icon {
+  width: 16px; height: 16px; flex-shrink: 0; background: currentColor; opacity: .8;
+  -webkit-mask-size: contain; mask-size: contain; -webkit-mask-repeat: no-repeat; mask-repeat: no-repeat;
+  -webkit-mask-position: center; mask-position: center;
+}
+.n2-nav-item.active .n2-nav-icon { background: var(--brand); opacity: 1; }
+.n2-nav-label { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.n2-nav-badge {
+  margin-left: auto; min-width: 18px; height: 18px; padding: 0 5px; border-radius: 9px;
+  display: inline-flex; align-items: center; justify-content: center;
+  background: var(--red); color: #fff; font-size: 11px; font-weight: 700;
+}
+.n2-nav-tools { grid-column: 2; grid-row: 1; display: flex; align-items: center; gap: 4px; }
+.n2-nav-toggle {
+  width: 24px; height: 24px; border-radius: 6px; margin-top: 6px;
+  display: inline-flex; align-items: center; justify-content: center;
+  color: var(--text-muted); background: transparent;
+}
+.n2-nav-toggle:hover { color: var(--header-primary); background: var(--bg-modifier-hover); }
+
+/* Menu compacto: só os ícones, numa fileira */
+.n2-nav.is-compact { align-items: center; padding-bottom: 10px; }
+.n2-nav.is-compact .n2-nav-toggle { margin-top: 0; }
+.n2-nav.is-compact .n2-nav-list { flex-direction: row; flex-wrap: wrap; gap: 4px; }
+.n2-nav.is-compact .n2-nav-item { width: 34px; height: 34px; padding: 0; justify-content: center; }
+.n2-nav.is-compact .n2-nav-label { display: none; }
+.n2-nav.is-compact .n2-nav-badge {
+  position: absolute; top: -5px; right: -5px; margin: 0;
+  min-width: 16px; height: 16px; font-size: 10px; box-shadow: 0 0 0 2px var(--bg-secondary);
+}
+
+/* ---------- Canais ---------- */
+.n2-sidebar .sidebar-list { padding: 6px 8px 14px; gap: 1px; }
+.n2-sidebar .category-block { margin-top: 10px; }
+.n2-sidebar .category-label {
+  text-transform: none; letter-spacing: 0;
+  font-size: 12.5px; font-weight: 700; padding: 6px 6px 4px 8px;
+}
+.n2-sidebar .category-actions { opacity: 0; transition: opacity .12s ease; }
+.n2-sidebar .category-label:hover .category-actions,
+.n2-sidebar .category-label:focus-within .category-actions { opacity: 1; }
+@media (hover: none) { .n2-sidebar .category-actions { opacity: 1; } }
+.n2-sidebar .channel-item {
+  padding: 6px 8px; border-radius: 6px; font-size: 14.5px; gap: 8px;
+}
+.n2-sidebar .channel-item:hover { transform: none; }
+.n2-sidebar .channel-item.active { background: var(--bg-elevated); color: var(--header-primary); }
+.n2-sidebar .channel-item.active::before { display: none; }
+
+/* ---------- Membros ---------- */
+.layout-n2 .members-list { background: var(--bg-secondary); border-left: 1px solid var(--border); padding: 4px 8px 12px; }
+.layout-n2 .member-group-label {
+  text-transform: none; letter-spacing: 0;
+  font-size: 12.5px; font-weight: 700; padding: 14px 8px 6px;
+}
+.layout-n2 .member-row { border-radius: 8px; padding: 6px 8px; margin-bottom: 1px; }
+.layout-n2 .member-row:hover { background-color: var(--bg-modifier-hover); }
+/* Banner do perfil: ocupa a parte da direita da linha e some suavemente
+   pra esquerda (máscara), sem cobrir o avatar nem o começo do nome. */
+.layout-n2 .member-row.has-id-card {
+  position: relative; isolation: isolate; overflow: hidden;
+  background-image: none !important;
+}
+.layout-n2 .member-row.has-id-card::before {
+  content: ''; position: absolute; inset: 0 0 0 30%; z-index: -1;
+  background:
+    linear-gradient(90deg, rgba(0, 0, 0, .15), rgba(0, 0, 0, .45)),
+    var(--id-card) var(--id-card-pos, center) / var(--id-card-size, cover) no-repeat;
+  -webkit-mask-image: linear-gradient(90deg, transparent 0%, rgba(0, 0, 0, .35) 35%, #000 100%);
+  mask-image: linear-gradient(90deg, transparent 0%, rgba(0, 0, 0, .35) 35%, #000 100%);
+  opacity: .9;
+}
+/* Nome e status legíveis por cima da placa, mesmo quando a cor do nome
+   (cargo ou estilo próprio) é parecida com a da imagem — ex.: nome azul
+   numa placa azul. drop-shadow funciona também nos nomes em degradê. */
+.member-row.has-id-card .member-row-name,
+.member-row.has-id-card .member-row-status {
+  filter: drop-shadow(0 1px 1px rgba(0, 0, 0, .9)) drop-shadow(0 0 3px rgba(0, 0, 0, .55));
+}
+.member-row.has-id-card .member-row-status { color: #e3e5e8; }
+
+/* ---------- Celular: a coluna vira a gaveta (regras de .main-sidebar) ---------- */
+@media (max-width: 600px) {
+  .app-shell.layout-n2 { grid-template-columns: 0 minmax(0, 1fr); }
+  html.layout-n2-root .profile-fullscreen-overlay { left: 0; }
+  .layout-n2 .n2-sidebar { width: min(88vw, 320px); }
+  .layout-n2 .top-search-bar-form { display: none; }
+  .layout-n2 .top-search-bar-actions { margin-left: auto; }
+  /* No celular o título fica ao lado do ☰, sem disputar o centro com os ícones. */
+  .n2-top-title { position: static; transform: none; flex: 1; min-width: 0; max-width: none; }
+  .n2-nav-item { height: 40px; font-size: 14px; }
+  .n2-sidebar .channel-item { padding: 9px 8px; font-size: 15px; }
+}
+
+/* ============================================================
+   Nome legível no perfil, no miniperfil e no painel da DM.
+   O cabeçalho desses cartões é pintado com a cor que a pessoa
+   escolheu, e o nome usa outra cor/degradê próprio — quando as duas
+   são parecidas (nome azul num perfil azul) o nome sumia. Um contorno
+   escuro suave (drop-shadow funciona inclusive em nome em degradê e
+   com efeitos) garante contraste sem mudar a cor escolhida.
+   ============================================================ */
+.profile-modal-accented .profile-display-name,
+.mini-profile-accented .mini-profile-name,
+.dm-profile-accented .profile-display-name {
+  filter:
+    drop-shadow(0 0 1px rgba(0, 0, 0, .75))
+    drop-shadow(0 1px 1px rgba(0, 0, 0, .55))
+    drop-shadow(0 2px 8px rgba(0, 0, 0, .35));
+}
+
+/* ============================================================
+   Item pedido: "banner inteiro, sem barras nas laterais", "barra
+   lateral mais pra direita" e "categorias, chats e calls maiores".
+   ============================================================ */
+.n2-sidebar .sidebar-banner {
+  aspect-ratio: auto; height: auto; max-height: none; margin: 0; border-radius: 0;
+  background: none !important;
+}
+.n2-sidebar .sidebar-banner::before { display: none; }
+.n2-sidebar .sidebar-banner::after {
+  /* Só o degradê (pra o nome ficar legível e o banner emendar no fundo). */
+  background: linear-gradient(180deg, rgba(0, 0, 0, .5) 0%, rgba(0, 0, 0, 0) 40%, rgba(0, 0, 0, 0) 72%, var(--bg-secondary) 100%);
+}
+.n2-sidebar .sidebar-banner-img {
+  display: block; width: 100%; height: auto; max-height: 220px; object-fit: cover; object-position: center;
+}
+.sidebar-banner-img { display: block; width: 100%; height: 100%; object-fit: cover; }
+
+.n2-sidebar .n2-nav { padding-left: 14px; padding-right: 10px; }
+.n2-sidebar .sidebar-list { padding: 8px 10px 16px 14px; gap: 2px; }
+.n2-sidebar .category-block { margin-top: 14px; }
+.n2-sidebar .category-label { font-size: 14px; padding: 7px 6px 6px 8px; }
+.n2-sidebar .channel-item { padding: 8px 10px; font-size: 16px; gap: 10px; border-radius: 8px; min-height: 38px; }
+.n2-sidebar .channel-item .ui-icon { width: 20px; height: 20px; }
+.n2-sidebar .channel-item span.channel-hash { font-size: 18px; width: 20px; text-align: center; }
+.n2-sidebar .channel-custom-icon.custom-icon-img { width: 22px; height: 22px; }
+.n2-sidebar .channel-custom-icon.custom-icon-emoji { width: 22px; height: 22px; font-size: 18px; }
+.n2-sidebar .category-custom-icon.custom-icon-img { width: 16px; height: 16px; }
+.n2-sidebar .category-custom-icon.custom-icon-emoji { width: 16px; font-size: 14px; }
+@media (max-width: 600px) {
+  .n2-sidebar .channel-item { padding: 10px 10px; font-size: 16px; }
+}
+
+/* ============================================================
+   Item pedido: "ícones do menu numa fileira só, centralizados, maiores,
+   com a setinha embaixo" — usa a largura do banner como referência.
+   A coluna ficou um pouco mais larga pra caber tudo.
+   ============================================================ */
+html.layout-n2-root { --n2-sidebar-width: 292px; }
+@media (max-width: 1100px) and (min-width: 601px) {
+  html.layout-n2-root { --n2-sidebar-width: 264px; }
+}
+.n2-sidebar .n2-nav { display: flex; flex-direction: column; align-items: stretch; gap: 4px; padding: 12px 12px 6px; }
+.n2-sidebar .n2-nav-list { order: 1; }
+.n2-sidebar .n2-nav-tools { order: 2; align-self: center; gap: 6px; }
+.n2-sidebar .n2-nav-toggle {
+  margin: 0; width: 44px; height: 22px; border-radius: 999px;
+}
+.n2-sidebar .n2-nav-toggle svg { width: 14px; height: 14px; }
+.n2-sidebar .n2-nav.is-compact { padding-bottom: 4px; }
+.n2-sidebar .n2-nav.is-compact .n2-nav-list {
+  flex-direction: row; flex-wrap: nowrap; justify-content: center; gap: 6px; width: 100%;
+}
+.n2-sidebar .n2-nav.is-compact .n2-nav-item {
+  flex: 1 1 0; min-width: 0; max-width: 48px; width: auto; height: 44px; border-radius: 12px; padding: 0;
+}
+.n2-sidebar .n2-nav.is-compact .n2-nav-icon { width: 22px; height: 22px; }
+.n2-sidebar .n2-nav-icon { width: 18px; height: 18px; }
+@media (max-width: 600px) {
+  .n2-sidebar .n2-nav.is-compact .n2-nav-item { height: 46px; }
+}
+
+/* ============================================================
+   Revisão de layout (barra lateral mais leve)
+   - Banner da comunidade mais baixo: ocupava ~1/5 da altura da coluna.
+   (Anúncios/Eventos/Fórum/Loja continuam com as caixinhas coloridas.)
+   ============================================================ */
+@media (min-width: 601px) {
+  .n2-sidebar .sidebar-banner-img { max-height: 128px; }
+}

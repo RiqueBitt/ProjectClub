@@ -1,0 +1,48 @@
+/* Extras de mensagem: histórico de edição, "Encaminhada", prévia de
+   link, "Visto" e o modal de encaminhar. Usa só as variáveis de tema que
+   o resto do chat já usa. */
+
+.edited-tag-btn {
+  background: none; border: 0; padding: 0; margin: 0; cursor: pointer; font: inherit;
+  font-size: 10px; color: var(--text-muted);
+}
+.edited-tag-btn:hover, .edited-tag-btn:focus-visible { text-decoration: underline; color: var(--text-normal); }
+
+.edit-history-overlay { position: fixed; inset: 0; z-index: 1200; }
+.edit-history-pop {
+  position: fixed; max-height: 280px; overflow: auto; box-sizing: border-box;
+  background: var(--bg-floating, var(--bg-elevated)); color: var(--text-normal);
+  border: 1px solid var(--bg-modifier-accent, rgba(127, 127, 127, .25)); border-radius: 10px;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, .35); padding: 10px 12px;
+}
+.edit-history-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 6px; font-size: 13px; }
+.edit-history-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
+.edit-history-list li { display: flex; flex-direction: column; gap: 2px; font-size: 13px; }
+.edit-history-list li.current .edit-history-when { color: var(--text-link); }
+.edit-history-when { font-size: 11px; color: var(--text-muted); }
+.edit-history-text { white-space: pre-wrap; overflow-wrap: anywhere; }
+
+.forwarded-label {
+  font-size: 12px; color: var(--text-muted); margin: 2px 0;
+  display: flex; flex-wrap: wrap; gap: 4px; align-items: baseline;
+}
+
+.link-preview-anchor { display: block; height: 0; }
+.link-preview-card { border-left-color: var(--text-link); }
+.link-preview-site { font-size: 12px; color: var(--text-muted); margin-bottom: 2px; }
+.link-preview-desc { display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; font-size: 13px; }
+.link-preview-thumb { width: 80px; height: 80px; }
+
+.seen-receipt { font-size: 11px; color: var(--text-muted); text-align: right; padding: 0 16px 4px; }
+
+.forward-modal { display: flex; flex-direction: column; gap: 10px; }
+.forward-preview {
+  font-size: 13px; color: var(--text-muted); background: var(--bg-deepest, rgba(0, 0, 0, .15));
+  border-radius: 6px; padding: 8px 10px; white-space: pre-wrap; overflow-wrap: anywhere; max-height: 90px; overflow: auto;
+}
+.forward-target-list { list-style: none; margin: 0; padding: 0; max-height: 50vh; overflow: auto; display: flex; flex-direction: column; gap: 4px; }
+.forward-target-list li { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 6px 4px; border-radius: 6px; }
+.forward-target-list li:hover { background: var(--bg-modifier-hover); }
+.forward-target-list .btn-small { padding: 4px 12px; font-size: 13px; flex-shrink: 0; }
+
+.search-filters-hint { font-size: 11px; color: var(--text-muted); padding: 2px 4px 6px; }

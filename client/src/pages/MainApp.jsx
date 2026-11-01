@@ -1,0 +1,631 @@
+import { useMsgExtras } from '../utils/messageExtras';
+import { roomKeyFor } from '../store/useStore';
+import { Suspense, useEffect, useRef, useState } from 'react';
+import { lazyWithRetry as lazy, preloadPages } from '../utils/lazyWithRetry';
+import { Routes, Route, Navigate, useNavigate, useLocation } from 'react-router-dom';
+import { useStore } from '../store/useStore';
+import { useSocket } from '../context/SocketContext.jsx';
+import LoadingScreen from '../components/LoadingScreen.jsx';
+import { playSound } from '../utils/sounds';
+import { applyLanguage } from '../i18n/index.js';
+import MainSidebar from '../components/MainSidebar.jsx';
+import Normal2Sidebar from '../components/Normal2Sidebar.jsx';
+import ChannelSidebar from '../components/ChannelSidebar.jsx';
+import TopSearchBar from '../components/TopSearchBar.jsx';
+import MembersList from '../components/MembersList.jsx';
+import PanelSlot from '../components/PanelSlot.jsx';
+import DMProfilePanel from '../components/DMProfilePanel.jsx';
+import FriendsListPanel from '../components/FriendsListPanel.jsx';
+import CallBar from '../components/CallBar.jsx';
+import MobileTabBar from '../components/MobileTabBar.jsx';
+import IncomingCallBanner from '../components/IncomingCallBanner.jsx';
+import NoticeToast from '../components/NoticeToast.jsx';
+import UpdateAvailableBanner from '../components/UpdateAvailableBanner.jsx';
+import { startSendQueue } from '../utils/sendQueue';
+import CelebrationToasts from '../components/CelebrationToasts.jsx';
+import WelcomePane from '../components/WelcomePane.jsx';
+import ErrorBoundary from '../components/ErrorBoundary.jsx';
+import MiniProfileCard from '../components/MiniProfileCard.jsx';
+import LinkConfirmModal from '../components/modals/LinkConfirmModal.jsx';
+import ImageLightbox from '../components/ImageLightbox.jsx';
+import AnnouncementOverlay from '../components/AnnouncementOverlay.jsx';
+import QuickSwitcher from '../components/QuickSwitcher.jsx';
+// Tour de boas-vindas, Primeiros passos, atalhos de teclado e acessibilidade.
+import ConfortoLayer from '../components/conforto/ConfortoLayer.jsx';
+import { MusicEngine, MusicPanel, MiniMusicBar } from '../music/MusicPlayer.jsx';
+import YouTubeApp, { YouTubeHost } from '../youtube/YouTubeApp.jsx';
+import { DesktopLinkFallback } from '../utils/desktopLinks.jsx';
+import CardsNotifier from '../cards/CardsNotifier.jsx';
+import { startBoot, cachedBoot } from '../utils/bootstrap';
+import { applyBootData } from '../utils/applyBoot';
+import { checkForNativeUpdate } from '../utils/nativeUpdateCheck';
+import { setupPushNotifications } from '../utils/pushNotifications';
+import { setupWebPush, listenServiceWorkerMessages } from '../utils/webPush';
+import { setupPwaInstall, countVisit, setInstallSuggestHandler, promptInstall } from '../utils/pwaInstall';
+import { updateUnreadBadge } from '../utils/unreadBadge';
+import { useAuth } from '../context/AuthContext.jsx';
+import { useGlobalLiveRefresh } from '../utils/useGlobalLiveRefresh';
+import { useMobileGestures } from '../utils/useMobileGestures';
+import AppShellExtras from '../components/AppearanceRuntime.jsx';
+import HoverTip from '../components/HoverTip.jsx';
+import '../styles/tokens.css';
+import { StreamerBadge } from '../components/ExtraPrefsRuntime.jsx';
+import { lastRememberedPath, lastRememberedChannelId } from '../utils/appearance';
+import { isFeatureEnabled } from '../utils/features';
+import { ChannelRoute, DmRoute, PostRoute, LibraryRoute } from '../components/PrettyRoutes.jsx';
+import { channelPath, isChannelPath, roomFromCurrentPath, useRouteRoom } from '../utils/prettyLinks';
+
+// BUG CORRIGIDO ("web mais rápido e otimizado"): todas essas páginas de
+// seção (Amigos, Perfil, Notificações, Busca, Painel da staff, Economia,
+// Ranks, Casas, Figurinhas, Suporte) eram importadas de forma "eager" —
+// entravam no MESMO arquivo JS que o resto do app inteiro carrega já na
+// primeira visita, mesmo pra quem só quer abrir o Chat e nunca vai clicar
+// em "Painel" ou "Casas" naquela sessão. `lazy()` faz cada uma virar seu
+// próprio pedaço (chunk) baixado só quando a pessoa navega até ali de
+// verdade — o pacote inicial que todo mundo baixa pra simplesmente ABRIR
+// o site fica menor, carregando mais rápido, especialmente em conexões
+// mais lentas. `ChatWindow` continua "eager" de propósito (é a página que
+// abre por padrão pra praticamente todo mundo, então não faria sentido
+// atrasar ela com uma segunda viagem de rede).
+// Modal de configurações é grande e só abre quando a pessoa clica.
+const UserSettingsModal = lazy(() => import('../components/modals/UserSettingsModal.jsx'));
+// Filmes e Séries e Navegador: desligados em utils/features.js — o código
+// continua no projeto e só é carregado se forem religados.
+const CINEMA_ON = isFeatureEnabled('cinema');
+const BROWSER_ON = isFeatureEnabled('browser');
+const CARDS_WAR_ON = isFeatureEnabled('cardsWar'); // Guerra das Cartas (desligada temporariamente)
+const CinemaApp = CINEMA_ON ? lazy(() => import('../cinema/CinemaApp.jsx')) : null;
+const CinemaHost = CINEMA_ON ? lazy(() => import('../cinema/CinemaApp.jsx').then((m) => ({ default: m.CinemaHost }))) : null;
+const BrowserHost = BROWSER_ON ? lazy(() => import('../browser/BrowserHost.jsx')) : null;
+const BrowserPage = BROWSER_ON ? lazy(() => import('../browser/BrowserShell.jsx').then((m) => ({ default: m.BrowserPage }))) : null;
+const BrowserDock = BROWSER_ON ? lazy(() => import('../browser/BrowserShell.jsx').then((m) => ({ default: m.BrowserDock }))) : null;
+const BrowserBridge = BROWSER_ON ? lazy(() => import('../browser/BrowserShell.jsx').then((m) => ({ default: m.BrowserBridge }))) : null;
+// Perfil completo (~80 KB com as seções): só baixa quando alguém abre um perfil.
+const UserProfileModal = lazy(() => import('../components/modals/UserProfileModal.jsx'));
+const AmigosPage = lazy(() => import('./AmigosPage.jsx'));
+const ProfilePage = lazy(() => import('./ProfilePage.jsx'));
+const NotificationsPage = lazy(() => import('./NotificationsPage.jsx'));
+const SearchPage = lazy(() => import('./SearchPage.jsx'));
+const AdminPanel = lazy(() => import('./AdminPanel.jsx'));
+const EconomyPage = lazy(() => import('./EconomyPage.jsx'));
+// Item pedido: "Ranks e Conquistas ficam dentro da mesma categoria
+// (Progresso)" — RankPage.jsx/AchievementsPage.jsx continuam
+// existindo (importados dentro de ProgressPage.jsx), só não têm mais
+// rota própria aqui — a rota é só /progresso agora.
+const ProgressPage = lazy(() => import('./ProgressPage.jsx'));
+const HousesPage = lazy(() => import('./HousesPage.jsx'));
+const CardsGamePage = lazy(() => import('./CardsGamePage.jsx'));
+const CardsDisabledPage = lazy(() => import('./CardsDisabledPage.jsx'));
+const ClanPage = lazy(() => import('./ClanPage.jsx'));
+const TicketsPage = lazy(() => import('./TicketsPage.jsx'));
+const CommunitiesPage = lazy(() => import('./CommunitiesPage.jsx'));
+const CommunityPage = lazy(() => import('./CommunityPage.jsx'));
+const PostDetailPage = lazy(() => import('./PostDetailPage.jsx'));
+const InicioPage = lazy(() => import('./InicioPage.jsx'));
+// Canais em destaque da comunidade (ver FeaturedChannels.jsx).
+const CommunityEventsPage = lazy(() => import('./CommunityEventsPage.jsx'));
+const AtividadePage = lazy(() => import('./AtividadePage.jsx'));
+const LojaPage = lazy(() => import('./LojaPage.jsx'));
+const AnunciosPage = lazy(() => import('./AnunciosPage.jsx'));
+const AnunciosEventosPage = lazy(() => import('./AnunciosEventosPage.jsx'));
+const DeepLinkPage = lazy(() => import('./DeepLinkPage.jsx'));
+const CommunityGalleryPage = lazy(() => import('./CommunityGalleryPage.jsx'));
+// Item pedido: "crie uma nova categoria chamada Jogos" — mesmo padrão
+// lazy() de todas as outras seções acima.
+const JogosPage = lazy(() => import('./JogosPage.jsx'));
+// Sistema de Mods (Apps → Mods) — rota própria em vez de mais uma aba
+// dentro de JogosPage: tem navegação interna própria (jogo → mods →
+// detalhe do mod), então vira uma página cheia só sua, só alcançável a
+// partir de um cartão dentro de Apps (nunca pela barra lateral — item
+// pedido 1: "não crie uma nova categoria principal Jogos").
+const ModsPage = lazy(() => import('./ModsPage.jsx'));
+const GameLibraryPage = lazy(() => import('./GameLibraryPage.jsx')); // biblioteca de jogos (tempo de jogo)
+const MiniJogosPage = lazy(() => import('./MiniJogosPage.jsx')); // Mini-Jogos (jogos que já vêm no app)
+
+// Interface com UMA barra lateral principal só (MainSidebar.jsx —
+// Chat/Amigos/Perfil/Notificações/Ranks/Busca/Suporte). A antiga dupla
+// NavBar (topo) + TopMenu (canais/DMs/outras áreas) + ChannelSidebar/
+// DMSidebar (gaveta mobile) saiu de aqui: a navegação entre chats
+// específicos agora vive dentro da própria área de Chat, como abas no
+// topo do ChatWindow (ver ChannelSwitcher.jsx). As rotas de
+// Economia/Casas/Figurinhas/Painel continuam existindo (nada foi
+// apagado do projeto) — só não fazem mais parte da barra principal,
+// que deve ter somente os 7 itens pedidos.
+export default function MainApp() {
+  const { user } = useAuth();
+  // Tempo real: re-sincroniza comunidade/conta/conversas/amigos a cada 11s.
+  useGlobalLiveRefresh();
+  // Gestos do celular: gaveta de canais e segurar mensagem (ver useMobileGestures.js).
+  useMobileGestures();
+  // (Antes havia aqui um `useStore()` SEM seletor só pra pegar setters —
+  // isso inscrevia o MainApp no store INTEIRO: qualquer mudança (mensagem,
+  // digitando, presença) re-renderizava a casca toda do app. Os dados de
+  // abertura agora são aplicados por applyBootData, direto no store.)
+  // Personalizar layout: lista de membros aberta ou fechada por padrão.
+  const showMembersPref = useStore((s) => s.layoutPrefs.showMembers);
+  const [membersOpen, setMembersOpen] = useState(showMembersPref);
+  useEffect(() => { setMembersOpen(showMembersPref); }, [showMembersPref]);
+  const [dmProfileOpen, setDmProfileOpen] = useState(true);
+  const mobileMembersOpen = useStore((s) => s.mobileMembersOpen);
+  const mobileSidebarOpen = useStore((s) => s.mobileSidebarOpen);
+  const closeMobileSidebar = useStore((s) => s.closeMobileSidebar);
+  const settingsModalOpen = useStore((s) => s.settingsModalOpen);
+  const closeSettings = useStore((s) => s.closeSettings);
+  const openMobileMembers = useStore((s) => s.openMobileMembers);
+  const closeMobileMembers = useStore((s) => s.closeMobileMembers);
+  const uiLayout = useStore((s) => s.uiLayout);
+  // Item pedido: "melhore os idiomas e deixe só 3 idiomas mesmo" — o
+  // seletor de idioma já salvava a escolha no banco, mas nada de
+  // verdade mudava de idioma. Aplica sempre que o valor muda — tanto
+  // no carregamento inicial (getUserSettings acima) quanto quando a
+  // pessoa troca na tela de Configurações (updateUserSetting já
+  // atualiza esse mesmo valor no store).
+  const userSettingsLanguage = useStore((s) => s.userSettings?.language);
+  useEffect(() => { applyLanguage(userSettingsLanguage); }, [userSettingsLanguage]);
+  const location = useLocation();
+  // Favoritos/ignorados (menu da mensagem) carregam uma vez.
+  useEffect(() => { useMsgExtras.getState().load(); }, []);
+  // Link de mensagem (?m=ID): pula até ela ao abrir o canal/conversa.
+  // /canal/<nome> e /dm/<@> (e os antigos /channels/<id>...) → id de verdade
+  // (re-roda quando o canal/conversa termina de carregar).
+  const jumpRoom = useRouteRoom();
+  const jumpRoomKey = jumpRoom?.channelId || jumpRoom?.conversationId || '';
+  useEffect(() => {
+    const mid = new URLSearchParams(location.search).get('m');
+    if (!mid) return;
+    const room = roomFromCurrentPath(location.pathname);
+    if (room?.channelId) useStore.getState().setPendingJump({ roomKey: roomKeyFor({ channelId: room.channelId }), messageId: mid });
+    else if (room?.conversationId) useStore.getState().setPendingJump({ roomKey: roomKeyFor({ conversationId: room.conversationId }), messageId: mid });
+  }, [location.pathname, location.search, jumpRoomKey]);
+  const navigate = useNavigate();
+  const { connected, socket } = useSocket() || {};
+  // Fila offline do chat: mensagens que falharam por falta de conexão são
+  // reenviadas sozinhas (na ordem) quando a conexão volta — ver
+  // utils/sendQueue.js. Fica aqui (e não no chat) pra continuar valendo
+  // mesmo depois de trocar de tela.
+  useEffect(() => startSendQueue(socket), [socket]);
+  const touchStart = useRef(null);
+  // Item pedido: "a barra que mostra os canais e categorias tem que
+  // ficar do lado da barra de comunidade sempre, e quando clicar em
+  // comunidade abre essa barra lateral de canais... se trocar de
+  // categoria/seção aí ele fecha" — layout 'discord' (Configurações →
+  // Aparência): coluna fixa com o ChannelSidebar clássico, visível só
+  // dentro da área de Comunidade (mesma condição usada pelo próprio
+  // item "Comunidade" da barra principal pra saber se está ativo —
+  // ver MainSidebar.jsx) — fecha sozinha ao navegar pra qualquer outra
+  // seção, sem precisar de nenhum estado extra pra controlar isso.
+  const layoutStyle = useStore((s) => s.layoutStyle);
+  // Item pedido: "a setinha usada para mostrar os nomes completos dos
+  // canais/categorias não está funcionando" — única fonte de verdade
+  // agora (ver useStore.js): antes havia uma segunda classe sempre
+  // ativa no layout Discord que nunca deixava a seta expandir de
+  // volta.
+  const mainSidebarCollapsed = useStore((s) => s.mainSidebarCollapsed);
+  const isInComunidade = location.pathname === '/' || isChannelPath(location.pathname) || location.pathname.startsWith('/comunidade/') || location.pathname.startsWith('/evento/');
+  const showDiscordChannelSidebar = layoutStyle === 'discord' && isInComunidade;
+  // Layout "Normal 2.0" (padrão): canais sempre visíveis numa coluna só
+  // com o menu (Normal2Sidebar.jsx).
+  const isNormal2 = layoutStyle === 'normal2';
+  // Classe no <html> pra elementos fixos fora da grade (perfil em tela
+  // cheia, etc.) usarem as medidas do Normal 2.0 (ver normal2.css).
+  useEffect(() => {
+    document.documentElement.classList.toggle('layout-n2-root', isNormal2);
+    return () => document.documentElement.classList.remove('layout-n2-root');
+  }, [isNormal2]);
+  // No mobile não cabe coluna fixa + chat lado a lado — a lista de
+  // canais e o chat se revezam em tela cheia (ver CSS). BUG CORRIGIDO
+  // ("no mobile não está dando de mudar de canal/categoria"): antes,
+  // a lista só reaparecia se você navegasse de volta pra "/" — uma vez
+  // dentro de um canal, não tinha como reabri-la pra trocar de canal.
+  // mobileChannelListOpen (useStore) reabre por cima de tudo mesmo já
+  // com um canal escolhido — igual o botão de menu do EmberCord
+  // ("the hamburger is how you get back to the channel list once the
+  // drawer auto-closes on navigation"). Fecha sozinho ao trocar de
+  // canal (clicar num canal dentro da lista já navega).
+  const hasChannelOpen = isChannelPath(location.pathname);
+  // /canal/<nome> → id do canal (pelo que já está carregado).
+  const currentChannelIdFromUrl = hasChannelOpen ? (jumpRoom?.channelId || null) : null;
+  const mobileChannelListOpen = useStore((s) => s.mobileChannelListOpen);
+  const closeMobileChannelList = useStore((s) => s.closeMobileChannelList);
+  useEffect(() => { closeMobileChannelList(); }, [location.pathname]);
+
+  // Item pedido: "enquanto estiver no perfil completo, ao clicar em
+  // qualquer outra categoria fecha o perfil" — o modal de perfil
+  // completo não fica ligado a nenhuma rota própria (abre por cima de
+  // qualquer página), então precisa fechar sozinho ao mudar de
+  // categoria, senão ficaria flutuando por cima da página nova.
+  const closeProfile = useStore((s) => s.closeProfile);
+  const viewingProfileUserId = useStore((s) => s.viewingProfileUserId);
+  useEffect(() => { closeProfile(); }, [location.pathname]);
+
+  // BUG EVITADO ("preso pra sempre na tela de carregamento se o socket
+  // nunca conectar"): sem isso, alguém atrás de um firewall/proxy que
+  // bloqueia WebSocket ficaria com o app completamente inacessível —
+  // mesmo tudo o mais (mensagens por HTTP, etc) continuando
+  // funcionando normalmente. Depois de um tempo razoável sem conectar,
+  // libera a tela mesmo assim (só perde atualizações em tempo real,
+  // que é bem menos grave que não conseguir abrir o app).
+  const [socketTimedOut, setSocketTimedOut] = useState(false);
+  const everConnected = useRef(false);
+  useEffect(() => {
+    if (connected) return;
+    const id = setTimeout(() => setSocketTimedOut(true), 8000);
+    return () => clearTimeout(id);
+  }, [connected]);
+
+  // Item pedido: "quando abrir o app, abra na página de Início" — só
+  // quando a pessoa REABRE o app já logada (sem passar pelo formulário
+  // de login, que já foi ajustado separadamente em LoginPage.jsx) e
+  // cai direto na raiz "/". Um flag de sessão (não persiste entre
+  // aberturas reais do navegador/app, só dura a aba atual) garante que
+  // isso só acontece UMA VEZ por sessão — sem isso, qualquer navegação
+  // de VOLTA pra "/" depois (clicar no logo, no item "Comunidade" da
+  // barra lateral) seria redirecionada de novo pra Início por engano,
+  // quebrando esses links.
+  useEffect(() => {
+    if (location.pathname !== '/') return;
+    // sessionStorage pode lançar (aba anônima/bloqueado, WebView sem
+    // storage) — erro dentro de um efeito derruba a tela inteira.
+    try {
+      if (sessionStorage.getItem('inicio-redirect-done')) return;
+      sessionStorage.setItem('inicio-redirect-done', '1');
+    } catch { /* sem storage: só redireciona (pode repetir nesta aba) */ }
+    // "Reabrir onde parei" (Personalizar layout) volta pra última página.
+    const resumePath = useStore.getState().layoutPrefs.resumeLastPage ? lastRememberedPath() : null;
+    navigate(resumePath || '/inicio', { replace: true });
+  }, []);
+
+  useEffect(() => {
+    // Comunidade, conversas, amigos, emojis, figurinhas, coleções, clã,
+    // GIFs favoritos, clubes, configurações e layout: tudo vem no pacote de
+    // abertura (UMA requisição, ver utils/bootstrap.js) — antes eram ~13
+    // requisições separadas aqui. Primeiro pinta com a cópia local da
+    // última vez (se houver), depois aplica o que chegou do servidor.
+    // Item pedido: "Login → GET /api/users/me/settings → carregar
+    // configurações → aplicar configurações → renderizar aplicativo" —
+    // as configurações (seção `settings`) vêm junto.
+    applyBootData(cachedBoot());
+    startBoot(user.id).then((r) => applyBootData(r.data)).catch(() => {});
+    checkForNativeUpdate();
+    setupPushNotifications();
+    // Web Push (navegador/PWA): reassina em silêncio quem já ligou; clique na
+    // notificação com o site aberto navega nesta aba.
+    setupWebPush();
+    const stopSwMessages = listenServiceWorkerMessages((link) => navigate(link));
+    // Instalar como app: captura o prompt do navegador e sugere uma vez
+    // (a partir do 3º uso) com o toast padrão.
+    setupPwaInstall();
+    countVisit();
+    setInstallSuggestHandler(() => {
+      useStore.getState().pushNotice('Instale o Project Club como app: abre mais rápido e fica na sua tela inicial.', { label: 'Instalar', onClick: () => { promptInstall(); } });
+    });
+    // Perfil é o modal mais aberto: baixa o pacote dele quando o app já
+    // está parado (não disputa com a abertura), pra abrir sem espera.
+    const prefetch = () => { import('../components/modals/UserProfileModal.jsx').catch(() => {}); };
+    const idle = window.requestIdleCallback ? (fn) => window.requestIdleCallback(fn, { timeout: 15000 }) : (fn) => setTimeout(fn, 8000);
+    const prefetchTimer = setTimeout(() => idle(prefetch), 6000);
+    return () => { clearTimeout(prefetchTimer); stopSwMessages(); setInstallSuggestHandler(null); };
+  }, []);
+
+  // Item pedido: bolinha de não lidas no ícone do app — em vez de
+  // espalhar chamadas manuais em cada lugar que marca algo como lido/
+  // não lido (muitos lugares diferentes), observa as fatias do estado
+  // que decidem "tem algo não lido" e recalcula sozinho sempre que
+  // qualquer uma delas muda — sempre correto, sem depender de lembrar de
+  // chamar isso em todo canto novo que mexer nisso no futuro.
+  const channels = useStore((s) => s.channels);
+  const categories = useStore((s) => s.categories);
+  const channelReadAt = useStore((s) => s.channelReadAt);
+  const conversationsForBadge = useStore((s) => s.conversations);
+  const friendsForBadge = useStore((s) => s.friends);
+  useEffect(() => {
+    updateUnreadBadge(user.id);
+  }, [channels, categories, channelReadAt, conversationsForBadge, friendsForBadge, user.id]);
+
+  // Aplica a largura de sidebar/lista de membros configurada no Editor de
+  // Interface (staff) — via CSS custom properties na raiz, com fallback
+  // pro valor fixo do CSS se ainda não carregou ou não houver configuração.
+  useEffect(() => {
+    if (!uiLayout) return;
+    document.documentElement.style.setProperty('--sidebar-width', `${uiLayout.sidebarWidth}px`);
+    document.documentElement.style.setProperty('--members-width', `${uiLayout.membersWidth}px`);
+    document.documentElement.style.setProperty('--members-default-display', uiLayout.membersDefaultOpen === false ? 'none' : 'block');
+  }, [uiLayout]);
+
+  // Som de "trocar" ao navegar entre canais/seções — não toca na primeira
+  // renderização (isso já é coberto pelo som de abrir a plataforma).
+  const isFirstRouteRef = useRef(true);
+  const lastSoundedPathRef = useRef(location.pathname);
+  // BUG CORRIGIDO: clicar repetidamente e rápido no mesmo item da barra
+  // lateral (Chat/Amigos/Perfil/...) tocava o mesmo som várias vezes
+  // seguidas mesmo já estando naquela seção — a proteção que já existia
+  // (`location.pathname === lastSoundedPathRef.current`) só cobre "estou
+  // exatamente na mesma URL agora"; não protegia contra cliques MUITO
+  // rápidos em sequência (o próprio React Router pode processar cada
+  // clique como uma navegação própria antes do efeito anterior "assentar"
+  // o novo pathname como referência, deixando uma pequena janela onde
+  // vários cliques em fila disparam o som cada um). Adicionado um
+  // cooldown de tempo mínimo entre sons, complementar à checagem de
+  // pathname — nenhum dos dois sozinho cobria 100% dos casos.
+  const lastSoundAtRef = useRef(0);
+  const SOUND_COOLDOWN_MS = 400;
+  useEffect(() => {
+    closeMobileSidebar();
+    closeMobileMembers();
+    if (isFirstRouteRef.current) { isFirstRouteRef.current = false; lastSoundedPathRef.current = location.pathname; return; }
+    if (location.pathname === lastSoundedPathRef.current) return;
+    lastSoundedPathRef.current = location.pathname;
+    const now = Date.now();
+    if (now - lastSoundAtRef.current < SOUND_COOLDOWN_MS) return;
+    lastSoundAtRef.current = now;
+    playSound('switchChannel', 0.25);
+  }, [location.pathname]);
+
+  const EDGE_ZONE = 24;
+  const SWIPE_THRESHOLD = 60;
+
+  // Só sobrou o gesto de abrir/fechar a lista de membros (borda direita)
+  // — a gaveta de canais/DMs não existe mais, MainSidebar é sempre visível.
+  //
+  // BUG CORRIGIDO ("consigo mover a tela pros lados tocando na barra que
+  // mostra os online"): o toque de início era só guardado como {x, y} —
+  // ao SOLTAR o dedo, se o gesto tivesse arrastado o suficiente pro lado
+  // (com pouco componente vertical), a gaveta fechava/abria não importa
+  // ONDE na tela o toque tivesse começado. Isso incluía começar dentro da
+  // própria .members-list (a barra de quem está online) — rolar essa
+  // lista, tocar num membro, qualquer arrasto lateral ali disparava o
+  // mesmo fechamento pensado só pra um swipe de borda de verdade. Agora
+  // um toque que começa dentro de .members-list é marcado e ignorado
+  // aqui — só conta como esse gesto de abrir/fechar quando começa fora
+  // dela (na área do chat, por exemplo), igual antes.
+  const onTouchStart = (e) => {
+    const t = e.touches[0];
+    const startedInMembersList = !!e.target.closest?.('.members-list');
+    touchStart.current = { x: t.clientX, y: t.clientY, startedInMembersList };
+  };
+  const onTouchEnd = (e) => {
+    const start = touchStart.current;
+    touchStart.current = null;
+    if (!start || start.startedInMembersList) return;
+    const t = e.changedTouches[0];
+    const deltaX = t.clientX - start.x;
+    const deltaY = t.clientY - start.y;
+    if (Math.abs(deltaX) < SWIPE_THRESHOLD || Math.abs(deltaX) < Math.abs(deltaY) * 1.5) return;
+
+    if (mobileMembersOpen) {
+      if (deltaX > 0) closeMobileMembers();
+      return;
+    }
+    if (deltaX < 0 && start.x > window.innerWidth - EDGE_ZONE) openMobileMembers();
+  };
+
+  // Item pedido: "só vai sair quando... o perfil dele tiver online" —
+  // o socket já existe nesse ponto (SocketProvider é ancestral de
+  // MainApp), diferente da checagem anterior (auth + comunidade, em
+  // App.jsx), que roda ANTES do socket sequer existir. Mesma tela de
+  // carregamento reaproveitada (LoadingScreen) — sem duplicar visual.
+  // socketTimedOut (ver acima) evita ficar preso aqui pra sempre se o
+  // socket nunca conseguir conectar.
+  // Só segura na tela de carregamento ANTES da primeira conexão. Se o
+  // socket cair depois (wi-fi oscilou, servidor reiniciou no deploy), a
+  // interface continua na tela — antes ela era trocada inteira pelo
+  // carregamento, o que desmontava tudo (rascunho, rolagem, chamada).
+  // Depois que o app abriu, baixa em segundo plano as seções mais usadas:
+  // abrir um menu pela 1ª vez não espera mais o pedaço da página chegar.
+  const isReady = connected || socketTimedOut;
+  useEffect(() => {
+    if (!isReady) return undefined;
+    return preloadPages([
+      InicioPage, LojaPage, ProfilePage, NotificationsPage, AmigosPage, EconomyPage, ProgressPage,
+      CommunityPage, CommunityEventsPage, CommunityGalleryPage, ClanPage, TicketsPage, MiniJogosPage,
+      AnunciosPage, AnunciosEventosPage, AtividadePage, SearchPage, PostDetailPage, UserProfileModal, UserSettingsModal,
+    ]);
+  }, [isReady]);
+
+  if (connected) everConnected.current = true;
+  if (!connected && !socketTimedOut && !everConnected.current) return <LoadingScreen />;
+
+  return (
+    <div
+      className={`app-shell ${mobileMembersOpen ? 'mobile-members-open' : ''} ${mobileSidebarOpen ? 'mobile-sidebar-open' : ''} ${showDiscordChannelSidebar ? 'discord-layout-active' : ''} ${mainSidebarCollapsed && !isNormal2 ? 'main-sidebar-manually-collapsed' : ''} ${hasChannelOpen ? 'discord-layout-has-channel' : ''} ${mobileChannelListOpen ? 'discord-mobile-channel-list-open' : ''} ${isNormal2 ? 'layout-n2' : ''}`}
+      onTouchStart={onTouchStart}
+      onTouchEnd={onTouchEnd}
+    >
+      <AppShellExtras />
+      <HoverTip />
+      <StreamerBadge />
+      <div className="mobile-sidebar-backdrop" onClick={() => { closeMobileMembers(); closeMobileSidebar(); }} />
+      <TopSearchBar />
+      {isNormal2
+        ? <Normal2Sidebar activeChannelId={currentChannelIdFromUrl} />
+        : <MainSidebar />}
+      {showDiscordChannelSidebar && (
+        <div className="discord-layout-fixed-sidebar">
+          <ChannelSidebar activeChannelId={currentChannelIdFromUrl} />
+        </div>
+      )}
+
+      <PanelSlot panelId="main">
+        <div className="app-main">
+          {/* Item pedido (correção): "no mobile existem 2 botões de
+              varinha, remova um deles e deixe apenas 1" — esse botão
+              extra foi removido; o botão único que já existia sempre
+              no topo (TopSearchBar.jsx, .mobile-nav-toggle) agora
+              cuida sozinho de abrir tanto a barra principal quanto a
+              lista de canais juntas (ver toggleMobileChannelList). */}
+          <Suspense fallback={<RouteLoadingFallback />}>
+            {/* BUG CORRIGIDO ("trocar de tela às vezes dá um erro que
+                obriga a recarregar a página"): um erro de renderização
+                em QUALQUER uma dessas páginas só era pego pelo
+                ErrorBoundary GLOBAL (ver main.jsx) — o único que existia
+                pra área principal de navegação — que substitui a
+                aplicação INTEIRA por uma tela de erro com um botão
+                "Recarregar" (F5 de verdade). Um ErrorBoundary aqui,
+                envolvendo só a área de rotas, contém o problema na
+                página específica que quebrou — o resto do app (barra
+                lateral, chamada de voz em andamento, etc.) continua
+                funcionando, e "Tentar de novo" só remonta essa área,
+                sem precisar recarregar nada. */}
+            <ErrorBoundary compact resetKey={location.pathname}>
+              <Routes>
+                <Route path="/" element={<CommunityDefaultChannel />} />
+                <Route path="/dms" element={<AmigosPage />} />
+                <Route path="/profile" element={<ProfilePage />} />
+                <Route path="/notifications" element={<NotificationsPage />} />
+                <Route path="/search" element={<SearchPage />} />
+                <Route path="/admin" element={<AdminPanel />} />
+                <Route path="/economia" element={<EconomyPage />} />
+                <Route path="/missoes" element={<EconomyPage initialTab="missoes" />} />
+                {/* Item pedido: "Ranks e Conquistas ficam dentro da
+                    mesma categoria (Progresso)... aba extra chamada
+                    de recompensas" — /rank e /conquistas eram duas
+                    entradas próprias na sidebar; agora as duas (mais
+                    a aba nova de Recompensas) vivem dentro de
+                    /progresso, como abas de uma casca só (ver
+                    ProgressPage.jsx). Os links antigos continuam
+                    funcionando, só redirecionam, pra não quebrar
+                    quem tinha um deles salvo/aberto. */}
+                <Route path="/progresso" element={<ProgressPage />} />
+                <Route path="/rank" element={<Navigate to="/progresso" replace />} />
+                <Route path="/conquistas" element={<Navigate to="/progresso" replace />} />
+                {/* Casas e Figurinhas desligadas no código (utils/features.js) — rota antiga cai na Economia. */}
+                <Route path="/casas" element={isFeatureEnabled('houses') ? <HousesPage /> : <Navigate to="/economia" replace />} />
+                {/* Figurinhas colecionáveis viraram a Guerra das Cartas (Guerra das Cartas). */}
+                <Route path="/figurinhas" element={<Navigate to="/cartas" replace />} />
+                {/* Desligada no código: /cartas (inclusive ?sala=, ?partida=) mostra "Em breve". */}
+                <Route path="/cartas" element={CARDS_WAR_ON ? <CardsGamePage /> : <CardsDisabledPage />} />
+                <Route path="/tickets" element={<TicketsPage />} />
+                {/* Item pedido: "remover completamente a categoria
+                    Clãs da interface... dentro de Social, criar as
+                    abas... Clubes" — /clans (a listagem "Encontrar
+                    Clubes") não é mais uma página própria, virou a
+                    aba "Clubes" dentro de /dms (Social, ver
+                    AmigosPage.jsx) — redireciona em vez de sumir
+                    de vez, pra não quebrar quem ainda tem esse link
+                    salvo/aberto. */}
+                <Route path="/clans" element={<Navigate to="/dms" replace />} />
+                <Route path="/clans/mine" element={<ClanPage />} />
+                <Route path="/comunidades" element={<CommunitiesPage />} />
+                <Route path="/comunidades/:slug" element={<CommunityPage />} />
+                {/* Links bonitos: /forum/<titulo> (antigo /posts/<id>, que troca sozinho). */}
+                <Route path="/forum/:ref" element={<PostRoute Page={PostDetailPage} />} />
+                <Route path="/posts/:ref" element={<PostRoute legacy Page={PostDetailPage} />} />
+                <Route path="/inicio" element={<InicioPage />} />
+                <Route path="/comunidade/eventos" element={<AnunciosEventosPage tab="eventos" />} />
+                {/* /evento/<titulo>: a página de Eventos já aberta nele (antigo /eventos/<id>). */}
+                <Route path="/evento/:ref" element={<AnunciosEventosPage tab="eventos" />} />
+                <Route path="/eventos" element={<Navigate to="/comunidade/eventos" replace />} />
+                <Route path="/atividade" element={<AtividadePage />} />
+                <Route path="/loja" element={<LojaPage />} />
+                <Route path="/loja/colecao/:colecao" element={<LojaPage />} />
+                {/* Anúncios e Eventos: canal unificado (ver AnunciosEventosPage.jsx). */}
+                <Route path="/anuncios" element={<AnunciosEventosPage tab="anuncios" />} />
+                <Route path="/anuncios-e-eventos" element={<Navigate to="/anuncios" replace />} />
+                <Route path="/forum" element={<Navigate to="/comunidades" replace />} />
+                <Route path="/perfil/:id" element={<DeepLinkPage kind="user" />} />
+                <Route path="/u/:id" element={<DeepLinkPage kind="user" />} />
+                <Route path="/modpack/:id" element={<DeepLinkPage kind="modpack" />} />
+                <Route path="/mod/:game/:id" element={<DeepLinkPage kind="mod" />} />
+                <Route path="/eventos/:id" element={<DeepLinkPage kind="event" />} />
+                <Route path="/comunidade/galeria" element={<CommunityGalleryPage />} />
+                {/* Item pedido: "crie uma nova categoria chamada Jogos" */}
+                <Route path="/jogos" element={<JogosPage />} />
+                <Route path="/jogos/mods" element={<ModsPage />} />
+                <Route path="/jogos/biblioteca" element={<GameLibraryPage />} />
+                <Route path="/jogos/biblioteca/:ref" element={<LibraryRoute Page={GameLibraryPage} />} />
+                <Route path="/minijogos" element={<MiniJogosPage />} />
+                {/* Navegador do Project Club (desligado em utils/features.js). */}
+                <Route path="/navegador" element={BROWSER_ON ? <BrowserPage /> : <Navigate to="/" replace />} />
+                {/* Links bonitos: /dm/<@> ou /dm/grupo-<nome> e /canal/<nome>. Os
+                    antigos (com id) continuam abrindo e trocam pelo bonito. */}
+                <Route path="/dm/:ref" element={<DmRoute />} />
+                <Route path="/conversations/:ref" element={<DmRoute legacy />} />
+                <Route path="/canal/:ref" element={<ChannelRoute />} />
+                <Route path="/channels/:ref" element={<ChannelRoute legacy />} />
+              </Routes>
+            </ErrorBoundary>
+          </Suspense>
+          {/* Navegador ao lado do chat (painel redimensionável). */}
+          {BROWSER_ON && <Suspense fallback={null}><BrowserDock /></Suspense>}
+        </div>
+      </PanelSlot>
+
+      <Routes>
+        <Route path="/" element={membersOpen ? <PanelSlot panelId="membersList"><MembersList onToggle={() => setMembersOpen(false)} /></PanelSlot> : <button type="button" className="members-reopen-btn" title="Mostrar painel lateral" aria-label="Mostrar painel lateral" onClick={() => setMembersOpen(true)}>‹</button>} />
+        <Route path="/canal/:ref" element={membersOpen ? <PanelSlot panelId="membersList"><MembersList onToggle={() => setMembersOpen(false)} /></PanelSlot> : <button type="button" className="members-reopen-btn" title="Mostrar painel lateral" aria-label="Mostrar painel lateral" onClick={() => setMembersOpen(true)}>‹</button>} />
+        <Route path="/channels/:ref" element={membersOpen ? <PanelSlot panelId="membersList"><MembersList onToggle={() => setMembersOpen(false)} /></PanelSlot> : <button type="button" className="members-reopen-btn" title="Mostrar painel lateral" aria-label="Mostrar painel lateral" onClick={() => setMembersOpen(true)}>‹</button>} />
+        <Route path="/dm/:ref" element={dmProfileOpen ? <PanelSlot panelId="membersList"><DMProfilePanel onToggle={() => setDmProfileOpen(false)} /></PanelSlot> : null} />
+        <Route path="/conversations/:ref" element={dmProfileOpen ? <PanelSlot panelId="membersList"><DMProfilePanel onToggle={() => setDmProfileOpen(false)} /></PanelSlot> : null} />
+        <Route path="/dms" element={membersOpen ? <PanelSlot panelId="membersList"><FriendsListPanel onToggle={() => setMembersOpen(false)} /></PanelSlot> : <button type="button" className="members-reopen-btn" title="Mostrar painel lateral" aria-label="Mostrar painel lateral" onClick={() => setMembersOpen(true)}>‹</button>} />
+      </Routes>
+
+      <IncomingCallBanner />
+      <PanelSlot panelId="callbar"><CallBar /></PanelSlot>
+      <MobileTabBar />
+      <NoticeToast />
+      <UpdateAvailableBanner />
+      <CelebrationToasts />
+      {/* BUG CORRIGIDO ("erro ao abrir o perfil quebra a tela toda"):
+          o perfil é o modal que mais mudou nas últimas respostas (o
+          refactor grande de reordenar seções) — sem essa proteção,
+          qualquer erro de renderização ali dentro derrubava a árvore
+          INTEIRA do React (o app inteiro), não só o modal. Agora fica
+          contido: só o perfil mostra um aviso de erro, o resto do app
+          continua funcionando normalmente. */}
+      <ErrorBoundary compact>
+        {/* Carregado só quando algum perfil é aberto (pacote próprio). */}
+        {viewingProfileUserId && <Suspense fallback={null}><UserProfileModal /></Suspense>}
+      </ErrorBoundary>
+      <MiniProfileCard />
+      <LinkConfirmModal />
+      <ImageLightbox />
+      {settingsModalOpen && <Suspense fallback={null}><UserSettingsModal onClose={closeSettings} /></Suspense>}
+      <AnnouncementOverlay />
+      <QuickSwitcher />
+      <ConfortoLayer />
+      <MusicEngine />
+      <MusicPanel />
+      <MiniMusicBar />
+      <YouTubeApp />
+      <YouTubeHost />
+      {CINEMA_ON && <Suspense fallback={null}><CinemaApp /><CinemaHost /></Suspense>}
+      {BROWSER_ON ? <Suspense fallback={null}><BrowserHost /><BrowserBridge /></Suspense> : <DesktopLinkFallback />}
+      {CARDS_WAR_ON && <CardsNotifier />}
+    </div>
+  );
+}
+
+// Ao abrir a raiz "/" (área "Chat" da barra lateral), pula direto pro
+// chat "Geral" por padrão — cai num outro canal só se não existir
+// nenhum canal chamado "Geral" na comunidade.
+function CommunityDefaultChannel() {
+  const navigate = useNavigate();
+  const categories = useStore((s) => s.categories);
+  const channels = useStore((s) => s.channels);
+
+  useEffect(() => {
+    const all = [...channels, ...categories.flatMap((c) => c.channels || [])];
+    const geral = all.find((c) => c.name?.trim().toLowerCase() === 'geral');
+    // Volta pro último canal aberto nesta sessão, se ele ainda existir.
+    const lastId = lastRememberedChannelId();
+    // (guardado como o nome do link — /canal/<nome> — ou o id antigo)
+    const remembered = lastId ? all.find((c) => String(c.id) === lastId || (c.slug && c.slug === lastId)) : null;
+    const firstChannel = remembered || geral || categories.flatMap((c) => c.channels || [])[0] || channels[0];
+    if (firstChannel) navigate(channelPath(firstChannel), { replace: true });
+  }, [categories, channels]);
+
+  return <WelcomePane />;
+}
+
+// Fallback leve mostrado só durante a fração de segundo em que uma seção
+// carregada sob demanda (ver os lazy() no topo do arquivo) ainda está
+// baixando seu próprio pedaço de JS pela primeira vez — depois disso o
+// navegador já guarda esse pedaço em cache e nem esse fallback chega a
+// aparecer de novo pra essa pessoa.
+function RouteLoadingFallback() {
+  return (
+    <div className="route-loading-fallback">
+      <div className="route-loading-spinner" />
+    </div>
+  );
+}

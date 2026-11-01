@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- BUG CORRIGIDO ("tela azul escuro aparece antes ate da tela de
+         carregamento, com um icone generico"): sem uma cor de fundo
+         definida explicitamente pra splash nativa (ver
+         windowSplashScreenBackground em styles.xml), o Android
+         escolhia uma cor propria - dai o "azul escuro" desconhecido,
+         nada a ver com a identidade visual do app. Mesma cor de fundo
+         escuro padrao usado no resto do app (bg-primary do tema
+         escuro em global.css). -->
+    <color name="splashBackground">#313338</color>
+    <color name="colorPrimary">#313338</color>
+    <color name="colorPrimaryDark">#1e1f22</color>
+    <color name="colorAccent">#4C9FFF</color>
+</resources>

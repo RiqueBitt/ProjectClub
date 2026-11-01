@@ -1,0 +1,21 @@
+/* Painel da Equipe → Pingu (components/admin/PinguAdmin.jsx) */
+.pga { display: flex; flex-direction: column; gap: 14px; max-width: 760px; }
+.pga-card { position: relative; border-radius: var(--radius-md, 10px); overflow: hidden; border: 1px solid var(--border); background: var(--bg-secondary); }
+.pga-banner { height: 84px; background-size: cover; background-position: center; }
+.pga-id { display: flex; align-items: flex-end; gap: 12px; padding: 0 14px 12px; margin-top: -30px; flex-wrap: wrap; }
+.pga-id .user-avatar, .pga-id img { border: 4px solid var(--bg-secondary); border-radius: 50%; }
+.pga-names { display: flex; flex-direction: column; gap: 2px; min-width: 0; flex: 1; padding-bottom: 2px; }
+.pga-names strong { font-size: 18px; line-height: 1.2; }
+.pga-status { align-self: center; padding: 3px 10px; border-radius: 999px; font-size: 12px; font-weight: 700; color: var(--text-muted); background: var(--bg-modifier-hover); }
+.pga-status.on { color: #3ad17a; background: color-mix(in srgb, #23a55a 18%, transparent); }
+.pga-sub { margin: 10px 0 0; font-size: 13px; }
+.pga-form { display: flex; flex-direction: column; gap: 10px; }
+.pga-form h3 { margin: 6px 0 0; }
+.pga-form label { display: flex; flex-direction: column; gap: 4px; font-size: 12px; font-weight: 700; color: var(--header-secondary); }
+.pga-form input[type="color"] { width: 100%; height: 36px; padding: 2px; cursor: pointer; }
+.pga-row { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; max-width: 360px; }
+.pga-hint { margin: 0; font-size: 13px; }
+.pga-count { align-self: flex-end; font-weight: 600; color: var(--text-muted); }
+.pga-actions { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-top: 10px; }
+.pga-msg { font-size: 13px; color: #3ad17a; }
+.pga-msg.err { color: var(--red, #ed4245); }

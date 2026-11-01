@@ -1,0 +1,18 @@
+/* Barra de abas das áreas unificadas (Anúncios e Eventos · Economia e Loja). */
+.hub-tabs-bar {
+  flex-shrink: 0; display: flex; justify-content: center; box-sizing: border-box;
+  padding: 10px 16px; background: var(--bg-primary);
+  border-bottom: 1px solid var(--border);
+}
+.hub-tabs-bar .pk-tabs { max-width: 100%; }
+/* Página "moldura": barra fixa em cima + página original rolando embaixo. */
+.hub-frame { display: flex; flex-direction: column; height: 100%; min-height: 0; }
+.hub-frame > :not(.hub-tabs-bar) { flex: 1 1 auto; min-height: 0; height: auto; }
+/* A Loja tem layout próprio de tela inteira (menu + vitrine). */
+.shop-room.has-hub { display: flex; flex-direction: column; }
+.shop-room.has-hub > .room-layout { flex: 1 1 auto; min-height: 0; height: auto; }
+.shop-room.has-hub > .hub-tabs-bar { background: var(--room-bg); border-bottom-color: var(--room-line); }
+@media (max-width: 600px) {
+  .hub-tabs-bar { justify-content: flex-start; padding: 8px 10px; }
+  .hub-tabs-bar .pk-tabs { width: 100%; }
+}
