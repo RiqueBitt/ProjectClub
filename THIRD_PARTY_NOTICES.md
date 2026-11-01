@@ -14,3 +14,12 @@ Mumble (BSD-3-Clause), Galene (MIT) — referências
 Inspiração (ideias, sem código copiado): Vesktop/Equibop (GPL-3.0), Element Call, Spacebar, Revolt vortex (AGPL-3.0), Janus (GPL-3.0), eduMEET (MIT).
 
 Tabler Icons — https://github.com/tabler/tabler-icons — MIT (ícones das insígnias e conquistas, site e app Android)
+
+## OpenVPN Community (app de Windows — VPN)
+
+O instalador do Project Club para Windows inclui, como programa separado, o
+OpenVPN Community 2.6 (https://openvpn.net), da OpenVPN Inc., sob a licença
+GNU GPL versão 2. Ele é instalado só quando alguém usa a VPN pela primeira vez.
+Código-fonte: https://github.com/OpenVPN/openvpn e
+https://github.com/OpenVPN/openvpn-build. Os servidores da VPN são do projeto
+VPN Gate (https://www.vpngate.net), da Universidade de Tsukuba.

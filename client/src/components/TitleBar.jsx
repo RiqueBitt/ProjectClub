@@ -6,6 +6,7 @@ import { useLiveRefresh } from '../utils/liveRefresh';
 import { updateDisplay } from '../utils/updateProgress';
 import { proxyImage } from '../utils/imageProxy';
 import { listAppCatalog } from '../api/endpoints';
+import TitleBarVpn from './TitleBarVpn.jsx';
 import {
   isProjectMcAvailable, getProjectMcStatus, installProjectMc,
   launchProjectMc, onProjectMcProgress,
@@ -320,6 +321,11 @@ function TitleBarBrowserButton() {
   );
 }
 
+// Globo do Navegador + escudo da VPN, sempre juntos.
+function TitleBarWebTools() {
+  return <><TitleBarBrowserButton /><TitleBarVpn /></>;
+}
+
 function TitleBarAppLauncher() {
   const [catalog, setCatalog] = useState(null);
   const [open, setOpen] = useState(false);
@@ -343,11 +349,11 @@ function TitleBarAppLauncher() {
     };
   }, [open]);
 
-  if (!catalog || catalog.length === 0) return <div className="tb-apps"><TitleBarBrowserButton /></div>;
+  if (!catalog || catalog.length === 0) return <div className="tb-apps"><TitleBarWebTools /></div>;
   const byId = Object.fromEntries(catalog.map((c) => [c.moduleId, c]));
   const main = TB_MAIN_APPS.map((id) => byId[id]).filter(Boolean);
   const rest = catalog.filter((c) => !TB_MAIN_APPS.includes(c.moduleId));
-  if (main.length === 0 && rest.length === 0) return <div className="tb-apps"><TitleBarBrowserButton /></div>;
+  if (main.length === 0 && rest.length === 0) return <div className="tb-apps"><TitleBarWebTools /></div>;
 
   return (
     <div className="tb-apps" ref={wrapRef}>
@@ -373,7 +379,7 @@ function TitleBarAppLauncher() {
           )}
         </div>
       )}
-      <TitleBarBrowserButton />
+      <TitleBarWebTools />
     </div>
   );
 }

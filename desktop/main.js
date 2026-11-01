@@ -55,6 +55,7 @@ const modsManager = lazy('./modsManager');
 // Navegador do Project Club (abas <webview> dentro do app): sessão isolada,
 // bloqueio de anúncios/rastreadores e privacidade ao estilo LibreWolf.
 const browserEngine = lazy('./browserEngine');
+const vpnManager = lazy('./vpnManager');
 
 // URL do site hospedado — trocar aqui se o domínio mudar um dia. Fica só
 // nesse único lugar de propósito.
@@ -948,6 +949,8 @@ if (!gotLock) {
     });
     hardenYouTubeWebview(mainWindow.webContents);
     if (BROWSER_ENABLED) browserEngine().init(mainWindow);
+    // VPN (botão ao lado do globo) — ver vpnManager.js.
+    vpnManager().init(mainWindow, secureHandle);
 
     // Aberto por um link projectclub:// → já começa na página certa.
     const startRoute = pendingDeepLinkRoute;
