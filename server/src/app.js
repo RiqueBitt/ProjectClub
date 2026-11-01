@@ -439,6 +439,8 @@ function createApp() {
   app.use('/api/archive', requireFeature('cinema'), archiveRoutes);
   app.use('/api/catalog', requireFeature('cinema'), catalogRoutes);
   app.use('/api/browser', requireFeature('browser'), require('./routes/browser'));
+  // VPN do app de PC (servidores do VPN Gate) — ver services/vpnGate.js.
+  app.use('/api/vpn', require('./routes/vpn'));
   app.use('/api/clans', clansRoutes);
   app.use('/api/minigames', minigamesRoutes);
   app.use('/api/anuncios', require('./routes/staffAnnouncements'));

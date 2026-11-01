@@ -150,6 +150,18 @@ contextBridge.exposeInMainWorld('electronAPI', {
       return () => ipcRenderer.removeListener('nexus:nxm-link', handler);
     },
   },
+  // VPN do Project Club (botão ao lado do globo). Ver vpnManager.js.
+  vpn: {
+    version: 1,
+    getState: () => ipcRenderer.invoke('vpn:get-state'),
+    connect: (configText, server) => ipcRenderer.invoke('vpn:connect', String(configText || ''), server || null),
+    disconnect: () => ipcRenderer.invoke('vpn:disconnect'),
+    onState: (callback) => {
+      const handler = (_e, st) => callback(st);
+      ipcRenderer.on('vpn:state', handler);
+      return () => ipcRenderer.removeListener('vpn:state', handler);
+    },
+  },
   // Navegador do Project Club (abas dentro do app). Ver browserEngine.js.
   browser: {
     version: 2,

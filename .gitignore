@@ -58,3 +58,6 @@ desktop/out/
 client/test-results/
 client/playwright-report/
 server/reports/
+
+# OpenVPN embutido no app de Windows (baixado e conferido pelo CI)
+desktop/vendor/openvpn/*.msi
