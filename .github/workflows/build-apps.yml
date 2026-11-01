@@ -159,6 +159,11 @@ jobs:
         if: steps.reuse.outputs.ok != 'true'
         shell: bash
         run: npm version "${{ needs.compute-version.outputs.version }}" --no-git-tag-version --allow-same-version
+      # VPN do app (vpnManager.js): o OpenVPN oficial vai dentro do instalador.
+      - name: Baixar e conferir o OpenVPN embutido
+        if: steps.reuse.outputs.ok != 'true'
+        shell: pwsh
+        run: ./scripts/fetch-openvpn.ps1
       - name: Gerar o instalador .exe
         if: steps.reuse.outputs.ok != 'true'
         run: npm run build:win
