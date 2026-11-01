@@ -436,10 +436,12 @@ const YT_WEBVIEW_HOSTS = /(^|\.)(youtube\.com|youtu\.be|google\.com|google\.com\
 function isAllowedYouTubeUrl(url) {
   try { const u = new URL(url); return u.protocol === 'https:' && YT_WEBVIEW_HOSTS.test(u.hostname); } catch { return false; }
 }
-// Navegador do Project Club (browserEngine.js): desligado a pedido. O código
-// fica no app para religar depois — basta trocar para true (e ligar
-// `browser` em client/src/utils/features.js e server/src/config/features.js).
-const BROWSER_ENABLED = false;
+// Navegador do Project Club (browserEngine.js). Precisa andar junto com
+// `browser` em client/src/utils/features.js e server/src/config/features.js:
+// o site foi religado em 15/10 mas este ficou false, e o will-attach-webview
+// abaixo bloqueava toda aba do navegador ("não carrega nada").
+// Teste: desktop/test/browserToggle.test.js.
+const BROWSER_ENABLED = true;
 
 function hardenYouTubeWebview(contents) {
   contents.on('will-attach-webview', (event, webPreferences, params) => {
