@@ -7,7 +7,6 @@ import ChannelSidebar from './ChannelSidebar.jsx';
 import DonationGoalBar from './DonationGoalBar.jsx';
 import { ITEMS, visibleNavItems } from './MainSidebar.jsx';
 import { FEATURED, useFeaturedVisibility } from './FeaturedChannels.jsx';
-import { useSectionBadges, sectionCount } from '../utils/sectionBadges';
 import { useClaimableMissions } from '../utils/missionBadge';
 
 // Layout "Normal 2.0": uma coluna só à esquerda, no estilo Discord —
@@ -34,9 +33,7 @@ export function useBadges(user) {
   const allChannels = [...channels, ...categories.flatMap((c) => c.channels || [])];
   const unreadChannels = allChannels.filter((ch) => isChannelUnread(ch, channelReadAt, user.id, myRoleIds)).length;
   const claimableMissions = useClaimableMissions(); // missões prontas pra resgatar
-  const sections = useSectionBadges(); // anúncios/eventos que saíram depois da última visita
   return (to) => {
-    if (to === '/anuncios') return sectionCount(sections, 'anuncios') + sectionCount(sections, 'eventos');
     if (to === '/economia') return claimableMissions;
     if (to === '/dms') return unreadConversations + pendingIncoming;
     if (to === '/notifications') return unreadChannels + unreadConversations + pendingIncoming;

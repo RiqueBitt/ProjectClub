@@ -9,11 +9,11 @@ import '../styles/channels.css';
 import '../styles/socialx.css';
 
 // Canais em destaque, fixos no topo da lista de canais da comunidade:
-// Guerra das Cartas e Economia (pedido do dono, out/2026). Parecem canais
-// — mesma altura e alinhamento — mas com um fundo de cor suave e ícone
-// próprio. A staff pode esconder cada um (Configurações da comunidade, ou
-// clique direito aqui). Anúncios e Eventos virou "Novidades" e foi pro
-// menu principal (MainSidebar.jsx); o Fórum já está lá também.
+// Novidades e Economia (pedido do dono, nov/2026) — e a Guerra das Cartas,
+// que só aparece com o jogo ligado (utils/features.js → cardsWar). Parecem
+// canais — mesma altura e alinhamento — mas com um fundo de cor suave e
+// ícone próprio. A staff pode esconder cada um (Configurações da
+// comunidade, ou clique direito aqui). O Fórum fica no menu principal.
 
 const PATHS = {
   megaphone: 'M3 11v2a1 1 0 0 0 1 1h2l5 4V6L6 10H4a1 1 0 0 0-1 1zM15 9a3 3 0 0 1 0 6M18 6a7 7 0 0 1 0 12',
@@ -38,12 +38,23 @@ export function FeaturedGlyph({ name, size = 16 }) {
   );
 }
 
-// Guerra das Cartas em primeiro, Economia logo abaixo (pedido).
+// Guerra das Cartas (quando ligada) em primeiro, depois Novidades e Economia.
 export const FEATURED = [
   {
     key: 'arena', label: 'Guerra das Cartas', icon: 'cards', to: '/cartas',
     hint: 'Jogo de cartas: colecione, monte seu baralho e batalhe', match: (p) => p.startsWith('/cartas'), tag: 'Jogar',
     feature: 'cardsWar', // interruptor em utils/features.js
+  },
+  // Novidades (antes "Anúncios e Eventos"): anúncios da staff + eventos, com
+  // abas internas (pages/AnunciosEventosPage.jsx). Chave 'anuncios' mantida:
+  // é a que o CSS (.featured-anuncios, cor vermelha), a visibilidade salva e
+  // os testes usam; a bolinha soma as novidades das duas abas e mostra
+  // "Ao vivo" quando há evento.
+  {
+    key: 'anuncios', label: 'Novidades', icon: 'megaphone', to: '/anuncios',
+    hint: 'Anúncios da equipe e eventos da comunidade',
+    match: (p) => p.startsWith('/anuncios') || p.startsWith('/comunidade/eventos') || p.startsWith('/evento/') || p.startsWith('/eventos'),
+    merges: ['anuncios', 'eventos'],
   },
   // Economia: mesma área da Loja (abas Visão geral · Missões · Loja · Passe
   // · Histórico — ver components/HubTabs.jsx). Chave 'loja' mantida: é a

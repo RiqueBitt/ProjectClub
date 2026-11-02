@@ -32,7 +32,6 @@ import androidx.compose.material.icons.outlined.Lock
 import androidx.compose.material.icons.outlined.MicOff
 import androidx.compose.material.icons.outlined.MonetizationOn
 import androidx.compose.material.icons.outlined.ScreenShare
-import androidx.compose.material.icons.outlined.Style
 import androidx.compose.material.icons.outlined.Tag
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
@@ -111,9 +110,9 @@ fun ChannelsTab(repo: Repository, actions: HomeActions) {
             item(key = "banner") { Banner(c.community?.name ?: "Project Club", c.community?.bannerUrl, c.community?.iconUrl) }
             item(key = "featured") {
                 Column(Modifier.padding(horizontal = 14.dp, vertical = 12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    // Iguais aos do site (FeaturedChannels.jsx): Guerra das Cartas e Economia.
-                    // Novidades (anúncios e eventos) fica em Você → Novidades.
-                    Featured(Icons.Outlined.Style, "Guerra das Cartas", PC.Purple) { actions.openWeb("/cartas") }
+                    // Iguais aos do site (FeaturedChannels.jsx): Novidades e Economia.
+                    // (A Guerra das Cartas está desativada.)
+                    Featured(Icons.Outlined.Campaign, "Novidades", PC.Announce) { actions.openWeb("/anuncios") }
                     Featured(Icons.Outlined.MonetizationOn, "Economia", PC.Store) { actions.openWeb("/economia") }
                 }
                 Box(Modifier.padding(horizontal = 14.dp).fillMaxWidth().height(1.dp).background(PC.Line))

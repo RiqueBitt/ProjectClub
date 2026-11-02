@@ -52,11 +52,11 @@ test('canal com mensagens novas mostra o número vermelho; Novidades mostra "nov
   if (isPhone) return; // no celular a lista de canais fica atrás do menu; a lógica é a mesma
   await expect(page.locator('.unread-count-badge', { hasText: '7' })).toBeVisible();
   await expect(page.locator('.unread-count-badge.has-mention', { hasText: '99+' })).toBeVisible();
-  // Novidades (antes o canal em destaque "Anúncios e Eventos") fica no menu principal.
-  const item = page.locator('.n2-nav-item[href="/anuncios"]');
-  const novo = item.locator('.n2-nav-badge');
+  // Novidades é um canal em destaque no topo da lista de canais.
+  const novo = page.locator('.featured-anuncios .section-new-badge');
   await expect(novo).toHaveText('3');
-  await item.click();
+  await expect(page.locator('.featured-anuncios')).toContainText('Novidades');
+  await page.locator('.featured-anuncios').click();
   await expect(page).toHaveURL(/\/anuncios/);
   await expect.poll(() => seen).toContain('/section-badges/anuncios/seen');
   await expect(novo).toHaveCount(0);
