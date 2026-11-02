@@ -16,7 +16,17 @@ SHA=$(git ls-remote https://github.com/RiqueBitt/ProjectClub.git refs/heads/depl
 [ -n "$SHA" ] || exit 0
 [ "$SHA" = "$(cat "$DIR/last" 2>/dev/null)" ] && exit 0
 
-log "novo deploy $SHA"
+# O próprio app já se atualiza (POST /api/system/deploy pelo CI). Se ele já
+# está nessa versão ou atualizando, o vigia não repete.
+SITE_STATE=$(curl -s --max-time 8 https://projectclub.shardweb.app/api/system/deployed || true)
+if grep -q "\"sha\":\"$SHA\"" <<<"$SITE_STATE"; then echo "$SHA" > "$DIR/last"; exit 0; fi
+if grep -q "\"updating\":true" <<<"$SITE_STATE"; then exit 0; fi
+# Dá 5 minutos para o CI fazer pelo app antes de entrar como reserva.
+FIRST="$DIR/seen-$SHA"
+[ -f "$FIRST" ] || { date +%s > "$FIRST"; find "$DIR" -name 'seen-*' -mmin +1440 -delete; exit 0; }
+[ $(( $(date +%s) - $(cat "$FIRST") )) -ge 300 ] || exit 0
+
+log "novo deploy $SHA (reserva: o app não se atualizou sozinho)"
 CMD="curl -fsSL https://raw.githubusercontent.com/RiqueBitt/ProjectClub/$SHA/scripts/self-update.sh | sh -s $SHA"
 OUT=$(curl -sN --max-time 900 -X POST -H "Authorization: Bearer $TOKEN" -H 'Content-Type: application/json' \
   -d "$(jq -n --arg c "$CMD" '{command:$c}')" "$API/exec")

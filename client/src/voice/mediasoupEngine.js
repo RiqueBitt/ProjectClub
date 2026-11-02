@@ -352,7 +352,11 @@ export class MediasoupEngine {
           kicked: notice?.event === 'kicked' ? (notice.reason || 'kicked') : null,
         };
         if (!welcomed) {
-          const e = new Error(`conexão recusada (${ev.code}${info.detail ? ` ${info.detail}` : ''})`);
+          // 1015 = o navegador recusou o certificado/TLS do servidor de voz
+          // (quase sempre data/hora errada no computador, ou antivírus/proxy
+          // inspecionando HTTPS). O certificado do servidor está completo.
+          const tls = ev.code === 1015 ? ' — falha de segurança (TLS): confira a data/hora do computador e se o antivírus inspeciona HTTPS' : '';
+          const e = new Error(`conexão recusada (${ev.code}${info.detail ? ` ${info.detail}` : ''})${tls}`);
           e.code = `WS_${ev.code}`;
           e.closeInfo = info;
           reject(e);

@@ -8,6 +8,24 @@ const router = express.Router();
 
 router.post('/publish-release', ctrl.publishRelease);
 
+// Publicação automática pelo GitHub (services/selfDeploy.js). O CI chama
+// com o segredo; o vigia da VPS e o próprio CI leem /deployed (público: o
+// SHA do branch deploy já é público no GitHub).
+const selfDeploy = require('../services/selfDeploy');
+const envCfg = require('../config/env');
+router.post('/deploy', express.json({ limit: '4kb' }), async (req, res) => {
+  if (!envCfg.CI_UPDATE_SECRET || !selfDeploy.safeEqual(req.headers['x-ci-secret'], envCfg.CI_UPDATE_SECRET)) {
+    return res.status(403).json({ error: 'Segredo inválido.' });
+  }
+  const r = await selfDeploy.requestDeploy(req.body?.sha);
+  res.status(r.status).json(r.body);
+});
+router.get('/deployed', (_req, res) => {
+  res.setHeader('Cache-Control', 'no-store');
+  const s = selfDeploy.status();
+  res.json({ sha: s.sha, updating: s.updating, target: s.target, failed: !!s.lastError });
+});
+
 // Versão mais nova do app de PC (lida do latest.yml que o electron-updater
 // usa) — o botão verde de "atualizar" da barra do app compara com a dele.
 const { cacheGetOrSet } = require('../config/redis');

@@ -456,7 +456,7 @@ test('backup: agendador roda só na hora marcada e uma vez por dia', async () =>
   // Já tem backup OK recente → não roda de novo.
   db.backups.push({ id: 'old', status: 'OK', startedAt: new Date(at4.getTime() - 3600 * 1000) });
   assert.equal((await backup.tick(null, { prisma: fakePrisma, env: { BACKUP_ENABLED: '1' }, now: at4 })).skipped, 'done');
-  const cfg = backup.getConfig({ BACKUP_S3_BUCKET: 'b', B2_KEY_ID: 'k', B2_APPLICATION_KEY: 's', B2_ENDPOINT: 'https://s3.x' });
+  const cfg = backup.getConfig({ BACKUP_S3_BUCKET: 'b', B2_KEY_ID: 'k', B2_APPLICATION_KEY: 's', B2_ENDPOINT: 'https://s3.x', BACKUP_ENCRYPTION_KEY: 'a'.repeat(64) });
   assert.equal(cfg.s3.bucket, 'b');
   assert.equal(cfg.s3.prefix, 'db-backups/');
   assert.equal(backup.getConfig({ BACKUP_S3_BUCKET: 'b' }).s3, null);

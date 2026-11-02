@@ -11,11 +11,15 @@ on:
     branches: [main]
     paths:
       - 'server/**'
+      - 'desktop/**'
+      - 'client/src/utils/features.js'
       - '.github/workflows/test.yml'
   pull_request:
     branches: [main]
     paths:
       - 'server/**'
+      - 'desktop/**'
+      - 'client/src/utils/features.js'
 
 concurrency:
   group: testes-${{ github.ref }}
@@ -37,4 +41,20 @@ jobs:
       - name: Gerar o Prisma Client
         run: npx prisma generate
       - name: Rodar os testes
+        run: npm test
+
+  # Testes do app de PC (Electron): rodam em Node puro, sem instalar o
+  # Electron — VPN, atalhos globais, links, ícone, navegador ligado igual
+  # no app, no site e no servidor.
+  desktop:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: desktop
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Rodar os testes do app de PC
         run: npm test

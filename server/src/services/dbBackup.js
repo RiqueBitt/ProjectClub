@@ -25,7 +25,14 @@ const { PassThrough, Transform } = require('stream');
 
 const FILE_PREFIX = 'projectclub-';
 const FILE_SUFFIX = '.sql.gz';
-const FILE_RE = /^projectclub-\d{4}-\d{2}-\d{2}T\d{2}-\d{2}-\d{2}Z\.sql\.gz$/;
+const ENC_SUFFIX = '.enc';
+const FILE_RE = /^projectclub-\d{4}-\d{2}-\d{2}T\d{2}-\d{2}-\d{2}Z\.sql\.gz(\.enc)?$/;
+// Criptografia (BACKUP_ENCRYPTION_KEY, 32 bytes em hex ou base64): AES-256-GCM
+// em fluxo. Formato do arquivo .enc: MAGIC (6) + IV (12) + dados + TAG (16).
+// Obrigatória para mandar ao S3: o bucket pode ser público (o do B2 é).
+const ENC_MAGIC = Buffer.from('PCBK1\n');
+const ENC_IV_BYTES = 12;
+const ENC_TAG_BYTES = 16;
 const LOCK_KEY = 'lock:db-backup';
 const LOCK_TTL_SECONDS = 3 * 60 * 60;
 const STALE_RUNNING_MS = LOCK_TTL_SECONDS * 1000;
@@ -48,6 +55,9 @@ function getConfig(env = process.env) {
     secretAccessKey: env.BACKUP_S3_SECRET_ACCESS_KEY || env.B2_APPLICATION_KEY || '',
     prefix: String(env.BACKUP_S3_PREFIX ?? 'db-backups/').replace(/^\/+/, ''),
   } : null;
+  const encryptionKey = parseEncryptionKey(env.BACKUP_ENCRYPTION_KEY);
+  const s3Private = ['1', 'true', 'on', 'yes'].includes(String(env.BACKUP_S3_PRIVATE || '').toLowerCase());
+  const s3Ready = !!(s3 && s3.accessKeyId && s3.secretAccessKey);
   const enabledRaw = env.BACKUP_ENABLED;
   const enabled = enabledRaw === undefined || enabledRaw === ''
     ? env.NODE_ENV === 'production'
@@ -60,9 +70,69 @@ function getConfig(env = process.env) {
     chunkRows: intEnv(env.BACKUP_CHUNK_ROWS, 1000, 50, 20000),
     pauseMs: intEnv(env.BACKUP_PAUSE_MS, 15, 0, 5000),
     useMysqldump: !['0', 'false', 'off', 'no'].includes(String(env.BACKUP_USE_MYSQLDUMP ?? '1').toLowerCase()),
-    s3: s3 && s3.accessKeyId && s3.secretAccessKey ? s3 : null,
-    s3Misconfigured: !!(s3 && !(s3.accessKeyId && s3.secretAccessKey)),
+    // Sem chave, só vai para o S3 se a staff marcar o bucket como privado.
+    s3: s3Ready && (encryptionKey || s3Private) ? s3 : null,
+    s3Misconfigured: !!(s3 && !s3Ready),
+    s3NeedsKey: s3Ready && !encryptionKey && !s3Private,
+    encryptionKey,
   };
+}
+
+function parseEncryptionKey(v) {
+  const raw = String(v || '').trim();
+  if (!raw) return null;
+  let key = null;
+  if (/^[0-9a-f]{64}$/i.test(raw)) key = Buffer.from(raw, 'hex');
+  else {
+    try { key = Buffer.from(raw, 'base64'); } catch { key = null; }
+  }
+  return key && key.length === 32 ? key : null;
+}
+
+// Transform que criptografa em fluxo (AES-256-GCM).
+function encryptStream(key) {
+  const iv = crypto.randomBytes(ENC_IV_BYTES);
+  const cipher = crypto.createCipheriv('aes-256-gcm', key, iv);
+  let started = false;
+  return new Transform({
+    transform(chunk, _enc, cb) {
+      if (!started) { started = true; this.push(Buffer.concat([ENC_MAGIC, iv])); }
+      cb(null, cipher.update(chunk));
+    },
+    flush(cb) {
+      if (!started) this.push(Buffer.concat([ENC_MAGIC, iv]));
+      const last = cipher.final();
+      if (last.length) this.push(last);
+      this.push(cipher.getAuthTag());
+      cb();
+    },
+  });
+}
+
+// Descriptografa um arquivo .enc inteiro em disco (para restaurar).
+// Confere a TAG no fim: arquivo alterado ou chave errada → erro.
+async function decryptFile(inPath, outPath, key) {
+  const fd = fs.openSync(inPath, 'r');
+  try {
+    const size = fs.fstatSync(fd).size;
+    const head = Buffer.alloc(ENC_MAGIC.length + ENC_IV_BYTES);
+    fs.readSync(fd, head, 0, head.length, 0);
+    if (size < head.length + ENC_TAG_BYTES || !head.subarray(0, ENC_MAGIC.length).equals(ENC_MAGIC)) {
+      throw new Error('não é um backup criptografado do Project Club');
+    }
+    const tag = Buffer.alloc(ENC_TAG_BYTES);
+    fs.readSync(fd, tag, 0, ENC_TAG_BYTES, size - ENC_TAG_BYTES);
+    const decipher = crypto.createDecipheriv('aes-256-gcm', key, head.subarray(ENC_MAGIC.length));
+    decipher.setAuthTag(tag);
+    const { pipeline } = require('stream/promises');
+    const tmp = `${outPath}.partial`;
+    await pipeline(
+      fs.createReadStream(inPath, { start: head.length, end: size - ENC_TAG_BYTES - 1 }),
+      decipher,
+      fs.createWriteStream(tmp, { mode: 0o600 }),
+    );
+    fs.renameSync(tmp, outPath);
+  } finally { fs.closeSync(fd); }
 }
 
 // mysql://user:pass@host:3306/db?sslca=...&sslcert=...&sslkey=...
@@ -83,9 +153,9 @@ function parseDatabaseUrl(url) {
   } catch { return null; }
 }
 
-function fileNameFor(date = new Date()) {
+function fileNameFor(date = new Date(), { encrypted = false } = {}) {
   const iso = date.toISOString().slice(0, 19).replace(/:/g, '-');
-  return `${FILE_PREFIX}${iso}Z${FILE_SUFFIX}`;
+  return `${FILE_PREFIX}${iso}Z${FILE_SUFFIX}${encrypted ? ENC_SUFFIX : ''}`;
 }
 
 // Data (AAAA-MM-DD) e hora em São Paulo.
@@ -268,7 +338,7 @@ function openS3Destination(s3, fileName, { client = getS3Client(s3) } = {}) {
   const key = `${s3.prefix}${fileName}`;
   const upload = new Upload({
     client, queueSize: 2, partSize: 8 * 1024 * 1024, leavePartsOnError: false,
-    params: { Bucket: s3.bucket, Key: key, Body: body, ContentType: 'application/gzip' },
+    params: { Bucket: s3.bucket, Key: key, Body: body, ContentType: fileName.endsWith(ENC_SUFFIX) ? 'application/octet-stream' : 'application/gzip' },
   });
   const finished = upload.done();
   finished.catch(() => {}); // tratado em done()
@@ -366,7 +436,8 @@ async function runOnce(method, { prisma, cfg, fileName, openDestination, db, log
   const dest = openDestination(fileName);
   const gzip = zlib.createGzip({ level: 6 });
   const counter = byteCounter();
-  gzip.pipe(counter).pipe(dest.sink);
+  if (cfg.encryptionKey) gzip.pipe(encryptStream(cfg.encryptionKey)).pipe(counter).pipe(dest.sink);
+  else gzip.pipe(counter).pipe(dest.sink);
   try {
     const stats = method === 'mysqldump'
       ? await dumpWithMysqldump(db, gzip)
@@ -396,7 +467,7 @@ async function runBackup({
   }
   let record = null;
   try {
-    const fileName = fileNameFor(now);
+    const fileName = fileNameFor(now, { encrypted: !!cfg.encryptionKey });
     record = await prisma.dbBackup.create({
       data: { status: 'RUNNING', trigger, startedBy: userId, fileName, location: cfg.s3 ? `s3://${cfg.s3.bucket}/${cfg.s3.prefix}` : cfg.dir },
     });
@@ -494,6 +565,8 @@ function publicConfig(cfg) {
     destination: cfg.s3 ? 's3' : 'disk',
     target: cfg.s3 ? `${cfg.s3.bucket}/${cfg.s3.prefix}` : cfg.dir,
     s3Misconfigured: cfg.s3Misconfigured,
+    s3NeedsKey: cfg.s3NeedsKey,
+    encrypted: !!cfg.encryptionKey,
     mysqldump: cfg.useMysqldump && hasMysqldump(),
   };
 }
@@ -532,6 +605,7 @@ function startBackupScheduler(io) {
   const cfg = getConfig();
   if (!cfg.enabled) { console.log('[backup] automático desligado (BACKUP_ENABLED)'); return null; }
   if (cfg.s3Misconfigured) console.warn('[backup] BACKUP_S3_BUCKET definido sem credenciais — gravando em disco.');
+  if (cfg.s3NeedsKey) console.warn('[backup] S3 configurado sem BACKUP_ENCRYPTION_KEY — não envio backup aberto (o bucket pode ser público); gravando em disco.');
   if (!cfg.s3) console.warn(`[backup] sem S3 configurado: os backups vão para ${cfg.dir} (o disco some a cada deploy).`);
   const run = () => tick(io).catch((e) => console.error('[backup]', e?.message || e));
   setTimeout(run, 60 * 1000).unref?.();
@@ -547,5 +621,6 @@ module.exports = {
   dumpWithNode, mysqldumpArgs, hasMysqldump, pickToDelete, rotateLocal, rotateS3,
   acquireLock, releaseLock, runBackup, getStatus, shapeBackup, tick, startBackupScheduler,
   openLocalDestination, LOCK_KEY, FILE_RE,
+  parseEncryptionKey, encryptStream, decryptFile,
   _resetForTests,
 };

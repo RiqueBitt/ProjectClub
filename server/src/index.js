@@ -100,22 +100,26 @@ httpServer.listen(env.PORT, () => {
 // sobra pra qualquer requisição real terminar) antes de forçar a
 // saída, pra nunca travar o deploy indefinidamente se alguma conexão
 // ficar presa por outro motivo.
-function gracefulShutdown(signal) {
+function gracefulShutdown(signal, exitCode = 0) {
   console.log(dim(`\n[${signal}] recebido — fechando conexões em andamento antes de sair...`));
   const forceExitTimer = setTimeout(() => {
     console.error('\x1b[31m[shutdown]\x1b[0m tempo limite atingido — saindo à força.');
-    process.exit(1);
+    process.exit(exitCode || 1);
   }, 15000);
   forceExitTimer.unref();
   io.close(); // fecha os sockets também, senão eles podem segurar o servidor aberto indefinidamente
   httpServer.close(() => {
     clearTimeout(forceExitTimer);
     console.log(dim('[shutdown] todas as conexões em andamento terminaram — saindo.'));
-    process.exit(0);
+    process.exit(exitCode);
   });
 }
 process.on('SIGTERM', () => gracefulShutdown('SIGTERM'));
 process.on('SIGINT', () => gracefulShutdown('SIGINT'));
+// Publicação automática (services/selfDeploy.js): arquivos novos no lugar →
+// fecha com calma e sai com 75; o scripts/deploy.js sobe a versão nova.
+let reloading = false;
+process.on('pc:self-reload', (code) => { if (!reloading) { reloading = true; gracefulShutdown('atualização', code || 75); } });
 
 // Fire-and-forget: doesn't block the server from accepting connections, and
 // PLATFORM_ADMIN_EMAIL is unset by default so this is a no-op for most deploys.

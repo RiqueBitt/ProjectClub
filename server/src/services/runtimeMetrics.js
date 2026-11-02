@@ -11,15 +11,20 @@ const MB = 1024 * 1024;
 const fmt = (n) => `${Math.round(n / MB)}MB`;
 
 function startRuntimeMetrics({ io, intervalMs = 5 * 60 * 1000, containerMb = Number(process.env.CONTAINER_MEMORY_MB) || 0, log = console.log } = {}) {
-  const loop = monitorEventLoopDelay({ resolution: 20 });
+  const RES_MS = 20;
+  const loop = monitorEventLoopDelay({ resolution: RES_MS });
   loop.enable();
   let peakRss = 0;
   const sample = (label = 'métricas') => {
     const m = process.memoryUsage();
     peakRss = Math.max(peakRss, m.rss);
-    const p50 = loop.percentile(50) / 1e6;
-    const p99 = loop.percentile(99) / 1e6;
-    const max = loop.max / 1e6;
+    // O histograma mede o intervalo do timer de amostragem (20 ms): o atraso
+    // de verdade é o que passa disso (antes o log mostrava "p50=20ms" com o
+    // servidor parado, o que parecia lentidão).
+    const lag = (ns) => Math.max(0, ns / 1e6 - RES_MS);
+    const p50 = lag(loop.percentile(50));
+    const p99 = lag(loop.percentile(99));
+    const max = lag(loop.max);
     loop.reset();
     const sockets = io?.engine?.clientsCount ?? 0;
     const line = `[${label}] rss=${fmt(m.rss)} (pico ${fmt(peakRss)}) heap=${fmt(m.heapUsed)}/${fmt(m.heapTotal)} externo=${fmt(m.external)} buffers=${fmt(m.arrayBuffers)} `

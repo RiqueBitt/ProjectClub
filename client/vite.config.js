@@ -30,6 +30,9 @@ const versionFilePlugin = () => ({
 export default defineConfig({
   plugins: [react(), versionFilePlugin()],
   define: { __WEB_VERSION__: JSON.stringify(WEB_VERSION) },
+  // Os plugins do Capacitor puxavam uma segunda cópia do @capacitor/core
+  // (8.5.0 na raiz + 8.5.3 do cliente) — uma só, menos código no pacote.
+  resolve: { dedupe: ['@capacitor/core'] },
   server: {
     port: 5173,
     proxy: {
@@ -66,6 +69,8 @@ export default defineConfig({
         // dependencies) only needs to re-download the app chunk after a
         // deploy, not everything.
         manualChunks(id) {
+          // Ajudante do import() do Vite: vai junto do vendor (sempre carregado).
+          if (id.includes('vite/preload-helper')) return 'vendor';
           if (!id.includes('node_modules')) return undefined;
           if (id.includes('/react-router-dom/') || id.includes('/react-router/')) return 'vendor-router';
           // react/react-dom/scheduler NÃO são separados num chunk próprio: o
@@ -81,6 +86,14 @@ export default defineConfig({
           if (id.includes('mediasoup-client') || id.includes('/sdp-transform/') || id.includes('/h264-profile-level-id/')) return 'vendor-mediasoup';
           // Lista de emojis (~400 KB): só baixa quando o seletor abre.
           if (id.includes('unicode-emoji-json')) return 'vendor-emoji';
+          // Realce de código (~350 KB com as linguagens): o CodeFilePreview já
+          // importa sob demanda, mas a regra "tudo de node_modules → vendor"
+          // jogava ele no pacote inicial. Pacote próprio = só baixa ao abrir
+          // um arquivo de código.
+          if (id.includes('/highlight.js/')) return 'vendor-hljs';
+          // Plugins nativos do Capacitor (só o app Android usa, todos por
+          // import() dinâmico). O @capacitor/core fica no vendor geral.
+          if (/\/node_modules\/(@capacitor\/(app|filesystem|push-notifications)|@capawesome|@m430|@anuradev)\//.test(id)) return 'vendor-native';
           return 'vendor';
         },
       },

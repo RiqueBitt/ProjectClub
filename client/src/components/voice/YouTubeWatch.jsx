@@ -6,6 +6,7 @@ import { ytRelated } from '../../api/endpoints';
 import YouTubeBrowser, { RelatedList } from './YouTubeBrowser.jsx';
 import UserAvatar from '../UserAvatar.jsx';
 import '../../styles/ytwatch.css';
+import { loadYouTubeApi } from '../../youtube/loadYouTubeApi.js';
 
 // ============================================================
 // YouTube "Assistir juntos" dentro da chamada de voz.
@@ -21,23 +22,8 @@ const DRIFT_SEC = 1.5;
 export { parseYouTubeId };
 
 
-// Carrega a IFrame API uma vez só.
-let apiPromise = null;
-export function loadYouTubeApi() {
-  if (typeof window === 'undefined') return Promise.reject(new Error('no window'));
-  if (window.YT?.Player) return Promise.resolve(window.YT);
-  if (apiPromise) return apiPromise;
-  apiPromise = new Promise((resolve, reject) => {
-    const prev = window.onYouTubeIframeAPIReady;
-    window.onYouTubeIframeAPIReady = () => { try { prev?.(); } catch { /* ignora */ } resolve(window.YT); };
-    const s = document.createElement('script');
-    s.src = 'https://www.youtube.com/iframe_api';
-    s.async = true;
-    s.onerror = () => { apiPromise = null; reject(new Error('Não consegui carregar o player do YouTube.')); };
-    document.head.appendChild(s);
-  });
-  return apiPromise;
-}
+// Carrega a IFrame API uma vez só (módulo próprio: youtube/loadYouTubeApi.js).
+export { loadYouTubeApi };
 
 // Estado compartilhado da sala + ações. channelId null = desligado.
 export function useYouTubeWatch(channelId) {
