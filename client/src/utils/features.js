@@ -6,10 +6,10 @@ export const FEATURES = Object.freeze({
   stickers: false, // Figurinhas colecionáveis (álbum/cápsulas) — as do chat continuam
   browser: true,   // Navegador do Project Club (abas dentro do app) — código guardado em src/browser
   cinema: false,   // Filmes e Séries (Internet Archive, catálogo, Pluto TV) — código guardado em src/cinema
-  // Guerra das Cartas: religada (out/2026). false = some do menu, da busca,
-  // da Loja (aba Cartas/versos), do perfil e do Início; /cartas mostra
-  // "Em breve" (CardsDisabledPage) e o CardsNotifier não liga.
-  cardsWar: true,
+  // Guerra das Cartas DESATIVADA (pedido do dono, nov/2026): some do menu, da
+  // busca, da Loja (aba Cartas/versos), do perfil, do Início e dos canais em
+  // destaque; /cartas mostra "Em breve" (CardsDisabledPage). Baús/Economia continuam.
+  cardsWar: false,
 });
 
 export const isFeatureEnabled = (key) => FEATURES[key] === true;

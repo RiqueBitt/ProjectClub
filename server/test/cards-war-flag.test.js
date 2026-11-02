@@ -1,7 +1,6 @@
-// Guerra das Cartas (config/features.js): religada em out/2026. O
-// interruptor continua existindo — com false, toda rota /api/cards
-// responde 503 "temporariamente desativado" antes de chegar no router do
-// jogo. Baús/Economia não dependem deste interruptor.
+// Guerra das Cartas (config/features.js): desativada (nov/2026) — toda rota
+// /api/cards responde 503 "temporariamente desativado" antes de chegar no
+// router do jogo. Baús/Economia não dependem deste interruptor.
 const test = require('node:test');
 const assert = require('node:assert');
 const { FEATURES, isFeatureEnabled, requireFeature, CARDS_WAR_OFF_MSG } = require('../src/config/features');
@@ -17,21 +16,24 @@ function run(mw) {
   });
 }
 
-test('cardsWar está ligado no código', () => {
-  assert.equal(FEATURES.cardsWar, true);
-  assert.equal(isFeatureEnabled('cardsWar'), true);
+test('cardsWar está desligado no código', () => {
+  assert.equal(FEATURES.cardsWar, false);
+  assert.equal(isFeatureEnabled('cardsWar'), false);
 });
 
-test('com o jogo ligado, as rotas da Guerra das Cartas passam pelo interruptor', async () => {
+test('rotas da Guerra das Cartas respondem 503 temporariamente desativado', async () => {
   const r = await run(requireFeature('cardsWar', { status: 503, message: CARDS_WAR_OFF_MSG }));
-  assert.equal(r.next, true);
+  assert.equal(r.next, false);
+  assert.equal(r.status, 503);
+  assert.match(r.body.error, /temporariamente desativado/);
+  assert.equal(r.body.featureDisabled, 'cardsWar');
 });
 
 test('cliente e servidor concordam sobre a Guerra das Cartas', () => {
   const fs = require('node:fs');
   const path = require('node:path');
   const src = fs.readFileSync(path.join(__dirname, '../../client/src/utils/features.js'), 'utf8');
-  assert.match(src, /cardsWar:\s*true/);
+  assert.match(src, /cardsWar:\s*false/);
 });
 
 test('os outros interruptores continuam com 404 por padrão', async () => {
