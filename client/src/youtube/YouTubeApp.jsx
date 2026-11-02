@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { useYouTubeApp } from './youtubeStore';
-import { loadYouTubeApi } from '../components/voice/YouTubeWatch.jsx';
+import { loadYouTubeApi } from './loadYouTubeApi.js';
 import {
   Ico, I, CHIPS, useFeed, VideoCard, Skeletons, RelatedList, SearchBox,
 } from '../components/voice/YouTubeBrowser.jsx';

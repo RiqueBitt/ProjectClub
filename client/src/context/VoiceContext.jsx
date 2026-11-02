@@ -13,8 +13,7 @@ import { buildScreenShareConfig, SCREEN_QUALITY_PRESETS, ALLOWED_FPS } from '../
 // client/src/voice/* e docs/voz-propria.md. Quando a mídia cai e não volta
 // sozinha, ela é refeita com credencial nova no MESMO canal, preservando a
 // sessão, o socket, o roster, as reações e o soundboard.
-import { createEngine, readJoinResponse, VOICE_PROVIDER } from '../voice/engineRegistry.js';
-import { preloadMediasoup } from '../voice/mediasoupEngine.js';
+import { createEngine, loadVoiceEngine, preloadVoiceEngine, readJoinResponse, VOICE_PROVIDER } from '../voice/engineRegistry.js';
 import { pickNoiseModel, currentHighQualityAvailability, NOISE_QUALITY, NOISE_MODELS } from '../voice/noiseModels.js';
 // Item pedido: "no .apk, se sair do app, continua na call em segundo
 // plano" — sem isso, o Android mata o áudio da chamada poucos segundos
@@ -154,7 +153,7 @@ export function VoiceProvider({ children }) {
     if (!user) return undefined;
     const idle = window.requestIdleCallback || ((fn) => setTimeout(fn, 2500));
     const cancel = window.cancelIdleCallback || clearTimeout;
-    const h = idle(() => preloadMediasoup(), { timeout: 8000 });
+    const h = idle(() => preloadVoiceEngine(), { timeout: 8000 });
     return () => cancel(h);
   }, [user]);
 
@@ -423,6 +422,11 @@ export function VoiceProvider({ children }) {
     const prov = VOICE_PROVIDER;
     if (!creds || !creds.url || !creds.token) {
       useStore.getState().pushNotice('Não foi possível conectar à chamada de voz agora. Tente de novo em instantes.');
+      return false;
+    }
+    // Código do engine (sob demanda; quase sempre já veio no tempo ocioso).
+    try { await loadVoiceEngine(); } catch {
+      if (!quiet) useStore.getState().pushNotice('Não foi possível carregar a chamada de voz. Confira a internet e tente de novo.');
       return false;
     }
     teardownEngine();

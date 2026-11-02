@@ -68,6 +68,11 @@ if (process.argv.includes('--dry-run')) {
   process.exit(0);
 }
 
+// Código de saída que o servidor usa quando ele mesmo se atualizou
+// (server/src/services/selfDeploy.js): em vez de encerrar o container, este
+// script repete a subida (instala o que mudou, prisma push) e sobe de novo.
+const RELOAD_EXIT_CODE = 75;
+
 async function main() {
   // Enquanto o servidor novo não sobe, a porta responde "atualizando" em vez
   // do 503 genérico da hospedagem (ver warmupServer.js). Fecha logo antes do
@@ -127,9 +132,23 @@ async function main() {
   try { fs.mkdirSync(path.join(SERVER_DIR, 'reports'), { recursive: true }); } catch { /* sem permissão: só fica sem relatório */ }
   if (warmup) await warmup.close();
   console.log(`\n[deploy] $ node ${serverArgs.join(' ')}`);
-  const child = require('child_process').spawn('node', serverArgs, { stdio: 'inherit', cwd: SERVER_DIR, env: process.env });
-  ['SIGINT', 'SIGTERM', 'SIGHUP'].forEach((sig) => process.on(sig, () => { try { child.kill(sig); } catch { /* já saiu */ } }));
-  child.on('exit', (code, signal) => { process.exit(code == null ? 1 : code); });
+  currentChild = require('child_process').spawn('node', serverArgs, { stdio: 'inherit', cwd: SERVER_DIR, env: process.env });
+  currentChild.on('exit', (code) => {
+    currentChild = null;
+    if (code === RELOAD_EXIT_CODE && !stopping) {
+      console.log('\n[deploy] o servidor se atualizou sozinho — subindo a versão nova');
+      main().catch((err) => { console.error('[deploy] falhou:', err?.stack || err); process.exit(1); });
+      return;
+    }
+    process.exit(code == null ? 1 : code);
+  });
 }
+
+let currentChild = null;
+let stopping = false;
+['SIGINT', 'SIGTERM', 'SIGHUP'].forEach((sig) => process.on(sig, () => {
+  stopping = true;
+  if (currentChild) { try { currentChild.kill(sig); } catch { /* já saiu */ } } else process.exit(0);
+}));
 
 main().catch((err) => { console.error('[deploy] falhou:', err?.stack || err); process.exit(1); });

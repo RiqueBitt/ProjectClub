@@ -35,7 +35,6 @@ import ConfortoLayer from '../components/conforto/ConfortoLayer.jsx';
 import { MusicEngine, MusicPanel, MiniMusicBar } from '../music/MusicPlayer.jsx';
 import YouTubeApp, { YouTubeHost } from '../youtube/YouTubeApp.jsx';
 import { DesktopLinkFallback } from '../utils/desktopLinks.jsx';
-import CardsNotifier from '../cards/CardsNotifier.jsx';
 import { startBoot, cachedBoot } from '../utils/bootstrap';
 import { applyBootData } from '../utils/applyBoot';
 import { checkForNativeUpdate } from '../utils/nativeUpdateCheck';
@@ -74,6 +73,9 @@ const UserSettingsModal = lazy(() => import('../components/modals/UserSettingsMo
 const CINEMA_ON = isFeatureEnabled('cinema');
 const BROWSER_ON = isFeatureEnabled('browser');
 const CARDS_WAR_ON = isFeatureEnabled('cardsWar'); // Guerra das Cartas (desligada temporariamente)
+// Sob demanda: com o jogo desligado, o CSS das cartas (~170 KB) e o CardView
+// não entram no pacote inicial do site.
+const CardsNotifier = CARDS_WAR_ON ? lazy(() => import('../cards/CardsNotifier.jsx')) : null;
 const CinemaApp = CINEMA_ON ? lazy(() => import('../cinema/CinemaApp.jsx')) : null;
 const CinemaHost = CINEMA_ON ? lazy(() => import('../cinema/CinemaApp.jsx').then((m) => ({ default: m.CinemaHost }))) : null;
 const BrowserHost = BROWSER_ON ? lazy(() => import('../browser/BrowserHost.jsx')) : null;
@@ -590,7 +592,7 @@ export default function MainApp() {
       <YouTubeHost />
       {CINEMA_ON && <Suspense fallback={null}><CinemaApp /><CinemaHost /></Suspense>}
       {BROWSER_ON ? <Suspense fallback={null}><BrowserHost /><BrowserBridge /></Suspense> : <DesktopLinkFallback />}
-      {CARDS_WAR_ON && <CardsNotifier />}
+      {CARDS_WAR_ON && <Suspense fallback={null}><CardsNotifier /></Suspense>}
     </div>
   );
 }

@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { useMusic } from './musicStore';
-import { loadYouTubeApi } from '../components/voice/YouTubeWatch.jsx';
+import { loadYouTubeApi } from '../youtube/loadYouTubeApi.js';
 import { ytSearch, ytTrending } from '../api/endpoints';
 import '../styles/music.css';
 

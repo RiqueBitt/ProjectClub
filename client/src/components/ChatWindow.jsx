@@ -11,7 +11,7 @@ import { useStore, roomKeyFor, isChannelUnread } from '../store/useStore';
 import { useAuth } from '../context/AuthContext.jsx';
 import { useSocket } from '../context/SocketContext.jsx';
 import { useVoice } from '../context/VoiceContext.jsx';
-import { preloadMediasoup } from '../voice/mediasoupEngine.js';
+import { preloadVoiceEngine } from '../voice/engineRegistry.js';
 import { resolveDesktopGifMenuStyle, resolveMobileGifMenuStyle } from '../utils/gifMenuLayout';
 import { cssZoom } from '../utils/cssZoom';
 import { mergeLatestMessages } from '../utils/messageMerge';
@@ -600,7 +600,7 @@ function ChatWindowInner({ conversationId, channelId }) {
   // app); agora só quando a pessoa abre um canal de voz/palco — onde ela
   // realmente vai entrar numa call. Entrar por outro lugar (ex.: ligar
   // numa DM) baixa na hora de entrar, como sempre.
-  useEffect(() => { if (isCallChannel) preloadMediasoup(); }, [isCallChannel]);
+  useEffect(() => { if (isCallChannel) preloadVoiceEngine(); }, [isCallChannel]);
   const isNonChatChannel = isCallChannel || channel?.type === 'RULES';
 
   // Não lidas: guarda a "última leitura" de quando a sala abriu (antes de

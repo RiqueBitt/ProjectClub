@@ -170,12 +170,14 @@ export default function StaffOpsPanel() {
             {backup?.config?.destination === 'disk' && (
               <p className="sop-warn"><Ic name="alert" size={14} /> Sem S3 configurado: o arquivo fica em <code>{backup.config.target}</code> e some no próximo deploy. Configure BACKUP_S3_BUCKET para guardar fora do servidor.</p>
             )}
+            {backup?.config?.s3NeedsKey && <p className="sop-warn"><Ic name="alert" size={14} /> O S3 está configurado, mas falta BACKUP_ENCRYPTION_KEY: o backup não é enviado aberto (o bucket pode ser público).</p>}
             {backup?.config?.s3Misconfigured && <p className="sop-warn"><Ic name="alert" size={14} /> BACKUP_S3_BUCKET está definido, mas faltam as chaves de acesso.</p>}
             {backupStale && <p className="sop-warn"><Ic name="alert" size={14} /> Nenhum backup concluído nas últimas 36 horas.</p>}
             <div className="sop-backup-grid">
               <div className="sop-kv"><span>Último backup bom</span><strong>{backup?.lastOk ? `${fmtDate(backup.lastOk.startedAt)} (${ago(backup.lastOk.startedAt)})` : 'Nenhum ainda'}</strong></div>
               <div className="sop-kv"><span>Tamanho</span><strong>{bytes(backup?.lastOk?.sizeBytes)}</strong></div>
               <div className="sop-kv"><span>Última execução</span><strong className={lastRun ? `sop-st-${lastRun.status.toLowerCase()}` : ''}>{lastRun ? `${STATUS_LABEL[lastRun.status] || lastRun.status} · ${ago(lastRun.startedAt)}` : '—'}</strong></div>
+              <div className="sop-kv"><span>Destino</span><strong>{backup?.config?.destination === 's3' ? `Fora do servidor (${backup.config.target})` : 'Disco do servidor'}{backup?.config?.encrypted ? ' · criptografado' : ''}</strong></div>
               <div className="sop-kv"><span>Método</span><strong>{backup?.lastOk?.method === 'mysqldump' ? 'mysqldump' : backup?.lastOk ? 'Dump em Node' : backup?.config?.mysqldump ? 'mysqldump' : 'Dump em Node'}</strong></div>
             </div>
             {lastRun?.status === 'FAILED' && lastRun.error && <pre className="sop-pre" aria-label="Erro do último backup">{lastRun.error}</pre>}
