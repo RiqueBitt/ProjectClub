@@ -156,6 +156,9 @@ export const useStore = create((set, get) => ({
   // <img> clicável no app chama openLightbox pra abrir.
   lightboxImage: null, // { images: [{ url, filename, mimeType }], index } | null
   usableEmojis: [], // emojis customizados da comunidade que este usuário pode usar
+  // Fase 8: nome → imagem dos emojis aprovados da Loja dos criadores (só
+  // pra desenhar no chat; usar continua exigindo ter comprado).
+  creatorEmojiMap: {},
   // Item pedido: "sistema de figurinhas" — mesmo padrão de
   // usableEmojis acima, populando a prop serverStickers do
   // EmojiPicker.jsx (que já existia pronta, mas nunca tinha de onde
@@ -623,6 +626,7 @@ export const useStore = create((set, get) => ({
   setLightboxIndex: (index) => set((s) => (s.lightboxImage ? { lightboxImage: { ...s.lightboxImage, index } } : {})),
   closeLinkConfirm: () => set({ pendingLinkUrl: null }),
   setUsableEmojis: (emojis) => set({ usableEmojis: emojis }),
+  setCreatorEmojiMap: (list) => set({ creatorEmojiMap: Object.fromEntries((list || []).map((e) => [e.name, e.url])) }),
   setServerStickers: (stickers) => set({ serverStickers: stickers }),
   setEmojiCollections: (collections) => set({ emojiCollections: collections }),
   setStickerCollections: (collections) => set({ stickerCollections: collections }),

@@ -419,7 +419,7 @@ async function getStats(req, res, next) {
     const [
       userCount, messageCount, bannedCount, last24h, last7d,
       pendingApplications, pendingReports, pendingAutomodFlags, pendingModReports,
-      pendingAppeals,
+      pendingAppeals, pendingCreatorItems,
     ] = await Promise.all([
       prisma.user.count(),
       prisma.message.count(),
@@ -432,12 +432,14 @@ async function getStats(req, res, next) {
       safe(prisma.modReport.count({ where: { status: 'PENDING' } })),
       // Fase 5: pedidos de revisão de punição esperando a equipe.
       safe(prisma.punishmentAppeal.count({ where: { status: 'PENDING' } })),
+      // Fase 8: criações esperando aprovação na Loja dos criadores.
+      safe(prisma.creatorItem.count({ where: { status: 'PENDING' } })),
     ]);
     res.json({
       stats: {
         userCount, messageCount, bannedCount, newUsersLast24h: last24h, newUsersLast7d: last7d,
         pendingApplications, pendingReports, pendingAutomodFlags, pendingModReports,
-        pendingAppeals,
+        pendingAppeals, pendingCreatorItems,
       },
     });
   } catch (err) { next(err); }

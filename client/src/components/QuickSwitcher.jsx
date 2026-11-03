@@ -54,6 +54,10 @@ const PAGES = [
   { path: '/participar?aba=reputacao', label: 'Participar › Reputação', keywords: 'reputação agradecer ranking' },
   { path: '/participar?aba=convites', label: 'Participar › Convidar amigos', keywords: 'convite indicação amigo código' },
   { path: '/retrospectiva', label: 'Retrospectiva do mês', keywords: 'retrospectiva resumo mês estatísticas' },
+  // Fase 8.
+  { path: '/loja/criadores', label: 'Economia e Loja › Loja dos criadores', keywords: 'criadores criações vender emoji figurinha moldura comunidade' },
+  { path: '/meu-pinguim', label: 'Meu pinguim', keywords: 'mascote pinguim pet cuidar acessórios evoluir' },
+  { path: '/praca', label: 'Praça', keywords: 'praça mapa 2d andar conversar pinguins online' },
   // Casas/Figurinhas desligadas no código (utils/features.js).
   ...(isFeatureEnabled('houses') ? [{ path: '/casas', label: 'Casas', keywords: 'casa' }] : []),
   ...(isFeatureEnabled('cardsWar') ? [{ path: '/cartas', label: 'Guerra das Cartas', keywords: 'cartas jogo de cartas pacotes baralho duelo figurinhas tcg' }] : []),

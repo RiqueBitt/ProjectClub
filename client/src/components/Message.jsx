@@ -106,6 +106,8 @@ function MessageBody({ message, showAuthor, onReply, topics = [], onOpenTopic, i
   const members = useStore((s) => s.members);
   const roles = useStore((s) => s.roles);
   const usableEmojis = useStore((s) => s.usableEmojis);
+  // Fase 8: emojis da Loja dos criadores (todo mundo enxerga, mesmo sem ter comprado).
+  const creatorEmojiMap = useStore((s) => s.creatorEmojiMap);
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState(message.content || '');
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
@@ -404,7 +406,7 @@ function MessageBody({ message, showAuthor, onReply, topics = [], onOpenTopic, i
   const groupedReactions = groupReactions(message.reactions, user.id, message.reactionCounts);
   const reactionRows = reactorsByEmoji(message.reactions);
   const atReactionLimit = groupedReactions.length >= MAX_DISTINCT_REACTIONS;
-  const emojiMap = Object.fromEntries(usableEmojis.map((e) => [e.name, e.url]));
+  const emojiMap = { ...creatorEmojiMap, ...Object.fromEntries(usableEmojis.map((e) => [e.name, e.url])) };
   const memberNames = members.map((m) => m.user.displayName);
   // Só cargos não-padrão e mencionáveis ganham destaque de chip — igual ao
   // que o servidor aceita de fato como @NomeDoCargo (ver
