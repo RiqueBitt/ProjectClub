@@ -65,6 +65,10 @@ router.get('/community', ctrl.getCommunitySettings);
   router.get('/pingu/quiz/scoreboard', ok(async () => ({ scoreboard: await quiz().scoreboard(20) })));
   router.get('/pingu/alerts', ok(async (req) => ({ alerts: await mod().listAlerts({ status: req.query.status || 'PENDING' }) })));
   router.patch('/pingu/alerts/:id', ok((req) => mod().updateAlert(req.params.id, String(req.body?.status || ''), req.user.id), 'PINGU_ALERT_REVIEW'));
+  // Pingu Turbo — imagens: estado do provedor, histórico e "Apagar" (some com a mensagem).
+  const imgs = () => require('../services/pingu/imageRuntime');
+  router.get('/pingu/images', ok(async (req) => ({ images: await imgs().listImages({ status: req.query.status || undefined }), status: imgs().imageStatus() })));
+  router.delete('/pingu/images/:id', ok((req) => imgs().deleteImage(req.app.get('io'), req.params.id), 'PINGU_IMAGE_DELETE'));
 }
 router.patch('/community', ctrl.updateCommunitySettings);
 router.post('/community/icon', uploadImage.single('icon'), ctrl.uploadCommunityIcon);
