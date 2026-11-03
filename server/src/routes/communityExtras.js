@@ -32,6 +32,7 @@ function mount(app) {
   home.get('/', route(async (req, res) => {
     const svc = (name) => require(`../services/community/${name}`);
     const settle = (p) => p.then((v) => v).catch(() => null);
+    const economyOff = await require('../services/community/common').economyDisabled(require('../config/prisma')).catch(() => false);
     const [season, goals, birthdays, clans, raffle, potw] = await Promise.all([
       settle(svc('seasons').status(req.user.id, over(req))),
       settle(svc('communityGoals').progress(req.user.id, over(req))),
@@ -45,7 +46,7 @@ function mount(app) {
       goals,
       birthdays: birthdays || [],
       clanTop: (clans || []).slice(0, 3),
-      raffle: raffle ? { prize: raffle.prize, endsAt: raffle.endsAt, myTickets: raffle.myTickets, participants: raffle.participants } : null,
+      raffle: raffle && !economyOff ? { prize: raffle.prize, endsAt: raffle.endsAt, myTickets: raffle.myTickets, participants: raffle.participants } : null,
       postOfWeek: potw,
     });
   }));

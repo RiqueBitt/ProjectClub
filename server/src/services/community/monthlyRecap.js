@@ -34,10 +34,15 @@ async function generateFor(monthKeyBounds, over = {}) {
   });
   const active = rows.filter((r) => r.points > 0 || r.xp > 0);
   if (!active.length) return { created: 0, total: 0 };
-  const unlocked = await d.db.userAchievement.findMany({
-    where: { userId: { in: active.map((r) => r.scopeId) }, unlockedAt: { gte: start, lt: end } },
-    select: { userId: true, achievementId: true },
-  });
+  // Conquistas do mês, em blocos (lista IN grande demais pesa no MySQL).
+  const unlocked = [];
+  for (let i = 0; i < active.length; i += 1000) {
+    // eslint-disable-next-line no-await-in-loop
+    unlocked.push(...await d.db.userAchievement.findMany({
+      where: { userId: { in: active.slice(i, i + 1000).map((r) => r.scopeId) }, unlockedAt: { gte: start, lt: end } },
+      select: { userId: true, achievementId: true },
+    }));
+  }
   const defs = unlocked.length ? await d.db.achievement.findMany({ where: { key: { in: [...new Set(unlocked.map((u) => u.achievementId))] } }, select: { key: true, name: true, rarity: true } }) : [];
   const defByKey = new Map(defs.map((a) => [a.key, a]));
   const achByUser = new Map();
@@ -49,10 +54,11 @@ async function generateFor(monthKeyBounds, over = {}) {
   }
   const rarityRank = { LEGENDARY: 0, EPIC: 1, RARE: 2, COMMON: 3 };
   let created = 0;
-  const ranked = rows.filter((r) => r.points > 0);
+  const ranked = rows.filter((r) => r.points > 0); // já vem em ordem de pontos
+  const rankOf = new Map(ranked.map((r, i) => [r.scopeId, i + 1]));
   for (const r of active) {
     const achievements = (achByUser.get(r.scopeId) || []).sort((a, b) => (rarityRank[a.rarity] ?? 9) - (rarityRank[b.rarity] ?? 9));
-    const rank = r.points > 0 ? ranked.indexOf(r) + 1 : null;
+    const rank = rankOf.get(r.scopeId) || null;
     const data = shape(r, {
       achievementsCount: achievements.length,
       achievements: achievements.slice(0, TOP_ACHIEVEMENTS),
