@@ -88,6 +88,7 @@ export function handlePinguEphemeral(payload) {
     return;
   }
   // Resumo (inclusive o "@pingu resume" escrito no canal) e avisos.
-  const title = info?.title || (kind === 'summary' ? 'Resumo do que você perdeu' : 'Pingu');
+  // Pingu Turbo: avisos dos comandos (ajuda, lembrete, enquete) trazem o próprio título.
+  const title = info?.title || payload.title || (kind === 'summary' ? 'Resumo do que você perdeu' : 'Pingu');
   set({ panel: { kind: kind || 'info', title, text: payload.text || '', error: payload.error || '', channelId: payload.channelId || info?.channelId } });
 }

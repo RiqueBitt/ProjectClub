@@ -21,6 +21,9 @@ const PATHS = {
   clock: <><circle cx="12" cy="12" r="10" /><path d="M12 6v6l4 2" /></>,
   hash: <path d="M4 9h16M4 15h16M10 3 8 21M16 3l-2 18" />,
   pencil: <path d="M17 3a2.85 2.85 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z" />,
+  // Pingu Turbo: baixar a imagem do Pingu e "Criar imagem com o Pingu".
+  download: <><path d="M12 3v12" /><path d="m7 10 5 5 5-5" /><path d="M5 21h14" /></>,
+  image: <><rect x="3" y="3" width="18" height="18" rx="2" /><circle cx="9" cy="9" r="2" /><path d="m21 15-3.1-3.1a2 2 0 0 0-2.8 0L6 21" /></>,
 };
 
 export default function ChatIcon({ name, size = 20, className = '' }) {

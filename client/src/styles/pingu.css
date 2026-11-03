@@ -40,3 +40,40 @@
 
 /* Botão "Resumir o que perdi" no topo do canal. */
 .chat-header-btn.pingu-summary-btn { font-size: 16px; line-height: 1; }
+
+/* Pingu Turbo: resposta sendo escrita ao vivo (Message.jsx). */
+.pingu-caret {
+  display: inline-block; width: 0.5em; height: 1.05em; margin-left: 2px; vertical-align: text-bottom;
+  border-radius: 2px; background: #38bdf8; opacity: .85;
+  animation: pingu-caret 1s steps(2, start) infinite;
+}
+@keyframes pingu-caret { to { visibility: hidden; } }
+@media (prefers-reduced-motion: reduce) { .pingu-caret { animation: none; opacity: .5; } }
+
+/* Imagem criada pelo Pingu: selo + baixar. */
+.pingu-img-meta { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin: 4px 0 2px; font-size: 12px; }
+.pingu-img-badge {
+  padding: 2px 8px; border-radius: 999px; font-weight: 700; color: #0c4a6e;
+  background: linear-gradient(90deg, #7dd3fc, #c4b5fd);
+}
+.pingu-img-dl {
+  display: inline-flex; align-items: center; gap: 4px; padding: 2px 8px; border-radius: 6px;
+  color: var(--text-normal); background: var(--bg-modifier-hover); text-decoration: none;
+}
+.pingu-img-dl:hover { background: var(--bg-modifier-active, var(--bg-modifier-hover)); color: var(--text-normal); }
+
+/* "Comandos do Pingu" no miniperfil (PinguHelpPopover.jsx). */
+.pingu-help { margin-top: 10px; display: flex; flex-direction: column; gap: 8px; }
+.pingu-help-actions { display: flex; gap: 6px; flex-wrap: wrap; }
+.pingu-help-btn { flex: 1 1 auto; font-size: 13px; padding: 6px 10px; }
+.pingu-help-pop {
+  max-height: 260px; overflow-y: auto; padding: 8px 10px; border-radius: 8px;
+  border: 1px solid color-mix(in srgb, #38bdf8 40%, var(--border, transparent));
+  background: var(--bg-secondary, rgba(0, 0, 0, .15)); font-size: 12px; line-height: 1.4;
+}
+.pingu-help-group h4 { margin: 6px 0 4px; font-size: 12px; text-transform: uppercase; letter-spacing: .03em; color: var(--header-secondary, var(--text-muted)); }
+.pingu-help-group ul { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
+.pingu-help-group li { display: flex; flex-direction: column; gap: 1px; }
+.pingu-help-group code { font-size: 12px; color: #38bdf8; white-space: normal; overflow-wrap: anywhere; }
+.pingu-help-group span { color: var(--text-muted); }
+.pingu-help-note { margin: 8px 0 0; }

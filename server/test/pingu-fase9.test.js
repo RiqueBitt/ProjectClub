@@ -63,10 +63,15 @@ test('wiki: seções saem dos títulos markdown e busca da lista funciona', () =
   assert.equal(wiki.slugify('Canais de Voz!'), 'canais-de-voz');
 });
 
-test('pingu: o trecho da wiki entra nas instruções da pergunta', () => {
+test('pingu: o trecho da wiki entra junto da pergunta (fora do system prompt, que fica fixo)', () => {
+  // Pingu Turbo: o system prompt é idêntico entre pedidos (cache de prefixo
+  // do Ollama); o trecho da wiki vai na mensagem do usuário, antes da pergunta.
   const chat = bot._test.buildChat({ question: 'baú?', wiki: { text: 'Economia: abre um baú por dia (veja /wiki/economia)' } });
-  assert.match(chat[0].content, /veja \/wiki\/economia/);
-  assert.equal(chat.at(-1).content, 'baú?');
+  assert.doesNotMatch(chat[0].content, /veja \/wiki\/economia/);
+  assert.match(chat.at(-1).content, /veja \/wiki\/economia/);
+  assert.match(chat.at(-1).content, /baú\?$/);
+  // Sem contexto, a mensagem é só a pergunta.
+  assert.equal(bot._test.buildChat({ question: 'baú?' }).at(-1).content, 'baú?');
 });
 
 // ---------------- resumo ----------------

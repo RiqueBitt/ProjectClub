@@ -4542,7 +4542,39 @@ model PinguConfig {
   quizXp           Int      @default(30)
   // Dia (Brasília, "AAAA-MM-DD") do último quiz diário — evita repetir no mesmo dia.
   quizLastDailyDay String?  @db.VarChar(10)
+  // Pingu Turbo: imagens ("@pingu desenhe …"). Limite por dia é o de um
+  // membro comum (Assinante ×2, Super Assinante ×3); concorrência 1–2.
+  imageEnabled     Boolean  @default(true)
+  imageDailyLimit  Int      @default(10)
+  imageCooldownSec Int      @default(30)
+  imageConcurrency Int      @default(1)
   updatedAt        DateTime @updatedAt
+}
+
+// Pingu Turbo: cada pedido de imagem (o painel da equipe mostra e apaga).
+// Só pedidos feitos em CANAIS (o Pingu não cria imagem na DM).
+model PinguImage {
+  id              String    @id @default(uuid())
+  userId          String
+  channelId       String?
+  sourceMessageId String?
+  messageId       String?
+  prompt          String    @db.Text
+  finalPrompt     String?   @db.Text
+  provider        String    @db.VarChar(20)
+  seed            Int?
+  width           Int?
+  height          Int?
+  url             String?   @db.VarChar(500)
+  storageKey      String?   @db.VarChar(255)
+  status          String    @default("PENDING") @db.VarChar(16) // PENDING | DONE | FAILED | BLOCKED | CANCELLED | DELETED
+  error           String?   @db.VarChar(300)
+  createdAt       DateTime  @default(now())
+  finishedAt      DateTime?
+
+  @@index([userId, createdAt])
+  @@index([status, createdAt])
+  @@index([messageId])
 }
 
 // Banco de perguntas do Quiz do Pingu. answers = JSON ["resposta", "outra forma"].

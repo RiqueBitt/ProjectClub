@@ -1,5 +1,5 @@
 // Configurações das funções do Pingu (Painel da Equipe → Pingu): boas-vindas,
-// moderação assistida, quiz, resumo e tradução. Uma linha só (PinguConfig
+// moderação assistida, quiz, resumo, tradução e imagens. Uma linha só (PinguConfig
 // "singleton"), com cache em memória — as funções leem daqui a cada
 // mensagem, então ler precisa ser instantâneo (getConfig é síncrono).
 const db = () => require('../../config/prisma');
@@ -28,6 +28,11 @@ const DEFAULTS = {
   quizWindowSec: 60,
   quizCoins: 20,
   quizXp: 30,
+  // Pingu Turbo: imagens.
+  imageEnabled: true,
+  imageDailyLimit: 10,
+  imageCooldownSec: 30,
+  imageConcurrency: 1,
 };
 
 let current = { ...DEFAULTS };
@@ -51,7 +56,7 @@ const bad = (msg) => Object.assign(new Error(msg), { status: 400 });
 /** Valida o que veio do painel. Só os campos enviados mudam. */
 function sanitize(body = {}) {
   const data = {};
-  for (const k of ['welcomeEnabled', 'welcomeAi', 'modAssistEnabled', 'modAssistAi', 'summaryEnabled', 'translateEnabled', 'quizDailyEnabled']) {
+  for (const k of ['welcomeEnabled', 'welcomeAi', 'modAssistEnabled', 'modAssistAi', 'summaryEnabled', 'translateEnabled', 'quizDailyEnabled', 'imageEnabled']) {
     if (body[k] !== undefined) data[k] = !!body[k];
   }
   for (const k of ['welcomeChannelId', 'quizChannelId']) {
@@ -77,6 +82,9 @@ function sanitize(body = {}) {
   int('quizWindowSec', 15, 600, 'O tempo para responder');
   int('quizCoins', 0, 1000, 'As moedas do quiz');
   int('quizXp', 0, 2000, 'O XP do quiz');
+  int('imageDailyLimit', 0, 200, 'O limite de imagens por dia');
+  int('imageCooldownSec', 0, 3600, 'O intervalo entre imagens');
+  int('imageConcurrency', 1, 2, 'Imagens ao mesmo tempo');
   return data;
 }
 

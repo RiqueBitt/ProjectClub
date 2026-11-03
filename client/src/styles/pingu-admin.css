@@ -50,3 +50,18 @@
 .pgal-ai.sim { background: color-mix(in srgb, #ed4245 22%, transparent); }
 .pgal-ai.sem { background: var(--bg-modifier-hover); }
 .pgal-actions { display: flex; gap: 8px; flex-wrap: wrap; }
+
+/* Pingu Turbo: números de velocidade e imagens (components/admin/PinguImagesAdmin.jsx). */
+.pga-perf { font-size: 12px; margin-top: 4px; }
+.pgi-status { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; font-size: 13px; }
+.pgi-err { color: var(--red, #ed4245); font-size: 12px; overflow-wrap: anywhere; }
+.pgi-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; max-height: 520px; overflow-y: auto; }
+.pgi-item { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; padding: 8px 10px; border-radius: 8px; border: 1px solid var(--border); background: var(--bg-secondary); }
+.pgi-item.s-blocked { border-color: color-mix(in srgb, #ed4245 50%, var(--border)); }
+.pgi-item.s-failed { border-color: #f0b232; }
+.pgi-item.s-deleted, .pgi-item.s-cancelled { opacity: .6; }
+.pgi-thumb { width: 56px; height: 56px; flex: 0 0 56px; border-radius: 6px; overflow: hidden; background: var(--bg-modifier-hover); display: grid; place-items: center; font-size: 22px; }
+.pgi-thumb img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.pgi-info { display: flex; flex-direction: column; gap: 2px; flex: 1 1 220px; min-width: 0; }
+.pgi-info span { font-size: 12px; }
+.pgi-prompt { overflow-wrap: anywhere; font-size: 14px; }
