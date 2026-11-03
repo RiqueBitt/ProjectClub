@@ -1,0 +1,132 @@
+/* Praça — Club Penguin (Waddle Forever) embutido no Project Club.
+   Só variáveis de tema do global.css (claro/escuro/amoled funcionam). */
+
+.praca-page {
+  display: flex; flex-direction: column; height: 100%; min-height: 0;
+  background: var(--bg-primary); color: var(--text-normal);
+}
+
+/* ---- barra de cima (identidade do Project Club) ---- */
+.praca-bar {
+  display: flex; align-items: center; gap: 12px; flex-wrap: wrap;
+  padding: 10px 16px; border-bottom: 1px solid var(--border);
+  background: var(--bg-secondary);
+}
+.praca-title { display: flex; align-items: center; gap: 10px; min-width: 0; }
+.praca-logo {
+  display: grid; place-items: center; width: 38px; height: 38px; border-radius: 12px; color: #fff;
+  background: linear-gradient(135deg, var(--brand), color-mix(in srgb, var(--brand) 55%, #1c3f70));
+  box-shadow: 0 4px 14px color-mix(in srgb, var(--brand) 35%, transparent);
+}
+.praca-title h1 { margin: 0; font-size: 17px; line-height: 1.1; color: var(--header-primary); }
+.praca-sub { display: block; font-size: 12px; color: var(--text-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.praca-sub strong { color: var(--header-primary); font-weight: 600; }
+.praca-stats { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+.praca-chip {
+  display: inline-flex; align-items: center; gap: 6px; padding: 4px 10px; border-radius: 999px;
+  font-size: 12px; font-weight: 600; color: var(--text-normal);
+  background: var(--bg-modifier-hover); border: 1px solid var(--border);
+}
+.praca-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--green); box-shadow: 0 0 0 3px color-mix(in srgb, var(--green) 25%, transparent); }
+.praca-coins { color: #d9a400; }
+.praca-year { color: var(--text-muted); font-variant-numeric: tabular-nums; }
+.praca-actions { margin-left: auto; display: flex; gap: 6px; }
+.praca-icon-btn {
+  display: grid; place-items: center; width: 36px; height: 36px; border-radius: 10px; cursor: pointer;
+  border: 1px solid var(--border); background: var(--bg-elevated, var(--bg-secondary)); color: var(--text-normal);
+  transition: background .15s, color .15s, transform .15s var(--ease-smooth, ease);
+}
+.praca-icon-btn:hover { background: var(--bg-modifier-hover); color: var(--header-primary); }
+.praca-icon-btn:active { transform: scale(.94); }
+.praca-icon-btn[aria-pressed="true"] { background: var(--brand); color: #fff; border-color: transparent; }
+
+/* ---- arena: o palco 760x480 escalado pra caber ---- */
+.praca-arena {
+  position: relative; flex: 1; min-height: 240px; overflow: hidden;
+  background:
+    radial-gradient(ellipse at 50% 0%, color-mix(in srgb, var(--brand) 22%, transparent), transparent 60%),
+    linear-gradient(180deg, #0b2a4a, #061a30);
+}
+.praca-stage {
+  position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%) scale(var(--praca-scale, 1)); transform-origin: center; will-change: transform;
+  border-radius: 10px; overflow: hidden;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, .45), 0 0 0 1px rgba(255, 255, 255, .06);
+  background: #0b2a4a;
+}
+.praca-player, .praca-stage ruffle-player, .praca-stage ruffle-object, .praca-stage ruffle-embed {
+  display: block; width: 100%; height: 100%;
+}
+
+/* ---- carregando / erro ---- */
+.praca-overlay {
+  position: absolute; inset: 0; z-index: 2; display: flex; flex-direction: column; align-items: center; justify-content: center;
+  gap: 8px; padding: 24px; text-align: center; color: #eaf3ff;
+  background: linear-gradient(180deg, rgba(11, 42, 74, .92), rgba(6, 26, 48, .96));
+}
+.praca-overlay strong { font-size: 18px; }
+.praca-overlay span { max-width: 420px; font-size: 13px; color: rgba(234, 243, 255, .75); }
+.praca-overlay.is-error { color: #fff; }
+.praca-overlay .pet-btn { margin-top: 8px; }
+.praca-loader {
+  width: 44px; height: 44px; border-radius: 50%; margin-bottom: 8px;
+  border: 4px solid rgba(255, 255, 255, .18); border-top-color: #fff;
+  animation: praca-spin .9s linear infinite;
+}
+@keyframes praca-spin { to { transform: rotate(360deg); } }
+.praca-tap {
+  position: absolute; left: 50%; bottom: 18px; z-index: 3; transform: translateX(-50%);
+  padding: 10px 18px; border: 0; border-radius: 999px; cursor: pointer;
+  background: rgba(0, 0, 0, .65); color: #fff; font: 700 14px/1.2 inherit;
+  animation: praca-pulse 1.6s ease-in-out infinite;
+}
+@keyframes praca-pulse { 50% { transform: translateX(-50%) scale(1.05); } }
+
+/* ---- dica ---- */
+.praca-hint {
+  display: flex; align-items: center; gap: 12px; padding: 8px 16px; font-size: 12.5px; color: var(--text-muted);
+  border-top: 1px solid var(--border); background: var(--bg-secondary);
+}
+.praca-hint strong { color: var(--header-primary); }
+.praca-hint-close { margin-left: auto; border: 0; background: none; color: var(--text-muted); cursor: pointer; font-size: 13px; padding: 4px 6px; border-radius: 6px; }
+.praca-hint-close:hover { background: var(--bg-modifier-hover); color: var(--header-primary); }
+
+/* ---- tela cheia ---- */
+.praca-page.is-full { position: fixed; inset: 0; z-index: 1000; background: #061a30; }
+.praca-page.is-full .praca-bar {
+  position: absolute; top: 0; left: 0; right: 0; z-index: 4; border: 0;
+  background: linear-gradient(180deg, rgba(0, 0, 0, .55), transparent); color: #fff;
+  opacity: 0; transition: opacity .25s;
+}
+.praca-page.is-full .praca-bar:hover, .praca-page.is-full .praca-bar:focus-within, .praca-page.is-full.show-bar .praca-bar { opacity: 1; }
+.praca-page.is-full .praca-bar { pointer-events: none; }
+.praca-page.is-full .praca-bar:hover, .praca-page.is-full.show-bar .praca-bar { pointer-events: auto; }
+.praca-page.is-full .praca-bar h1, .praca-page.is-full .praca-sub strong { color: #fff; }
+.praca-page.is-full .praca-chip { background: rgba(255, 255, 255, .12); border-color: rgba(255, 255, 255, .15); color: #fff; }
+.praca-page.is-full .praca-icon-btn { background: rgba(255, 255, 255, .12); border-color: rgba(255, 255, 255, .15); color: #fff; }
+.praca-page.is-full .praca-stage { border-radius: 0; box-shadow: none; }
+.praca-page.is-full .praca-hint { display: none; }
+
+/* faixa invisível no topo da tela cheia: tocar mostra a barra */
+.praca-peek {
+  position: absolute; top: 8px; right: 8px; width: 40px; height: 40px; z-index: 3; border: 0; border-radius: 12px; cursor: pointer;
+  background: rgba(0, 0, 0, .35) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='white' stroke-width='2' stroke-linecap='round'%3E%3Cpath d='M4 7h16M4 12h16M4 17h16'/%3E%3C/svg%3E") center / 20px no-repeat;
+  opacity: .55;
+}
+.praca-page.is-full.show-bar .praca-peek { pointer-events: none; }
+
+/* ---- celular ---- */
+@media (max-width: 720px) {
+  .praca-bar { padding: 8px 10px; gap: 8px; }
+  .praca-title h1 { font-size: 15px; }
+  .praca-sub { max-width: 46vw; }
+  .praca-year { display: none; }
+  .praca-hint { font-size: 12px; padding: 8px 10px; }
+}
+@media (max-width: 720px) and (orientation: portrait) {
+  /* em pé: palco encostado no topo (o resto da arena é só fundo) */
+  .praca-arena { min-height: 56vw; }
+  .praca-page:not(.is-full) .praca-stage { top: 12px; transform: translate(-50%, 0) scale(var(--praca-scale, 1)); transform-origin: top center; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .praca-loader, .praca-tap { animation: none; }
+}

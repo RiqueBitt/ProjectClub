@@ -58,7 +58,7 @@ const PAGES = [
   // Fase 8.
   { path: '/loja/criadores', label: 'Economia e Loja › Loja dos criadores', keywords: 'criadores criações vender emoji figurinha moldura comunidade' },
   { path: '/meu-pinguim', label: 'Meu pinguim', keywords: 'mascote pinguim pet cuidar acessórios evoluir' },
-  { path: '/praca', label: 'Praça', keywords: 'praça mapa 2d andar conversar pinguins online' },
+  { path: '/praca', label: 'Praça', keywords: 'praça club penguin pinguim ilha iglu puffle jogar online' },
   // Casas/Figurinhas desligadas no código (utils/features.js).
   ...(isFeatureEnabled('houses') ? [{ path: '/casas', label: 'Casas', keywords: 'casa' }] : []),
   ...(isFeatureEnabled('cardsWar') ? [{ path: '/cartas', label: 'Guerra das Cartas', keywords: 'cartas jogo de cartas pacotes baralho duelo figurinhas tcg' }] : []),

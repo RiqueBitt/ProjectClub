@@ -23,3 +23,21 @@ GNU GPL versão 2. Ele é instalado só quando alguém usa a VPN pela primeira v
 Código-fonte: https://github.com/OpenVPN/openvpn e
 https://github.com/OpenVPN/openvpn-build. Os servidores da VPN são do projeto
 VPN Gate (https://www.vpngate.net), da Universidade de Tsukuba.
+
+## Praça — Club Penguin (Waddle Forever)
+
+A Praça do Project Club é o Club Penguin rodando em cima do **Waddle Forever**
+(https://github.com/nhaar/Waddle-Forever), de nhaar e colaboradores, sob a
+licença MIT (cópia em `server/waddle/LICENSE`). O código do servidor (login,
+mundo, salas, itens, puffles, iglus, carimbos, mini-jogos, festas, geração de
+catálogos) está incorporado em `server/waddle/src`, com adaptações do Project
+Club (pinguins no MySQL, mídia em cache + bucket, WebSockets no mesmo
+servidor do site). O Waddle Forever, por sua vez, se baseia nos emuladores
+Houdini (https://github.com/solero/houdini, MIT) e Mammoth
+(https://github.com/wizguin/mammoth, MIT) e no cliente CPA
+(https://github.com/Club-Penguin-Avalanche/CPA-Client).
+
+O jogo em Flash roda no navegador pelo **Ruffle** (https://ruffle.rs — MIT ou
+Apache-2.0, cópia em `client/public/ruffle/`). Club Penguin é marca da Disney;
+os arquivos do jogo (SWFs) são o arquivo histórico distribuído pelo Waddle
+Forever e não fazem parte deste repositório.

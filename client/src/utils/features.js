@@ -10,6 +10,8 @@ export const FEATURES = Object.freeze({
   // busca, da Loja (aba Cartas/versos), do perfil, do Início e dos canais em
   // destaque; /cartas mostra "Em breve" (CardsDisabledPage). Baús/Economia continuam.
   cardsWar: false,
+  // Praça: Club Penguin completo (Waddle Forever embutido no servidor).
+  plaza: true,
 });
 
 export const isFeatureEnabled = (key) => FEATURES[key] === true;

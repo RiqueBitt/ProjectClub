@@ -12,7 +12,9 @@
     "prisma:push": "node scripts/write-certs-from-env.js && node scripts/prisma-push-with-retry.js",
     "prisma:seed": "node prisma/seed.js",
     "postinstall": "PRISMA_HIDE_UPDATE_MESSAGE=1 prisma generate",
-    "test": "node --test"
+    "test": "node --test",
+    "waddle:build": "tsc -p waddle/tsconfig.json && tsc-alias -p waddle/tsconfig.json",
+    "waddle:standalone": "node waddle/standalone.js"
   },
   "prisma": {
     "seed": "node prisma/seed.js"
@@ -44,12 +46,18 @@
     "sharp": "^0.35.4",
     "socket.io": "^4.7.5",
     "uuid": "^11.1.0",
-    "web-push": "^3.6.7"
+    "web-push": "^3.6.7",
+    "ws": "^8.19.0"
   },
   "engines": {
     "node": ">=22.0.0"
   },
   "devDependencies": {
-    "socket.io-client": "^4.7.5"
+    "socket.io-client": "^4.7.5",
+    "typescript": "^7.0.2",
+    "tsc-alias": "^1.8.16",
+    "@types/node": "^22.0.0",
+    "@types/express": "^5.0.0",
+    "@types/ws": "^8.18.1"
   }
 }

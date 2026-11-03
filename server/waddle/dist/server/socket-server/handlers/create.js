@@ -1,0 +1,8 @@
+"use strict";
+Object.defineProperty(exports, "__esModule", { value: true });
+exports.handleCheckName = void 0;
+const handleCheckName = async ({ client, msg, db }, name) => {
+    const isInvalid = !(name.length > 2 && name.length <= 12 && !(await db.exists(name)));
+    msg.send(client, 'checkName', isInvalid ? 1 : 0, name);
+};
+exports.handleCheckName = handleCheckName;

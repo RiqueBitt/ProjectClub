@@ -461,6 +461,8 @@ function createApp() {
   app.use('/api/vpn', require('./routes/vpn'));
   app.use('/api/clans', clansRoutes);
   app.use('/api/minigames', minigamesRoutes);
+  // Praça: Club Penguin (Waddle Forever embutido) — ver services/waddle/.
+  app.use('/api/plaza', require('./routes/plaza'));
   app.use('/api/anuncios', require('./routes/staffAnnouncements'));
   app.use('/api/section-badges', require('./routes/sectionBadges'));
   // Guerra das Cartas: desligada temporariamente no código (config/features.js)
@@ -509,6 +511,11 @@ function createApp() {
       if (cc) res.setHeader('Cache-Control', cc);
     },
   }));
+  // Praça (Club Penguin / Waddle Forever): o jogo pede SWFs e configs por
+  // caminhos absolutos (/boots.swf, /play/v2/..., /setup/...). Fica DEPOIS
+  // dos estáticos do site e ANTES do fallback do React; só responde ao que
+  // é do jogo (ver services/waddle/index.js).
+  if (isFeatureEnabled('plaza')) require('./services/waddle').mountHttp(app);
   app.get('*', (req, res, next) => {
     if (req.path.startsWith('/api') || req.path.startsWith('/uploads')) return next();
     res.setHeader('Cache-Control', 'no-cache');

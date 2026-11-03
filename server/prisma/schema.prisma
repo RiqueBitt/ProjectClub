@@ -4629,3 +4629,17 @@ model PinguModAlert {
   @@index([status, createdAt])
   @@index([messageId])
 }
+
+// Praça (Club Penguin via Waddle Forever, ver server/waddle e
+// services/waddle/). Um pinguim por conta do Project Club; o resto do
+// estado (inventário, iglu, puffles, carimbos...) fica no JSON `data`, no
+// formato do Waddle Forever. Os mascotes (Rockhopper etc.) têm ids fixos
+// (1..21) e userId nulo; os dos membros começam em 1000.
+model WaddlePenguin {
+  id        Int      @id
+  userId    String?  @unique
+  name      String   @unique @db.VarChar(32)
+  data      String   @db.LongText
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}

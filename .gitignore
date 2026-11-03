@@ -28,6 +28,10 @@ server/uploads/
 # Backups do banco gravados em disco (services/dbBackup.js) — dados reais
 server/backups/
 
+# Praça (Club Penguin): cache em disco da mídia do jogo (baixada do B2),
+# configurações e mods locais. Nunca versionar — 1,7 GB.
+server/data/waddle/
+
 # Logs
 npm-debug.log*
 *.log

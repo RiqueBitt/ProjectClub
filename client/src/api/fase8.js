@@ -1,6 +1,6 @@
 import { api } from './client';
 
-// Fase 8: mascote pinguim, Loja dos criadores (a Praça é só socket).
+// Fase 8: mascote pinguim, Loja dos criadores (a Praça tem API própria: /api/plaza).
 
 // ---- Mascote pinguim ----
 export const getPetCatalog = () => api.get('/pets/catalog').then((r) => r.data);

@@ -140,7 +140,7 @@ const SecurityShortcutPage = lazy(() => import('./SecurityShortcutPage.jsx'));
 const ParticiparPage = lazy(() => import('./ParticiparPage.jsx')); // Bora Jogar, interesses, reputação, convites
 const SorteioPage = lazy(() => import('./SorteioPage.jsx'));
 const RetrospectivaPage = lazy(() => import('./RetrospectivaPage.jsx'));
-// Fase 8: mascote pinguim, Praça virtual 2D e Loja dos criadores.
+// Fase 8: mascote pinguim e Loja dos criadores. A Praça é o Club Penguin (Waddle Forever).
 const MeuPinguimPage = lazy(() => import('./MeuPinguimPage.jsx'));
 const PracaPage = lazy(() => import('./PracaPage.jsx'));
 const LojaCriadoresPage = lazy(() => import('./LojaCriadoresPage.jsx'));

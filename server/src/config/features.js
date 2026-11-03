@@ -14,6 +14,9 @@ const FEATURES = Object.freeze({
   // não liga e as missões CARDS_* somem da lista. Baús diários e o resto da
   // Economia NÃO dependem disto.
   cardsWar: false,
+  // Praça: Club Penguin completo (Waddle Forever embutido em server/waddle).
+  // false = o jogo nem sobe, /api/plaza responde 404 e o site esconde a aba.
+  plaza: true,
 });
 
 function isFeatureEnabled(key) {

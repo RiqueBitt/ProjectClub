@@ -54,7 +54,7 @@ export const ITEMS = [
   { to: '/comunidades', icon: feedIcon, isImg: true, labelKey: 'nav.feeds', match: (p) => p === '/comunidades' || isPostPath(p) },
   // (removido do menu a pedido do dono — rota continua existindo)
   { to: '/dms', icon: friendsIcon, isImg: true, labelKey: 'nav.amigos', match: (p) => p === '/dms' || isDmPath(p) || p.startsWith('/clans') },
-  // Fase 8: Praça virtual 2D (PracaPage.jsx).
+  // Praça: Club Penguin completo (PracaPage.jsx, Waddle Forever embutido no servidor).
   { to: '/praca', icon: PLAZA_NAV_ICON, isImg: true, labelKey: 'nav.praca', label: 'Praça', match: (p) => p.startsWith('/praca') },
   // Item pedido originalmente: "crie uma nova categoria chamada Jogos,
   // posicionada logo abaixo da categoria Amigos" — item único levando

@@ -37,6 +37,13 @@ httpServer.keepAliveTimeout = 65_000;
 httpServer.headersTimeout = 66_000;
 const io = initSockets(httpServer);
 app.set('io', io);
+// Praça (Club Penguin): WebSockets do jogo em /waddle/ws/* no mesmo servidor,
+// e o jogo sobe já na inicialização pra primeira visita não esperar.
+if (require('./config/features').isFeatureEnabled('plaza')) {
+  const waddle = require('./services/waddle');
+  waddle.attachUpgrade(httpServer);
+  waddle.getWaddle().catch(() => { /* já logado em services/waddle */ });
+}
 require('./services/runtimeMetrics').startRuntimeMetrics({ io });
 // Pingu (assistente de IA no Ollama da VPS): conta, presença e respostas.
 require('./services/pinguBot').start(io).catch((err) => console.error('[pingu] falha ao iniciar:', err?.message || err));
