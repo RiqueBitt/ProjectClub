@@ -103,6 +103,20 @@ async function listMods(modioGameId, { query, sort, category, tags, offset = 0, 
   return cacheGetOrSet(cacheKey, TTL_MOD_LIST, () => modioFetch(`/games/${modioGameId}/mods`, { searchParams }));
 }
 
+// Vários mods de uma vez pelo id (filtro id-in da API do mod.io) — usado
+// pela ordenação "Mais bem avaliados" (as notas vêm do Project Club; o
+// mod.io só devolve os dados de cada mod). A ordem final é a nossa, não a
+// do mod.io. Busca/categoria continuam valendo por cima da lista de ids.
+async function listModsByIds(modioGameId, ids, { query, category } = {}) {
+  const list = [...new Set((ids || []).map(Number).filter((n) => Number.isInteger(n) && n > 0))].slice(0, 100);
+  if (list.length === 0) return { data: [], result_count: 0, result_total: 0, result_offset: 0 };
+  const searchParams = { 'id-in': list.join(','), _limit: list.length };
+  if (query) searchParams._q = query;
+  if (category) searchParams.tags = category;
+  const cacheKey = `modio:mods-ids:${modioGameId}:${JSON.stringify(searchParams)}`;
+  return cacheGetOrSet(cacheKey, TTL_MOD_LIST, () => modioFetch(`/games/${modioGameId}/mods`, { searchParams }));
+}
+
 // GET /games/{id}/mods/{id} — detalhe completo (descrição, screenshots,
 // tags, changelog vem do modfile atual).
 async function getMod(modioGameId, modioModId) {
@@ -135,5 +149,5 @@ async function getModfileDownload(modioGameId, modioModId, modfileId) {
 
 module.exports = {
   isConfigured, ModioNotConfiguredError,
-  getGame, listMods, getMod, getModDependencies, getGameTags, getModfileDownload,
+  getGame, listMods, listModsByIds, getMod, getModDependencies, getGameTags, getModfileDownload,
 };

@@ -407,6 +407,7 @@ model User {
   modFavorites   ModFavorite[]
   modUps         ModUp[]
   modComments    ModComment[]
+  modRatings     ModRating[]
   modReports     ModReport[]
   modProfiles    ModProfile[]
   modCollections ModCollection[]
@@ -4132,4 +4133,25 @@ model PunishmentAppeal {
   @@unique([userId, punishmentKey])
   @@index([status, createdAt])
   @@index([userId, createdAt])
+}
+
+// Avaliações de mods (Fase 7): nota de 1 a 5 estrelas por pessoa e por mod
+// do mod.io, com um texto curto opcional (até 500 caracteres) que aparece
+// junto dos comentários. Uma linha por pessoa por mod — avaliar de novo
+// troca a nota. Média/quantidade são calculadas na hora (ver
+// services/modRatings.js), nada fica duplicado.
+model ModRating {
+  id          String   @id @default(uuid())
+  userId      String
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  modioModId  Int
+  modioGameId Int
+  stars       Int
+  review      String?  @db.VarChar(500)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@unique([userId, modioModId])
+  @@index([modioModId])
+  @@index([modioGameId])
 }

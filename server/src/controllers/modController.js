@@ -1,6 +1,7 @@
 const prisma = require('../config/prisma');
 const { safeUpsert, createIgnoreDuplicate } = require('../utils/prismaSafe');
 const modio = require('../services/modioService');
+const modRatings = require('../services/modRatings');
 
 // Item pedido: "Project Club → Apps → Mods → detectar Steam → detectar
 // jogos instalados → mostrar os jogos do usuário" — o CLIENTE detecta os
@@ -42,22 +43,41 @@ async function listMods(req, res, next) {
   try {
     const modioGameId = Number(req.params.modioGameId);
     const { q, sort, category, tags, offset, limit } = req.query;
-    const data = await modio.listMods(modioGameId, {
-      query: q, sort, category, tags,
-      offset: offset ? Number(offset) : 0,
-      limit: limit ? Math.min(Number(limit), 50) : 20,
-    });
+    let data;
+    if (sort === 'club') {
+      // "Mais bem avaliados" (Fase 7): a ordem vem das notas do Project
+      // Club; o mod.io só preenche os dados de cada mod, nessa ordem.
+      const top = await modRatings.topRatedIds(modioGameId, {
+        offset: offset ? Number(offset) : 0, limit: limit ? Math.min(Number(limit), 50) : 20,
+      });
+      const fetched = await modio.listModsByIds(modioGameId, top.ids, { query: q, category });
+      const byId = new Map((fetched.data || []).map((m) => [m.id, m]));
+      const ordered = top.ids.map((id) => byId.get(id)).filter(Boolean);
+      data = { data: ordered, result_total: top.total, result_count: ordered.length, result_offset: offset ? Number(offset) : 0 };
+    } else {
+      data = await modio.listMods(modioGameId, {
+        query: q, sort, category, tags,
+        offset: offset ? Number(offset) : 0,
+        limit: limit ? Math.min(Number(limit), 50) : 20,
+      });
+    }
 
     // Enriquece com favoritos/ups do usuário logado — pra UI já mostrar
     // o coração/up preenchido sem precisar de uma segunda chamada.
     const modioModIds = data.data.map((m) => m.id);
-    const [favorites, ups] = await Promise.all([
+    const [favorites, ups, clubRatings] = await Promise.all([
       prisma.modFavorite.findMany({ where: { userId: req.user.id, modioModId: { in: modioModIds } }, select: { modioModId: true } }),
       prisma.modUp.findMany({ where: { userId: req.user.id, modioModId: { in: modioModIds } }, select: { modioModId: true } }),
+      // Média/quantidade de estrelas do Project Club (cartões). Falha aqui
+      // nunca derruba a lista — os cartões só ficam sem as estrelas.
+      modRatings.summariesFor(modioModIds).catch(() => ({})),
     ]);
     const favoriteSet = new Set(favorites.map((f) => f.modioModId));
     const upSet = new Set(ups.map((u) => u.modioModId));
-    const mods = data.data.map((m) => ({ ...m, isFavorited: favoriteSet.has(m.id), isUpped: upSet.has(m.id) }));
+    const mods = data.data.map((m) => ({
+      ...m, isFavorited: favoriteSet.has(m.id), isUpped: upSet.has(m.id),
+      clubRating: clubRatings[m.id] || { average: null, count: 0 },
+    }));
 
     res.json({ mods, resultTotal: data.result_total, resultCount: data.result_count, resultOffset: data.result_offset });
   } catch (err) {
@@ -85,16 +105,20 @@ async function getMod(req, res, next) {
   try {
     const modioGameId = Number(req.params.modioGameId);
     const modioModId = Number(req.params.modioModId);
-    const [mod, dependencies, favorite, up, commentCount] = await Promise.all([
+    const [mod, dependencies, favorite, up, commentCount, clubRating, myRating] = await Promise.all([
       modio.getMod(modioGameId, modioModId),
       modio.getModDependencies(modioGameId, modioModId).catch(() => ({ data: [] })), // dependências são opcionais; nunca quebra a página do mod se a chamada falhar
       prisma.modFavorite.findUnique({ where: { userId_modioModId: { userId: req.user.id, modioModId } } }),
       prisma.modUp.findUnique({ where: { userId_modioModId: { userId: req.user.id, modioModId } } }),
       prisma.modComment.count({ where: { modioModId } }),
+      // Avaliações (Fase 7) — opcionais do mesmo jeito que as dependências.
+      modRatings.summaryFor(modioModId).catch(() => null),
+      modRatings.myRating(req.user.id, modioModId).catch(() => null),
     ]);
     res.json({
       mod, dependencies: dependencies.data || [],
       isFavorited: !!favorite, isUpped: !!up, commentCount,
+      clubRating, myRating,
     });
   } catch (err) {
     if (err instanceof modio.ModioNotConfiguredError) return res.status(503).json({ error: err.message });
