@@ -100,7 +100,12 @@ async function listUsableEmojis(req, res, next) {
     const userRoles = await prisma.userRole.findMany({ where: { userId: req.user.id }, select: { roleId: true } });
     const roleIds = new Set(userRoles.map((r) => r.roleId));
     const usable = emojis.filter((e) => !e.allowedRoleId || roleIds.has(e.allowedRoleId));
-    res.json({ emojis: usable });
+    // Fase 8: emojis comprados na Loja dos criadores (e os próprios
+    // aprovados) entram no fim da lista. Best-effort: se a tabela nova ainda
+    // não existir, a lista normal continua igual.
+    const fromCreators = await require('../services/creatorShop').usableEmojisFor(req.user.id).catch(() => []);
+    const taken = new Set(usable.map((e) => e.name));
+    res.json({ emojis: [...usable, ...fromCreators.filter((e) => !taken.has(e.name))] });
   } catch (err) { next(err); }
 }
 

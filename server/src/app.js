@@ -421,6 +421,9 @@ function createApp() {
   // Fase 4 — comunidade e economia (indicações, sorteio, Bora Jogar, metas,
   // temporadas, cupons, reputação, gorjetas...).
   require('./routes/communityExtras').mount(app);
+  // Fase 8: mascote pinguim do perfil e Loja dos criadores.
+  app.use('/api/pets', require('./routes/pets'));
+  app.use('/api/creator-shop', require('./routes/creatorShop'));
   // Sem requireAuth de propósito — <img src="..."> do navegador nunca
   // manda o cabeçalho Authorization (só fetch/axios conseguem fazer
   // isso), então colocar autenticação aqui quebraria TODA imagem do
