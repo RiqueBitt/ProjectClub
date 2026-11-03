@@ -304,6 +304,12 @@ async function connect(configText, server) {
   if (['connecting', 'connected', 'disconnecting'].includes(state.status)) await disconnect();
   let sanitized;
   try { sanitized = sanitizeConfig(configText); } catch (err) { fail(err.message); return state; }
+  // Os servidores do VPN Gate passaram a pedir usuário/senha (AUTH_FAILED
+  // sem eles). O padrão público do projeto é vpn/vpn — vai embutido na
+  // configuração (nada digitado pela pessoa, nada secreto).
+  if (!/^\s*<auth-user-pass>/m.test(sanitized.config)) {
+    sanitized = { ...sanitized, config: `${sanitized.config.replace(/\s*$/, '')}\nauth-user-pass\n<auth-user-pass>\nvpn\nvpn\n</auth-user-pass>\nauth-nocache\n` };
+  }
   // Resolve ANTES de ligar a VPN (depois o DNS já iria pelo túnel).
   try {
     const routes = bypassRoutes(await resolveBypassIps());
