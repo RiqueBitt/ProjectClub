@@ -115,11 +115,11 @@ export function getStartscreenXML(d: GameData) {
 	
 		<button id="logo_button" classpath="com:clubpenguin:web:play:startscreen:view:ui:LogoButton" href="" x="380" y="305" target="_top"/>
 		
-		<button id="start_button" classpath="com:clubpenguin:web:play:startscreen:view:ui:LoginButton" href="login/" target="_top" x="410" y="405" fontSize="20">Login</button>
+		<button id="start_button" classpath="com:clubpenguin:web:play:startscreen:view:ui:LoginButton" href="login/" target="_top" x="410" y="405" fontSize="20">Entrar</button>
 		
-		<button id="create_button" classpath="com:clubpenguin:web:play:startscreen:view:ui:CreateAccountButton" href="" target="_top" x="180" y="405" fontSize="18">Create a Penguin</button>
+		<button id="create_button" classpath="com:clubpenguin:web:play:startscreen:view:ui:CreateAccountButton" href="" target="_top" x="180" y="405" fontSize="18">Criar um Pinguim</button>
 		
-		<button id="membership_button" classpath="com:clubpenguin:web:play:startscreen:view:ui:MembershipButton" href="http://betateam.www.clubpenguin.com/membership/" target="_top" x="440" y="287" fontSize="12">Buy a Membership</button>
+		<button id="membership_button" classpath="com:clubpenguin:web:play:startscreen:view:ui:MembershipButton" href="" target="_top" x="440" y="287" fontSize="12">Project Club</button>
 		
 	</button_list>
 	

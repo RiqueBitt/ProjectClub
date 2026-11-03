@@ -12,6 +12,7 @@ const safe_messages_1 = require("../game-data/safe-messages");
 const mascot_messages_1 = require("../game-data/mascot-messages");
 const tour_guide_messages_1 = require("../game-data/tour-guide-messages");
 const lang_1 = require("../game-data/lang");
+const i18n_1 = require("../i18n/index.js");
 const furniture_1 = require("../game-logic/furniture");
 const iglooItems_1 = require("../game-logic/iglooItems");
 const items_1 = require("../game-logic/items");
@@ -71,35 +72,35 @@ function getHuntCrumbs(hunt) {
 function getLang() {
     const code = [];
     (0, utils_1.iterateEntries)(lang_1.LANG, (key, lang) => {
-        code.push([avm1_1.Action.Push, "lang"], avm1_1.Action.GetVariable, [avm1_1.Action.Push, key, lang], avm1_1.Action.SetMember);
+        code.push([avm1_1.Action.Push, "lang"], avm1_1.Action.GetVariable, [avm1_1.Action.Push, key, (0, i18n_1.t)(lang)], avm1_1.Action.SetMember);
     });
     return code;
 }
 function getFurnitureCrumbs() {
     const code = [];
     furniture_1.FURNITURE.rows.forEach(row => {
-        code.push([avm1_1.Action.Push, "furniture_crumbs"], avm1_1.Action.GetVariable, [avm1_1.Action.Push, row.id], [avm1_1.Action.Push, "name"], [avm1_1.Action.Push, row.name], [avm1_1.Action.Push, 1], avm1_1.Action.InitObject, avm1_1.Action.SetMember);
+        code.push([avm1_1.Action.Push, "furniture_crumbs"], avm1_1.Action.GetVariable, [avm1_1.Action.Push, row.id], [avm1_1.Action.Push, "name"], [avm1_1.Action.Push, (0, i18n_1.t)(row.name)], [avm1_1.Action.Push, 1], avm1_1.Action.InitObject, avm1_1.Action.SetMember);
     });
     return code;
 }
 function getFloorCrumbs() {
     const code = [];
     iglooItems_1.IGLOO_FLOORING.rows.forEach(row => {
-        code.push([avm1_1.Action.Push, "floor_crumbs"], avm1_1.Action.GetVariable, [avm1_1.Action.Push, row.id], [avm1_1.Action.Push, "name"], [avm1_1.Action.Push, row.name], [avm1_1.Action.Push, 1], avm1_1.Action.InitObject, avm1_1.Action.SetMember);
+        code.push([avm1_1.Action.Push, "floor_crumbs"], avm1_1.Action.GetVariable, [avm1_1.Action.Push, row.id], [avm1_1.Action.Push, "name"], [avm1_1.Action.Push, (0, i18n_1.t)(row.name)], [avm1_1.Action.Push, 1], avm1_1.Action.InitObject, avm1_1.Action.SetMember);
     });
     return code;
 }
 function getPaperCrumbs() {
     const code = [];
     items_1.ITEMS.rows.forEach(row => {
-        code.push([avm1_1.Action.Push, "paper_crumbs"], avm1_1.Action.GetVariable, [avm1_1.Action.Push, row.id], [avm1_1.Action.Push, "name"], [avm1_1.Action.Push, row.name], [avm1_1.Action.Push, 1], avm1_1.Action.InitObject, avm1_1.Action.SetMember);
+        code.push([avm1_1.Action.Push, "paper_crumbs"], avm1_1.Action.GetVariable, [avm1_1.Action.Push, row.id], [avm1_1.Action.Push, "name"], [avm1_1.Action.Push, (0, i18n_1.t)(row.name)], [avm1_1.Action.Push, 1], avm1_1.Action.InitObject, avm1_1.Action.SetMember);
     });
     return code;
 }
 function getIglooCrumbs() {
     const code = [];
     iglooItems_1.IGLOO_TYPES.rows.forEach(row => {
-        code.push([avm1_1.Action.Push, "igloo_crumbs"], avm1_1.Action.GetVariable, [avm1_1.Action.Push, row.id], [avm1_1.Action.Push, "name"], [avm1_1.Action.Push, row.name], [avm1_1.Action.Push, 1], avm1_1.Action.InitObject, avm1_1.Action.SetMember);
+        code.push([avm1_1.Action.Push, "igloo_crumbs"], avm1_1.Action.GetVariable, [avm1_1.Action.Push, row.id], [avm1_1.Action.Push, "name"], [avm1_1.Action.Push, (0, i18n_1.t)(row.name)], [avm1_1.Action.Push, 1], avm1_1.Action.InitObject, avm1_1.Action.SetMember);
     });
     return code;
 }
@@ -1015,7 +1016,7 @@ function getLocalCrumbsSwf(d) {
         avm1_1.Action.NewObject,
         avm1_1.Action.DefineLocal,
         [avm1_1.Action.Push, "safe_messages"],
-        ...(0, avm1_1.createJsonDeclaration)(safe_messages_1.SAFE_MESSAGES),
+        ...(0, avm1_1.createJsonDeclaration)((0, i18n_1.translateJson)(safe_messages_1.SAFE_MESSAGES)),
         avm1_1.Action.DefineLocal,
         [avm1_1.Action.Push, "treveresed_safe_message_obj"],
         [avm1_1.Action.Push, 0],
@@ -1096,10 +1097,10 @@ function getLocalCrumbsSwf(d) {
         avm1_1.Action.InitObject,
         avm1_1.Action.DefineLocal,
         [avm1_1.Action.Push, "mascot_messages"],
-        ...(0, avm1_1.createJsonDeclaration)(mascot_messages_1.MASCOT_MESSAGES),
+        ...(0, avm1_1.createJsonDeclaration)((0, i18n_1.translateJson)(mascot_messages_1.MASCOT_MESSAGES)),
         avm1_1.Action.DefineLocal,
         [avm1_1.Action.Push, "tour_guide_messages"],
-        ...(0, avm1_1.createJsonDeclaration)(tour_guide_messages_1.TOUR_GUIDE_MESSAGES),
+        ...(0, avm1_1.createJsonDeclaration)((0, i18n_1.translateJson)(tour_guide_messages_1.TOUR_GUIDE_MESSAGES)),
         avm1_1.Action.DefineLocal,
         [avm1_1.Action.Push, "jokes"],
         [avm1_1.Action.Push, "What do you call a fish with no eyes?|FSH"],

@@ -1,4 +1,5 @@
 import { iterateEntries } from "@common/utils";
+import { t } from "@server/i18n";
 import { Action, createBytecode, PCodeRep } from "@common/flash/avm1";
 import { emitCrumbSwf } from "@common/flash/emitter";
 import { RoomName, ROOMS } from "../game-data/rooms";

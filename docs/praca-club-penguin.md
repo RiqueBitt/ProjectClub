@@ -1,12 +1,37 @@
 # Praça — Club Penguin (Waddle Forever embutido)
 
-A aba **Praça** do Project Club é um Club Penguin completo (era clássica,
-25/10/2010 por padrão): salas, mapa, roupas e catálogos, puffles, iglus,
-carimbos, mini-jogos, jornal, festas da época, mascotes. Base: o emulador
+A aba **Praça** do Project Club é um Club Penguin completo (cliente moderno
+de 2012 — o ano mais rico da linha do tempo do Waddle Forever): salas, mapa,
+roupas e catálogos, puffles, iglus, carimbos, mini-jogos, jornal, festas,
+mascotes, EPF, Card-Jitsu. Base: o emulador
 [Waddle Forever](https://github.com/nhaar/Waddle-Forever) (MIT), incorporado ao
 código em `server/waddle`. O jogo (Flash) roda no navegador pelo Ruffle que o
 site já servia pros Mini-Jogos — nada de plugin, nada de iframe, nada vindo do
 GitHub em produção.
+
+## O que o Project Club muda no jogo
+
+- **Calendário real.** `WADDLE_VERSION=auto` (padrão): a data do jogo é o dia
+  de hoje mapeado no ano 2012 da linha do tempo — Halloween em outubro,
+  Operação: Blackout em novembro, Natal em dezembro, Puffle Party em
+  fevereiro… e a ilha volta ao normal sozinha fora das festas. O relógio
+  interno do jogo é o ano real. O servidor vira a data à meia-noite.
+- **Tema sazonal do site.** `/api/plaza/status` informa a festa ativa; o site
+  acompanha (Halloween e Blackout escurecem o visual, as outras colorem os
+  destaques) e volta ao normal quando a festa acaba
+  (`client/src/utils/appearance.js`, `GAME_PARTY_SEASONS`).
+- **Um servidor só** ("Project Club", `WADDLE_SERVER_NAME`), população pela
+  quantidade real de pinguins online.
+- **Entrada automática.** A página aperta os botões e digita o pinguim da
+  conta por eventos DOM que o Ruffle entende (`client/src/praca/autoLogin.js`),
+  com "Entrando…" por cima; se não bater, devolve o controle à pessoa.
+- **PT-BR.** Tudo que o servidor gera ou entrega em JSON (interface do cliente,
+  carimbos, itens, salas, chat seguro, mascotes, guia, móveis) passa pelos
+  dicionários em `server/waddle/src/server/i18n/pt-BR/*.json`
+  (inglês → português). O que está desenhado dentro dos SWFs (letreiros,
+  catálogos em imagem, jornal) continua em inglês. `WADDLE_LANG=en` desliga.
+- **HUD nítida.** O player é dimensionado em pixels reais (sem ampliar por
+  CSS), então o Ruffle desenha os vetores na resolução da tela.
 
 ## Como funciona
 
@@ -61,7 +86,10 @@ só as pastas afetadas.
 | `WADDLE_MEDIA_DIR` | `server/data/waddle/media` | pasta da mídia no disco (ou cópia completa) |
 | `WADDLE_MEDIA_URL` | — | opcional: base pública com os arquivos soltos (reserva arquivo a arquivo) |
 | `WADDLE_DATA_DIR` | `server/data/waddle` | settings.json, mods, logs |
-| `WADDLE_VERSION` | `2010-10-25` | data do jogo (festas/salas da época). Datas AS3 (2012+) rodam mal no Ruffle |
+| `WADDLE_VERSION` | `auto` | `auto` = calendário real mapeado em `WADDLE_CALENDAR_YEAR` (2012); ou uma data fixa AAAA-MM-DD |
+| `WADDLE_CALENDAR_YEAR` | `2012` | ano da linha do tempo usado pelo modo calendário |
+| `WADDLE_SERVER_NAME` | `Project Club` | nome do servidor único |
+| `WADDLE_LANG` | `pt-BR` | `en` desliga a tradução |
 
 Ligar/desligar: `plaza` em `server/src/config/features.js` e
 `client/src/utils/features.js`.
@@ -79,8 +107,8 @@ O banco precisa da tabela nova: `npm run prisma:push` (model `WaddlePenguin`).
 
 ## Limites conhecidos
 
-- Ruffle emula AS2 muito bem; a era moderna (AS3, 2012+) ainda trava em várias
-  telas — por isso o padrão é 2010.
+- O cliente moderno (AS3) roda no Ruffle com as adaptações daqui (URLs
+  relativas, login por ID); alguns mini-jogos AS3 podem ter bugs do emulador.
 - O servidor do WF foi feito pra single-player/amigos: não tem anti-cheat. Toda
   entrada já é autenticada e o chat moderado, mas moedas/itens são confiáveis
   só na medida em que o cliente é.

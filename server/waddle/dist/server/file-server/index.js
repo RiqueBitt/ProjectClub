@@ -10,6 +10,7 @@ const paths_1 = require("../../common/paths.js");
 const file_generators_1 = require("../file-generators/index.js");
 const utils_1 = require("../../common/utils.js");
 const media_store_1 = require("../../common/media-store.js");
+const i18n_1 = require("../i18n/index.js");
 const overriders_1 = require("./overriders");
 const logger_1 = require("../logger.js");
 /** Server that serves files to the game webpage and files in the game */
@@ -99,6 +100,9 @@ class FileServer {
                         throw new Error('Split somehow returned empty list');
                     }
                     this.overrider.override(route, binary).then((value) => {
+                        // Tradução PT-BR: todo JSON (gerado ou da mídia) passa pelo dicionário
+                        if (type === 'json')
+                            value = (0, i18n_1.translateJsonText)(value);
                         res.status(200).type(type).send(value);
                     }).catch(next);
                 }

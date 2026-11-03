@@ -6,6 +6,7 @@ import { SAFE_MESSAGES } from "../game-data/safe-messages";
 import { MASCOT_MESSAGES } from "../game-data/mascot-messages";
 import { TOUR_GUIDE_MESSAGES } from "../game-data/tour-guide-messages";
 import { LANG } from "../game-data/lang";
+import { t, translateJson } from "@server/i18n";
 import { FURNITURE } from "../game-logic/furniture";
 import { IGLOO_FLOORING, IGLOO_TYPES } from "../game-logic/iglooItems";
 import { ITEMS } from "../game-logic/items";
@@ -257,7 +258,7 @@ function getLang(): PCodeRep {
     code.push(
       [Action.Push, "lang"],
       Action.GetVariable,
-      [Action.Push, key, lang],
+      [Action.Push, key, t(lang)],
       Action.SetMember
     );
   });
@@ -274,7 +275,7 @@ function getFurnitureCrumbs() {
       Action.GetVariable,
       [Action.Push, row.id],
       [Action.Push, "name"],
-      [Action.Push, row.name],
+      [Action.Push, t(row.name)],
       [Action.Push, 1],
       Action.InitObject,
       Action.SetMember
@@ -293,7 +294,7 @@ function getFloorCrumbs() {
       Action.GetVariable,
       [Action.Push, row.id],
       [Action.Push, "name"],
-      [Action.Push, row.name],
+      [Action.Push, t(row.name)],
       [Action.Push, 1],
       Action.InitObject,
       Action.SetMember
@@ -312,7 +313,7 @@ function getPaperCrumbs() {
       Action.GetVariable,
       [Action.Push, row.id],
       [Action.Push, "name"],
-      [Action.Push, row.name],
+      [Action.Push, t(row.name)],
       [Action.Push, 1],
       Action.InitObject,
       Action.SetMember
@@ -331,7 +332,7 @@ function getIglooCrumbs() {
       Action.GetVariable,
       [Action.Push, row.id],
       [Action.Push, "name"],
-      [Action.Push, row.name],
+      [Action.Push, t(row.name)],
       [Action.Push, 1],
       Action.InitObject,
       Action.SetMember
@@ -1268,7 +1269,7 @@ export function getLocalCrumbsSwf(d: GameData): Buffer {
     Action.NewObject,
     Action.DefineLocal,
     [Action.Push, "safe_messages"],
-    ...createJsonDeclaration(SAFE_MESSAGES),
+    ...createJsonDeclaration(translateJson(SAFE_MESSAGES)),
     Action.DefineLocal,
     [Action.Push, "treveresed_safe_message_obj"],
     [Action.Push, 0],
@@ -1349,10 +1350,10 @@ export function getLocalCrumbsSwf(d: GameData): Buffer {
     Action.InitObject,
     Action.DefineLocal,
     [Action.Push, "mascot_messages"],
-    ...createJsonDeclaration(MASCOT_MESSAGES),
+    ...createJsonDeclaration(translateJson(MASCOT_MESSAGES)),
     Action.DefineLocal,
     [Action.Push, "tour_guide_messages"],
-    ...createJsonDeclaration(TOUR_GUIDE_MESSAGES),
+    ...createJsonDeclaration(translateJson(TOUR_GUIDE_MESSAGES)),
     Action.DefineLocal,
     [Action.Push, "jokes"],
     [Action.Push, "What do you call a fish with no eyes?|FSH"],

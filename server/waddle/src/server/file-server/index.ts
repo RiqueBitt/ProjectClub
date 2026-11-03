@@ -5,6 +5,7 @@ import { MODS_DIRECTORY } from '@common/paths';
 import { FileGenerator, getGeneratorsMap, postGeneratorsMap } from '@server/file-generators';
 import { readFile, toForwardSlash } from '@common/utils';
 import { mediaFileExists, readMediaFile } from '@common/media-store';
+import { translateJsonText } from '@server/i18n';
 import { SettingsManager } from '@server/settings';
 import { FileOverrider, OVERRIDERS, REGEX_OVERRIDERS } from './overriders';
 import { getYellowString, logverbose } from '@server/logger';
@@ -107,6 +108,8 @@ export class FileServer {
           }
           
           this.overrider.override(route, binary).then((value) => {
+            // Tradução PT-BR: todo JSON (gerado ou da mídia) passa pelo dicionário
+            if (type === 'json') value = translateJsonText(value);
             res.status(200).type(type).send(value);
           }).catch(next);
         }
