@@ -541,3 +541,26 @@ html.is-electron-app .pc-auth { --a-titlebar: 32px; }
 .pc-qr-details dt { color: var(--a-muted); }
 .pc-qr-details dd { margin: 0; color: var(--a-text); font-weight: 600; text-align: right; overflow-wrap: anywhere; }
 @media (prefers-reduced-motion: reduce) { .pc-qr-frame { transition: none; } }
+
+/* ---------- Fase 5: pedido de revisão de punição (no aviso de conta) ---------- */
+.pc-appeal { display: flex; flex-direction: column; gap: 10px; margin-top: 6px; }
+.pc-appeal-open { width: 100%; min-height: 42px; }
+.pc-appeal-status {
+  display: flex; flex-direction: column; gap: 4px; padding: 10px 12px; border-radius: 10px;
+  background: rgba(255, 255, 255, 0.05); border: 1px solid var(--a-line-soft); color: #e8dcc8; font-size: 13.5px;
+}
+.pc-appeal-status b { color: #fff; }
+.pc-appeal-status p { margin: 0; line-height: 1.45; overflow-wrap: anywhere; white-space: pre-wrap; }
+.pc-appeal-status.is-accepted { border-color: rgba(61, 220, 132, 0.4); }
+.pc-appeal-status.is-denied { border-color: rgba(255, 114, 117, 0.4); }
+.pc-appeal-form { display: flex; flex-direction: column; gap: 8px; }
+.pc-appeal-form label { color: #e8dcc8; font-size: 13.5px; font-weight: 600; }
+.pc-appeal-form textarea {
+  width: 100%; min-height: 110px; resize: vertical; padding: 10px 12px; border-radius: 10px;
+  font: inherit; font-size: 14px; line-height: 1.45; color: var(--a-text);
+  background: rgba(0, 0, 0, 0.35); border: 1px solid var(--a-line-soft);
+}
+.pc-appeal-form textarea:focus { outline: none; border-color: rgba(255, 255, 255, 0.45); }
+.pc-appeal-row { display: flex; justify-content: space-between; align-items: center; gap: 12px; }
+.pc-appeal-count { color: var(--a-faint); font-size: 12.5px; font-variant-numeric: tabular-nums; }
+.pc-appeal-muted { display: inline-flex; align-items: center; gap: 8px; margin: 0; color: var(--a-muted); font-size: 12.5px; }

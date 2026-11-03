@@ -9,6 +9,8 @@ import { AuthField, PasswordField, AuthAlert, SubmitButton, apiError } from '../
 import { MailIcon, LockIcon, ShieldIcon } from '../components/auth/AuthIcons.jsx';
 import { useReaction } from '../components/auth/AuthCharacters.jsx';
 import OAuthButtons, { oauthErrorMessage, PROVIDER_META } from '../components/auth/OAuthButtons.jsx';
+import QrLoginPanel from '../components/auth/QrLoginPanel.jsx';
+import AppealPanel from '../components/auth/AppealPanel.jsx';
 
 // Conta desativada/banida/suspensa: o servidor responde 403 com um flag
 // (accountDisabled / platformBanned / suspendedUntil) — vira um aviso
@@ -26,6 +28,23 @@ function accountNoticeFrom(err) {
 }
 
 const OAUTH_BLOCK_TITLES = { banida: 'Conta banida', suspensa: 'Conta suspensa', desativada: 'Conta desativada' };
+
+// Para onde ir depois de entrar: só caminhos internos conhecidos (hoje, só a
+// tela de aprovar o "Entrar com o celular") — nada de redirecionamento
+// aberto pra outro site.
+const AFTER_LOGIN_KEY = 'pc-after-login';
+function takeAfterLoginPath() {
+  try {
+    const p = sessionStorage.getItem(AFTER_LOGIN_KEY);
+    sessionStorage.removeItem(AFTER_LOGIN_KEY);
+    if (typeof p === 'string' && /^\/entrar-qr\?c=[A-Za-z0-9_-]{43}$/.test(p)) return p;
+  } catch { /* sem sessionStorage */ }
+  return '/inicio';
+}
+
+// "Entrar com o celular" é pra quem está no computador: no celular (site
+// ou app) o botão não aparece.
+const isPhone = () => typeof navigator !== 'undefined' && /Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent || '');
 // Tempo do pulinho de comemoração antes de abrir o app.
 const SUCCESS_DELAY_MS = 950;
 
@@ -43,6 +62,9 @@ export default function LoginPage() {
   const [notice, setNotice] = useState(null);
   const [busy, setBusy] = useState(false);
   const [oauthArriving, setOauthArriving] = useState(false);
+  // Fase 5: login por QR Code e pedido de revisão de punição.
+  const [qrMode, setQrMode] = useState(false);
+  const [appealToken, setAppealToken] = useState(null);
   const [reaction, react] = useReaction();
   const codeRef = useRef(null);
   const leavingRef = useRef(false);
@@ -52,13 +74,20 @@ export default function LoginPage() {
     if (leavingRef.current) return;
     leavingRef.current = true;
     react('success');
-    setTimeout(() => navigate('/inicio', { replace: true }), SUCCESS_DELAY_MS);
+    const to = takeAfterLoginPath();
+    setTimeout(() => navigate(to, { replace: true }), SUCCESS_DELAY_MS);
   };
 
   const fail = (msg, accountNotice = null) => {
     if (accountNotice) setNotice(accountNotice);
     else setError(msg);
     react('error');
+  };
+  // Conta banida/suspensa com a senha certa: o servidor manda um token
+  // curto que só serve pra pedir a revisão (ver server/src/services/appeals.js).
+  const rememberAppeal = (err) => {
+    const token = err?.response?.status === 403 ? err.response.data?.appealToken : null;
+    setAppealToken(typeof token === 'string' ? token : null);
   };
 
   // Volta do provedor: ?oauth_error=… | ?oauth_2fa=… | ?oauth=ok
@@ -100,6 +129,7 @@ export default function LoginPage() {
     if (busy || leavingRef.current) return;
     setError('');
     setNotice(null);
+    setAppealToken(null);
     setBusy(true);
     try {
       if (oauth2FA) {
@@ -126,6 +156,7 @@ export default function LoginPage() {
       if (oauth2FA && err?.response?.data?.expired) {
         setOauth2FA(null); setNeedsTwoFactor(false);
       }
+      rememberAppeal(err);
       fail(apiError(err, 'Não foi possível entrar. Confira seus dados e tente de novo.'), accountNoticeFrom(err));
     } finally {
       setBusy(false);
@@ -142,7 +173,10 @@ export default function LoginPage() {
       afterLogin(data.user);
       celebrateAndGo();
     } catch (err) {
-      if (!isCancel(err)) fail(apiError(err, 'Não deu pra entrar com a chave de acesso.'), accountNoticeFrom(err));
+      if (!isCancel(err)) {
+        rememberAppeal(err);
+        fail(apiError(err, 'Não deu pra entrar com a chave de acesso.'), accountNoticeFrom(err));
+      }
     } finally { setBusy(false); }
   };
 
@@ -161,6 +195,26 @@ export default function LoginPage() {
     if (oauth2FA) subtitle = `Você entrou com ${PROVIDER_META[oauth2FA]?.label || 'o provedor'}. ${subtitle}`;
   }
   if (oauthArriving) subtitle = 'Conectando sua conta…';
+
+  // Celular aprovou: a resposta é a mesma de um login normal.
+  const onQrDone = (data) => {
+    applySession(data);
+    afterLogin(data.user);
+    celebrateAndGo();
+  };
+
+  if (qrMode) {
+    return (
+      <AuthLayout
+        title="Entrar com o celular"
+        subtitle="Use o celular onde você já está logado para entrar aqui, sem digitar a senha."
+        footer={<>Ainda não é membro? <Link to="/register">Fazer inscrição</Link></>}
+        reaction={reaction}
+      >
+        <QrLoginPanel onDone={onQrDone} onCancel={() => setQrMode(false)} />
+      </AuthLayout>
+    );
+  }
 
   const canSubmit = oauth2FA
     ? !!(useRecovery ? form.recoveryCode.trim() : form.twoFactorCode.trim())
@@ -216,6 +270,7 @@ export default function LoginPage() {
           <div className="pc-account-notice" role="alert">
             <strong>{notice.title}</strong>
             <p>{notice.text}</p>
+            {appealToken && <AppealPanel token={appealToken} />}
           </div>
         )}
         <AuthAlert>{error}</AuthAlert>
@@ -240,6 +295,12 @@ export default function LoginPage() {
           <button type="button" className="btn-secondary auth-passkey-btn" disabled={busy || oauthArriving} onClick={passkeyLogin}>
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><circle cx="8" cy="9" r="4" /><path d="M2 21v-1a6 6 0 0 1 10-4.5M15 13l6 6M18 16l2-2M16.5 17.5l1.5-1.5" /></svg>
             Entrar com chave de acesso
+          </button>
+        )}
+        {!needsTwoFactor && !isPhone() && (
+          <button type="button" className="btn-secondary auth-passkey-btn" disabled={busy || oauthArriving} onClick={() => { setError(''); setNotice(null); setQrMode(true); }}>
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><rect x="6" y="2" width="12" height="20" rx="2.5" /><path d="M11 18h2" /></svg>
+            Entrar com o celular
           </button>
         )}
         {!needsTwoFactor && <OAuthButtons from="login" verb="Entrar com" position="bottom" disabled={busy || oauthArriving} />}

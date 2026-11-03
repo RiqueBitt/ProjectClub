@@ -76,6 +76,7 @@ import StaffOpsPanel from '../components/admin/StaffOpsPanel.jsx';
 import VoiceServerAdmin from '../components/admin/VoiceServerAdmin.jsx';
 import PinguAdmin from '../components/admin/PinguAdmin.jsx';
 import IntegrationsAdmin from '../components/admin/IntegrationsAdmin.jsx';
+import AppealsAdmin from '../components/admin/AppealsAdmin.jsx';
 import { CardsAdminCards, CardsAdminPacks, CardsAdminSettings, CardsAdminPlayers, CardsAdminTrades, CardsAdminMatches, CardsAdminStats, CardsAdminCampaign, CardsAdminTournaments, CardsAdminBoards } from '../cards/CardsAdmin.jsx';
 
 // ============================================================
@@ -121,6 +122,7 @@ const TABS = {
   badges: { label: 'Insígnias', desc: 'Crie insígnias e conceda ou remova de membros.' },
   roles: { label: 'Cargos', desc: 'Cargos da comunidade: cores, permissões e quem aparece separado na lista de membros.' },
   reports: { label: 'Denúncias', desc: 'Mensagens e perfis denunciados pela comunidade.' },
+  revisoes: { label: 'Revisões de punição', desc: 'Pedidos de revisão de quem foi banido ou suspenso: aceite (tira a punição) ou recuse com uma resposta.' },
   automodDm: { label: 'Moderação de DMs', desc: 'Conversas privadas sinalizadas pelo filtro automático.' },
   moderacao: { label: 'Recados', desc: 'Recados deixados nos murais das casas e perfis.' },
   modReports: { label: 'Denúncias de mods', desc: 'Mods denunciados na área de Apps.' },
@@ -172,6 +174,7 @@ const TABS = {
 const TAB_PENDING_KEY = {
   inscricoes: 'pendingApplications', reports: 'pendingReports',
   automodDm: 'pendingAutomodFlags', modReports: 'pendingModReports',
+  revisoes: 'pendingAppeals',
 };
 
 // Ferramentas de sistemas desligados no código (utils/features.js) somem
@@ -184,7 +187,7 @@ const HIDDEN_TABS = new Set([
 
 const TAB_GROUPS = [
   { label: 'Pessoas', icon: 'people', tabs: ['busca', 'inscricoes', 'users', 'badges', 'roles'] },
-  { label: 'Moderação', icon: 'shield', tabs: ['reports', 'automodDm', 'moderacao', 'modReports', 'logs', 'honeypot'] },
+  { label: 'Moderação', icon: 'shield', tabs: ['reports', 'revisoes', 'automodDm', 'moderacao', 'modReports', 'logs', 'honeypot'] },
   { label: 'Comunidade', icon: 'community', tabs: ['channels', 'pingu', 'emojis', 'stickers', 'clubs', 'clanIcons', 'achievements', 'gifMove'] },
   { label: 'Conteúdo', icon: 'content', tabs: ['feeds', 'updates', 'events', 'announcements', 'appCatalog'] },
   { label: 'Economia', icon: 'economy', tabs: ['economia', 'decoracoes', 'apoio', 'metaDoacao', 'casas', 'album'] },
@@ -341,6 +344,7 @@ export default function AdminPanel() {
           {tab === 'moderacao' && <ModerationTab />}
           {tab === 'automodDm' && <AutomodDmTab />}
           {tab === 'reports' && <ReportsTab />}
+          {tab === 'revisoes' && <AppealsAdmin />}
           {tab === 'feeds' && <FeedsAdminTab />}
           {tab === 'appCatalog' && <AppCatalogTab />}
           {tab === 'modGames' && <ModGamesAdminTab />}
@@ -408,6 +412,7 @@ const ACTION_TEXT = {
   SYSTEM_TOGGLE: 'ligou/desligou um sistema',
   USER_ADD_CURRENCY: 'deu moedas a um usuário', USER_ADD_XP: 'deu XP a um usuário', USER_SET_LEVEL: 'mudou o nível de um usuário',
   USER_BAN: 'baniu um usuário', USER_UNBAN: 'desbaniu um usuário', USER_SUSPEND: 'suspendeu um usuário', USER_UNSUSPEND: 'tirou a suspensão de um usuário',
+  APPEAL_ACCEPT: 'aceitou uma revisão de punição', APPEAL_DENY: 'recusou uma revisão de punição',
   USER_DELETE_ACCOUNT: 'excluiu uma conta', USER_EDIT: 'editou um usuário', USER_ROLE_CHANGE: 'mudou o cargo de um usuário',
 };
 const actionText = (a) => ACTION_TEXT[a] || String(a || '').replaceAll('_', ' ').toLowerCase();

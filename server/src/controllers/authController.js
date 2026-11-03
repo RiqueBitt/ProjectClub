@@ -368,6 +368,11 @@ function sendNewLoginAlertInBackground(user, userAgent, ipAddress) {
   }).catch((err) => console.error('[login] falha ao enviar alerta de novo acesso:', err.message));
 }
 
+// Token de revisão de punição (Fase 5) — nunca derruba o login se falhar.
+function signAppealTokenSafe(userId) {
+  try { return require('../services/appeals').signAppealToken(userId); } catch { return undefined; }
+}
+
 async function login(req, res, next) {
   try {
     const { emailOrUsername, password, twoFactorCode, recoveryCode } = req.body || {};
@@ -410,11 +415,13 @@ async function login(req, res, next) {
       return res.status(401).json({ error: 'Credenciais inválidas.' });
     }
 
+    // Fase 5: com a senha certa, a conta punida recebe um token curto que
+    // só serve pra pedir revisão da punição (ver services/appeals.js).
     if (user.isPlatformBanned) {
-      return res.status(403).json({ error: 'Esta conta foi banida da plataforma.', platformBanned: true, reason: user.platformBanReason || undefined });
+      return res.status(403).json({ error: 'Esta conta foi banida da plataforma.', platformBanned: true, reason: user.platformBanReason || undefined, appealToken: signAppealTokenSafe(user.id) });
     }
     if (user.suspendedUntil && new Date(user.suspendedUntil) > new Date()) {
-      return res.status(403).json({ error: `Esta conta está suspensa até ${new Date(user.suspendedUntil).toLocaleString('pt-BR')}.`, suspendedUntil: user.suspendedUntil });
+      return res.status(403).json({ error: `Esta conta está suspensa até ${new Date(user.suspendedUntil).toLocaleString('pt-BR')}.`, suspendedUntil: user.suspendedUntil, appealToken: signAppealTokenSafe(user.id) });
     }
     // Conta desativada pela própria pessoa (Configurações -> "Excluir
     // conta"). Antes o login passava e só o requireAuth barrava depois,
@@ -1083,4 +1090,5 @@ module.exports = {
   recoveryCodesStatus, regenerateRecoveryCodesHandler,
   createEmailVerificationCode, issueSession, REVOKE_REASONS, describeDevice, maskIp,
   completeLogin, verifyTotpOnce, consumeRecoveryCode, registerFailedLogin, isAccountBlocked,
+  signAppealTokenSafe,
 };

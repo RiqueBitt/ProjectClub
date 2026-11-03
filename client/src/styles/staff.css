@@ -265,3 +265,22 @@
 @media (max-width: 900px) {
   .staff-rail-back { display: none; }
 }
+
+/* ---------- Fase 5: Revisões de punição (components/admin/AppealsAdmin.jsx) ---------- */
+.appeal-card { display: flex; flex-direction: column; gap: 6px; }
+.appeal-card-head { display: flex; align-items: flex-start; gap: 10px; }
+.appeal-card-who { flex: 1; min-width: 0; overflow-wrap: anywhere; }
+.appeal-card-meta { font-size: 12px; margin-top: 2px; }
+.appeal-card-label { font-size: 12px; margin-top: 6px; }
+.appeal-card-text { margin: 0; white-space: pre-wrap; overflow-wrap: anywhere; line-height: 1.45; }
+.appeal-card-actions { display: flex; flex-direction: column; gap: 8px; margin-top: 8px; }
+.appeal-card-actions textarea {
+  width: 100%; resize: vertical; min-height: 70px; padding: 8px 10px; border-radius: 8px; font: inherit;
+  color: var(--text-normal); background: var(--bg-tertiary, var(--bg-secondary)); border: 1px solid var(--border);
+}
+.appeal-card-buttons { display: flex; align-items: center; justify-content: flex-end; gap: 8px; flex-wrap: wrap; }
+.appeal-card-count { margin-right: auto; font-size: 12px; font-variant-numeric: tabular-nums; }
+.appeal-card-error { margin: 0; color: var(--red, #f23f43); font-size: 13px; }
+@media (max-width: 560px) {
+  .appeal-card-buttons > button { flex: 1 1 auto; }
+}

@@ -208,9 +208,10 @@ async function banUser(req, res, next) {
 async function unbanUser(req, res, next) {
   try {
     const { id } = req.params;
-    const user = await prisma.user.update({
-      where: { id }, data: { isPlatformBanned: false, platformBanReason: null }, select: ADMIN_USER_FIELDS,
-    });
+    // Mesmo caminho da revisão de punição aceita (services/punishments.js) —
+    // agora também apaga o registro de Ban, se existir.
+    await require('../services/punishments').liftBan(id, { db: prisma });
+    const user = await prisma.user.findUnique({ where: { id }, select: ADMIN_USER_FIELDS });
     await logPlatformAction(req, { action: 'USER_UNBAN', targetType: 'USER', targetId: id });
     res.json({ user });
   } catch (err) { next(err); }
@@ -236,7 +237,8 @@ async function suspendUser(req, res, next) {
 async function unsuspendUser(req, res, next) {
   try {
     const { id } = req.params;
-    const user = await prisma.user.update({ where: { id }, data: { suspendedUntil: null }, select: ADMIN_USER_FIELDS });
+    await require('../services/punishments').liftSuspension(id, { db: prisma });
+    const user = await prisma.user.findUnique({ where: { id }, select: ADMIN_USER_FIELDS });
     await logPlatformAction(req, { action: 'USER_UNSUSPEND', targetType: 'USER', targetId: id });
     res.json({ user });
   } catch (err) { next(err); }
@@ -417,6 +419,7 @@ async function getStats(req, res, next) {
     const [
       userCount, messageCount, bannedCount, last24h, last7d,
       pendingApplications, pendingReports, pendingAutomodFlags, pendingModReports,
+      pendingAppeals,
     ] = await Promise.all([
       prisma.user.count(),
       prisma.message.count(),
@@ -427,11 +430,14 @@ async function getStats(req, res, next) {
       safe(prisma.report.count({ where: { status: 'PENDING' } })),
       safe(prisma.automodFlag.count({ where: { status: 'PENDING' } })),
       safe(prisma.modReport.count({ where: { status: 'PENDING' } })),
+      // Fase 5: pedidos de revisão de punição esperando a equipe.
+      safe(prisma.punishmentAppeal.count({ where: { status: 'PENDING' } })),
     ]);
     res.json({
       stats: {
         userCount, messageCount, bannedCount, newUsersLast24h: last24h, newUsersLast7d: last7d,
         pendingApplications, pendingReports, pendingAutomodFlags, pendingModReports,
+        pendingAppeals,
       },
     });
   } catch (err) { next(err); }

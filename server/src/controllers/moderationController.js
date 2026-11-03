@@ -73,8 +73,8 @@ async function unbanMember(req, res, next) {
   try {
     const { userId } = req.params;
     await requireCommunityPermission(req.user.id, 'BAN_MEMBERS');
-    await prisma.ban.deleteMany({ where: { userId } });
-    await prisma.user.update({ where: { id: userId }, data: { isPlatformBanned: false, platformBanReason: null } });
+    // Mesmo caminho do Painel da Equipe e da revisão aceita (services/punishments.js).
+    await require('../services/punishments').liftBan(userId, { db: prisma });
     const io = req.app.get('io');
     await logAction(io, { actorId: req.user.id, action: 'MEMBER_UNBAN', targetType: 'MEMBER', targetId: userId });
     res.json({ ok: true });

@@ -130,8 +130,9 @@ async function loginVerify(req, res, next) {
     const auth = require('./authController');
     const user = await prisma.user.findUnique({ where: { id: key.userId } });
     if (!user) return res.status(401).json({ error: 'Conta não encontrada.' });
-    if (user.isPlatformBanned) return res.status(403).json({ error: 'Esta conta foi banida da plataforma.', platformBanned: true, reason: user.platformBanReason || undefined });
-    if (user.suspendedUntil && new Date(user.suspendedUntil) > new Date()) return res.status(403).json({ error: `Esta conta está suspensa até ${new Date(user.suspendedUntil).toLocaleString('pt-BR')}.`, suspendedUntil: user.suspendedUntil });
+    // Fase 5: token curto pra pedir revisão da punição (ver services/appeals.js).
+    if (user.isPlatformBanned) return res.status(403).json({ error: 'Esta conta foi banida da plataforma.', platformBanned: true, reason: user.platformBanReason || undefined, appealToken: auth.signAppealTokenSafe(user.id) });
+    if (user.suspendedUntil && new Date(user.suspendedUntil) > new Date()) return res.status(403).json({ error: `Esta conta está suspensa até ${new Date(user.suspendedUntil).toLocaleString('pt-BR')}.`, suspendedUntil: user.suspendedUntil, appealToken: auth.signAppealTokenSafe(user.id) });
     if (user.accountDisabledAt) return res.status(403).json({ error: 'Esta conta foi desativada. Se você quer reativá-la, entre em contato com a equipe do Project Club.', accountDisabled: true });
     // A chave de acesso já é um segundo fator (aparelho + digital/PIN): não pede 2FA.
     const session = await auth.completeLogin(req, res, user);

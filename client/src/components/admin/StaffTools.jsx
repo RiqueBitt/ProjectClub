@@ -369,6 +369,8 @@ const HISTORY_TEXT = {
   USER_UNBAN: 'Banimento da plataforma removido',
   USER_SUSPEND: 'Suspenso',
   USER_UNSUSPEND: 'Suspensão cancelada',
+  APPEAL_ACCEPT: 'Revisão de punição aceita',
+  APPEAL_DENY: 'Revisão de punição recusada',
   USER_ROLE_CHANGE: 'Cargo da plataforma alterado',
   USER_EDIT: 'Perfil editado pela equipe',
   USER_SET_LEVEL: 'Nível alterado',

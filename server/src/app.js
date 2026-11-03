@@ -460,6 +460,8 @@ function createApp() {
   // Primeiros passos (checklist com moedas + tour) e painel de saúde/backup da staff.
   app.use('/api/onboarding', require('./routes/onboarding'));
   app.use('/api/staff-ops', require('./routes/staffOps'));
+  // Fase 5: revisão de banimento/suspensão (pessoa punida + fila da equipe).
+  app.use('/api/appeals', require('./routes/appeals'));
 
   // In production, serve the built React client from a single process
   // (this is what SquareCloud runs — one MAIN process, one port).

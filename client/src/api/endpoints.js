@@ -33,6 +33,14 @@ export const qrLoginExchange = (secret) => api.post('/auth/qr/exchange', { secre
 export const qrLoginScan = (code) => api.post('/auth/qr/scan', { code }).then((r) => r.data);
 export const qrLoginApprove = (code) => api.post('/auth/qr/approve', { code }).then((r) => r.data);
 export const qrLoginDeny = (code) => api.post('/auth/qr/deny', { code }).then((r) => r.data);
+// Revisão de banimento/suspensão (Fase 5). A pessoa punida usa o token curto
+// que o login devolveu junto do 403 (cabeçalho X-Appeal-Token, sem sessão).
+export const getMyAppeal = (token) => api.get('/appeals/mine', { headers: { 'X-Appeal-Token': token } }).then((r) => r.data);
+export const submitAppeal = (token, message) => api.post('/appeals', { message }, { headers: { 'X-Appeal-Token': token } }).then((r) => r.data);
+// Equipe: fila de pedidos e decisão.
+export const staffListAppeals = (status = 'PENDING', cursor = null) => api.get('/appeals/staff', { params: { status, ...(cursor ? { cursor } : {}) } }).then((r) => r.data);
+export const staffAcceptAppeal = (id, reply) => api.post(`/appeals/staff/${encodeURIComponent(id)}/accept`, { reply }).then((r) => r.data);
+export const staffDenyAppeal = (id, reply) => api.post(`/appeals/staff/${encodeURIComponent(id)}/deny`, { reply }).then((r) => r.data);
 // Entrar com Google/Discord/GitHub (ver server/src/controllers/oauthController.js).
 export const getOAuthProviders = () => api.get('/auth/oauth/providers').then((r) => r.data);
 export const oauthStartUrl = (provider, from = 'login') => `/api/auth/oauth/${encodeURIComponent(provider)}/start?from=${from}`;
