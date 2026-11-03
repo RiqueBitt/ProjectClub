@@ -6,8 +6,9 @@ import {
 } from '../../api/endpoints';
 
 // Painel da Equipe → Pingu → funções da Fase 9: boas-vindas, moderação
-// assistida, resumo/tradução e Quiz do Pingu (banco de perguntas, começar
-// agora, quiz diário e placar). Tudo funciona sem a IA, menos o que diz "IA".
+// assistida, resumo/tradução, imagens (Pingu Turbo) e Quiz do Pingu (banco de
+// perguntas, começar agora, quiz diário e placar). Tudo funciona sem a IA,
+// menos o que diz "IA".
 const errText = (e, f) => e?.response?.data?.error || f;
 const TEXT_TYPES = new Set(['TEXT', undefined, null, '']);
 
@@ -177,6 +178,20 @@ export default function PinguFeaturesAdmin() {
         <h4>Resumo e tradução</h4>
         <Toggle checked={cfg.summaryEnabled} onChange={set('summaryEnabled')}>"Resumir o que perdi" nos canais</Toggle>
         <Toggle checked={cfg.translateEnabled} onChange={set('translateEnabled')}>"Traduzir com o Pingu" no menu das mensagens</Toggle>
+
+        <h4>Imagens (Pingu Turbo)</h4>
+        <Toggle checked={cfg.imageEnabled} onChange={set('imageEnabled')}>"@pingu desenhe …" cria imagens (o provedor é escolhido no servidor; estado e histórico mais abaixo)</Toggle>
+        <div className="pgf-grid">
+          <label>Imagens por dia (membro)<input type="number" min={0} max={200} value={cfg.imageDailyLimit ?? 10} onChange={setNum('imageDailyLimit')} /></label>
+          <label>Intervalo entre pedidos (s)<input type="number" min={0} max={3600} value={cfg.imageCooldownSec ?? 30} onChange={setNum('imageCooldownSec')} /></label>
+          <label>Ao mesmo tempo
+            <select value={cfg.imageConcurrency ?? 1} onChange={(e) => set('imageConcurrency')(Number(e.target.value))}>
+              <option value={1}>1 imagem por vez</option>
+              <option value={2}>2 imagens por vez</option>
+            </select>
+          </label>
+        </div>
+        <p className="dim pga-hint">Assinantes podem criar 2× e Super Assinantes 3× o limite por dia.</p>
 
         <h4>Quiz</h4>
         <div className="pgf-grid">

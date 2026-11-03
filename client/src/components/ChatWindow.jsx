@@ -1833,6 +1833,20 @@ function ChatWindowInner({ conversationId, channelId }) {
                     <ChatIcon name="poll" size={16} /> Criar enquete
                   </button>
                 )}
+                {/* Pingu Turbo: começa a mensagem "@pingu desenhe " — é só descrever e enviar. */}
+                {channel && (
+                  <button
+                    type="button"
+                    title="Descreva a imagem e envie (ex.: um pinguim astronauta, paisagem)"
+                    onClick={() => {
+                      setAttachMenuOpen(false);
+                      setContent((c) => (/^@pingu\s+desenhe\b/i.test(c.trim()) ? c : `@pingu desenhe ${c.trim()}`.replace(/\s+$/, ' ')));
+                      setTimeout(() => inputRef.current?.focus?.(), 0);
+                    }}
+                  >
+                    <ChatIcon name="image" size={16} /> Criar imagem com o Pingu
+                  </button>
+                )}
               </div>
             )}
           </div>

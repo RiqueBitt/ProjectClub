@@ -22,6 +22,8 @@ import { profileStyleClass } from '../utils/profileStyle';
 import { cssZoom } from '../utils/cssZoom';
 import { MiniProfilePet } from './pet/ProfilePet.jsx';
 import RoleIcon from './RoleIcon.jsx';
+import PinguHelpPopover from './PinguHelpPopover.jsx';
+import { PINGU_USERNAME } from '../utils/pinguMessage';
 
 // Quantos cargos mostrar no popup compacto (a bio é limitada por CSS a 3
 // linhas — .mini-profile-bio) — o perfil completo (UserProfileModal) mostra
@@ -454,6 +456,11 @@ export default function MiniProfileCard() {
                 atividade em vez de embaixo da biografia") — o
                 ActivityBadge continua DEPOIS da bio. */}
             <ActivityBadge userId={renderedUserId} />
+
+            {/* Pingu Turbo: comandos do Pingu e atalho pra DM com ele. */}
+            {String(user.username || '').toLowerCase() === PINGU_USERNAME && (
+              <PinguHelpPopover userId={user.id} onNavigate={closeMiniProfile} />
+            )}
 
             {mutualFriends.length > 0 && (
               <div className="mini-profile-mutual-row dim">

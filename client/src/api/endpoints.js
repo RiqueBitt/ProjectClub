@@ -228,6 +228,10 @@ export const getPinguStatus = () => api.get('/pingu/status').then((r) => r.data)
 export const requestPinguSummary = (channelId, since) => api.post('/pingu/summary', { channelId, since }).then((r) => r.data);
 export const requestPinguTranslation = (messageId, lang) => api.post('/pingu/translate', { messageId, lang }).then((r) => r.data);
 export const getPinguQuizScoreboard = () => api.get('/pingu/quiz/scoreboard').then((r) => r.data);
+// Pingu Turbo: lista de comandos (popover no perfil do Pingu) e imagens no painel.
+export const getPinguHelp = () => api.get('/pingu/help').then((r) => r.data);
+export const listPinguImages = (status) => api.get('/admin/pingu/images', { params: status ? { status } : {} }).then((r) => r.data);
+export const deletePinguImage = (id) => api.delete(`/admin/pingu/images/${id}`).then((r) => r.data);
 // Wiki da comunidade (/wiki).
 export const listWikiPages = (q) => api.get('/wiki', { params: q ? { q } : {} }).then((r) => r.data);
 export const getWikiPage = (slug) => api.get(`/wiki/${encodeURIComponent(slug)}`).then((r) => r.data);

@@ -36,6 +36,7 @@ import { InternalLinkCards } from './InternalLinkCard.jsx';
 import { findInternalLinks } from '../utils/internalLinks';
 import i18n from '../i18n';
 import { usePinguEphemeral, requestTranslation, hideTranslation, langLabel } from '../utils/pinguEphemeral';
+import { isPinguStreaming, pinguImageAttachments, downloadName } from '../utils/pinguMessage';
 import '../styles/pingu.css';
 import { cssZoom } from '../utils/cssZoom';
 import { registerEditor, getRetry, getCancel } from '../utils/chatComposerBus';
@@ -550,6 +551,8 @@ function MessageBody({ message, showAuthor, onReply, topics = [], onOpenTopic, i
               ) : (
                 <div className={`message-content ${isEmojiOnlyMessage(message.content, emojiMap) ? 'emoji-only' : ''}`}>
                   {renderRichContent(message.content, { emojiMap, memberNames, roleNames, memberInfoByName, roleInfoByName })}
+                  {/* Pingu Turbo: resposta sendo escrita ao vivo (cursor piscando). */}
+                  {isPinguStreaming(message) && <span className="pingu-caret" aria-label="O Pingu está escrevendo" />}
                   {message.edited && <EditedTag message={message} />}
                 </div>
               )
@@ -648,6 +651,9 @@ function MessageBody({ message, showAuthor, onReply, topics = [], onOpenTopic, i
             })()}
           </div>
         )}
+
+        {/* Pingu Turbo: imagem criada pelo Pingu — selo + baixar. */}
+        <PinguImageMeta message={message} />
 
         {topics.length > 0 && (
           <div className="topic-pills thread-cards">
@@ -961,6 +967,22 @@ function speakMessage(message) {
     if (voice) u.voice = voice;
     synth.speak(u);
   } catch { /* sem voz no navegador */ }
+}
+
+// Imagem do Pingu ("@pingu desenhe …"): selo e botão de baixar o arquivo.
+function PinguImageMeta({ message }) {
+  const images = pinguImageAttachments(message);
+  if (!images.length) return null;
+  return (
+    <div className="pingu-img-meta">
+      <span className="pingu-img-badge" title="Imagem gerada por IA a pedido de alguém">✨ Criada pelo Pingu</span>
+      {images.map((a) => (
+        <a key={a.id || a.url} className="pingu-img-dl" href={a.url} download={downloadName(a)} target="_blank" rel="noopener noreferrer">
+          <ChatIcon name="download" size={14} /> Baixar
+        </a>
+      ))}
+    </div>
+  );
 }
 
 // Tradução do Pingu embaixo da mensagem — só aparece pra quem pediu

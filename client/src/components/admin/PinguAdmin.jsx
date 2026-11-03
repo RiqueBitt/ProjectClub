@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { getPinguAdmin, updatePinguAdmin, uploadPinguImage } from '../../api/endpoints';
 import UserAvatar from '../UserAvatar.jsx';
 import PinguFeaturesAdmin from './PinguFeaturesAdmin.jsx';
+import PinguImagesAdmin from './PinguImagesAdmin.jsx';
 import '../../styles/pingu-admin.css';
 
 // Painel da Equipe → Comunidade → Pingu (assistente de IA).
@@ -66,6 +67,17 @@ export default function PinguAdmin() {
         <p className="dim pga-sub">
           Modelo <b>{state.model}</b>{state.queue ? ` · ${state.queue} pergunta(s) na fila` : ''}. Chamado com <b>@{u?.username || 'pingu'}</b> ou respondendo uma mensagem dele.
         </p>
+        {/* Pingu Turbo: números desde que o servidor ligou (ver docs/pingu-turbo.md). */}
+        {state.perf && (
+          <p className="dim pga-sub pga-perf">
+            {state.streaming ? 'Respostas ao vivo (streaming) ligadas' : 'Streaming desligado'} · contexto {state.numCtx} · {state.numThread} threads
+            {state.perf.avgFirstTokenMs !== null ? ` · 1ª palavra em ~${(state.perf.avgFirstTokenMs / 1000).toFixed(1)} s` : ''}
+            {state.perf.avgTotalMs !== null ? ` · resposta completa em ~${(state.perf.avgTotalMs / 1000).toFixed(1)} s` : ''}
+            {state.perf.evalTokPerSec ? ` · ${state.perf.evalTokPerSec} tokens/s escrevendo` : ''}
+            {state.perf.promptTokPerSec ? ` · ${state.perf.promptTokPerSec} tokens/s lendo` : ''}
+            {` · ${state.perf.localHits} instantâneas sem IA · ${state.perf.cacheHits} do cache · ${state.perf.sharedHits} caronas · ${state.perf.modelCalls} chamadas à IA`}
+          </p>
+        )}
         <div className="pga-actions">
           <button type="button" className="btn-secondary" disabled={busy} onClick={() => avatarRef.current?.click()}>Trocar foto</button>
           <button type="button" className="btn-secondary" disabled={busy} onClick={() => bannerRef.current?.click()}>Trocar capa</button>
@@ -101,8 +113,11 @@ export default function PinguAdmin() {
         </div>
       </form>
 
-      {/* Fase 9: boas-vindas, moderação assistida, resumo/tradução e quiz. */}
+      {/* Fase 9: boas-vindas, moderação assistida, resumo/tradução, imagens e quiz. */}
       <PinguFeaturesAdmin />
+
+      {/* Pingu Turbo: estado do provedor de imagens e histórico de pedidos. */}
+      <PinguImagesAdmin />
     </div>
   );
 }
