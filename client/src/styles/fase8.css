@@ -1,0 +1,177 @@
+/* Fase 8 — mascote pinguim, Praça virtual e Loja dos criadores.
+   Usa só as variáveis de tema (claro/escuro/amoled) do global.css. */
+
+/* ---------- Pinguim (SVG) ---------- */
+.pet-svg { overflow: visible; display: block; }
+.pet-svg.is-animated .pet-body { animation: pet-bob 2.8s ease-in-out infinite; transform-box: view-box; transform-origin: 60px 110px; }
+.pet-svg.is-animated .pet-eyes { animation: pet-blink 5s infinite; transform-box: view-box; transform-origin: 60px 50px; }
+.pet-svg.is-animated .pet-wing-l { animation: pet-flap-l 2.8s ease-in-out infinite; transform-box: view-box; transform-origin: 34px 54px; }
+.pet-svg.is-animated .pet-wing-r { animation: pet-flap-r 2.8s ease-in-out infinite; transform-box: view-box; transform-origin: 86px 54px; }
+.pet-svg.is-animated .pet-aura { animation: pet-glow 3.2s ease-in-out infinite; transform-box: view-box; transform-origin: 60px 64px; }
+.pet-svg.is-animated .pet-sparkles path { animation: pet-twinkle 2.4s ease-in-out infinite; transform-box: fill-box; transform-origin: center; }
+.pet-svg.is-animated .pet-sparkles path:nth-child(2) { animation-delay: .8s; }
+.pet-svg.is-animated .pet-sparkles path:nth-child(3) { animation-delay: 1.6s; }
+.pet-svg.is-animated .pet-balloon { animation: pet-sway 3.6s ease-in-out infinite; transform-box: view-box; transform-origin: 96px 76px; }
+.pet-svg.is-animated.is-sad .pet-body { animation-duration: 4.6s; }
+.pet-svg.is-animated .pet-shadow { animation: pet-shadow 2.8s ease-in-out infinite; transform-box: fill-box; transform-origin: center; }
+
+@keyframes pet-bob { 0%, 100% { transform: translateY(0) scaleY(1); } 50% { transform: translateY(-3px) scaleY(1.015); } }
+@keyframes pet-shadow { 0%, 100% { transform: scaleX(1); opacity: 1; } 50% { transform: scaleX(.9); opacity: .75; } }
+@keyframes pet-blink { 0%, 92%, 100% { transform: scaleY(1); } 95% { transform: scaleY(.1); } }
+@keyframes pet-flap-l { 0%, 100% { transform: rotate(0deg); } 50% { transform: rotate(8deg); } }
+@keyframes pet-flap-r { 0%, 100% { transform: rotate(0deg); } 50% { transform: rotate(-8deg); } }
+@keyframes pet-glow { 0%, 100% { opacity: .65; transform: scale(.96); } 50% { opacity: 1; transform: scale(1.04); } }
+@keyframes pet-twinkle { 0%, 100% { opacity: .2; transform: scale(.6); } 50% { opacity: 1; transform: scale(1.15); } }
+@keyframes pet-sway { 0%, 100% { transform: rotate(-4deg); } 50% { transform: rotate(4deg); } }
+@keyframes pet-hop { 0% { transform: translateY(0); } 30% { transform: translateY(-14px); } 60% { transform: translateY(0); } 75% { transform: translateY(-5px); } 100% { transform: translateY(0); } }
+
+@media (prefers-reduced-motion: reduce) {
+  .pet-svg.is-animated * { animation: none !important; }
+}
+
+/* ---------- Card do pinguim no perfil ---------- */
+.pet-profile-card {
+  display: flex; align-items: center; gap: 14px; padding: 14px 16px; margin: 12px 0 4px;
+  border-radius: 16px; border: 1px solid var(--border); background: var(--bg-secondary);
+}
+.pet-profile-card .pet-profile-figure { flex: none; display: grid; place-items: center; width: 96px; height: 96px; border-radius: 14px;
+  background: radial-gradient(circle at 50% 80%, color-mix(in srgb, var(--brand) 18%, transparent), transparent 70%); }
+.pet-profile-card .pet-profile-info { min-width: 0; display: flex; flex-direction: column; gap: 4px; }
+.pet-profile-card strong { color: var(--header-primary); font-size: 16px; }
+.pet-profile-card .pet-profile-meta { color: var(--text-muted); font-size: 13px; }
+.pet-profile-card .pet-profile-bar { height: 6px; border-radius: 99px; background: var(--bg-modifier-hover); overflow: hidden; max-width: 220px; }
+.pet-profile-card .pet-profile-bar span { display: block; height: 100%; background: var(--brand); border-radius: inherit; }
+.pet-profile-card .pet-profile-link { align-self: flex-start; margin-top: 2px; background: none; border: 0; padding: 0; color: var(--text-link, var(--brand)); cursor: pointer; font-size: 13px; }
+.pet-stage-chip { display: inline-flex; align-items: center; gap: 4px; padding: 2px 8px; border-radius: 99px; font-size: 12px; font-weight: 600;
+  background: color-mix(in srgb, var(--brand) 16%, transparent); color: var(--brand); width: fit-content; }
+.pet-stage-chip.is-legend { background: color-mix(in srgb, #F4C430 25%, transparent); color: #B88A00; }
+.pet-mini { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; color: var(--text-muted); }
+
+/* ---------- Página "Meu pinguim" ---------- */
+.pet-page-grid { display: grid; grid-template-columns: minmax(260px, 340px) 1fr; gap: 18px; align-items: start; }
+.pet-stage-panel { position: sticky; top: 12px; display: flex; flex-direction: column; align-items: center; gap: 10px; padding: 20px 16px;
+  border-radius: 20px; border: 1px solid var(--border);
+  background: linear-gradient(180deg, color-mix(in srgb, #8FC9F0 22%, var(--bg-secondary)), var(--bg-secondary) 70%); }
+.pet-stage-panel .pet-hop { animation: pet-hop .7s ease-out; }
+.pet-stage-panel h2 { margin: 0; color: var(--header-primary); font-size: 22px; }
+.pet-stage-panel .pet-mood { color: var(--text-muted); font-size: 13px; }
+.pet-progress { width: 100%; }
+.pet-progress-label { display: flex; justify-content: space-between; font-size: 12px; color: var(--text-muted); margin-bottom: 4px; }
+.pet-progress-track { height: 8px; border-radius: 99px; background: var(--bg-modifier-hover); overflow: hidden; }
+.pet-progress-track span { display: block; height: 100%; border-radius: inherit; background: linear-gradient(90deg, var(--brand), #8FC9F0); transition: width .5s var(--ease-smooth, ease); }
+.pet-stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; width: 100%; }
+.pet-stats div { display: flex; flex-direction: column; align-items: center; padding: 8px 4px; border-radius: 12px; background: var(--bg-primary); }
+.pet-stats b { color: var(--header-primary); font-size: 18px; }
+.pet-stats span { color: var(--text-muted); font-size: 11px; }
+.pet-care-btn { width: 100%; padding: 12px; border: 0; border-radius: 12px; font-weight: 700; font-size: 15px; cursor: pointer;
+  background: var(--brand); color: #fff; transition: transform .15s, filter .15s; }
+.pet-care-btn:hover:not(:disabled) { filter: brightness(1.08); transform: translateY(-1px); }
+.pet-care-btn:disabled { opacity: .6; cursor: default; }
+.pet-section { padding: 16px; border-radius: 16px; border: 1px solid var(--border); background: var(--bg-secondary); margin-bottom: 14px; }
+.pet-section h3 { margin: 0 0 10px; color: var(--header-primary); font-size: 15px; }
+.pet-name-row { display: flex; gap: 8px; flex-wrap: wrap; }
+.pet-name-row input { flex: 1; min-width: 160px; padding: 9px 12px; border-radius: 10px; border: 1px solid var(--border); background: var(--bg-primary); color: var(--text-normal); }
+.pet-colors { display: flex; flex-wrap: wrap; gap: 8px; }
+.pet-color { width: 34px; height: 34px; border-radius: 50%; border: 3px solid transparent; cursor: pointer; box-shadow: 0 0 0 1px var(--border); }
+.pet-color.active { border-color: var(--header-primary); }
+.pet-acc-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 10px; }
+.pet-acc { display: flex; flex-direction: column; align-items: center; gap: 6px; padding: 10px; border-radius: 14px; border: 1px solid var(--border); background: var(--bg-primary); text-align: center; }
+.pet-acc.is-equipped { border-color: var(--brand); box-shadow: 0 0 0 1px var(--brand) inset; }
+.pet-acc.is-locked { opacity: .6; }
+.pet-acc span { font-size: 13px; color: var(--text-normal); font-weight: 600; }
+.pet-acc small { font-size: 11px; color: var(--text-muted); }
+.pet-acc button { width: 100%; }
+.pet-btn { padding: 7px 12px; border-radius: 10px; border: 1px solid var(--border); background: var(--bg-elevated, var(--bg-secondary)); color: var(--text-normal); cursor: pointer; font-weight: 600; font-size: 13px; }
+.pet-btn.primary { background: var(--brand); color: #fff; border-color: transparent; }
+.pet-btn.danger { color: var(--red); }
+.pet-btn:disabled { opacity: .55; cursor: default; }
+.pet-stage-road { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; }
+.pet-stage-road div { display: flex; flex-direction: column; align-items: center; gap: 2px; padding: 8px 4px; border-radius: 12px; background: var(--bg-primary); font-size: 12px; color: var(--text-muted); }
+.pet-stage-road div.reached { color: var(--header-primary); box-shadow: 0 0 0 1px var(--brand) inset; }
+
+@media (max-width: 760px) {
+  .pet-page-grid { grid-template-columns: 1fr; }
+  .pet-stage-panel { position: static; }
+}
+
+/* ---------- Praça ---------- */
+.praca-page { display: flex; flex-direction: column; height: 100%; min-height: 0; background: var(--bg-primary); }
+.praca-top { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; padding: 10px 14px; border-bottom: 1px solid var(--border); }
+.praca-top h1 { margin: 0; font-size: 18px; color: var(--header-primary); }
+.praca-top .praca-count { color: var(--text-muted); font-size: 13px; }
+.praca-top select { padding: 6px 8px; border-radius: 8px; border: 1px solid var(--border); background: var(--bg-secondary); color: var(--text-normal); }
+.praca-top .praca-spacer { flex: 1; }
+.praca-viewport { position: relative; flex: 1; min-height: 360px; overflow: hidden; touch-action: none; outline: none; cursor: crosshair;
+  background: #CFE8F7; }
+.praca-world { position: absolute; left: 0; top: 0; transform-origin: 0 0; will-change: transform; }
+.praca-map { position: absolute; inset: 0; }
+.praca-avatar { position: absolute; left: 0; top: 0; width: 0; height: 0; pointer-events: none; will-change: transform; }
+.praca-avatar-inner { position: absolute; left: -22px; top: -46px; width: 44px; display: flex; flex-direction: column; align-items: center; }
+.praca-avatar.is-me .praca-name { background: var(--brand); color: #fff; }
+.praca-avatar.is-walking .pet-svg { animation: praca-walk .32s ease-in-out infinite; }
+.praca-avatar img.praca-photo { width: 34px; height: 34px; border-radius: 50%; border: 2px solid #fff; box-shadow: 0 2px 6px rgba(0,0,0,.25); object-fit: cover; background: #fff; }
+.praca-name { margin-top: 2px; max-width: 120px; padding: 1px 6px; border-radius: 99px; font-size: 11px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  background: rgba(20, 22, 28, .72); color: #fff; }
+.praca-bubble { position: absolute; bottom: 100%; left: 50%; transform: translateX(-50%); margin-bottom: 6px; max-width: 220px; width: max-content;
+  padding: 6px 10px; border-radius: 14px; background: #fff; color: #1C1E21; font-size: 13px; line-height: 1.3; box-shadow: 0 3px 10px rgba(0,0,0,.18);
+  word-break: break-word; animation: praca-pop .18s ease-out; }
+.praca-bubble::after { content: ''; position: absolute; top: 100%; left: 50%; transform: translateX(-50%); border: 6px solid transparent; border-top-color: #fff; }
+@keyframes praca-pop { from { transform: translateX(-50%) scale(.6); opacity: 0; } to { transform: translateX(-50%) scale(1); opacity: 1; } }
+@keyframes praca-walk { 0%, 100% { transform: rotate(-6deg); } 50% { transform: rotate(6deg) translateY(-2px); } }
+.praca-zone-label { position: absolute; padding: 2px 8px; border-radius: 99px; font-size: 12px; font-weight: 700; color: #24303a; background: rgba(255,255,255,.75); pointer-events: none; transform: translate(-50%, -50%); }
+.praca-target { position: absolute; width: 18px; height: 18px; margin: -9px 0 0 -9px; border-radius: 50%; border: 2px solid rgba(255,255,255,.9); pointer-events: none; animation: praca-target .6s ease-out forwards; }
+@keyframes praca-target { from { transform: scale(.4); opacity: 1; } to { transform: scale(1.6); opacity: 0; } }
+.praca-radius { position: absolute; border-radius: 50%; border: 2px dashed rgba(62, 160, 224, .45); background: rgba(62, 160, 224, .06); pointer-events: none; }
+.praca-chat { display: flex; gap: 8px; padding: 10px 14px; border-top: 1px solid var(--border); background: var(--bg-secondary); }
+.praca-chat input { flex: 1; min-width: 0; padding: 10px 12px; border-radius: 12px; border: 1px solid var(--border); background: var(--bg-primary); color: var(--text-normal); font-size: 14px; }
+.praca-hint { color: var(--text-muted); font-size: 12px; padding: 0 14px 8px; background: var(--bg-secondary); }
+.praca-toast { position: absolute; left: 50%; top: 12px; transform: translateX(-50%); padding: 8px 14px; border-radius: 12px; background: rgba(20,22,28,.85); color: #fff; font-size: 13px; z-index: 3; max-width: 90%; }
+.praca-voice { position: absolute; right: 12px; bottom: 12px; z-index: 3; display: flex; align-items: center; gap: 8px; padding: 10px 12px; border-radius: 14px; background: var(--bg-floating-solid, var(--bg-secondary)); box-shadow: 0 6px 20px rgba(0,0,0,.25); color: var(--text-normal); font-size: 13px; }
+.praca-status { position: absolute; inset: 0; display: grid; place-items: center; color: #24303a; font-weight: 600; z-index: 2; pointer-events: none; }
+.praca-pad { position: absolute; left: 12px; bottom: 12px; z-index: 3; display: none; grid-template-columns: repeat(3, 40px); grid-template-rows: repeat(3, 40px); gap: 4px; }
+.praca-pad button { border: 0; border-radius: 10px; background: rgba(255,255,255,.75); font-size: 18px; color: #24303a; touch-action: none; }
+@media (hover: none) and (pointer: coarse) { .praca-pad { display: grid; } }
+
+/* ---------- Loja dos criadores ---------- */
+.cs-toolbar { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin: 10px 0 14px; }
+.cs-toolbar input, .cs-toolbar select { padding: 8px 10px; border-radius: 10px; border: 1px solid var(--border); background: var(--bg-secondary); color: var(--text-normal); }
+.cs-toolbar input { flex: 1; min-width: 160px; }
+.cs-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(170px, 1fr)); gap: 12px; }
+.cs-card { display: flex; flex-direction: column; gap: 8px; padding: 12px; border-radius: 16px; border: 1px solid var(--border); background: var(--bg-secondary); transition: transform .15s, box-shadow .15s; }
+.cs-card:hover { transform: translateY(-2px); box-shadow: 0 8px 20px rgba(0,0,0,.12); }
+.cs-preview { position: relative; display: grid; place-items: center; height: 120px; border-radius: 12px; background:
+  repeating-conic-gradient(var(--bg-modifier-hover) 0 25%, transparent 0 50%) 0 0 / 16px 16px; }
+.cs-preview img { max-width: 100%; max-height: 100%; object-fit: contain; }
+.cs-preview.is-emoji img { width: 56px; height: 56px; }
+.cs-preview.is-frame .cs-frame-avatar { position: relative; width: 72px; height: 72px; }
+.cs-preview.is-frame .cs-frame-avatar > span { position: absolute; inset: 0; border-radius: 50%; background: var(--bg-modifier-hover); }
+.cs-preview.is-frame .cs-frame-avatar img { position: absolute; left: -10%; top: -10%; width: 120%; height: 120%; }
+.cs-kind { position: absolute; left: 8px; top: 8px; padding: 1px 7px; border-radius: 99px; font-size: 11px; font-weight: 700; background: rgba(20,22,28,.7); color: #fff; }
+.cs-card h4 { margin: 0; font-size: 14px; color: var(--header-primary); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.cs-by { font-size: 12px; color: var(--text-muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.cs-actions { display: flex; align-items: center; justify-content: space-between; gap: 6px; margin-top: auto; }
+.cs-report { background: none; border: 0; color: var(--text-muted); font-size: 12px; cursor: pointer; padding: 2px; }
+.cs-report:hover { color: var(--red); }
+.cs-form { display: grid; gap: 10px; max-width: 560px; }
+.cs-form label { display: grid; gap: 4px; font-size: 13px; color: var(--text-muted); font-weight: 600; }
+.cs-form input, .cs-form select, .cs-form textarea { padding: 9px 12px; border-radius: 10px; border: 1px solid var(--border); background: var(--bg-primary); color: var(--text-normal); font: inherit; }
+.cs-form .cs-hint { font-size: 12px; color: var(--text-muted); font-weight: 400; }
+.cs-kinds { display: flex; gap: 8px; flex-wrap: wrap; }
+.cs-kinds button { flex: 1; min-width: 110px; padding: 10px; border-radius: 12px; border: 1px solid var(--border); background: var(--bg-primary); color: var(--text-normal); cursor: pointer; font-weight: 600; }
+.cs-kinds button.active { border-color: var(--brand); box-shadow: 0 0 0 1px var(--brand) inset; color: var(--brand); }
+.cs-status { display: inline-block; padding: 1px 8px; border-radius: 99px; font-size: 11px; font-weight: 700; }
+.cs-status.PENDING { background: color-mix(in srgb, var(--yellow) 25%, transparent); color: #9a7400; }
+.cs-status.APPROVED { background: color-mix(in srgb, var(--green) 22%, transparent); color: var(--green); }
+.cs-status.REJECTED, .cs-status.REMOVED { background: color-mix(in srgb, var(--red) 18%, transparent); color: var(--red); }
+.cs-list { display: flex; flex-direction: column; gap: 8px; }
+.cs-row { display: flex; align-items: center; gap: 12px; padding: 10px 12px; border-radius: 14px; border: 1px solid var(--border); background: var(--bg-secondary); flex-wrap: wrap; }
+.cs-row img { width: 56px; height: 56px; object-fit: contain; border-radius: 10px; background: var(--bg-primary); flex: none; }
+.cs-row .cs-row-main { flex: 1; min-width: 160px; display: flex; flex-direction: column; gap: 2px; font-size: 13px; color: var(--text-normal); }
+.cs-row .cs-row-main small { color: var(--text-muted); }
+.cs-row .cs-row-actions { display: flex; gap: 6px; flex-wrap: wrap; }
+.cs-earnings { display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 12px; }
+.cs-earnings div { padding: 10px 14px; border-radius: 14px; background: var(--bg-secondary); border: 1px solid var(--border); font-size: 13px; color: var(--text-muted); }
+.cs-earnings b { display: block; font-size: 20px; color: var(--header-primary); }
+.creator-stickers-label { display: flex; justify-content: space-between; }
+.praca-page .sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+.praca-figure { transition: transform .12s; }
