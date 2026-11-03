@@ -21,6 +21,7 @@ import ProfileEffectOverlay from './ProfileEffectOverlay.jsx';
 import { profileStyleClass } from '../utils/profileStyle';
 import { cssZoom } from '../utils/cssZoom';
 import { MiniProfilePet } from './pet/ProfilePet.jsx';
+import RoleIcon from './RoleIcon.jsx';
 
 // Quantos cargos mostrar no popup compacto (a bio é limitada por CSS a 3
 // linhas — .mini-profile-bio) — o perfil completo (UserProfileModal) mostra
@@ -439,7 +440,7 @@ export default function MiniProfileCard() {
                 <div className="mini-profile-roles-row">
                   {visibleRoles.map((r) => (
                     <span key={r.id} className="role-chip" style={roleChipStyle(r.color)}>
-                      {r.icon ? `${r.icon} ` : ''}{r.name}
+                      <RoleIcon icon={r.icon} />{r.name}
                     </span>
                   ))}
                   {memberRoles.length > visibleRoles.length && (
