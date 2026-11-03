@@ -16,6 +16,13 @@
 //          producerPaused · producerResumed · activeSpeakers · consumerClosed
 //          consumerPaused · consumerResumed · transportClosed · kicked · error
 //          serverState {canSpeak,canVideo,role,serverMuted,serverDeafened,closedProducerIds}
+//          producerLayers {producerId,maxSpatialLayer} (só pra quem PUBLICA câmera/tela
+//          com simulcast: maior camada que alguém assiste; -1 = ninguém — "dynacast")
+//
+// Versão do protocolo: o `welcome` traz `protocol` (2 desde a revisão
+// voz-turbo) e `features` (o que este servidor sabe fazer). Cliente antigo
+// ignora os dois; cliente novo usa pra ligar recurso só quando o servidor
+// tem (servidor antigo não manda nada = protocolo 1).
 //
 // Códigos de fechamento: 4401 token recusado (detalhe em error.reason/detail:
 // 'expired' | 'invalid') · 4403 expulso pela moderação (NÃO reconectar) ·
@@ -44,6 +51,15 @@ const perm = require('./permissions');
 // Hora em cada linha (o log do docker sem --timestamps não tem): dá pra
 // cruzar "saiu/entrou" com o que a pessoa relatou.
 const log = (...a) => console.log(new Date().toISOString(), '[media]', ...a);
+
+// Protocolo da sinalização (ver cabeçalho). Só ACRESCENTA coisas: tudo que
+// o protocolo 1 tinha continua igual.
+const PROTOCOL_VERSION = 2;
+function serverFeatures() {
+  const f = ['restartIce', 'pauseConsumer', 'preferredLayers', 'consumerPriority', 'serverState', 'audioNack'];
+  if (config.dynacast) f.push('producerLayers');
+  return f;
+}
 
 function verifyToken(token) {
   let payload;
@@ -358,6 +374,12 @@ function attach(httpServer) {
     if (!room.onActiveSpeakers) {
       room.onActiveSpeakers = (peerIds) => broadcast(room, 'activeSpeakers', { peerIds });
     }
+    if (!room.onProducerLayers) {
+      // Dynacast: só o DONO do producer recebe (ninguém mais precisa saber).
+      room.onProducerLayers = (owner, producerId, maxSpatialLayer) => {
+        if (owner && !owner.closed) send(owner.socket, { event: 'producerLayers', data: { producerId, maxSpatialLayer } });
+      };
+    }
     peer.onTransportClosed = (transportId, reason) => send(socket, { event: 'transportClosed', data: { transportId, reason } });
     log(`entrou: ${auth.userId} em ${room.name} (${room.size} na sala)${replaced ? ' [substituiu sessão anterior]' : ''}`);
 
@@ -369,6 +391,8 @@ function attach(httpServer) {
         ...room.snapshotFor(peer.id),
         // Estado imposto pelo servidor (permissões, mudo/ensurdecer da moderação).
         serverState: { ...peer.perms },
+        protocol: PROTOCOL_VERSION,
+        features: serverFeatures(),
       },
     });
     broadcast(room, 'peerJoined', { peerId: peer.id, name: peer.name }, peer.id);
@@ -489,6 +513,7 @@ function attach(httpServer) {
             // Retoma (e pede quadro-chave no vídeo) — a não ser que a
             // moderação tenha ensurdecido a pessoa (áudio fica pausado).
             await applyConsumerPause(peer, c);
+            if (c.kind === 'video') room.layerNeedChanged(c.producerId);
             reply(true, { paused: c.paused });
             return;
           }
@@ -507,6 +532,7 @@ function attach(httpServer) {
             if (!c) throw new Error('consumer não encontrado');
             c.appData.clientPaused = true;
             await applyConsumerPause(peer, c);
+            if (c.kind === 'video') room.layerNeedChanged(c.producerId);
             reply(true, { paused: c.paused });
             return;
           }
@@ -525,6 +551,7 @@ function attach(httpServer) {
               if (Number.isFinite(tl)) layers.temporalLayer = Math.max(0, Math.min(15, tl));
             }
             await c.setPreferredLayers(layers);
+            room.layerNeedChanged(c.producerId);
             reply(true, { applied: true, preferredLayers: c.preferredLayers || null });
             return;
           }
@@ -584,4 +611,4 @@ function attach(httpServer) {
 
 function _resetGuards() { superseded.clear(); swaps.clear(); connectHits.clear(); overrides.clear(); kickedAt.clear(); }
 
-module.exports = { attach, verifyToken, control, handleControlRequest, issuedBefore, _resetGuards };
+module.exports = { attach, verifyToken, control, handleControlRequest, issuedBefore, _resetGuards, PROTOCOL_VERSION, serverFeatures };

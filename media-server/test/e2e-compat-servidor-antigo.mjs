@@ -113,8 +113,13 @@ const pageHttp = createServer((req, res) => {
 await new Promise((r) => pageHttp.listen(0, '127.0.0.1', r));
 const PAGE = `http://127.0.0.1:${pageHttp.address().port}/`;
 
+// PW_CHROMIUM: caminho de um Chromium já instalado (máquina sem o navegador
+// da versão do Playwright) — com ele, sem proxy do sistema (o WebSocket local
+// não pode passar por proxy).
 const browser = await chromium.launch({
-  args: ['--use-fake-device-for-media-stream', '--use-fake-ui-for-media-stream', '--autoplay-policy=no-user-gesture-required'],
+  ...(process.env.PW_CHROMIUM ? { executablePath: process.env.PW_CHROMIUM } : {}),
+  args: ['--use-fake-device-for-media-stream', '--use-fake-ui-for-media-stream', '--autoplay-policy=no-user-gesture-required',
+    ...(process.env.PW_CHROMIUM ? ['--no-proxy-server'] : [])],
 });
 const token = (sub, name) => jwt.sign({ sub, room: ROOM, name }, SECRET, { algorithm: 'HS256', expiresIn: '10m' });
 // Bytes de áudio recebidos de `uid` (todas as faixas de áudio dele).

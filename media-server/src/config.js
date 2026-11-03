@@ -98,6 +98,17 @@ const config = {
   // altos era estrangulada pelo BWE do servidor.
   maxIncomingBitrate: num(env.MEDIA_MAX_INCOMING_BITRATE, 12_000_000),
 
+  // "Dynacast" (revisão voz-turbo): o servidor avisa quem publica câmera/tela
+  // com simulcast qual é a MAIOR camada que alguém está assistindo de fato
+  // (evento producerLayers). O publicador desliga as camadas que ninguém vê
+  // (Producer.setMaxSpatialLayer) — tela 1080p/60 em miniatura pra todo mundo
+  // deixa de codificar a camada cheia: muito menos CPU e upload no PC de quem
+  // transmite. Subir de camada é na hora; descer espera `dynacastDownMs` (sem
+  // liga-desliga quando alguém mexe no tamanho do vídeo). Cliente antigo
+  // ignora o evento (fica tudo como antes). MEDIA_DYNACAST=0 desliga.
+  dynacast: env.MEDIA_DYNACAST !== '0',
+  dynacastDownMs: Math.max(0, num(env.MEDIA_DYNACAST_DOWN_MS, 3000)),
+
   // Controle backend → servidor de mídia (POST /control): tamanho máximo do
   // corpo e por quanto tempo uma ordem (mudo do servidor, permissões) vale
   // pra reconexões com um token ANTIGO (emitido antes da ordem).

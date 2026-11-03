@@ -93,7 +93,9 @@
 //   onRemoteRemove(uid, 'audio'|'video'|'all', source?)  source = 'camera'|'screen' (só vídeo)
 //   onConnectionStats({ rtt, sendLoss, connected })  (~a cada 2s)
 //   onTelemetry({ type, ... }), onError(err, info)
-// API nova documentada em docs/voz-discord-api.md.
+// API nova documentada em docs/voz-discord-api.md; revisão de desempenho
+// (portão rápido, buffer adaptativo, dynacast, getStats único) em
+// docs/voz-turbo.md.
 import { createMicPipeline } from './micPipeline.js';
 import { NOISE_MODELS } from './noiseModels.js';
 import { createMicGate, createSpeakingDetector, createThrottle, dbToLevel, GATE_DEFAULTS } from './micGate.js';
@@ -105,6 +107,21 @@ import {
   normalizeScreenPreset, screenEncodings, screenContentHint, screenVideoConstraints, displayMediaOptions,
   spatialLayersOf, viewportDecision, CONSUMER_PRIORITY,
 } from './screenPresets.js';
+import {
+  jitteredDelay, jitterTargetDecision, matchInboundStats, speakingChanges, producerMaxLayer,
+} from './netAdapt.js';
+
+// Revisão voz-turbo — chaves de emergência por aparelho (sem novo deploy):
+// localStorage 'pc:voz:desligar' = lista separada por vírgula com
+// 'portao-rapido' (portão do mic no AudioWorklet), 'buffer-adaptativo'
+// (buffer de recepção que cresce com perda) e/ou 'dynacast' (desligar as
+// camadas de vídeo que ninguém assiste).
+function turboDisabled() {
+  try {
+    const raw = typeof localStorage !== 'undefined' ? localStorage.getItem('pc:voz:desligar') : '';
+    return new Set(String(raw || '').split(',').map((x) => x.trim()).filter(Boolean));
+  } catch { return new Set(); }
+}
 
 let msPromise = null;
 function loadMediasoup() {
@@ -263,6 +280,11 @@ export class MediasoupEngine {
     this._venmicActive = false; // microfone virtual do venmic ligado (Linux/app de PC)
     // Recepção sob medida: `${uid}|${kind}` -> Map(viewId -> { visible, height }).
     this.viewports = new Map();
+    // Revisão voz-turbo.
+    this.turboOff = turboDisabled();
+    this.serverProtocol = 1;          // welcome.protocol (servidor antigo não manda = 1)
+    this.serverFeatures = new Set();  // welcome.features
+    this._remoteSpeaking = new Set(); // quem está aceso agora (só avisa quem muda)
   }
 
   getNode() { return null; }
@@ -393,6 +415,7 @@ export class MediasoupEngine {
     this.peers.delete(uid);
     for (const [cid, c] of [...this.consumers]) { if (c.peerId === uid) { try { c.consumer.close(); } catch { /* ok */ } this.consumers.delete(cid); } }
     this.inboundAudio.delete(uid);
+    this._remoteSpeaking.delete(uid);
     this.cb.onRemoteRemove?.(uid, 'all');
     this.cb.onMediaUser?.(uid, false);
   }
@@ -450,9 +473,17 @@ export class MediasoupEngine {
           const local = ids.has(this.myId) && !this.micMuted;
           if (local !== this.lastLocalSpeaking) { this.lastLocalSpeaking = local; cb.onLocalSpeaking?.(local); }
         }
-        for (const uid of this.peers) cb.onRemoteSpeaking?.(uid, ids.has(uid));
+        // Só quem MUDOU (antes: um callback por pessoa da sala a cada evento).
+        const { changes, next } = speakingChanges(this._remoteSpeaking, ids, this.peers);
+        this._remoteSpeaking = next;
+        for (const [uid, on] of changes) cb.onRemoteSpeaking?.(uid, on);
         break;
       }
+      // Dynacast: o servidor diz a maior camada que alguém assiste da minha
+      // câmera/tela — as outras param de ser codificadas (CPU/upload).
+      case 'producerLayers':
+        this._onProducerLayers(data);
+        break;
       case 'serverState':
         this._applyServerState(data);
         break;
@@ -517,6 +548,8 @@ export class MediasoupEngine {
     const welcome = await this._connect(this.joinOpts.url, this.joinOpts.token);
     if (this.disposed) { this._closeAll(); return; }
     if (welcome.serverState) this._applyServerState(welcome.serverState, { quiet: true });
+    this.serverProtocol = Number(welcome.protocol) > 0 ? Number(welcome.protocol) : 1;
+    this.serverFeatures = new Set(Array.isArray(welcome.features) ? welcome.features.map(String) : []);
 
     this.device = new Device();
     await this.device.load({ routerRtpCapabilities: welcome.routerRtpCapabilities });
@@ -832,7 +865,9 @@ export class MediasoupEngine {
       return;
     }
     this.cb.onReconnecting?.(attempt + 1, reason);
-    const delay = immediate ? 0 : RECONNECT_DELAYS_MS[attempt];
+    // ±30% de jitter: quando o servidor reinicia a sala (1012) todo mundo cai
+    // junto — assim não voltam todos no mesmo milissegundo.
+    const delay = immediate ? 0 : jitteredDelay(RECONNECT_DELAYS_MS[attempt]);
     this.reconnectTimer = setTimeout(() => {
       this.reconnectTimer = null;
       this.reconnectAttempt = attempt + 1;
@@ -907,6 +942,10 @@ export class MediasoupEngine {
     this.consumingProducers.clear();
     this.inboundAudio.clear();
     for (const uid of peersSeen) this.cb.onRemoteRemove?.(uid, 'all');
+    // Anéis acesos de antes da queda apagam (o servidor só avisa quando o
+    // conjunto MUDA — sem isso alguém podia ficar "falando" pra sempre).
+    for (const uid of this._remoteSpeaking) { try { this.cb.onRemoteSpeaking?.(uid, false); } catch { /* ok */ } }
+    this._remoteSpeaking = new Set();
     for (const key of Object.keys(this.producers)) {
       const p = this.producers[key];
       if (p) { try { p.close(); } catch { /* ok */ } }
@@ -1011,6 +1050,7 @@ export class MediasoupEngine {
     pipe = await createMicPipeline(raw, {
       noise: this.noiseEnabled,
       noiseModel: this.noiseModel,
+      fastGate: !this.turboOff.has('portao-rapido'),
       // Alta qualidade falhou/lenta → já voltou pro RNNoise; avisa o app.
       onNoiseFallback: (reason) => { this.cb.onTelemetry?.({ type: 'noise-fallback', reason }); },
       // AudioContext suspenso/travado (iOS, sem gesto): manda o mic cru
@@ -1205,12 +1245,22 @@ export class MediasoupEngine {
   // ---------- portão do microfone (PTT / sensibilidade / manual) ----------
   _gateIsOpen() { return this.micGateOpen && this.gate.open; }
 
+  // Sensibilidade de entrada ativa (sem PTT, portão manual aberto): o
+  // pipeline usa o portão rápido do AudioWorklet pra ABRIR (ver
+  // micPipeline.js); a decisão daqui continua segurando aberto.
+  _fastGateLevel() {
+    if (this.turboOff.has('portao-rapido') || !this.micGateOpen) return null;
+    const st = this.gate.state();
+    if (st.mode !== 'vad' || !Number.isFinite(st.thresholdDb)) return null;
+    return { thresholdDb: st.thresholdDb, holdMs: Math.max(GATE_DEFAULTS.holdMs, GATE_DEFAULTS.vadHoldMs) };
+  }
+
   _applyMicGate() {
     const open = this._gateIsOpen();
     const p = this.producers.mic;
     const pipe = this.pipeline;
     if (pipe) {
-      pipe.setGate(open);
+      pipe.setGate(open, this._fastGateLevel());
       // Modo direto: o portão é a própria faixa — pausado (mudo) fica desligada.
       if (pipe.mode === 'direct' && p && p.paused) { try { this.localTracks.mic.enabled = false; } catch { /* ok */ } }
       return;
@@ -1223,7 +1273,10 @@ export class MediasoupEngine {
   // Recalcula o portão (sem esperar o próximo tique do medidor).
   _tickGate(now = Date.now()) {
     const r = this.gate.update(this.lastLevelDb, now);
-    if (r.changed) this._applyMicGate();
+    // Com o portão rápido carregado: o limite automático (piso de ruído)
+    // anda a cada tique e a troca de modo (sensibilidade ↔ PTT) precisa
+    // chegar no worklet — o pipeline só manda mensagem se algo mudou.
+    if (r.changed || this.pipeline?.fastGateLoaded) this._applyMicGate();
     return r;
   }
 
@@ -1268,7 +1321,10 @@ export class MediasoupEngine {
   }
 
   getMicGateState() {
-    return { ...this.gate.state(), manualOpen: this.micGateOpen, open: this._gateIsOpen(), pipelineMode: this.pipeline?.mode || null, gateValue: this.pipeline?.gateValue() ?? null };
+    return {
+      ...this.gate.state(), manualOpen: this.micGateOpen, open: this._gateIsOpen(), pipelineMode: this.pipeline?.mode || null, gateValue: this.pipeline?.gateValue() ?? null,
+      fastGate: !!this.pipeline?.fastGateActive, fastGateLoaded: !!this.pipeline?.fastGateLoaded,
+    };
   }
 
   // Medidor está rodando (pro aviso "microfone sem som" só valer quando dá pra medir).
@@ -1405,6 +1461,33 @@ export class MediasoupEngine {
       try { await p.setRtpEncodingParameters({ maxBitrate: encs[encs.length - 1].maxBitrate }); return true; } catch { /* ok */ }
     }
     return false;
+  }
+
+  // Dynacast (evento producerLayers do servidor, protocolo 2): liga só as
+  // camadas de simulcast que alguém está assistindo. Ninguém vendo a tela em
+  // tamanho grande → a camada cheia (1080p/1440p) para de ser codificada:
+  // muito menos CPU e upload pra quem transmite. Alguém ampliou → o servidor
+  // avisa na hora e a camada volta (o vídeo começa pela baixa, sem tela preta).
+  _onProducerLayers({ producerId, maxSpatialLayer } = {}) {
+    if (this.turboOff.has('dynacast') || this.disposed) return;
+    for (const key of ['camera', 'screen']) {
+      const p = this.producers[key];
+      if (!p || p.closed || p.id !== producerId) continue;
+      const encs = p.rtpParameters?.encodings?.length || 1;
+      if (encs < 2 || typeof p.setMaxSpatialLayer !== 'function') return;
+      const layer = producerMaxLayer(maxSpatialLayer, encs);
+      p._pcWantLayer = layer;
+      const apply = (retry) => {
+        if (p.closed || this.producers[key] !== p || p._pcWantLayer !== layer) return;
+        p.setMaxSpatialLayer(layer).catch((err) => {
+          // Corrida com outro setParameters (troca de qualidade ao vivo): tenta de novo uma vez.
+          if (retry) { setTimeout(() => apply(false), 800); return; }
+          this.cb.onTelemetry?.({ type: 'dynacast-failed', source: key, layer, error: String(err?.message || err) });
+        });
+      };
+      apply(true);
+      return;
+    }
   }
 
   // Linux (app de PC com venmic): o getDisplayMedia volta sem áudio e o som
@@ -1867,19 +1950,34 @@ export class MediasoupEngine {
     const connected = this.sendTransport?.connectionState === 'connected' || this.recvTransport?.connectionState === 'connected';
     quality[this.myId] = qualityFrom({ loss: myLoss, rtt: rtt || 0, connected });
     // Qualidade de cada pessoa: perda no que RECEBO dela (pior entre as faixas).
+    // UMA leitura do transport de recepção pra todos os consumers (antes: um
+    // getStats() por consumer a cada 2s — com 20 pessoas eram 20 relatórios
+    // completos). Consumer que não casou (navegador sem mid/trackIdentifier
+    // nas estatísticas) cai no getStats dele, como antes.
     const perPeer = new Map();
     const audioBytes = new Map();
-    for (const [cid, c] of this.consumers) {
-      if (c.consumer.closed) continue;
+    const live = [...this.consumers].filter(([, c]) => !c.consumer.closed);
+    let matched = new Map();
+    if (live.length && this.recvTransport) {
       try {
-        const stats = await c.consumer.getStats();
-        stats.forEach((s) => {
-          if (s.type !== 'inbound-rtp') return;
-          const loss = this._lossDelta(cid, s.packetsLost || 0, s.packetsReceived || 0);
-          perPeer.set(c.peerId, Math.max(perPeer.get(c.peerId) || 0, loss));
-          if (c.kind === 'audio') audioBytes.set(c.peerId, (audioBytes.get(c.peerId) || 0) + (s.bytesReceived || 0));
-        });
-      } catch { /* ok */ }
+        const report = await this.recvTransport.getStats();
+        matched = matchInboundStats(report, live.map(([cid, c]) => ({ id: cid, mid: c.consumer.localId, trackId: c.consumer.track?.id })));
+      } catch { matched = new Map(); }
+    }
+    for (const [cid, c] of live) {
+      let found = matched.has(cid) ? [matched.get(cid)] : null;
+      if (!found) {
+        found = [];
+        try { (await c.consumer.getStats()).forEach((s) => { if (s.type === 'inbound-rtp') found.push(s); }); } catch { /* ok */ }
+      }
+      for (const s of found) {
+        const loss = this._lossDelta(cid, s.packetsLost || 0, s.packetsReceived || 0);
+        perPeer.set(c.peerId, Math.max(perPeer.get(c.peerId) || 0, loss));
+        if (c.kind === 'audio') {
+          audioBytes.set(c.peerId, (audioBytes.get(c.peerId) || 0) + (s.bytesReceived || 0));
+          this._adaptJitterBuffer(c, s, rtt);
+        }
+      }
     }
     if (this.disposed) return;
     this.inboundAudio = audioBytes;
@@ -1889,6 +1987,27 @@ export class MediasoupEngine {
     // Painel "Voz conectada": ping e perda no ENVIO (o que o servidor
     // relata sobre o que eu mando).
     try { this.cb.onConnectionStats?.({ rtt, sendLoss: myLoss, connected }); } catch { /* ok */ }
+  }
+
+  // Buffer de recepção ADAPTATIVO (áudio): com perda, o alvo sobe pra RTT +
+  // folga — dá tempo do pacote retransmitido (NACK do Opus) chegar antes de
+  // virar "picote"; rede limpa por ~12s → volta pro automático (latência
+  // mínima). Navegador sem jitterBufferTarget (Safari antigo): nada muda.
+  _adaptJitterBuffer(c, s, rtt) {
+    if (this.turboOff.has('buffer-adaptativo')) return;
+    const recv = c.consumer.rtpReceiver;
+    if (!recv || !('jitterBufferTarget' in recv)) return;
+    const concealed = Math.max(0, (s.concealedSamples || 0) - (s.silentConcealedSamples || 0));
+    const total = s.totalSamplesReceived || 0;
+    const prev = c.jb;
+    if (!prev) { c.jb = { concealed, total, targetMs: null, cleanStreak: 0 }; return; }
+    const d = jitterTargetDecision({
+      prevMs: prev.targetMs, concealedDelta: concealed - prev.concealed, samplesDelta: total - prev.total, rttMs: rtt, cleanStreak: prev.cleanStreak,
+    });
+    c.jb = { concealed, total, targetMs: d.targetMs, cleanStreak: d.cleanStreak };
+    if (!d.changed) return;
+    try { recv.jitterBufferTarget = d.targetMs; } catch { /* navegador recusou: segue no automático */ }
+    this.cb.onTelemetry?.({ type: 'jitter-buffer', peerId: c.peerId, source: c.source, targetMs: d.targetMs });
   }
 
   // ---------- controles ----------

@@ -32,6 +32,7 @@ process.env.MEDIA_WORKERS = '1';
 process.env.MEDIA_RTC_MIN_PORT = '43000';
 process.env.MEDIA_RTC_MAX_PORT = '43100';
 process.env.MEDIA_LOG_LEVEL = 'error';
+process.env.MEDIA_DYNACAST_DOWN_MS = '500'; // produção: 3s
 process.env.MEDIA_SPEAKING_THRESHOLD = '-127'; // mic FAKE do Chromium é quase silêncio (~-105 dBov); em produção fica o padrão -60
 const MEDIA_PORT = 4666;
 
@@ -67,6 +68,8 @@ await build({
 });
 // RNNoise (worklet + wasm) é servido estático em /rnnoise/, igual em produção.
 fs.cpSync(path.join(ROOT, 'client/public/rnnoise'), path.join(outDir, 'rnnoise'), { recursive: true });
+// Portão rápido do microfone (AudioWorklet) em /voice/, igual em produção.
+fs.cpSync(path.join(ROOT, 'client/public/voice'), path.join(outDir, 'voice'), { recursive: true });
 console.log('harness compilado');
 
 // 3) serve a página
@@ -81,8 +84,13 @@ await new Promise((r) => pageHttp.listen(0, '127.0.0.1', r));
 const PAGE = `http://127.0.0.1:${pageHttp.address().port}/`;
 
 // 4) navegador com mídia falsa (tom de áudio + vídeo sintético)
+// PW_CHROMIUM: caminho de um Chromium já instalado (máquina sem o navegador
+// da versão do Playwright) — com ele, sem proxy do sistema (o WebSocket local
+// não pode passar por proxy).
 const browser = await chromium.launch({
-  args: ['--use-fake-device-for-media-stream', '--use-fake-ui-for-media-stream', '--autoplay-policy=no-user-gesture-required'],
+  ...(process.env.PW_CHROMIUM ? { executablePath: process.env.PW_CHROMIUM } : {}),
+  args: ['--use-fake-device-for-media-stream', '--use-fake-ui-for-media-stream', '--autoplay-policy=no-user-gesture-required',
+    ...(process.env.PW_CHROMIUM ? ['--no-proxy-server'] : [])],
 });
 const token = (sub, name) => jwt.sign({ sub, room: 'pc_e2e', name }, SECRET, { algorithm: 'HS256', expiresIn: '10m' });
 const WS = `ws://127.0.0.1:${MEDIA_PORT}/ws`;
@@ -229,6 +237,22 @@ try {
     await B.evaluate(() => window.engine.setVideoViewport('ana', 'screen', { visible: true, height: 600 }, 'mini'));
     await waitSrv(() => betoScreenCons()?.paused === false && betoScreenCons()?.preferredLayers?.spatialLayer === 1, 'voltou a aparecer → retomado na camada alta');
 
+    // Dynacast: ninguém vendo grande → Ana para de codificar a camada cheia;
+    // alguém ampliou → volta na hora.
+    const anaLayers = () => A.evaluate(() => {
+      const p = window.engine.producers.screen;
+      return { max: p.maxSpatialLayer, active: p.rtpSender.getParameters().encodings.map((e) => e.active !== false) };
+    });
+    const waitAna = async (fn, msg, timeout = 8000) => {
+      const t0 = Date.now(); let last = null;
+      while (Date.now() - t0 < timeout) { last = await anaLayers(); if (fn(last)) { console.log('  ✓', msg, JSON.stringify(last)); return; } await sleep(150); }
+      throw new Error(`FALHOU (timeout): ${msg} ${JSON.stringify(last)}`);
+    };
+    await B.evaluate(() => window.engine.setVideoViewport('ana', 'screen', { visible: true, height: 150 }, 'mini'));
+    await waitAna((l) => l.max === 0 && l.active[0] === true && l.active[1] === false, 'dynacast: só miniatura → Ana desliga a camada cheia (setMaxSpatialLayer 0)');
+    await B.evaluate(() => window.engine.setVideoViewport('ana', 'screen', { visible: true, height: 720 }, 'mini'));
+    await waitAna((l) => l.max === 1 && l.active.every(Boolean), 'dynacast: Beto ampliou → camada cheia de volta', 3000);
+
     // Som da tela separado da voz.
     await waitFor(B, (ev) => ev.some((e) => e.type === 'remoteScreenAudio' && e.a[0] === 'ana' && e.a[1]?.active), 'Beto: onRemoteScreenAudio(ana) com o som da tela');
     const lastVoice = (await B.evaluate(() => window.events)).filter((e) => e.type === 'remoteAudio' && e.a[0] === 'ana').at(-1);
@@ -291,6 +315,29 @@ try {
   assert(gate.raw, 'getLocalMicTrack({ raw: true }) devolve a captura viva');
   assert(gate.processedIsSent, 'getLocalMicTrack() devolve a faixa PROCESSADA (a que vai pra call — gravação usa esta)');
   assert(gate.muteDelta === 2, 'o portão não dispara onSelfMute (só o mudo/desmudo manual)');
+  assert(gate.opened.fastGateLoaded === true && gate.opened.fastGate === false, 'portão rápido (AudioWorklet) carregado; sem sensibilidade fica em bypass');
+
+  console.log('\n[7a1] Sensibilidade de entrada no portão RÁPIDO (AudioWorklet) — abre/fecha na thread de áudio');
+  const fast = await A.evaluate(async () => {
+    const e = window.engine;
+    const sleepIn = (ms) => new Promise((r) => setTimeout(r, ms));
+    // Limite lá embaixo: qualquer som passa → aberto pelo worklet.
+    e.setInputSensitivity({ auto: false, db: -100 });
+    await sleepIn(150);
+    const low = e.getMicGateState();
+    // Limite impossível: nada passa → fecha depois da segura (300ms).
+    e.setInputSensitivity({ auto: false, db: -1 });
+    await sleepIn(700);
+    const high = e.getMicGateState();
+    // Desliga a sensibilidade → bypass e aberto de novo.
+    e.setInputSensitivity(null);
+    await sleepIn(150);
+    const off = e.getMicGateState();
+    return { low, high, off };
+  });
+  assert(fast.low.fastGate === true && fast.low.open === true && fast.low.gateValue > 0.99, `sensibilidade ligada: worklet decidindo e aberto (${JSON.stringify({ f: fast.low.fastGate, g: fast.low.gateValue })})`);
+  assert(fast.high.fastGate === true && fast.high.open === false && fast.high.gateValue < 0.01, `acima do limite nunca: fechado pelo worklet (${fast.high.gateValue})`);
+  assert(fast.off.fastGate === false && fast.off.open === true && fast.off.gateValue > 0.99, 'sensibilidade desligada: bypass, aberto');
 
   console.log('\n[7a2] Apertar pra falar + medidor local');
   const ptt = await A.evaluate(async () => {
