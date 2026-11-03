@@ -439,6 +439,9 @@ function createApp() {
   app.use('/api/links', require('./routes/links'));
   // Avisos pessoais salvos e Galeria (curtidas/álbuns).
   app.use('/api/notices', require('./routes/notices'));
+  // Fase 9 — Pingu: wiki da comunidade e funções do Pingu (resumo, tradução, quiz).
+  app.use('/api/wiki', require('./routes/wiki'));
+  app.use('/api/pingu', require('./routes/pingu'));
   app.use('/api/reminders', require('./routes/reminders'));
   app.use('/api/notification-overrides', require('./routes/notificationOverrides'));
   app.use('/api/gallery', require('./routes/gallery'));
