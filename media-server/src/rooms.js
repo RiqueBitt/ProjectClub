@@ -121,13 +121,29 @@ function aliveWorkers() {
   return workers.filter((w) => !w.worker.closed && !w.worker.died);
 }
 
-// Worker com MENOS gente (empate: rodízio) — sala nova não cai no worker
+// Peso REAL de uma sala no worker (revisão voz-turbo). O custo de CPU de um
+// SFU cresce com o que ele encaminha — cada consumer é um fluxo RTP a mais
+// pra copiar/criptografar — e não com o número de salas ou de pessoas: uma
+// sala de 20 pessoas tem ~380 consumers de áudio, 20 salas de 1 pessoa têm
+// zero. Antes o worker era escolhido por "salas + pessoas" e uma sala grande
+// valia o mesmo que algumas pequenas (num VPS de 2 vCPU, dava pra cair as
+// duas salas grandes no mesmo núcleo enquanto o outro ficava à toa).
+function roomLoad(room) {
+  let load = 1;
+  if (!room || !room.peers) return load;
+  for (const p of room.peers.values()) {
+    load += 1 + (p.producers ? p.producers.size : 0) + (p.consumers ? p.consumers.size : 0);
+  }
+  return load;
+}
+
+// Worker com MENOS carga real (empate: rodízio) — sala nova não cai no worker
 // mais cheio só porque era a vez dele.
 function pickWorker() {
   const alive = aliveWorkers();
   if (!alive.length) throw new Error('servidor de mídia sem worker disponível');
   const load = new Map(alive.map((w) => [w, 0]));
-  for (const r of rooms.values()) if (load.has(r.workerEntry)) load.set(r.workerEntry, load.get(r.workerEntry) + 1 + r.size);
+  for (const r of rooms.values()) if (load.has(r.workerEntry)) load.set(r.workerEntry, load.get(r.workerEntry) + roomLoad(r));
   const start = nextWorker % alive.length;
   nextWorker += 1;
   let best = alive[start];
@@ -189,6 +205,10 @@ class Room {
     this._lastHeard = new Map();
     this._activeKey = '';
     this._speakTimer = null;
+    // Dynacast (ver config.dynacast): producerId -> { sent, timer }.
+    // `sent` = última "maior camada assistida" avisada ao publicador.
+    this.onProducerLayers = null; // (ownerPeer, producerId, maxSpatialLayer) => void
+    this._layers = new Map();
     this._wireAudioLevels();
     // Router fechado por fora (worker morreu → 'workerclose'): a sala inteira
     // morre junto e o pessoal reconecta numa sala nova.
@@ -235,6 +255,61 @@ class Room {
   }
 
   get size() { return this.peers.size; }
+
+  // Acha um producer (e quem publica) em qualquer peer da sala.
+  _findProducer(producerId) {
+    for (const p of this.peers.values()) {
+      const found = p.producers.get(producerId);
+      if (found) return { producer: found, owner: p };
+    }
+    return null;
+  }
+
+  // Dynacast: recalcula a maior camada que alguém está assistindo de um
+  // producer de vídeo com simulcast e avisa o publicador quando muda. Subir
+  // é imediato (quem ampliou o vídeo não espera); descer só depois de
+  // `dynacastDownMs` (e recalculando na hora, com o estado mais novo).
+  layerNeedChanged(producerId, { force = false } = {}) {
+    if (!config.dynacast || this.closed || !producerId) return;
+    const found = this._findProducer(producerId);
+    if (!found || found.producer.closed || found.producer.kind !== 'video' || found.producer.type !== 'simulcast') return;
+    const { producer, owner } = found;
+    const layerCount = (producer.rtpParameters?.encodings || []).length;
+    if (layerCount < 2) return;
+    const views = [];
+    for (const p of this.peers.values()) {
+      for (const c of p.consumers.values()) {
+        if (c.producerId !== producerId) continue;
+        views.push({ closed: c.closed, paused: c.paused, preferredSpatialLayer: c.preferredLayers ? c.preferredLayers.spatialLayer : null });
+      }
+    }
+    const need = neededSpatialLayer(views, layerCount);
+    let st = this._layers.get(producerId);
+    if (!st) {
+      // O publicador começa com TODAS as camadas ligadas.
+      st = { sent: layerCount - 1, timer: null };
+      this._layers.set(producerId, st);
+    }
+    if (need === st.sent) { clearTimeout(st.timer); st.timer = null; return; }
+    if (need > st.sent || force || config.dynacastDownMs === 0) {
+      clearTimeout(st.timer); st.timer = null;
+      st.sent = need;
+      try { this.onProducerLayers?.(owner, producerId, need); } catch { /* ok */ }
+      return;
+    }
+    if (st.timer) return; // descida já agendada: recalcula quando vencer
+    st.timer = setTimeout(() => {
+      st.timer = null;
+      if (this.closed || this._layers.get(producerId) !== st) return;
+      this.layerNeedChanged(producerId, { force: true });
+    }, config.dynacastDownMs);
+    st.timer.unref?.();
+  }
+
+  _forgetLayers(producerId) {
+    const st = this._layers.get(producerId);
+    if (st) { clearTimeout(st.timer); this._layers.delete(producerId); }
+  }
 
   // A pessoa ainda é ESTA na sala (não saiu nem foi substituída)?
   _alive(peer) { return !this.closed && !peer.closed && this.peers.get(peer.id) === peer; }
@@ -329,8 +404,11 @@ class Room {
       peer.pendingProduce -= 1;
     }
     if (!this._alive(peer)) { try { producer.close(); } catch { /* ok */ } throw goneError(); }
-    producer.observer.on('close', () => { peer.producers.delete(producer.id); });
+    producer.observer.on('close', () => { peer.producers.delete(producer.id); this._forgetLayers(producer.id); });
     peer.producers.set(producer.id, producer);
+    // Dynacast: ninguém assistindo ainda → depois da folga avisa que só a
+    // camada baixa basta (quem entra pra ver sobe na hora).
+    if (kind === 'video') this.layerNeedChanged(producer.id);
     // Pausado SÓ pela moderação (o cliente queria falar): volta sozinho quando
     // a moderação liberar — cliente antigo não sabe do serverState.
     if (forced) modPaused.add(producer);
@@ -367,7 +445,11 @@ class Room {
       appData: { peerId: ownerId, source: producer.appData.source, clientPaused: true },
     });
     if (!this._alive(peer)) { try { consumer.close(); } catch { /* ok */ } throw goneError(); }
-    consumer.observer.on('close', () => { peer.consumers.delete(consumer.id); });
+    consumer.observer.on('close', () => {
+      peer.consumers.delete(consumer.id);
+      // Um espectador a menos: talvez a camada cheia não precise mais.
+      if (consumer.kind === 'video') this.layerNeedChanged(producerId);
+    });
     peer.consumers.set(consumer.id, consumer);
     return { consumer, ownerId };
   }
@@ -399,6 +481,8 @@ class Room {
       if (code) closeSocket(p.socket, code, reason || 'room_closed');
     }
     clearTimeout(this._speakTimer); this._speakTimer = null;
+    for (const st of this._layers.values()) clearTimeout(st.timer);
+    this._layers.clear();
     try { this.audioLevelObserver.close(); } catch { /* ok */ }
     try { this.router.close(); } catch { /* ok */ }
   }
@@ -417,6 +501,23 @@ function activeSpeakers(lastHeard, now, holdMs) {
     }
   }
   return { active, nextExpiry };
+}
+
+// Dynacast: maior camada espacial que alguém está assistindo de verdade.
+// `views`: [{ closed, paused, preferredSpatialLayer }] (um por consumer do
+// producer). Consumer pausado (vídeo fora da tela / aba escondida) não conta;
+// sem camada preferida informada = a mais alta (cliente antigo, Android).
+// -1 = ninguém assistindo. Sempre dentro de 0..layerCount-1.
+function neededSpatialLayer(views, layerCount) {
+  const top = Math.max(0, (Number(layerCount) || 1) - 1);
+  let need = -1;
+  for (const v of views || []) {
+    if (!v || v.closed || v.paused) continue;
+    const pref = Number.isFinite(v.preferredSpatialLayer) ? Math.max(0, Math.min(top, Math.floor(v.preferredSpatialLayer))) : top;
+    if (pref > need) need = pref;
+    if (need === top) break;
+  }
+  return need;
 }
 
 // Tira do mapa (só se ainda for ESTA sala com esse nome) e fecha.
@@ -500,4 +601,5 @@ function stats() {
 module.exports = {
   startWorkers, getOrCreateRoom, joinRoom, closeRoomIfEmpty, closeRoom, shutdown, rooms, stats,
   workers, aliveWorkers, listeners, Peer, Room, activeSpeakers, modPaused,
+  roomLoad, neededSpatialLayer,
 };
