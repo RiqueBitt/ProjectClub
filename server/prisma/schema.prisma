@@ -4162,7 +4162,7 @@ model ModRating {
   @@index([modioGameId])
 }
 
-// =====================================================}
+// ============================================================
 
 // Fase 4 — comunidade e economia
 // Tabelas novas, sem relação (FK) com User de propósito: só ids indexados,
@@ -4412,7 +4412,8 @@ model TipDaily {
   sent   Int    @default(0)
 
   @@id([userId, dayKey])
-=======
+}
+
 // ===================== Fase 8 =====================
 
 // Mascote pinguim do perfil (um por pessoa). Evolui de estágio
