@@ -58,6 +58,7 @@ import '../styles/chat.css';
 import '../styles/nav.css';
 import '../styles/speed.css';
 import { channelPath } from '../utils/prettyLinks';
+import { requestSummary as requestPinguSummary } from '../utils/pinguEphemeral';
 // Tela de canal de voz: pacote próprio, baixado só ao abrir um canal de voz.
 const VoiceChannelView = lazy(() => import('./VoiceChannelView.jsx'));
 
@@ -1507,6 +1508,18 @@ function ChatWindowInner({ conversationId, channelId }) {
             onUnpinned={(id) => setPins((prev) => prev.filter((x) => x.id !== id))}
           />
           {channelId && (!channel?.type || channel.type === 'TEXT') && <ThreadsButton channelId={channelId} />}
+          {/* Fase 9: resumo do Pingu desde a última leitura (só você vê). */}
+          {channelId && (!channel?.type || channel.type === 'TEXT') && (
+            <button
+              type="button"
+              className="icon-btn chat-header-btn pingu-summary-btn"
+              title="Resumir o que perdi (Pingu)"
+              aria-label="Resumir o que perdi"
+              onClick={() => requestPinguSummary(channelId, { since: unreadMark.roomKey === roomKey ? unreadMark.readAt : null, channelName: channel?.name })}
+            >
+              <span aria-hidden="true">🐧</span>
+            </button>
+          )}
           <button className={`icon-btn chat-header-btn ${searchOpen ? 'on' : ''}`} onClick={() => setSearchOpen((v) => !v)} title="Buscar mensagens (Ctrl+F)" aria-label="Buscar mensagens"><ChatIcon name="search" /></button>
           {/* Mensagens temporárias (Fase 5): desligado / 24 horas / 7 dias. */}
           {conversationId && dmConvo && <EphemeralToggle conversation={dmConvo} />}

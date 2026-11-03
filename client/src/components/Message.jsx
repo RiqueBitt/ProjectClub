@@ -34,6 +34,9 @@ import PenguinAvatar, { isPenguinAvatarUrl, penguinColorFromUrl } from './Pengui
 import { proxyImage } from '../utils/imageProxy';
 import { InternalLinkCards } from './InternalLinkCard.jsx';
 import { findInternalLinks } from '../utils/internalLinks';
+import i18n from '../i18n';
+import { usePinguEphemeral, requestTranslation, hideTranslation, langLabel } from '../utils/pinguEphemeral';
+import '../styles/pingu.css';
 import { cssZoom } from '../utils/cssZoom';
 import { registerEditor, getRetry, getCancel } from '../utils/chatComposerBus';
 import { discardOptimistic } from '../utils/messageSender';
@@ -304,6 +307,10 @@ function MessageBody({ message, showAuthor, onReply, topics = [], onOpenTopic, i
     if (message.content && typeof window !== 'undefined' && window.speechSynthesis) {
       items.push({ label: 'Falar mensagem', icon: 'volume', onClick: () => speakMessage(message) });
     }
+    // Fase 9: tradução do Pingu (só você vê; só mensagens de canal — DM nunca vai pra IA).
+    if (isChannelMessage && message.content && !isGifMessage) {
+      items.push({ label: 'Traduzir com o Pingu', icon: 'translate', onClick: () => requestTranslation(message, i18n.language) });
+    }
     items.push({ label: 'Encaminhar', icon: 'reply', onClick: () => setForwardOpen(true) });
     items.push({ label: 'Lembrar-me', icon: 'clock', onClick: () => setReminderOpen(true) });
     const isSaved = useMsgExtras.getState().saved.has(message.id);
@@ -550,6 +557,8 @@ function MessageBody({ message, showAuthor, onReply, topics = [], onOpenTopic, i
           </>
         )}
 
+        {/* Tradução do Pingu (só pra quem pediu). */}
+        <PinguTranslation messageId={message.id} />
 
         {/* Envio com anexos: progresso real do upload + cancelar. */}
         {message.pending && message.upload && <UploadProgressRow message={message} />}
@@ -952,4 +961,20 @@ function speakMessage(message) {
     if (voice) u.voice = voice;
     synth.speak(u);
   } catch { /* sem voz no navegador */ }
+}
+
+// Tradução do Pingu embaixo da mensagem — só aparece pra quem pediu
+// (utils/pinguEphemeral.js); some no "Ocultar".
+function PinguTranslation({ messageId }) {
+  const tr = usePinguEphemeral((s) => s.translations[messageId]);
+  if (!tr) return null;
+  return (
+    <div className="pingu-tr" role="status">
+      <div className="pingu-tr-head">
+        <span>🐧 {tr.loading ? 'O Pingu está traduzindo…' : tr.error ? 'Pingu' : `Tradução do Pingu${tr.target ? ` (${langLabel(tr.target)})` : ''} · só você vê`}</span>
+        {!tr.loading && <button type="button" onClick={() => hideTranslation(messageId)}>Ocultar</button>}
+      </div>
+      {tr.error ? <div className="pingu-tr-err">{tr.error}</div> : tr.text ? <div>{tr.text}</div> : null}
+    </div>
+  );
 }
