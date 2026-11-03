@@ -407,6 +407,8 @@ function createApp() {
   app.use('/api/system', systemRoutes);
   // Atualizações do app Android (ver docs/android-updates.md).
   app.use('/api/mobile', require('./routes/mobile'));
+  // Widget do Android (Fase 7) — com login, por isso fora do router público acima.
+  app.use('/api/mobile', require('./routes/mobileWidget'));
   app.use('/api/push', pushRoutes);
   app.use('/api/voice', voiceRoutes);
   app.use('/api/soundboard', require('./routes/soundboard'));
