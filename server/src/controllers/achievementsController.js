@@ -10,6 +10,15 @@ const PROGRESS_TYPES = [
   'CARDS_FLAWLESS', 'CARDS_CLUTCH', 'CARDS_DUO_WINS', 'CARDS_DRAFT_BEST', 'CARDS_BOSS_DAMAGE', 'CARDS_GOLDEN',
 ];
 
+// Conquista secreta ainda não desbloqueada, como a lista mostra.
+function maskSecret(def) {
+  return {
+    id: def.id, key: `secreta_${String(def.id).slice(0, 8)}`, name: '???', description: 'Conquista secreta. Continue explorando o Project Club…',
+    iconUrl: null, rarity: def.rarity, progressType: 'SECRET', target: 1, position: def.position, enabled: true,
+    hidden: true, unlocked: false, unlockedAt: null, progress: 0,
+  };
+}
+
 // GET /achievements — devolve o catálogo inteiro (só as habilitadas),
 // com o progresso atual de cada uma bloqueada, pra tela de "Conquistas"
 // mostrar a barra de progresso sem precisar de outra chamada.
@@ -21,6 +30,9 @@ async function listAchievements(req, res, next) {
 
     const achievements = await Promise.all(defs.map(async (def) => {
       const isUnlocked = !!unlockedMap[def.key];
+      // Fase 4 — conquista secreta ainda bloqueada: nada de nome, descrição,
+      // ícone ou progresso (nem pela API) — só "???".
+      if (def.hidden && !isUnlocked) return maskSecret(def);
       const progress = isUnlocked ? def.target : await getProgressByType(req.user.id, def.progressType);
       return { ...def, unlocked: isUnlocked, unlockedAt: unlockedMap[def.key] || null, progress: Math.min(progress, def.target) };
     }));
@@ -81,6 +93,7 @@ async function updateAchievement(req, res, next) {
       if (Number.isFinite(parsed) && parsed >= 1) data.target = parsed;
     }
     if (req.body.enabled !== undefined) data.enabled = !!req.body.enabled;
+    if (req.body.hidden !== undefined) data.hidden = !!req.body.hidden; // conquista secreta ("???")
     if (req.body.iconUrl === null) data.iconUrl = null; // explicitamente limpar, volta ao ícone padrão
 
     const achievement = await prisma.achievement.update({ where: { id }, data });

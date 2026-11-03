@@ -85,6 +85,9 @@ async function updateRole(req, res, next) {
         return res.status(403).json({ error: 'Você não pode conceder a um cargo uma permissão que você mesmo não possui.' });
       }
       data.permissions = toStringBits(requestedBits);
+      // Fase 4: cargo "por interesse" (a pessoa mesma escolhe) nunca pode
+      // dar permissão — ganhou permissão, deixa de ser de interesse.
+      if (requestedBits !== 0n && existing.selfAssignable) data.selfAssignable = false;
     }
 
     const role = await prisma.role.update({ where: { id }, data });

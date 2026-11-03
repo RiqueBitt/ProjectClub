@@ -13,6 +13,8 @@ router.post('/upload-image', uploadImage.single('image'), ctrl.uploadPostImage);
 // precisa vir ANTES de /:id, senão o Express trataria "featured" como
 // se fosse um :id de post (rota wildcard capturaria primeiro).
 router.get('/featured', ctrl.listFeaturedPostsThisMonth);
+// Fase 4: Post da semana (antes de /:id pelo mesmo motivo).
+router.get('/post-of-week', ctrl.getPostOfWeek);
 router.get('/:id', ctrl.getPost);
 router.delete('/:id', ctrl.deletePost);
 router.post('/:id/vote', ctrl.votePost);

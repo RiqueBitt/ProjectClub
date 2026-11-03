@@ -95,6 +95,10 @@ const ACHIEVEMENTS = [
   { key: 'cartas_draft', name: 'Rei do Draft', description: 'Chegue a 7 vitórias numa corrida de Draft.', rarity: 'LEGENDARY', progressType: 'CARDS_DRAFT_BEST', target: 7, position: 41 },
   { key: 'cartas_cacador', name: 'Caçador de Chefões', description: 'Cause 500 de dano aos chefões semanais.', rarity: 'EPIC', progressType: 'CARDS_BOSS_DAMAGE', target: 500, position: 42 },
   { key: 'cartas_ouro', name: 'Toque de Midas', description: 'Consiga uma carta dourada.', rarity: 'LEGENDARY', progressType: 'CARDS_GOLDEN', target: 1, position: 43 },
+  // Fase 4: conquistas secretas ("???" até desbloquear) e de temporada —
+  // definidas em services/community/secretAchievements.js.
+  ...require('../services/community/secretAchievements').SECRET_ACHIEVEMENTS,
+  ...require('../services/community/secretAchievements').SEASON_ACHIEVEMENTS,
 ];
 
 // Chaves que EXISTIRAM no catálogo antes (casas/figurinhas/economia —
