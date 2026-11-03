@@ -68,3 +68,13 @@ test('script elevado: confere o hash, instala o MSI embutido e escapa caminhos c
   assert.equal(Buffer.from(encoded, 'base64').toString('utf16le'), s);
   assert.match(args[args.length - 1], /-Verb RunAs/);
 });
+
+test('túnel dividido: só IPv4 válidos, sem repetir, rota pelo gateway normal', async () => {
+  const vpn = require('../vpnManager');
+  assert.equal(vpn.bypassRoutes(['1.2.3.4', '1.2.3.4', 'x', '999.1.1.1', '10.0.0.5']),
+    'route 1.2.3.4 255.255.255.255 net_gateway\nroute 10.0.0.5 255.255.255.255 net_gateway');
+  assert.equal(vpn.bypassRoutes([]), '');
+  const ips = await vpn.resolveBypassIps(['a.test', 'b.test'], { resolve4: async (h) => (h === 'a.test' ? ['5.6.7.8'] : Promise.reject(new Error('x'))) });
+  assert.deepEqual(ips, ['5.6.7.8']);
+  assert.ok(vpn.BYPASS_HOSTS.includes('projectclub.shardweb.app'));
+});
