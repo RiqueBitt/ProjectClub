@@ -26,6 +26,8 @@ const ROOT = path.resolve(__dirname, '..');
 const MANIFEST = path.join(ROOT, 'server', 'waddle', 'media-manifest.json');
 const PREFIX = 'waddle/';
 const CONCURRENCY = 24;
+// pacotes do servidor (o npm do monorepo pode colocá-los na raiz)
+const serverRequire = (m) => require(require.resolve(m, { paths: [path.join(ROOT, 'server'), ROOT] }));
 
 function walk(dir, base = dir, out = []) {
   for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
@@ -63,7 +65,7 @@ function b2() {
 }
 
 async function listExisting(client, bucket) {
-  const { ListObjectsV2Command } = require(path.join(ROOT, 'server', 'node_modules', '@aws-sdk', 'client-s3'));
+  const { ListObjectsV2Command } = serverRequire('@aws-sdk/client-s3');
   const keys = new Set();
   let token;
   do {
@@ -78,7 +80,7 @@ async function cmdUpload(mediaDir) {
   if (!fs.existsSync(MANIFEST)) await cmdManifest(mediaDir);
   const files = readManifest();
   const { client, bucket, publicUrl } = b2();
-  const { PutObjectCommand } = require(path.join(ROOT, 'server', 'node_modules', '@aws-sdk', 'client-s3'));
+  const { PutObjectCommand } = serverRequire('@aws-sdk/client-s3');
   console.log('listando o que já está no bucket…');
   const existing = await listExisting(client, bucket);
   const todo = files.filter((f) => !existing.has(f));
