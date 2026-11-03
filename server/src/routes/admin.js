@@ -39,6 +39,32 @@ router.get('/community', ctrl.getCommunitySettings);
   router.patch('/pingu', send((req) => pingu.updateFromAdmin(req.body || {}), 'PINGU_UPDATE'));
   router.post('/pingu/avatar', uploadImage.single('avatar'), send((req) => pingu.setImageFromAdmin('avatarUrl', req.file?.url), 'PINGU_AVATAR'));
   router.post('/pingu/banner', uploadImage.single('banner'), send((req) => pingu.setImageFromAdmin('bannerUrl', req.file?.url), 'PINGU_BANNER'));
+
+  // Fase 9 — funções do Pingu: configurações, quiz e alertas de moderação.
+  const ok = (fn, action) => async (req, res, next) => {
+    try {
+      const out = await fn(req);
+      if (action) logAction(req.app.get('io'), { actorId: req.user.id, action, targetType: 'PINGU', targetId: out?.id || req.params.id || null }).catch(() => {});
+      res.json(out);
+    } catch (err) {
+      if (err?.status && err.status < 600 && err.status !== 500) return res.status(err.status).json({ error: err.message });
+      next(err);
+    }
+  };
+  const pcfg = () => require('../services/pingu/config');
+  const quiz = () => require('../services/pingu/quiz');
+  const mod = () => require('../services/pingu/modAssist');
+  router.get('/pingu/config', ok(() => ({ config: pcfg().getConfig(), defaultWelcome: pcfg().DEFAULT_WELCOME, online: pingu.isOnline() })));
+  router.patch('/pingu/config', ok(async (req) => ({ config: await pcfg().updateConfig(req.body || {}), defaultWelcome: pcfg().DEFAULT_WELCOME, online: pingu.isOnline() }), 'PINGU_CONFIG'));
+  router.get('/pingu/quiz/questions', ok(async (req) => ({ questions: await quiz().listQuestions({ status: req.query.status || undefined }) })));
+  router.post('/pingu/quiz/questions', ok((req) => quiz().createQuestion(req.body || {}, req.user.id), 'PINGU_QUIZ_CREATE'));
+  router.patch('/pingu/quiz/questions/:id', ok((req) => quiz().updateQuestion(req.params.id, req.body || {}), 'PINGU_QUIZ_UPDATE'));
+  router.delete('/pingu/quiz/questions/:id', ok((req) => quiz().deleteQuestion(req.params.id), 'PINGU_QUIZ_DELETE'));
+  router.post('/pingu/quiz/generate', ok((req) => quiz().generateQuestion({ topic: req.body?.topic, userId: req.user.id }), 'PINGU_QUIZ_GENERATE'));
+  router.post('/pingu/quiz/start', ok((req) => quiz().startRound(req.app.get('io'), { channelId: String(req.body?.channelId || ''), startedBy: req.user.id, questionId: req.body?.questionId || null }), 'PINGU_QUIZ_START'));
+  router.get('/pingu/quiz/scoreboard', ok(async () => ({ scoreboard: await quiz().scoreboard(20) })));
+  router.get('/pingu/alerts', ok(async (req) => ({ alerts: await mod().listAlerts({ status: req.query.status || 'PENDING' }) })));
+  router.patch('/pingu/alerts/:id', ok((req) => mod().updateAlert(req.params.id, String(req.body?.status || ''), req.user.id), 'PINGU_ALERT_REVIEW'));
 }
 router.patch('/community', ctrl.updateCommunitySettings);
 router.post('/community/icon', uploadImage.single('icon'), ctrl.uploadCommunityIcon);
