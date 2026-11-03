@@ -13,8 +13,8 @@ on:
   workflow_dispatch:
     inputs:
       ref:
-        description: 'Commit/branch do Waddle-Forever (padrão: master)'
-        default: 'master'
+        description: 'Branch do Waddle-Forever (padrão: main)'
+        default: 'main'
         required: false
 
 permissions:
@@ -28,7 +28,7 @@ jobs:
       - uses: actions/checkout@v4
       - name: Baixar a mídia do Waddle Forever (só a pasta media)
         run: |
-          git clone --depth 1 --filter=blob:none --sparse --branch "${{ github.event.inputs.ref || 'master' }}" https://github.com/nhaar/Waddle-Forever wf
+          git clone --depth 1 --filter=blob:none --sparse --branch "${{ github.event.inputs.ref || 'main' }}" https://github.com/nhaar/Waddle-Forever wf
           cd wf && git sparse-checkout set media && cd ..
           echo "arquivos: $(find wf/media -type f -not -name .DS_Store | wc -l) · $(du -sh wf/media | cut -f1)"
       - name: Conferir contra o manifesto do repositório
