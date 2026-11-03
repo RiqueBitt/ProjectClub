@@ -201,12 +201,12 @@ Muita coisa já estava no lugar certo (ver a seção 4). Os problemas reais:
   worklet servido: cai no portão antigo).
   Rodar numa máquina sem o navegador do Playwright:
   `PW_CHROMIUM=/caminho/do/chrome node media-server/test/e2e-webrtc.mjs`.
-- `client`: `npm run test:unit` → **todos passaram** (novos
+- `client`: `npm run test:unit` → **116/116** (novos
   `voice-net-adapt.test.js` e `voice-gate-worklet.test.js`, que roda o arquivo
   do worklet num `vm`); `npx vite build` ok (o worklet sai em `dist/voice/`).
   Playwright das telas de voz (`voice-prefs`, `voice-settings`,
   `voice-server`, `screenshare-tracks`, PC e celular) → 18/18.
-- `server`: `npm test` → 410/411 (a falha é a conhecida `perf2.test.js`
+- `server`: `npm test` → 463/464 (a falha é a conhecida `perf2.test.js`
   markRead, sem o Prisma client local).
 - `desktop`: `npm test` → 35/35.
 - Android: não compila aqui; a mudança é uma função pura no companion — o CI
