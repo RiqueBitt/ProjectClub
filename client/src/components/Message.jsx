@@ -1,7 +1,7 @@
 import { getExtra } from '../utils/extraPrefs';
 import CodeFilePreview, { isCodeFile } from './CodeFilePreview.jsx';
 import { topReactions, recordReaction, useMsgExtras, toggleSaved, markUnreadFrom, copyMessageLink, toggleIgnore } from '../utils/messageExtras';
-import { useEffect, useMemo, useRef, useState, memo } from 'react';
+import { useEffect, useMemo, useRef, useState, memo, lazy, Suspense } from 'react';
 import { createPortal } from 'react-dom';
 import { useAuth } from '../context/AuthContext.jsx';
 import { useContextMenu } from '../context/ContextMenuContext.jsx';
@@ -39,11 +39,14 @@ import { registerEditor, getRetry, getCancel } from '../utils/chatComposerBus';
 import { discardOptimistic } from '../utils/messageSender';
 import { EditedTag, ForwardedLabel, ForwardMessageModal, LinkPreview } from './MessageExtras.jsx';
 import { EphemeralMark } from './EphemeralToggle.jsx';
+import { thankAndNotify } from './community/ThanksButton.jsx';
 import ReminderModal from './modals/ReminderModal.jsx';
 import CreateThreadModal from './modals/CreateThreadModal.jsx';
 import { SystemMessageRow, ThreadStarterRow, ThreadCard } from './ChatFeatureBits.jsx';
 import { parseSystemMessage, isThreadRoot } from '../utils/chatFeatures';
 import { roomPath } from '../utils/prettyLinks';
+// Fase 4: janela de gorjeta só carrega quando alguém abre.
+const TipDialog = lazy(() => import('./community/TipDialog.jsx'));
 
 // BUG CORRIGIDO: <img src={...avatarUrl}> quebrava (bloqueado pela CSP
 // img-src) quando o autor da mensagem respondida tem avatar de pinguim
@@ -282,6 +285,7 @@ function MessageBody({ message, showAuthor, onReply, topics = [], onOpenTopic, i
 
   const [forwardOpen, setForwardOpen] = useState(false);
   const [reminderOpen, setReminderOpen] = useState(false);
+  const [tipOpen, setTipOpen] = useState(false);
   const onContextMenu = (e) => {
     if (isPending) return;
     // Redesenho do menu: ícones SVG (ver ContextMenuContext.jsx) e seções
@@ -303,6 +307,11 @@ function MessageBody({ message, showAuthor, onReply, topics = [], onOpenTopic, i
     const isSaved = useMsgExtras.getState().saved.has(message.id);
     items.push({ label: isSaved ? 'Remover dos salvos' : 'Salvar para depois', icon: isSaved ? 'bookmarkOff' : 'bookmark', onClick: () => toggleSaved(message) });
     if (!isOwn) items.push({ label: 'Marcar como não lida', icon: 'unread', onClick: () => markUnreadFrom(message) });
+    // Fase 4: reputação ("Agradecer") e gorjeta em moedas pra quem escreveu.
+    if (!isOwn && message.authorId) {
+      items.push({ label: 'Agradecer', icon: 'heart', onClick: () => thankAndNotify('MESSAGE', message.id) });
+      if (!(useStore.getState().disabledSystems || []).includes('economia')) items.push({ label: 'Dar gorjeta', icon: 'coin', onClick: () => setTipOpen(true) });
+    }
     items.push({ label: 'Copiar link da mensagem', icon: 'link', onClick: () => copyMessageLink(message) });
     // Fixar só aparece pra quem pode (gerenciar mensagens no canal; em DM, todos).
     if (!isChannelMessage || canManageMessages) {
@@ -571,6 +580,7 @@ function MessageBody({ message, showAuthor, onReply, topics = [], onOpenTopic, i
         {/* Prévia de link externo (Open Graph) — no máximo 1 por mensagem. */}
         {!editing && !message.contentFiltered && !message.embed && !isPending && <LinkPreview content={message.content} />}
         {forwardOpen && <ForwardMessageModal message={message} myUserId={user.id} onClose={() => setForwardOpen(false)} />}
+        {tipOpen && createPortal(<Suspense fallback={null}><TipDialog message={message} onClose={() => setTipOpen(false)} /></Suspense>, document.body)}
         {createThreadOpen && <CreateThreadModal message={message} onClose={() => setCreateThreadOpen(false)} />}
         {reportOpen && (
           <ReportDialog

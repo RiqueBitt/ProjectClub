@@ -26,6 +26,8 @@ import '../styles/shop-room.css';
 import '../styles/contentx.css';
 import '../styles/cards.css';
 import HubTabs, { ECONOMY_HUB_TABS } from '../components/HubTabs.jsx';
+import { previewCoupon } from '../api/community';
+import '../styles/community4.css';
 
 // Loja do Project Club.
 //
@@ -234,14 +236,14 @@ export default function LojaPage() {
   };
 
   // ---- ações ----
-  const purchase = async ({ item, collection, currency: cur }, expected) => {
+  const purchase = async ({ item, collection, currency: cur, coupon }, expected) => {
     const target = item || collection;
     setBusy(`buy:${target.id}`);
     try {
       let r;
-      if (collection) r = await buyCollection(collection.id, cur, expected);
+      if (collection) r = await buyCollection(collection.id, cur, expected, coupon);
       else if (item.kind === 'back') r = await cardsBuyCosmetic(item.id);
-      else r = await BUY[item.kind](item.id, cur, expected);
+      else r = await BUY[item.kind](item.id, cur, expected, coupon);
       setConfirm(null);
       setData((d) => (d && r && r.coins !== undefined ? { ...d, coins: r.coins, gems: r.gems } : d));
       flash(collection ? `Coleção "${collection.name}" adicionada aos seus itens.` : `"${item.name}" agora é seu. Já está no seu inventário.`);
@@ -252,6 +254,7 @@ export default function LojaPage() {
       if (b.code === 'PRICE_CHANGED') { await load(); return { ok: false, priceChanged: b.price, error: b.error }; }
       if (b.code === 'SOLD_OUT') { setConfirm(null); await load(); flash('Esgotado! Alguém levou a última cópia.', 'bad'); return { ok: false }; }
       if (b.code === 'ALREADY_OWNED') { setConfirm(null); await load(); flash('Você já tem esse item.', 'info'); return { ok: false }; }
+      if (b.code === 'COUPON_INVALID' || b.code === 'COUPON_RACE') return { ok: false, couponError: b.error || errMsg(e) };
       return { ok: false, error: errMsg(e) };
     } finally { setBusy(''); }
   };
@@ -1099,17 +1102,35 @@ function ConfirmPurchase({ req, data, busy, onCancel, onConfirm }) {
   const [changedTo, setChangedTo] = useState(null);
   useEscape(onCancel);
   const options = collection ? ['coins', 'gems'].filter((c) => collection.pricing?.[c]?.final != null) : sellsIn(item);
+  // Fase 4: cupom de desconto (só compras com moedas; o servidor confere tudo de novo).
+  const [couponOpen, setCouponOpen] = useState(false);
+  const [couponCode, setCouponCode] = useState('');
+  const [coupon, setCoupon] = useState(null); // { code, discount, final }
+  const [couponMsg, setCouponMsg] = useState('');
+  const [couponBusy, setCouponBusy] = useState(false);
   const p = collection ? collection.pricing?.[currency] : priceOf(item, currency);
   if (!p) return null;
-  const final = changedTo ?? p.final;
+  const baseFinal = changedTo ?? p.final;
+  const couponOk = coupon && currency === 'coins' && coupon.base === baseFinal;
+  const final = couponOk ? coupon.final : baseFinal;
   const balance = currency === 'gems' ? data?.gems ?? 0 : data?.coins ?? 0;
   const short = final > balance;
   const cname = currency === 'gems' ? 'gemas' : 'moedas';
   const discountLabel = p.source === 'OFFER' ? 'Oferta da coleção' : 'Desconto Assinante';
+  const canCoupon = currency === 'coins' && item?.kind !== 'back' && baseFinal > 0;
+  const applyCoupon = async () => {
+    if (!couponCode.trim()) return;
+    setCouponBusy(true); setCouponMsg('');
+    try {
+      const r = await previewCoupon(couponCode.trim(), baseFinal);
+      setCoupon({ ...r, base: baseFinal });
+    } catch (e) { setCoupon(null); setCouponMsg(e?.response?.data?.error || 'Cupom inválido.'); } finally { setCouponBusy(false); }
+  };
   const submit = async () => {
     setError('');
-    const r = await onConfirm({ item, collection, currency }, item?.kind === 'back' ? undefined : final);
-    if (!r?.ok && r?.priceChanged !== undefined) { setChangedTo(r.priceChanged); setError('O preço mudou desde que você abriu. Confira o novo total e confirme de novo.'); }
+    const r = await onConfirm({ item, collection, currency, coupon: couponOk ? coupon.code : undefined }, item?.kind === 'back' ? undefined : final);
+    if (!r?.ok && r?.priceChanged !== undefined) { setChangedTo(r.priceChanged); setCoupon(null); setError('O preço mudou desde que você abriu. Confira o novo total e confirme de novo.'); }
+    else if (!r?.ok && r?.couponError) { setCoupon(null); setCouponMsg(r.couponError); }
     else if (!r?.ok && r?.error) setError(r.error);
   };
   return (
@@ -1134,10 +1155,30 @@ function ConfirmPurchase({ req, data, busy, onCancel, onConfirm }) {
         <dl className="room-receipt">
           <div><dt>Preço</dt><dd>{fmt(p.base)} {cname}</dd></div>
           {p.final !== p.base && <div className="disc"><dt>{discountLabel} (-{p.discount}%)</dt><dd>−{fmt(p.base - p.final)}</dd></div>}
+          {couponOk && <div className="disc"><dt>Cupom {coupon.code}</dt><dd>−{fmt(coupon.discount)}</dd></div>}
           {collection && <div className="note"><dt>Se o que falta custar menos que o pacote, você paga o menor valor.</dt><dd /></div>}
           <div className="total"><dt>Total</dt><dd>{final === 0 ? 'Grátis' : `${fmt(final)} ${cname}`}</dd></div>
           <div className="bal"><dt>Seu saldo</dt><dd>{fmt(balance)} → {short ? '—' : fmt(balance - final)}</dd></div>
         </dl>
+        {canCoupon && (
+          <div className="c4-coupon">
+            {!couponOpen && !couponOk && <button type="button" className="c4-coupon-toggle" onClick={() => setCouponOpen(true)}>Tem um cupom?</button>}
+            {(couponOpen || couponOk) && (
+              <div className="c4-coupon-row">
+                <input
+                  value={couponCode} onChange={(e) => { setCouponCode(e.target.value.toUpperCase()); setCoupon(null); setCouponMsg(''); }}
+                  placeholder="CÓDIGO DO CUPOM" maxLength={32} aria-label="Código do cupom" autoFocus={couponOpen && !couponOk}
+                  onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); applyCoupon(); } }}
+                />
+                {couponOk
+                  ? <button type="button" className="room-btn ghost" onClick={() => { setCoupon(null); setCouponCode(''); }}>Remover</button>
+                  : <button type="button" className="room-btn ghost" disabled={couponBusy || !couponCode.trim()} onClick={applyCoupon}>{couponBusy ? '…' : 'Aplicar'}</button>}
+              </div>
+            )}
+            {couponOk && <p className="c4-coupon-ok" role="status">Cupom aplicado: −{fmt(coupon.discount)} moedas.</p>}
+            {couponMsg && <p className="room-warn" role="alert">{couponMsg}</p>}
+          </div>
+        )}
         {short && <p className="room-warn" role="alert">Saldo insuficiente: faltam {fmt(final - balance)} {cname}. Ganhe mais no baú diário e nas missões.</p>}
         {error && <p className="room-warn" role="alert">{error}</p>}
         <div className="room-confirm-actions">

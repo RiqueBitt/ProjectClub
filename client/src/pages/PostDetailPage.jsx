@@ -17,6 +17,8 @@ import { FeedIcon, VotePill, timeAgo, postTagsOf, PostSkeletons } from './Commun
 import { pinPost } from '../api/contentx';
 import { useLiveRefresh } from '../utils/liveRefresh';
 import FeedPoll from '../components/FeedPoll.jsx';
+import ThanksButton from '../components/community/ThanksButton.jsx';
+import '../styles/community4.css';
 
 // Reconhece se um comentário é só um link de imagem/GIF (colado a mão ou
 // escolhido no seletor de GIF abaixo) pra renderizar como imagem em vez
@@ -182,6 +184,7 @@ export default function PostDetailPage({ postId } = {}) {
 
       <article className={`post-detail-card fp-detail${post.pinnedAt ? ' cxf-pinned' : ''}`}>
         {post.pinnedAt && <span className="cxf-pin-flag"><FeedIcon name="pin" size={13} /> Fixado pela staff</span>}
+        {post.postOfWeek && <span className="c4-potw-flag"><FeedIcon name="star" size={13} /> Post da semana</span>}
         <header className="fp-card-head">
           <button type="button" className="fp-club" onClick={() => navigate(`/comunidades/${post.community.slug}`)}>
             {post.community.iconUrl
@@ -220,6 +223,8 @@ export default function PostDetailPage({ postId } = {}) {
         <footer className="fp-actions">
           <VotePill score={post.score} myVote={post.myVote} onVote={onVotePost} />
           <span className="fp-action"><FeedIcon name="comment" /> {comments?.length ?? 0} <span className="fp-action-label">comentário{comments?.length === 1 ? '' : 's'}</span></span>
+          {/* Fase 4: reputação — agradecer quem escreveu (não aparece no próprio post). */}
+          {post.authorId !== user.id && <ThanksButton targetType="POST" targetId={post.id} />}
         </footer>
       </article>
 
