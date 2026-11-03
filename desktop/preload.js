@@ -164,6 +164,27 @@ contextBridge.exposeInMainWorld('electronAPI', {
       return () => ipcRenderer.removeListener('vpn:state', handler);
     },
   },
+  // Clipes dos últimos 30 segundos (Fase 7, desligado por padrão) — ver
+  // desktop/clipsManager.js. O vídeo fica só na memória deste PC até a
+  // pessoa apertar o atalho; aí vira um .webm em Vídeos/Project Club Clipes.
+  clips: {
+    version: 1,
+    getState: () => ipcRenderer.invoke('clips:get-state'),
+    setSettings: (patch) => ipcRenderer.invoke('clips:set-settings', patch || {}),
+    saveNow: () => ipcRenderer.invoke('clips:save-now'),
+    openFolder: () => ipcRenderer.invoke('clips:open-folder'),
+    listDisplays: () => ipcRenderer.invoke('clips:list-displays'),
+    onState: (callback) => {
+      const handler = (_e, st) => callback(st);
+      ipcRenderer.on('clips:state', handler);
+      return () => ipcRenderer.removeListener('clips:state', handler);
+    },
+    onSaved: (callback) => {
+      const handler = (_e, info) => callback(info);
+      ipcRenderer.on('clips:saved', handler);
+      return () => ipcRenderer.removeListener('clips:saved', handler);
+    },
+  },
   // Navegador do Project Club (abas dentro do app). Ver browserEngine.js.
   browser: {
     version: 2,

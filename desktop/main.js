@@ -311,6 +311,10 @@ function applyThrottling() {
 // um jogo (não em qualquer app comum, nem sem nada aberto) — guardado
 // aqui pra showOverlayNotification poder checar isso na hora.
 let currentActivity = null;
+// Clipes (Fase 7): o gerenciador só é criado na primeira vez que algo usa
+// (ver clipsMgr dentro do bloco de IPC).
+let clipsInstance = null;
+let clipsMgr = () => null;
 
 // Item pedido: "Sistema... Geral... Iniciar com o sistema... Minimizar
 // para bandeja... Abrir links no aplicativo... Confirmar saída" e
@@ -982,6 +986,7 @@ if (!gotLock) {
     mainWindow.webContents.once('did-finish-load', () => {
       activityCallback = (activity) => {
         currentActivity = activity;
+        if (clipsInstance) clipsInstance.onActivity(activity); // Clipes no modo "Jogo"
         if (mainWindow && !mainWindow.isDestroyed()) {
           mainWindow.webContents.send('activity:detected', activity);
         }
@@ -1552,6 +1557,38 @@ if (!gotLock) {
     }
   });
 
+  // Clipes dos últimos 30 segundos (Fase 7, desligado por padrão) — ver
+  // clipsManager.js. Com a opção desligada nada é criado (sem janela
+  // escondida, sem atalho global). A configuração fica neste computador.
+  clipsMgr = () => {
+    if (!clipsInstance) {
+      clipsInstance = require('./clipsManager').createClipsManager({
+        app, BrowserWindow, session, desktopCapturer, globalShortcut, Notification, shell, ipcMain,
+        powerMonitor: (() => { try { return require('electron').powerMonitor; } catch { return null; } })(),
+        getActivity: () => currentActivity,
+        onState: (st) => {
+          // Indicador sempre visível enquanto grava: bandeja + app.
+          try { tray?.setToolTip(st.recording ? `Project Club — ● Clipes ativos (${st.settings.hotkey} salva os últimos 30 s)` : 'Project Club'); } catch { /* sem bandeja */ }
+          if (mainWindow && !mainWindow.isDestroyed()) mainWindow.webContents.send('clips:state', st);
+        },
+        onSaved: (info) => { if (mainWindow && !mainWindow.isDestroyed()) mainWindow.webContents.send('clips:saved', info); },
+      });
+    }
+    return clipsInstance;
+  };
+  secureHandle('clips:get-state', () => clipsMgr().getState());
+  secureHandle('clips:set-settings', (_e, patch) => clipsMgr().setSettings(patch && typeof patch === 'object' ? patch : {}));
+  secureHandle('clips:save-now', () => clipsMgr().save().catch((err) => ({ saved: false, reason: 'error', error: err.message })));
+  secureHandle('clips:open-folder', () => clipsMgr().openFolder().then(() => true).catch(() => false));
+  secureHandle('clips:list-displays', () => {
+    try {
+      const primary = screen.getPrimaryDisplay().id;
+      return screen.getAllDisplays().map((d, i) => ({
+        id: d.id, primary: d.id === primary, label: d.label || `Tela ${i + 1}`, size: `${d.size.width}×${d.size.height}`,
+      }));
+    } catch { return []; }
+  });
+
   // Item pedido: "Sistema... Iniciar com o sistema... Minimizar para
   // bandeja... Abrir links no aplicativo... Confirmar saída" e "Jogos e
   // apps... Detecção automática de jogos" — recebe o UserSettings de
@@ -1961,6 +1998,8 @@ if (!gotLock) {
     setDeepLinkHandler();
     createTray();
     setupAutoUpdater();
+    // Clipes: só liga de verdade se a pessoa tiver ativado (clips.json).
+    runAfterStartup(() => { try { clipsMgr()?.init(); } catch (err) { console.warn('[clipes] não iniciou:', err?.message || err); } });
 
     // Configura a inicialização automática só na PRIMEIRA execução — a
     // pessoa não precisa achar isso em nenhum menu escondido. Isso é só
@@ -2022,5 +2061,5 @@ if (!gotLock) {
   });
 
   app.on('before-quit', () => { isQuitting = true; });
-  app.on('will-quit', () => { screenAudio.stop(); globalPtt.stop(); globalShortcut.unregisterAll(); if (activityDetectionRunning) activityDetector().stopActivityDetection(); });
+  app.on('will-quit', () => { if (clipsInstance) clipsInstance.shutdown(); screenAudio.stop(); globalPtt.stop(); globalShortcut.unregisterAll(); if (activityDetectionRunning) activityDetector().stopActivityDetection(); });
 }
