@@ -194,7 +194,7 @@ export function ModTile({ thumb, fallbackIcon, title, author, stats = [], instal
         {stats.length > 0 && (
           <div className="mdx-tile-stats">
             {stats.filter(Boolean).map((s) => (
-              <span key={s.icon} className="mdx-stat"><Icon name={s.icon} size={13} /> {s.value}</span>
+              <span key={s.icon} className={`mdx-stat ${s.className || ''}`} title={s.title}><Icon name={s.icon} size={13} filled={!!s.filled} /> {s.value}</span>
             ))}
           </div>
         )}

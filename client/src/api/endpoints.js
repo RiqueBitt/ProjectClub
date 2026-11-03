@@ -730,6 +730,11 @@ export const listModComments = (modioModId) => api.get(`/mods/mods/${modioModId}
 export const addModComment = (modioGameId, modioModId, content) => api.post(`/mods/games/${modioGameId}/mods/${modioModId}/comments`, { content }).then((r) => r.data);
 export const deleteModComment = (commentId) => api.delete(`/mods/comments/${commentId}`).then((r) => r.data);
 export const reportMod = (modioModId, reason) => api.post(`/mods/mods/${modioModId}/report`, { reason }).then((r) => r.data);
+// Avaliações (1–5 estrelas + texto curto opcional), uma por pessoa por mod.
+export const getModRatings = (modioModId) => api.get(`/mods/mods/${modioModId}/ratings`).then((r) => r.data);
+export const rateMod = (modioGameId, modioModId, payload) => api.put(`/mods/games/${modioGameId}/mods/${modioModId}/rating`, payload).then((r) => r.data);
+export const removeMyModRating = (modioModId) => api.delete(`/mods/mods/${modioModId}/rating`).then((r) => r.data);
+export const deleteModRating = (ratingId) => api.delete(`/mods/ratings/${ratingId}`).then((r) => r.data);
 
 // Perfis (item pedido 15)
 export const listModProfiles = (modioGameId) => api.get(`/mods/games/${modioGameId}/profiles`).then((r) => r.data);
