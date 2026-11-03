@@ -79,6 +79,7 @@ import PinguAdmin from '../components/admin/PinguAdmin.jsx';
 import IntegrationsAdmin from '../components/admin/IntegrationsAdmin.jsx';
 import AppealsAdmin from '../components/admin/AppealsAdmin.jsx';
 import CreatorShopAdmin from '../components/admin/CreatorShopAdmin.jsx';
+import PinguAlertsAdmin from '../components/admin/PinguAlertsAdmin.jsx';
 import { CardsAdminCards, CardsAdminPacks, CardsAdminSettings, CardsAdminPlayers, CardsAdminTrades, CardsAdminMatches, CardsAdminStats, CardsAdminCampaign, CardsAdminTournaments, CardsAdminBoards } from '../cards/CardsAdmin.jsx';
 
 // ============================================================
@@ -158,7 +159,8 @@ const TABS = {
   gamebananaGames: { label: 'GameBanana', desc: 'Jogos ligados ao GameBanana.' },
   sistema: { label: 'Sistemas', desc: 'Ligue ou desligue economia, ranks e outros sistemas.' },
   integracoes: { label: 'Integrações', desc: 'YouTube → Novidades, status do servidor de Minecraft e webhooks de canais.' },
-  pingu: { label: 'Pingu (IA)', desc: 'Perfil do assistente de IA (nome, foto, capa, bio e cores) e o que ele sabe sobre o Project Club.' },
+  pingu: { label: 'Pingu (IA)', desc: 'Perfil do assistente de IA, o que ele sabe sobre o Project Club e as funções: boas-vindas, moderação assistida, resumo, tradução e Quiz do Pingu.' },
+  pinguAlertas: { label: 'Alertas do Pingu', desc: 'Mensagens de canal que o assistente de moderação do Pingu achou suspeitas. Ele só avisa: a decisão é da equipe.' },
   servidorVoz: { label: 'Servidor de voz', desc: 'Servidor de mídia próprio das chamadas: status e chaves (URL, segredo e TURN).' },
   maintenance: { label: 'Manutenção', desc: 'Coloca a plataforma "em reforma" para todos, menos a equipe.' },
   reload: { label: 'Reload', desc: 'Recarrega a presença online de usuários.' },
@@ -183,6 +185,7 @@ const TAB_PENDING_KEY = {
   automodDm: 'pendingAutomodFlags', modReports: 'pendingModReports',
   revisoes: 'pendingAppeals',
   criadores: 'pendingCreatorItems',
+  pinguAlertas: 'pendingPinguAlerts',
 };
 
 // Ferramentas de sistemas desligados no código (utils/features.js) somem
@@ -195,7 +198,7 @@ const HIDDEN_TABS = new Set([
 
 const TAB_GROUPS = [
   { label: 'Pessoas', icon: 'people', tabs: ['busca', 'inscricoes', 'users', 'badges', 'roles'] },
-  { label: 'Moderação', icon: 'shield', tabs: ['reports', 'revisoes', 'automodDm', 'moderacao', 'modReports', 'logs', 'honeypot'] },
+  { label: 'Moderação', icon: 'shield', tabs: ['reports', 'revisoes', 'automodDm', 'pinguAlertas', 'moderacao', 'modReports', 'logs', 'honeypot'] },
   { label: 'Comunidade', icon: 'community', tabs: ['channels', 'pingu', 'emojis', 'stickers', 'clubs', 'clanIcons', 'achievements', 'metasComunidade', 'interesses', 'gifMove'] },
   { label: 'Conteúdo', icon: 'content', tabs: ['feeds', 'updates', 'events', 'announcements', 'appCatalog'] },
   { label: 'Economia', icon: 'economy', tabs: ['economia', 'decoracoes', 'cupons', 'criadores', 'apoio', 'metaDoacao', 'casas', 'album'] },
@@ -380,6 +383,7 @@ export default function AdminPanel() {
           {tab === 'pingu' && <PinguAdmin />}
           {tab === 'integracoes' && <IntegrationsAdmin />}
           {tab === 'criadores' && <CreatorShopAdmin />}
+          {tab === 'pinguAlertas' && <PinguAlertsAdmin />}
           {tab === 'busca' && <StaffUserSearchTab />}
           {tab === 'cartasCartas' && <CardsAdminCards />}
           {tab === 'cartasPacotes' && <CardsAdminPacks />}
@@ -404,6 +408,7 @@ const QUEUES = [
   { tab: 'reports', key: 'pendingReports', label: 'Denúncias', hint: 'para analisar' },
   { tab: 'automodDm', key: 'pendingAutomodFlags', label: 'DMs sinalizadas', hint: 'pelo filtro automático' },
   { tab: 'modReports', key: 'pendingModReports', label: 'Mods denunciados', hint: 'para analisar' },
+  { tab: 'pinguAlertas', key: 'pendingPinguAlerts', label: 'Alertas do Pingu', hint: 'mensagens suspeitas' },
 ];
 
 // Texto legível de cada ação registrada no log de auditoria.
@@ -426,6 +431,10 @@ const ACTION_TEXT = {
   USER_BAN: 'baniu um usuário', USER_UNBAN: 'desbaniu um usuário', USER_SUSPEND: 'suspendeu um usuário', USER_UNSUSPEND: 'tirou a suspensão de um usuário',
   APPEAL_ACCEPT: 'aceitou uma revisão de punição', APPEAL_DENY: 'recusou uma revisão de punição',
   USER_DELETE_ACCOUNT: 'excluiu uma conta', USER_EDIT: 'editou um usuário', USER_ROLE_CHANGE: 'mudou o cargo de um usuário',
+  PINGU_CONFIG: 'mudou as funções do Pingu', PINGU_QUIZ_START: 'começou um Quiz do Pingu', PINGU_QUIZ_CREATE: 'adicionou uma pergunta ao quiz',
+  PINGU_QUIZ_UPDATE: 'editou uma pergunta do quiz', PINGU_QUIZ_DELETE: 'apagou uma pergunta do quiz', PINGU_QUIZ_GENERATE: 'pediu uma pergunta de quiz à IA',
+  PINGU_ALERT_REVIEW: 'analisou um alerta do Pingu',
+  WIKI_CREATE: 'criou uma página da wiki', WIKI_UPDATE: 'editou uma página da wiki', WIKI_DELETE: 'apagou uma página da wiki',
 };
 const actionText = (a) => ACTION_TEXT[a] || String(a || '').replaceAll('_', ' ').toLowerCase();
 

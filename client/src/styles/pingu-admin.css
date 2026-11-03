@@ -19,3 +19,34 @@
 .pga-actions { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-top: 10px; }
 .pga-msg { font-size: 13px; color: #3ad17a; }
 .pga-msg.err { color: var(--red, #ed4245); }
+
+/* Fase 9 — funções do Pingu (components/admin/PinguFeaturesAdmin.jsx) e
+   alertas de moderação (components/admin/PinguAlertsAdmin.jsx). */
+.pgf { display: flex; flex-direction: column; gap: 10px; }
+.pgf-form { display: flex; flex-direction: column; gap: 10px; }
+.pgf h4 { margin: 10px 0 0; font-size: 14px; }
+.pgf-toggle { flex-direction: row !important; align-items: center; gap: 8px !important; font-weight: 500 !important; color: var(--text-normal) !important; font-size: 14px !important; cursor: pointer; }
+.pgf-toggle input { width: 16px; height: 16px; }
+.pgf-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 10px; }
+.pgf-row { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.pgf-row input, .pgf-row select { flex: 1 1 200px; min-width: 0; }
+.pgf-quiz-form { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 10px; align-items: end; }
+.pgf-qlist { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; max-height: 420px; overflow-y: auto; }
+.pgf-qlist li { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; padding: 8px 10px; border-radius: 8px; border: 1px solid var(--border); background: var(--bg-secondary); }
+.pgf-qlist li.pending { border-color: #f0b232; }
+.pgf-q { display: flex; flex-direction: column; gap: 2px; flex: 1 1 260px; min-width: 0; }
+.pgf-q span { font-size: 12px; }
+.pgf-q-actions { display: flex; gap: 6px; flex-wrap: wrap; }
+.pgf-q-actions .danger, .pgal .danger { color: var(--red, #ed4245); }
+.pgf-board { margin: 0; padding-left: 22px; }
+.pgal { display: flex; flex-direction: column; gap: 10px; max-width: 860px; }
+.pgal-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
+.pgal-item { padding: 10px 12px; border-radius: 8px; border: 1px solid var(--border); background: var(--bg-secondary); display: flex; flex-direction: column; gap: 6px; }
+.pgal-head { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; font-size: 13px; }
+.pgal-snippet { margin: 0; padding: 6px 10px; border-left: 3px solid #f0b232; background: var(--bg-modifier-hover); border-radius: 4px; white-space: pre-wrap; overflow-wrap: anywhere; font-size: 14px; }
+.pgal-reasons { display: flex; gap: 6px; flex-wrap: wrap; }
+.pgal-reasons span { padding: 1px 8px; border-radius: 999px; font-size: 11px; background: var(--bg-modifier-hover); }
+.pgal-ai { font-weight: 700; font-size: 11px; padding: 1px 8px; border-radius: 999px; }
+.pgal-ai.sim { background: color-mix(in srgb, #ed4245 22%, transparent); }
+.pgal-ai.sem { background: var(--bg-modifier-hover); }
+.pgal-actions { display: flex; gap: 8px; flex-wrap: wrap; }
