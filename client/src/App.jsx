@@ -30,6 +30,8 @@ const VerifyEmailPage = lazy(() => import('./pages/VerifyEmailPage.jsx'));
 const ForgotPasswordPage = lazy(() => import('./pages/ForgotPasswordPage.jsx'));
 const ResetPasswordPage = lazy(() => import('./pages/ResetPasswordPage.jsx'));
 const OAuthReturnPage = lazy(() => import('./pages/OAuthReturnPage.jsx'));
+// "Entrar com o celular" (Fase 5): tela do celular que aprova o QR do PC.
+const QrApprovePage = lazy(() => import('./pages/QrApprovePage.jsx'));
 const LandingPage = lazy(() => import('./pages/LandingPage.jsx'));
 const PrivacyPage = lazy(() => import('./pages/PrivacyPage.jsx'));
 const BlogPage = lazy(() => import('./pages/BlogPage.jsx'));
@@ -343,6 +345,7 @@ export default function App() {
           <Route path="/forgot-password" element={<ForgotPasswordPage />} />
           <Route path="/reset-password" element={<ResetPasswordPage />} />
           <Route path="/oauth/retorno" element={<OAuthReturnPage />} />
+          <Route path="/entrar-qr" element={<QrApprovePage />} />
           <Route path="/privacidade" element={<PrivacyPage />} />
           <Route path="/termos" element={<PrivacyPage />} />
           <Route path="/blog" element={<BlogPage />} />

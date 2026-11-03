@@ -506,3 +506,38 @@ html.is-electron-app .pc-auth { --a-titlebar: 32px; }
   .pc-auth-grain { animation: none; }
   .pc-auth .pc-btn-primary:hover:not(:disabled) { transform: none; }
 }
+
+/* ---------- Fase 5: "Entrar com o celular" (QR) ---------- */
+.pc-qr { display: flex; flex-direction: column; align-items: stretch; gap: 14px; }
+.pc-qr-frame {
+  align-self: center; display: grid; place-items: center; width: 244px; height: 244px; max-width: 100%;
+  padding: 12px; border-radius: 18px; background: #fff;
+  box-shadow: 0 0 0 1px var(--a-line-soft), 0 24px 60px -30px rgba(255, 255, 255, 0.35);
+  transition: box-shadow .2s ease, opacity .2s ease;
+}
+.pc-qr-frame img { display: block; width: 100%; height: auto; image-rendering: pixelated; }
+.pc-qr-frame.is-scanned { box-shadow: 0 0 0 3px var(--a-ok), 0 24px 60px -30px rgba(61, 220, 132, 0.6); }
+.pc-qr-frame.is-dim { opacity: .55; }
+.pc-qr-placeholder { display: grid; place-items: center; width: 100%; height: 100%; color: #555; font-size: 40px; }
+.pc-qr-placeholder .pc-spinner { width: 28px; height: 28px; border-color: rgba(0, 0, 0, .15); border-top-color: #111; }
+.pc-qr-status { text-align: center; min-height: 44px; }
+.pc-qr-status p { margin: 0 0 4px; color: var(--a-text); font-size: 14.5px; font-weight: 600; }
+.pc-qr-timer { color: var(--a-muted); font-size: 13px; font-variant-numeric: tabular-nums; }
+.pc-qr-steps { margin: 0; padding-left: 20px; color: var(--a-muted); font-size: 13.5px; line-height: 1.6; }
+.pc-qr-steps b { color: var(--a-text); }
+.pc-qr-muted { display: inline-flex; align-items: center; gap: 8px; margin: 0; color: var(--a-muted); font-size: 13.5px; }
+
+/* Celular: tela de aprovar. */
+.pc-qr-approve { gap: 14px; }
+.pc-qr-warning {
+  display: flex; flex-direction: column; gap: 6px; padding: 14px 16px; border-radius: var(--a-radius);
+  background: rgba(255, 114, 117, 0.09); border: 1px solid rgba(255, 114, 117, 0.4);
+}
+.pc-qr-warning strong { color: #ffc2c3; font-size: 14.5px; }
+.pc-qr-warning p { margin: 0; color: #f1d6d6; font-size: 13.5px; line-height: 1.5; }
+.pc-qr-warning b { color: #fff; }
+.pc-qr-details { margin: 0; display: grid; gap: 8px; padding: 12px 14px; border-radius: var(--a-radius); background: rgba(255, 255, 255, 0.04); border: 1px solid var(--a-line-soft); }
+.pc-qr-details > div { display: flex; justify-content: space-between; gap: 12px; font-size: 14px; }
+.pc-qr-details dt { color: var(--a-muted); }
+.pc-qr-details dd { margin: 0; color: var(--a-text); font-weight: 600; text-align: right; overflow-wrap: anywhere; }
+@media (prefers-reduced-motion: reduce) { .pc-qr-frame { transition: none; } }

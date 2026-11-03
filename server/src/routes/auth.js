@@ -81,6 +81,39 @@ router.post('/passkeys/register/verify', requireAuth, authLimiter, passkeyCtrl.r
 router.delete('/passkeys/:id', requireAuth, authLimiter, passkeyCtrl.remove);
 router.post('/passkeys/login/options', loginLimiter, passkeyCtrl.loginOptions);
 router.post('/passkeys/login/verify', loginLimiter, passkeyCtrl.loginVerify);
+// "Entrar com o celular" (login por QR Code) — ver services/qrLogin.js.
+// PC (sem login): criar o QR é limitado por IP (cada pedido gera um
+// pareamento novo); consultar o estado precisa do segredo do PC e tem um
+// teto folgado pra consulta a cada 2s; a troca por sessão é rara.
+const qrCtrl = require('../controllers/qrLoginController');
+const qrStartLimiter = rateLimit({
+  windowMs: 10 * 60 * 1000, max: 10, standardHeaders: true, legacyHeaders: false,
+  store: createRateLimitStore('qr-start'),
+  message: { error: 'Muitos QR Codes gerados. Espere alguns minutos e tente de novo.' },
+});
+const qrPollLimiter = rateLimit({
+  windowMs: 60 * 1000, max: 90, standardHeaders: true, legacyHeaders: false,
+  store: createRateLimitStore('qr-poll'),
+  message: { error: 'Muitas consultas. Espere um pouco.' },
+});
+const qrExchangeLimiter = rateLimit({
+  windowMs: 10 * 60 * 1000, max: 20, standardHeaders: true, legacyHeaders: false,
+  store: createRateLimitStore('qr-exchange'),
+  message: { error: 'Muitas tentativas. Tente novamente em alguns minutos.' },
+});
+// Celular (logado): por conta, não por IP.
+const qrPhoneLimiter = rateLimit({
+  windowMs: 10 * 60 * 1000, max: 30, standardHeaders: true, legacyHeaders: false,
+  keyGenerator: (req) => `u:${req.user.id}`, store: createRateLimitStore('qr-phone'),
+  message: { error: 'Muitas tentativas. Tente novamente em alguns minutos.' },
+});
+router.post('/qr/start', qrStartLimiter, qrCtrl.start);
+router.post('/qr/poll', qrPollLimiter, qrCtrl.poll);
+router.post('/qr/exchange', qrExchangeLimiter, qrCtrl.exchange);
+router.post('/qr/scan', requireAuth, qrPhoneLimiter, qrCtrl.scan);
+router.post('/qr/approve', requireAuth, qrPhoneLimiter, qrCtrl.approve);
+router.post('/qr/deny', requireAuth, qrPhoneLimiter, qrCtrl.deny);
+
 router.get('/sessions', requireAuth, ctrl.listSessions);
 router.delete('/sessions/other', requireAuth, ctrl.revokeOtherSessions);
 router.delete('/sessions/:id', requireAuth, ctrl.revokeSession);

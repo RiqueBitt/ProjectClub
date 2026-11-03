@@ -24,6 +24,15 @@ export const deleteAccount = (password) => api.post('/auth/delete-account', { pa
 export const listSessions = () => api.get('/auth/sessions').then((r) => r.data);
 export const revokeSession = (id) => api.delete(`/auth/sessions/${id}`).then((r) => r.data);
 export const revokeOtherSessions = () => api.delete('/auth/sessions/other').then((r) => r.data);
+// "Entrar com o celular" (login por QR Code — ver server/src/services/qrLogin.js).
+// PC: cria o QR, consulta o estado com o segredo e troca por sessão.
+export const qrLoginStart = () => api.post('/auth/qr/start').then((r) => r.data);
+export const qrLoginPoll = (secret) => api.post('/auth/qr/poll', { secret }).then((r) => r.data);
+export const qrLoginExchange = (secret) => api.post('/auth/qr/exchange', { secret }).then((r) => r.data);
+// Celular (logado): vê quem está pedindo e aprova/recusa.
+export const qrLoginScan = (code) => api.post('/auth/qr/scan', { code }).then((r) => r.data);
+export const qrLoginApprove = (code) => api.post('/auth/qr/approve', { code }).then((r) => r.data);
+export const qrLoginDeny = (code) => api.post('/auth/qr/deny', { code }).then((r) => r.data);
 // Entrar com Google/Discord/GitHub (ver server/src/controllers/oauthController.js).
 export const getOAuthProviders = () => api.get('/auth/oauth/providers').then((r) => r.data);
 export const oauthStartUrl = (provider, from = 'login') => `/api/auth/oauth/${encodeURIComponent(provider)}/start?from=${from}`;
