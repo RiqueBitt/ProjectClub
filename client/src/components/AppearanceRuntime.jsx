@@ -10,10 +10,11 @@ import { useLocation, useNavigate } from 'react-router-dom';
 import { useStore } from '../store/useStore';
 import {
   applyLayoutPrefs, sameLayoutPrefs, isDefaultLayoutPrefs, SEASONS,
-  SIDEBAR_WIDTH_MIN, SIDEBAR_WIDTH_MAX, rememberPath, saveScrollPosition, readScrollPosition,
-} from '../utils/appearance';
+  SIDEBAR_WIDTH_MIN, SIDEBAR_WIDTH_MAX, rememberPath, saveScrollPosition, readScrollPosition, setGameParty } from '../utils/appearance';
 import '../styles/appearance.css';
 import { isChannelPath, isDmPath } from '../utils/prettyLinks';
+import { api } from '../api/client.js';
+import { isFeatureEnabled } from '../utils/features';
 
 // Ícones locais (traço, mesmo estilo de PageIcons.jsx).
 const ICONS = {
@@ -24,6 +25,21 @@ const ICONS = {
   carnaval: 'M3 8c3-2 6-2 9 0s6 2 9 0M5 12.5c2.5 1.6 4.8 1.7 7 .4M12 13c2.2 1.3 4.5 1.2 7-.4M8 16.5l-1 4M16 16.5l1 4M12 17v4',
   halloween: 'M12 7c-4.4 0-8 3-8 6.8S7.6 20 12 20s8-2.4 8-6.2S16.4 7 12 7zM12 7V4.5c0-.8.6-1.5 1.5-1.5M9 12.5l1 1.2M15 12.5l-1 1.2M9 16.5c1.8 1 4.2 1 6 0',
   festajunina: 'M12 3 4 21h16L12 3zM8.5 14h7M6.5 18h11M12 3v18',
+  blackout: 'M12 3a9 9 0 1 0 9 9c0-1-.2-2-.5-3A6.5 6.5 0 0 1 12 3zM8 14l2 2M14 14l2 2',
+  puffle: 'M12 4c4.4 0 8 3.4 8 7.5S16.4 19 12 19s-8-3.4-8-7.5S7.6 4 12 4zM9.5 11h.01M14.5 11h.01M9.5 14.5c1.5 1.2 3.5 1.2 5 0M8 5l-1-2M16 5l1-2',
+  medieval: 'M4 20h16M6 20V8l3 3 3-5 3 5 3-3v12M9 20v-4h6v4',
+  herois: 'M12 3l7 3v5c0 5-3 8-7 10-4-2-7-5-7-10V6l7-3zM9 12l2 2 4-4',
+  cardjitsu: 'M6 4h8l4 4v12H6zM14 4v4h4M9 12l2 2 4-4',
+  musica: 'M9 18V6l10-2v12M9 18a2.5 2.5 0 1 1-5 0 2.5 2.5 0 0 1 5 0zM19 16a2.5 2.5 0 1 1-5 0 2.5 2.5 0 0 1 5 0z',
+  feira: 'M3 21h18M5 21V10l7-6 7 6v11M9 21v-6h6v6M12 4v-1',
+  abril: 'M12 3a6 6 0 0 0-6 6v3h12V9a6 6 0 0 0-6-6zM6 12l-2 9h16l-2-9M9 7h.01M15 7h.01',
+  terra: 'M12 3a9 9 0 1 0 0 18 9 9 0 0 0 0-18zM3.5 10c3 0 4 2 6 2s3-3 6-3 4 1 5.5 1M8 20c1-2 0-4 2-5s4 0 5-2',
+  pascoa: 'M12 3c3.5 0 6 4 6 9a6 6 0 0 1-12 0c0-5 2.5-9 6-9zM7 11h10M8 15h8',
+  pirata: 'M12 3c-3 0-6 2-6 6 0 2 1 3 2 4v2h8v-2c1-1 2-2 2-4 0-4-3-6-6-6zM9 10h.01M15 10h.01M6 20l12-4M6 16l12 4',
+  submarino: 'M3 13c2-3 5-4 9-4s7 1 9 4c-2 3-5 4-9 4s-7-1-9-4zM15 13h.01M3 13l-1 3M3 13l-1-3',
+  moda: 'M8 3h8l1 4-3 1v13H10V8L7 7zM10 8h4',
+  aventura: 'M12 3l3 6 6 1-4.5 4 1 6-5.5-3-5.5 3 1-6L3 10l6-1z',
+  festa: 'M4 21l4-12 8 8zM12 4l1 2M18 6l-2 1M20 12l-2-1M8 6l1 2',
   aniversario: 'M4 21h16M5 21v-7a1 1 0 0 1 1-1h12a1 1 0 0 1 1 1v7M5 16.5c1.2 1 2.3 1 3.5 0s2.3-1 3.5 0 2.3 1 3.5 0 2.3-1 3.5 0M12 13V9M12 6.5c-.8 0-1.3-.6-1.3-1.3S12 3 12 3s1.3 1.5 1.3 2.2-.5 1.3-1.3 1.3z',
 };
 
@@ -47,6 +63,7 @@ export function useApplyAppearance() {
   const settingsLoaded = useStore((s) => !!s.userSettings);
   const adoptedRef = useRef(false);
   const [mqTick, setMqTick] = useState(0);
+  const [gameTick, setGameTick] = useState(0);
 
   // Muda junto quando o sistema liga/desliga "reduzir movimento".
   useEffect(() => {
@@ -59,7 +76,21 @@ export function useApplyAppearance() {
 
   useEffect(() => {
     applyLayoutPrefs(layoutPrefs, { reducedMotion });
-  }, [layoutPrefs, reducedMotion, mqTick]);
+  }, [layoutPrefs, reducedMotion, mqTick, gameTick]);
+
+  // Festa da Praça (Club Penguin): o servidor diz qual festa está rolando na
+  // ilha; o site acompanha (e volta ao normal quando acaba). A cada 10 min.
+  useEffect(() => {
+    if (!isFeatureEnabled('plaza')) return undefined;
+    let alive = true;
+    const check = () => api.get('/plaza/status').then(({ data }) => {
+      if (!alive) return;
+      if (setGameParty(data?.party || null)) setGameTick((n) => n + 1);
+    }).catch(() => {});
+    check();
+    const id = window.setInterval(check, 10 * 60_000);
+    return () => { alive = false; window.clearInterval(id); };
+  }, []);
 
   // A conta é a fonte de verdade: na primeira carga, usa o que está
   // salvo lá; se a conta ainda não tem nada e este aparelho já tem algo

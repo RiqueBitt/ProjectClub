@@ -138,8 +138,67 @@ export const SEASONS = {
   // Fase 4: temporada nova (o servidor sabe das mesmas datas — ver
   // server/src/services/community/seasons.js).
   festajunina: { label: 'Festa Junina', greeting: 'Arraiá do Project Club!', when: '1 a 30 de junho' },
+  // Festas da Praça (Club Penguin) — seguem o calendário do jogo.
+  blackout: { label: 'Operação: Blackout', greeting: 'A ilha está sob ataque — Operação: Blackout na Praça!', when: 'festa da Praça' },
+  puffle: { label: 'Festa dos Puffles', greeting: 'Festa dos Puffles na Praça!', when: 'festa da Praça' },
+  medieval: { label: 'Festa Medieval', greeting: 'Festa Medieval na Praça!', when: 'festa da Praça' },
+  herois: { label: 'Festa dos Heróis', greeting: 'Super-heróis tomaram a Praça!', when: 'festa da Praça' },
+  cardjitsu: { label: 'Festa Card-Jitsu', greeting: 'Festa Card-Jitsu na Praça!', when: 'festa da Praça' },
+  musica: { label: 'Festival de Música', greeting: 'Festival de Música na Praça!', when: 'festa da Praça' },
+  feira: { label: 'A Feira', greeting: 'A Feira chegou na Praça!', when: 'festa da Praça' },
+  abril: { label: 'Primeiro de Abril', greeting: 'Dia da Mentira na Praça!', when: 'festa da Praça' },
+  terra: { label: 'Dia da Terra', greeting: 'Dia da Terra na Praça!', when: 'festa da Praça' },
+  pascoa: { label: 'Caça aos Ovos', greeting: 'Caça aos ovos de Páscoa na Praça!', when: 'festa da Praça' },
+  pirata: { label: 'Missão do Rockhopper', greeting: 'Rockhopper atracou na Praça!', when: 'festa da Praça' },
+  submarino: { label: 'Expedição Submarina', greeting: 'Expedição Submarina na Praça!', when: 'festa da Praça' },
+  moda: { label: 'Desfile de Moda', greeting: 'Desfile de Moda na Praça!', when: 'festa da Praça' },
+  aventura: { label: 'Festa de Aventura', greeting: 'Aventura na Praça!', when: 'festa da Praça' },
+  festa: { label: 'Festa na Praça', greeting: 'Tem festa na Praça!', when: 'festa da Praça' },
   aniversario: { label: 'Aniversário do Project Club', greeting: 'Parabéns, Project Club!', when: `${PROJECT_CLUB_BIRTHDAY.day}/${String(PROJECT_CLUB_BIRTHDAY.month).padStart(2, '0')} e os 2 dias seguintes` },
 };
+
+// ---------- Festas da Praça (Club Penguin) ----------
+// Quando a ilha está em festa, o site inteiro acompanha: a festa ativa (que o
+// servidor informa em /api/plaza/status, seguindo o calendário real) tem
+// prioridade sobre a estação por data. Sem festa, volta ao visual normal.
+export const GAME_PARTY_SEASONS = {
+  'Halloween Party': 'halloween',
+  'Holiday Party': 'natal',
+  'Operation: Blackout': 'blackout',
+  'Puffle Party': 'puffle',
+  'Medieval Party': 'medieval',
+  'Marvel Super Hero Takeover': 'herois',
+  'Card-Jitsu Party': 'cardjitsu',
+  'Music Jam': 'musica',
+  'Make Your Mark: Ultimate Jam': 'musica',
+  'Fair': 'feira',
+  'The Fair': 'feira',
+  'April Fools': 'abril',
+  "April Fools' Party": 'abril',
+  'Earth Day': 'terra',
+  'Easter Egg Hunt': 'pascoa',
+  "Rockhopper's Quest": 'pirata',
+  'Underwater Expedition': 'submarino',
+  'Fashion Show': 'moda',
+  'Adventure Party: Temple of Fruit': 'aventura',
+  'Island Adventure Party': 'aventura',
+  'Wilderness Expedition': 'aventura',
+  '6th Anniversary Party': 'festa',
+  '7th Anniversary Party': 'festa',
+  'Battle of Doom': 'herois',
+  'Great Snow Race': 'aventura',
+};
+let gameSeason = null;
+try { gameSeason = localStorage.getItem('pc-game-season') || null; } catch { /* ignora */ }
+/** Chamado quando o servidor informa a festa da Praça (null = sem festa). */
+export function setGameParty(partyName) {
+  const id = partyName ? (GAME_PARTY_SEASONS[partyName] || 'festa') : null;
+  if (id === gameSeason) return false;
+  gameSeason = id;
+  try { if (id) localStorage.setItem('pc-game-season', id); else localStorage.removeItem('pc-game-season'); } catch { /* ignora */ }
+  return true;
+}
+export function getGameSeason() { return gameSeason; }
 
 export function seasonForDate(date = new Date()) {
   const y = date.getFullYear();
@@ -166,6 +225,7 @@ export function currentSeason() {
     const q = new URLSearchParams(window.location.search).get('estacao') || localStorage.getItem('pc-season-preview');
     if (q && SEASONS[q]) return q;
   } catch { /* ignora */ }
+  if (gameSeason && SEASONS[gameSeason]) return gameSeason;
   return seasonForDate();
 }
 

@@ -277,7 +277,9 @@ async function getConfig(user) {
   const w = await getWaddle();
   const { id, json } = await ensurePenguin(user);
   const media = mediaState();
-  if (media.state !== 'ready') {
+  // 'partial' (mídia incompleta sem release configurada) ainda serve o que
+  // tem no disco; só as fases de download/extração seguram a página.
+  if (['checking', 'downloading', 'extracting'].includes(media.state)) {
     // Primeira inicialização: os arquivos do jogo ainda estão sendo baixados
     // no servidor. Sem entry/ticket — a página espera e pede de novo.
     return { preparing: true, media, penguin: { id, name: json.name, color: json.color, coins: json.coins, member: !!json.is_member }, online: w.world.getAllPlayersInfo().length };
@@ -310,7 +312,7 @@ function mediaState() {
 async function getStatus() {
   if (!instance) return { ready: false, online: 0, media: mediaState(), error: lastError ? String(lastError.message || lastError) : null };
   const media = mediaState();
-  return { ready: media.state === 'ready', online: instance.world.getAllPlayersInfo().length, version: instance.settings.settings.version, party: instance.gameData.getPartyName ? instance.gameData.getPartyName() : null, media };
+  return { ready: media.state === 'ready' || media.state === 'partial', online: instance.world.getAllPlayersInfo().length, version: instance.settings.settings.version, party: instance.gameData.getPartyName ? instance.gameData.getPartyName() : null, media };
 }
 
 module.exports = { getWaddle, mountHttp, attachUpgrade, getConfig, getStatus, ensurePenguin, cachedRouter };

@@ -56,6 +56,8 @@ const realMedia = process.env.WADDLE_TEST_REAL_MEDIA; // opcional: cópia comple
 const put = (rel, content) => { const f = path.join(mediaDir, rel); fs.mkdirSync(path.dirname(f), { recursive: true }); fs.writeFileSync(f, content); };
 if (!realMedia) {
   put('default/websites/classic-cpip-boots.html', '<html><head></head><body><object data="/boots.swf"><param name="flashvars" value="lang=en"></object></body></html>');
+  // modo calendário (padrão) cai na era moderna (AS3): página com o cliente novo
+  put('default/websites/classic-as3.html', '<html><head></head><body><object data="/play/v2/client/club_penguin.swf"><param name="flashvars" value="play=/play/&lang=en"></object></body></html>');
   put('default/websites/classic/css/baseline.css', 'body{}');
 }
 
@@ -95,7 +97,9 @@ test('o jogo sobe e responde só às rotas dele; o site continua dono do resto',
 
 test('config da Praça cria o pinguim da conta com a cor do mascote e nome único', async () => {
   const cfg = await waddle.getConfig(user);
-  assert.equal(cfg.entry.swf, '/boots.swf');
+  assert.equal(cfg.entry.swf, '/play/v2/client/club_penguin.swf');
+  assert.equal(cfg.as3, true);
+  assert.match(cfg.version, /^2012-\d\d-\d\d$/); // calendário: hoje mapeado em 2012
   assert.equal(cfg.penguin.name, 'Rique Bitt');
   assert.equal(cfg.penguin.color, 5); // red
   assert.ok(cfg.penguin.id >= 1000);
@@ -149,7 +153,9 @@ test('mundo: entra, fala (com automod) e abrir em outro lugar derruba a sessão 
   await a.open();
   a.send("<msg t='sys'><body action='verChk' r='0'><ver v='153' /></body></msg>");
   a.send("<msg t='sys'><body action='rndK' r='-1'></body></msg>");
-  a.send("<msg t='sys'><body action='login' r='0'><login z='undefined'><nick><![CDATA[x]]></nick><pword><![CDATA[y]]></pword></login></body></msg>");
+  // cliente moderno (2012, modo calendário): manda o ID no login do mundo —
+  // o servidor troca pelo ID do pinguim da conta mesmo se vier outro número
+  a.send("<msg t='sys'><body action='login' r='0'><login z='w1'><nick><![CDATA[1]]></nick><pword><![CDATA[y]]></pword></login></body></msg>");
   await wait(300);
   a.send(`%xt%s%j#js%-1%${id}%${id}%en%`);
   await wait(300);

@@ -140,6 +140,33 @@ html[data-pc-season='carnaval'] { --pc-season-a: #ff4fa3; --pc-season-b: #ffd23f
 html[data-pc-season='halloween'] { --pc-season-a: #ff8a1f; --pc-season-b: #8d4bff; }
 html[data-pc-season='festajunina'] { --pc-season-a: #e8a33d; --pc-season-b: #d9452b; }
 html[data-pc-season='aniversario'] { --pc-season-a: var(--brand); --pc-season-b: #ff6fb5; }
+/* Festas da Praça (Club Penguin) — o servidor informa qual está rolando. */
+html[data-pc-season='blackout'] { --pc-season-a: #ff3b3b; --pc-season-b: #6b7280; }
+html[data-pc-season='puffle'] { --pc-season-a: #ff5fa2; --pc-season-b: #5ad1ff; }
+html[data-pc-season='medieval'] { --pc-season-a: #c9a227; --pc-season-b: #8b1e1e; }
+html[data-pc-season='herois'] { --pc-season-a: #e02424; --pc-season-b: #2563eb; }
+html[data-pc-season='cardjitsu'] { --pc-season-a: #f59e0b; --pc-season-b: #0ea5e9; }
+html[data-pc-season='musica'] { --pc-season-a: #a855f7; --pc-season-b: #22d3ee; }
+html[data-pc-season='feira'] { --pc-season-a: #f97316; --pc-season-b: #facc15; }
+html[data-pc-season='abril'] { --pc-season-a: #22c55e; --pc-season-b: #f472b6; }
+html[data-pc-season='terra'] { --pc-season-a: #16a34a; --pc-season-b: #0ea5e9; }
+html[data-pc-season='pascoa'] { --pc-season-a: #f9a8d4; --pc-season-b: #a7f3d0; }
+html[data-pc-season='pirata'] { --pc-season-a: #b91c1c; --pc-season-b: #d4a017; }
+html[data-pc-season='submarino'] { --pc-season-a: #0891b2; --pc-season-b: #1e3a8a; }
+html[data-pc-season='moda'] { --pc-season-a: #ec4899; --pc-season-b: #fbbf24; }
+html[data-pc-season='aventura'] { --pc-season-a: #65a30d; --pc-season-b: #d97706; }
+html[data-pc-season='festa'] { --pc-season-a: #f43f5e; --pc-season-b: #38bdf8; }
+
+/* Halloween e Blackout escurecem o site; as outras festas só colorem os
+   destaques (barra de cima, selo, bordas) por cima do tema de sempre. */
+html[data-pc-season='halloween'] body, html[data-pc-season='blackout'] body {
+  --bg-deepest: #0c0810; --bg-secondary: #140f1c; --bg-primary: #1a1424; --bg-primary-solid: #1a1424;
+  --bg-elevated: #221a2e; --bg-elevated-solid: #221a2e; --bg-floating: #110c18; --bg-floating-solid: #110c18;
+  --brand: var(--pc-season-a); --brand-hover: color-mix(in srgb, var(--pc-season-a) 80%, black);
+}
+html[data-pc-season='blackout'] body { --bg-deepest: #050607; --bg-secondary: #0b0d10; --bg-primary: #111418; --bg-primary-solid: #111418; --bg-elevated: #171b21; --bg-elevated-solid: #171b21; }
+html[data-pc-season='natal'] body { --brand: #d93a3a; --brand-hover: #b52e2e; }
+html[data-pc-season] .main-sidebar, html[data-pc-season] .praca-logo { box-shadow: inset 0 -2px 0 color-mix(in srgb, var(--pc-season-a) 60%, transparent); }
 
 html[data-pc-season] .app-shell .top-search-bar { position: relative; }
 html[data-pc-season] .app-shell .top-search-bar::after {
