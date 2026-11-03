@@ -3,6 +3,7 @@ import { useAuth } from '../context/AuthContext.jsx';
 import { api } from '../api/client.js';
 import { enterGameMode, exitGameMode } from '../minijogos/orientation.js';
 import { isTouchDevice } from '../minijogos/touch/detect.js';
+import { autoLogin } from '../praca/autoLogin.js';
 import '../styles/praca.css';
 
 // Praça = Club Penguin completo, rodando em cima do Waddle Forever embutido no
@@ -59,11 +60,14 @@ export default function PracaPage() {
   const [online, setOnline] = useState(0);
   const [scale, setScale] = useState(1);
   const [needsTap, setNeedsTap] = useState(false);
+  // entrada automática: 'start' | 'form' | 'server' | 'world' | 'manual' | null
+  const [entering, setEntering] = useState(null);
   const [showBar, setShowBar] = useState(false); // tela cheia no celular: barra aparece por 3 s ao tocar
   const [hint, setHint] = useState(() => { try { return localStorage.getItem('pc.praca.hint') !== '1'; } catch { return true; } });
 
   const pageRef = useRef(null);
   const stageRef = useRef(null);
+  const autoAbort = useRef(null);
   const playerRef = useRef(null);
   const touch = useMemo(() => isTouchDevice(), []);
 
@@ -139,7 +143,7 @@ export default function PracaPage() {
         warnOnUnsupportedContent: false,
         showSwfDownload: false,
         contextMenu: 'off',
-        allowScriptAccess: false,
+        allowScriptAccess: true, // o cliente moderno (AS3) usa ExternalInterface pra ler a URL da página
         allowNetworking: 'all',
         openUrlMode: 'deny',
         logLevel: 'error',
@@ -151,6 +155,15 @@ export default function PracaPage() {
         if (!alive) return;
         setPhase('playing');
         try { player.volume = readMuted() ? 0 : 1; } catch { /* ignora */ }
+        // Entra sozinho: a pessoa já está logada no Project Club.
+        const ac = new AbortController();
+        autoAbort.current = ac;
+        setEntering('start');
+        autoLogin({ player, as3: !!cfg.as3, name: cfg.penguin.name, signal: ac.signal, onStep: (st) => { if (alive) setEntering(st); } }).then((ok) => {
+          if (!alive) return;
+          setEntering(ok ? 'world' : 'manual');
+          window.setTimeout(() => { if (alive) setEntering(null); }, ok ? 800 : 0);
+        });
         // Som: o navegador só libera áudio depois de um gesto — se o jogo
         // abriu sem gesto (ex.: F5), pede um toque.
         try { if (player.suspended) setNeedsTap(true); } catch { /* ignora */ }
@@ -166,6 +179,7 @@ export default function PracaPage() {
     });
     return () => {
       alive = false;
+      try { autoAbort.current?.abort(); } catch { /* ignora */ }
       try { playerRef.current?.remove(); } catch { /* ignora */ }
       playerRef.current = null;
     };
@@ -181,6 +195,14 @@ export default function PracaPage() {
       const r = area.getBoundingClientRect();
       const s = Math.min(r.width / STAGE.w, r.height / STAGE.h);
       setScale(Math.max(0.2, s));
+      // O player é dimensionado no tamanho REAL em pixels (não ampliado por
+      // CSS): o Ruffle desenha os vetores nessa resolução, HUD e textos
+      // ficam nítidos em qualquer tela.
+      const stage = stageRef.current;
+      if (stage) {
+        stage.style.width = `${Math.round(STAGE.w * s)}px`;
+        stage.style.height = `${Math.round(STAGE.h * s)}px`;
+      }
     };
     update();
     const ro = new ResizeObserver(update);
@@ -288,7 +310,7 @@ export default function PracaPage() {
         <div
           className="praca-stage"
           ref={stageRef}
-          style={{ width: STAGE.w, height: STAGE.h, '--praca-scale': scale }}
+          style={{ width: Math.round(STAGE.w * scale), height: Math.round(STAGE.h * scale) }}
         />
         {phase !== 'playing' && phase !== 'error' && (
           <div className="praca-overlay">
@@ -314,6 +336,13 @@ export default function PracaPage() {
             <button type="button" className="pet-btn primary" onClick={retry}>Tentar de novo</button>
           </div>
         )}
+        {phase === 'playing' && entering && entering !== 'manual' && (
+          <div className={`praca-overlay is-entering${entering === 'world' ? ' is-done' : ''}`} aria-live="polite">
+            <div className="praca-loader" aria-hidden="true" />
+            <strong>{entering === 'world' ? 'Bem-vindo à ilha!' : `Entrando como ${cfg?.penguin.name}…`}</strong>
+            <span>{entering === 'start' ? 'Abrindo o jogo' : entering === 'form' ? 'Identificando seu pinguim' : entering === 'server' ? 'Conectando ao servidor' : ''}</span>
+          </div>
+        )}
         {phase === 'playing' && needsTap && (
           <button type="button" className="praca-tap" onClick={resumeAudio}>Toque para ligar o som</button>
         )}
@@ -322,7 +351,7 @@ export default function PracaPage() {
       {hint && phase === 'playing' && (
         <div className="praca-hint" role="note">
           <span>
-            Clique na tela de login e entre com qualquer senha — você sempre entra como <strong>{cfg?.penguin.name}</strong>.
+            Você entra automaticamente como <strong>{cfg?.penguin.name}</strong>.
             {touch ? ' No celular, use a tela cheia deitada: o jogo escala pra caber.' : ' Clique onde quer andar; o chat é o balão do jogo.'}
           </span>
           <button type="button" className="praca-hint-close" onClick={dismissHint} aria-label="Entendi">✕</button>

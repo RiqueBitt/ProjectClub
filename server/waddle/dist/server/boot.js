@@ -41,6 +41,16 @@ async function createWaddle(options = {}) {
         settings.targetIP = options.targetIP;
     if (options.targetPort)
         settings.targetPort = options.targetPort;
+    settings.relativeUrls = true;
+    // WADDLE_VERSION=auto (padrão no Project Club): data do jogo = hoje, no ano
+    // da linha do tempo (WADDLE_CALENDAR_YEAR, padrão 2012).
+    const wanted = (process.env.WADDLE_VERSION || 'auto').trim();
+    if (wanted === 'auto') {
+        settings.followCalendar(Number(process.env.WADDLE_CALENDAR_YEAR) || 2012);
+    }
+    else if (settings.settings.version !== wanted) {
+        settings.updateSettings({ version: wanted });
+    }
     startMods();
     let db = options.db;
     if (db === undefined) {

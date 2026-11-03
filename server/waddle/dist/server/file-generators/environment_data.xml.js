@@ -3,7 +3,9 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.getEnvironmentDataXml = getEnvironmentDataXml;
 /** XML file for AS3 client that records each of the relevant paths */
 function getEnvironmentDataXml(_, s) {
-    const URL = `http://${s.targetIP}:${s.targetPort}/`;
+    // Project Club: o jogo é servido pelo mesmo host do site, em qualquer
+    // endereço/porta — caminhos relativos à raiz em vez de http://ip:porta.
+    const URL = process.env.WADDLE_PUBLIC_BASE ? `${process.env.WADDLE_PUBLIC_BASE.replace(/\/+$/, '')}/` : (s.relativeUrls ? '/' : `http://${s.targetIP}:${s.targetPort}/`);
     return `<environmentData>
 
 	<!-- CP General Environment -->

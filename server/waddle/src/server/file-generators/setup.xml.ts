@@ -58,6 +58,7 @@ export function getSetupXml(d: GameData, s: SettingsManager) {
   const chat = d.getChatVersion();
 
   const servers = [
+    'ProjectClub',
     'Blizzard',
     'Slushy',
     'Ice Berg',

@@ -167,12 +167,16 @@ async function moderateSpeech(userId, text) {
 }
 
 // Transform dos pacotes vindos do cliente: identidade forçada + moderação.
-function makeTransform(user, penguinName) {
+// O cliente clássico (AS2) manda o NOME no login; o moderno (AS3, 2011+) manda
+// o ID numérico do pinguim no login do mundo — a troca respeita o formato.
+function makeTransform(user, penguinName, penguinId) {
   return async (packet) => {
     if (packet.startsWith('<')) {
       if (packet.includes("action='login'") || packet.includes('action="login"')) {
+        const sent = (packet.match(/<nick><!\[CDATA\[([\s\S]*?)\]\]><\/nick>/) || [])[1] || '';
+        const identity = /^\d+$/.test(sent.trim()) ? String(penguinId) : penguinName;
         return packet
-          .replace(/<nick><!\[CDATA\[[\s\S]*?\]\]><\/nick>/, `<nick><![CDATA[${penguinName}]]></nick>`)
+          .replace(/<nick><!\[CDATA\[[\s\S]*?\]\]><\/nick>/, `<nick><![CDATA[${identity}]]></nick>`)
           .replace(/<pword><!\[CDATA\[[\s\S]*?\]\]><\/pword>/, '<pword><![CDATA[projectclub]]></pword>');
       }
       return packet;
@@ -210,7 +214,7 @@ function attachUpgrade(httpServer) {
         return;
       }
       const w = await getWaddle();
-      const { json } = await ensurePenguin(user);
+      const { id: penguinId, json } = await ensurePenguin(user);
       if (kind === 'world') await replaceSession(user.id);
       wss.handleUpgrade(req, socket, head, (ws) => {
         if (kind === 'world') {
@@ -224,7 +228,7 @@ function attachUpgrade(httpServer) {
             setTimeout(finish, 150);
           });
         }
-        w.attach(kind, ws, makeTransform(user, json.name));
+        w.attach(kind, ws, makeTransform(user, json.name, penguinId));
       });
     })().catch((err) => {
       console.error('[praça] erro no upgrade do WebSocket:', err?.message || err);
@@ -283,6 +287,8 @@ async function getConfig(user) {
   return {
     entry,
     version: s.settings.version,
+    as3: !!w.gameData.getAs3(),
+    party: w.gameData.getPartyName ? w.gameData.getPartyName() : null,
     lang: (entry.flashvars.match(/lang=(\w+)/) || [])[1] || 'en',
     stage: { width: 760, height: 480 },
     // Ruffle: host:porta que o SWF tenta abrir → WebSocket do site
@@ -304,7 +310,7 @@ function mediaState() {
 async function getStatus() {
   if (!instance) return { ready: false, online: 0, media: mediaState(), error: lastError ? String(lastError.message || lastError) : null };
   const media = mediaState();
-  return { ready: media.state === 'ready', online: instance.world.getAllPlayersInfo().length, version: instance.settings.settings.version, media };
+  return { ready: media.state === 'ready', online: instance.world.getAllPlayersInfo().length, version: instance.settings.settings.version, party: instance.gameData.getPartyName ? instance.gameData.getPartyName() : null, media };
 }
 
 module.exports = { getWaddle, mountHttp, attachUpgrade, getConfig, getStatus, ensurePenguin, cachedRouter };

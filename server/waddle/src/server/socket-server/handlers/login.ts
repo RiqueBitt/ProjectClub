@@ -3,7 +3,7 @@ import { ClientSocket } from "@server/socket-server/socket-server";
 import { getDefaultPenguin } from "@server/database/database";
 import { logdebug } from "@server/logger";
 import { WorldPenguin } from "@server/socket-server/world/world-penguin";
-import serverList, { getServerPopulation } from "@server/servers";
+import serverList from "@server/servers";
 import { LoginContext } from "@server/socket-server/xml-handler";
 
 
@@ -64,15 +64,20 @@ export const login: LoginHandler = async (ctx, message: string) => {
     }
 
     const idTest = modernLogin ? Number(nickname) : await db.fromName(nickname);
-    if (idTest === null) {
-      throw new Error(`Could not find penguin with name: ${nickname}`);
+    if (idTest === null || (typeof idTest === 'number' && !Number.isInteger(idTest))) {
+      // pinguim inexistente: erro pro cliente em vez de derrubar o servidor
+      logdebug(`Login: penguin not found (${nickname})`);
+      sendError(msg, client, 100);
+      return;
     }
     const id = typeof idTest === 'number' ? idTest : idTest[0];
 
     if ('world' in ctx) {
       const offline = await ctx.off.getPenguin(id);
       if (offline === undefined) {
-        throw new Error('Couldn\'t find penguin');
+        logdebug(`Login: penguin #${id} has no data`);
+        sendError(msg, client, 100);
+        return;
       }
       const p = new WorldPenguin(id, offline.getJSON(), settings);
       ctx.off.removePenguin(offline.id);
@@ -86,9 +91,9 @@ export const login: LoginHandler = async (ctx, message: string) => {
     how will server size be handled after NPCs?
     */
     // information regarding how many populations are in each server
-    msg.send(client, 'l', id, id, '', serverList.map((server) => {
-      const population = server.name === 'Blizzard' ? 5 : getServerPopulation()
-      return `${server.id},${population}`;
-    }).join('|'));
+    // população: quem está online de verdade (barra do servidor), mínimo 1
+    const online = 'world' in ctx ? ctx.world.players.length : 0;
+    const population = Math.max(1, Math.min(6, Math.ceil(online / 20)));
+    msg.send(client, 'l', id, id, '', serverList.map((server) => `${server.id},${population}`).join('|'));
   }
 }

@@ -59,6 +59,8 @@ type GameState = {
   hunt: HuntCrumbs | null;
   fair: boolean;
   partyIcon: boolean;
+  /** Project Club: nome da festa ativa na data (null = ilha normal) */
+  partyName: string | null;
   migrator: boolean;
   mapNote: boolean;
   unlockedDay: number | null;
@@ -116,6 +118,7 @@ function getFreshState(): GameState {
     hunt: null,
     fair: false,
     partyIcon: false,
+    partyName: null,
     migrator: false,
     mapNote: false,
     unlockedDay: null,
@@ -755,6 +758,10 @@ export class GameData {
         continue;
       }
 
+      const u: any = update.update;
+      if (typeof u.partyName === 'string') {
+        this.state.partyName = u.partyName;
+      }
       for (const key in actions) {
         const value = update.update[key as keyof CPUpdateE];
         if (value !== undefined) {
@@ -792,6 +799,11 @@ export class GameData {
 
   public getMigrator() {
     return this.state.migrator;
+  }
+
+  /** Festa ativa na data atual (ex.: "Halloween Party"), ou null */
+  public getPartyName(): string | null {
+    return this.state.partyName;
   }
 
   public getPartyIcon() {

@@ -48,7 +48,7 @@
     linear-gradient(180deg, #0b2a4a, #061a30);
 }
 .praca-stage {
-  position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%) scale(var(--praca-scale, 1)); transform-origin: center; will-change: transform;
+  position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%);
   border-radius: 10px; overflow: hidden;
   box-shadow: 0 20px 60px rgba(0, 0, 0, .45), 0 0 0 1px rgba(255, 255, 255, .06);
   background: #0b2a4a;
@@ -66,6 +66,8 @@
 .praca-overlay strong { font-size: 18px; }
 .praca-overlay span { max-width: 420px; font-size: 13px; color: rgba(234, 243, 255, .75); }
 .praca-overlay.is-error { color: #fff; }
+.praca-overlay.is-entering { background: linear-gradient(180deg, rgba(11, 42, 74, .97), rgba(6, 26, 48, .98)); transition: opacity .5s; }
+.praca-overlay.is-entering.is-done { opacity: 0; pointer-events: none; }
 .praca-overlay .pet-btn { margin-top: 8px; }
 .praca-loader {
   width: 44px; height: 44px; border-radius: 50%; margin-bottom: 8px;
@@ -127,7 +129,7 @@
 @media (max-width: 720px) and (orientation: portrait) {
   /* em pé: palco encostado no topo (o resto da arena é só fundo) */
   .praca-arena { min-height: 56vw; }
-  .praca-page:not(.is-full) .praca-stage { top: 12px; transform: translate(-50%, 0) scale(var(--praca-scale, 1)); transform-origin: top center; }
+  .praca-page:not(.is-full) .praca-stage { top: 12px; transform: translate(-50%, 0); }
 }
 @media (prefers-reduced-motion: reduce) {
   .praca-loader, .praca-tap { animation: none; }

@@ -42,6 +42,7 @@ function getSetupXml(d, s) {
     patchFrame(rooms, d.getRoomsFrame());
     const chat = d.getChatVersion();
     const servers = [
+        'ProjectClub',
         'Blizzard',
         'Slushy',
         'Ice Berg',

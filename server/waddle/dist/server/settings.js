@@ -18,6 +18,41 @@ class SettingsManager {
     targetIP;
     /** HTTP port used by the server, undefined if default */
     _targetPort;
+    /** Project Club: gerar URLs relativas (mesmo host do site) em vez de http://ip:porta */
+    relativeUrls = false;
+    /**
+     * Project Club — modo calendário: a data do jogo segue o dia de HOJE, mapeado
+     * no ano da linha do tempo (WADDLE_CALENDAR_YEAR, padrão 2012: o ano mais
+     * completo do Waddle Forever). Assim as festas acontecem na época certa
+     * (Halloween em outubro, Natal em dezembro...) e a ilha volta ao normal
+     * sozinha quando não há festa. O relógio interno do jogo fica no ano real.
+     * Ligado por WADDLE_VERSION=auto.
+     */
+    calendarYear = null;
+    /** Data de hoje mapeada no ano da linha do tempo (AAAA-MM-DD) */
+    static calendarVersion(year, now = new Date()) {
+        let month = now.getMonth() + 1;
+        let day = now.getDate();
+        // 29/02 só existe em ano bissexto; cai pro 28
+        if (month === 2 && day === 29 && !((year % 4 === 0 && year % 100 !== 0) || year % 400 === 0))
+            day = 28;
+        return `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+    }
+    /** Liga o modo calendário e mantém a data do jogo acompanhando o dia real. */
+    followCalendar(year) {
+        this.calendarYear = year;
+        const sync = () => {
+            const v = SettingsManager.calendarVersion(year);
+            if (this.settings.version !== v) {
+                console.log(`[waddle] calendário: hoje vira ${v} na linha do tempo`);
+                this.updateSettings({ version: v });
+            }
+        };
+        sync();
+        // confere a cada minuto (vira a data à meia-noite)
+        const timer = setInterval(sync, 60_000);
+        timer.unref?.();
+    }
     updateListener = new utils_1.EventListener();
     set targetPort(port) {
         this._targetPort = port;
@@ -98,6 +133,12 @@ class SettingsManager {
         return this.targetPort + servers_1.WORLD_DELTA;
     }
     getVirtualDate(offset) {
+        if (this.calendarYear !== null) {
+            // modo calendário: o relógio do jogo é o relógio real (ano atual)
+            const real = new Date();
+            real.setHours(real.getHours() + offset);
+            return real;
+        }
         const [year, month, day] = (0, versions_1.processVersion)(this.settings.version);
         // simulating PST time for the current day
         const now = new Date();

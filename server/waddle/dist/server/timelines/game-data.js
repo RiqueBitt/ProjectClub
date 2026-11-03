@@ -54,6 +54,7 @@ function getFreshState() {
         hunt: null,
         fair: false,
         partyIcon: false,
+        partyName: null,
         migrator: false,
         mapNote: false,
         unlockedDay: null,
@@ -648,6 +649,10 @@ class GameData {
             if (update.end !== undefined && (0, versions_1.isGreaterOrEqual)(date, update.end)) {
                 continue;
             }
+            const u = update.update;
+            if (typeof u.partyName === 'string') {
+                this.state.partyName = u.partyName;
+            }
             for (const key in actions) {
                 const value = update.update[key];
                 if (value !== undefined) {
@@ -678,6 +683,10 @@ class GameData {
     }
     getMigrator() {
         return this.state.migrator;
+    }
+    /** Festa ativa na data atual (ex.: "Halloween Party"), ou null */
+    getPartyName() {
+        return this.state.partyName;
     }
     getPartyIcon() {
         return this.state.partyIcon;
