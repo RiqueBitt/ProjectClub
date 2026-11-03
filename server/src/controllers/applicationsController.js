@@ -197,6 +197,7 @@ async function submitApplication(req, res, next) {
         email: normalizedEmail, username, displayName: displayName || username, passwordHash, birthDate: parsedBirthDate,
       });
       req.app.get('io')?.to('community').emit('community:update');
+      require('../services/pingu/welcome').welcomeUser(req.app.get('io'), user);
       if (oauthIdentity) {
         await linkOAuthFromApplication(user.id, { provider: oauthIdentity.p, providerUserId: oauthIdentity.id, email: oauthIdentity.email });
         oauthSignup().clearSignupCookie(res);
@@ -287,6 +288,8 @@ async function approveApplication(req, res, next) {
     await logPlatformAction(req, { action: 'APPLICATION_APPROVE', targetType: 'APPLICATION', targetId: id, metadata: { email: application.email } });
     // Fase 4: liga a indicação (se a inscrição veio com convite).
     require('../services/community/hooks').onAccountApproved({ userId: user.id, applicationId: id }, req.app.get('io'));
+    // Pingu dá as boas-vindas no canal configurado (sem esperar; nunca lança).
+    require('../services/pingu/welcome').welcomeUser(req.app.get('io'), user);
 
     const loginUrl = `${env.CLIENT_ORIGIN}/login`;
     await sendApplicationApproved(application.email, loginUrl).catch(() => {});

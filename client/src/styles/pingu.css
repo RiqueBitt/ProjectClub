@@ -1,0 +1,42 @@
+/* Pingu (Fase 9): cartão "só você vê" (PinguEphemeralHost.jsx), tradução
+   embaixo da mensagem (Message.jsx) e botão de resumo no topo do canal. */
+.pingu-eph {
+  position: fixed; right: 20px; bottom: 96px; z-index: 900;
+  width: min(380px, calc(100vw - 32px)); max-height: min(60vh, 520px);
+  display: flex; flex-direction: column;
+  background: var(--bg-floating-solid, var(--bg-secondary, #2b2d31));
+  color: var(--text-normal);
+  border: 1px solid color-mix(in srgb, #38bdf8 45%, var(--border, transparent));
+  border-radius: 12px;
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.35);
+  animation: pingu-eph-in 160ms ease-out;
+}
+@keyframes pingu-eph-in { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
+.pingu-eph-head { display: flex; align-items: center; gap: 10px; padding: 10px 12px; border-bottom: 1px solid var(--border, rgba(255,255,255,.08)); }
+.pingu-eph-icon { font-size: 22px; line-height: 1; }
+.pingu-eph-titles { display: flex; flex-direction: column; min-width: 0; flex: 1; }
+.pingu-eph-titles strong { font-size: 14px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.pingu-eph-titles span { font-size: 11px; color: var(--text-muted); }
+.pingu-eph-close { background: none; border: 0; color: var(--text-muted); font-size: 22px; line-height: 1; cursor: pointer; padding: 2px 6px; border-radius: 6px; }
+.pingu-eph-close:hover { color: var(--text-normal); background: var(--bg-modifier-hover); }
+.pingu-eph-body { padding: 10px 14px 14px; overflow-y: auto; font-size: 14px; line-height: 1.45; }
+.pingu-eph-body p { margin: 0 0 6px; }
+.pingu-eph-body a { color: #38bdf8; }
+.pingu-eph-error { color: var(--red, #ed4245); }
+.pingu-eph-wait { color: var(--text-muted); display: flex; gap: 8px; align-items: center; }
+.pingu-eph-dots { display: inline-flex; gap: 3px; }
+.pingu-eph-dots i { width: 6px; height: 6px; border-radius: 50%; background: #38bdf8; animation: pingu-dot 1s infinite ease-in-out; }
+.pingu-eph-dots i:nth-child(2) { animation-delay: .15s; }
+.pingu-eph-dots i:nth-child(3) { animation-delay: .3s; }
+@keyframes pingu-dot { 0%, 80%, 100% { opacity: .3; transform: scale(.8); } 40% { opacity: 1; transform: none; } }
+@media (max-width: 600px) { .pingu-eph { right: 16px; left: 16px; width: auto; bottom: 84px; } }
+@media (prefers-reduced-motion: reduce) { .pingu-eph, .pingu-eph-dots i { animation: none; } }
+
+/* Tradução embaixo da mensagem (só pra quem pediu). */
+.pingu-tr { margin: 4px 0 2px; padding: 6px 10px; border-left: 3px solid #38bdf8; border-radius: 4px; background: color-mix(in srgb, #38bdf8 8%, transparent); font-size: 14px; }
+.pingu-tr-head { display: flex; align-items: center; gap: 8px; font-size: 11px; color: var(--text-muted); margin-bottom: 2px; }
+.pingu-tr-head button { background: none; border: 0; padding: 0; color: var(--text-muted); cursor: pointer; font-size: 11px; text-decoration: underline; }
+.pingu-tr-err { color: var(--red, #ed4245); }
+
+/* Botão "Resumir o que perdi" no topo do canal. */
+.chat-header-btn.pingu-summary-btn { font-size: 16px; line-height: 1; }

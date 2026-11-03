@@ -419,7 +419,7 @@ async function getStats(req, res, next) {
     const [
       userCount, messageCount, bannedCount, last24h, last7d,
       pendingApplications, pendingReports, pendingAutomodFlags, pendingModReports,
-      pendingAppeals, pendingCreatorItems,
+      pendingAppeals, pendingCreatorItems, pendingPinguAlerts,
     ] = await Promise.all([
       prisma.user.count(),
       prisma.message.count(),
@@ -434,12 +434,14 @@ async function getStats(req, res, next) {
       safe(prisma.punishmentAppeal.count({ where: { status: 'PENDING' } })),
       // Fase 8: criações esperando aprovação na Loja dos criadores.
       safe(prisma.creatorItem.count({ where: { status: 'PENDING' } })),
+      // Alertas do assistente de moderação do Pingu (services/pingu/modAssist.js).
+      safe(Promise.resolve().then(() => prisma.pinguModAlert.count({ where: { status: 'PENDING' } }))),
     ]);
     res.json({
       stats: {
         userCount, messageCount, bannedCount, newUsersLast24h: last24h, newUsersLast7d: last7d,
         pendingApplications, pendingReports, pendingAutomodFlags, pendingModReports,
-        pendingAppeals, pendingCreatorItems,
+        pendingAppeals, pendingCreatorItems, pendingPinguAlerts,
       },
     });
   } catch (err) { next(err); }

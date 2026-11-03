@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { getPinguAdmin, updatePinguAdmin, uploadPinguImage } from '../../api/endpoints';
 import UserAvatar from '../UserAvatar.jsx';
+import PinguFeaturesAdmin from './PinguFeaturesAdmin.jsx';
 import '../../styles/pingu-admin.css';
 
 // Painel da Equipe → Comunidade → Pingu (assistente de IA).
@@ -99,6 +100,9 @@ export default function PinguAdmin() {
           {msg.text && <span className={`pga-msg ${msg.ok ? '' : 'err'}`} role="status">{msg.text}</span>}
         </div>
       </form>
+
+      {/* Fase 9: boas-vindas, moderação assistida, resumo/tradução e quiz. */}
+      <PinguFeaturesAdmin />
     </div>
   );
 }

@@ -23,6 +23,7 @@ import NoticeToast from '../components/NoticeToast.jsx';
 import UpdateAvailableBanner from '../components/UpdateAvailableBanner.jsx';
 import { startSendQueue } from '../utils/sendQueue';
 import CelebrationToasts from '../components/CelebrationToasts.jsx';
+import PinguEphemeralHost from '../components/PinguEphemeralHost.jsx';
 import WelcomePane from '../components/WelcomePane.jsx';
 import ErrorBoundary from '../components/ErrorBoundary.jsx';
 import MiniProfileCard from '../components/MiniProfileCard.jsx';
@@ -108,6 +109,8 @@ const CardsGamePage = lazy(() => import('./CardsGamePage.jsx'));
 const CardsDisabledPage = lazy(() => import('./CardsDisabledPage.jsx'));
 const ClanPage = lazy(() => import('./ClanPage.jsx'));
 const TicketsPage = lazy(() => import('./TicketsPage.jsx'));
+// Wiki da comunidade (Fase 9 — Pingu).
+const WikiPage = lazy(() => import('./WikiPage.jsx'));
 const CommunitiesPage = lazy(() => import('./CommunitiesPage.jsx'));
 const CommunityPage = lazy(() => import('./CommunityPage.jsx'));
 const PostDetailPage = lazy(() => import('./PostDetailPage.jsx'));
@@ -521,6 +524,8 @@ export default function MainApp() {
                 {/* Desligada no código: /cartas (inclusive ?sala=, ?partida=) mostra "Em breve". */}
                 <Route path="/cartas" element={CARDS_WAR_ON ? <CardsGamePage /> : <CardsDisabledPage />} />
                 <Route path="/tickets" element={<TicketsPage />} />
+                <Route path="/wiki" element={<WikiPage />} />
+                <Route path="/wiki/:slug" element={<WikiPage />} />
                 {/* Item pedido: "remover completamente a categoria
                     Clãs da interface... dentro de Social, criar as
                     abas... Clubes" — /clans (a listagem "Encontrar
@@ -599,6 +604,8 @@ export default function MainApp() {
       <NoticeToast />
       <UpdateAvailableBanner />
       <CelebrationToasts />
+      {/* Respostas do Pingu que só você vê (resumo, tradução). */}
+      <PinguEphemeralHost />
       {/* BUG CORRIGIDO ("erro ao abrir o perfil quebra a tela toda"):
           o perfil é o modal que mais mudou nas últimas respostas (o
           refactor grande de reordenar seções) — sem essa proteção,

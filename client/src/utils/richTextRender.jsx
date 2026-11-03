@@ -32,7 +32,7 @@ import { useStore } from '../store/useStore';
 import { roleTextStyle, roleWeakBackground, gradientStops } from './roleColor';
 import PenguinAvatar, { isPenguinAvatarUrl, penguinColorFromUrl } from '../components/PenguinAvatar.jsx';
 import StyledEmoji from '../components/StyledEmoji.jsx';
-import { parseInternalLink, openInternalLink } from './internalLinks';
+import { parseInternalLink, openInternalLink, openInternalPath } from './internalLinks';
 import { CHANNEL_MENTION_RE, findChannelById, openChannelMention, VOICE_TYPES } from './channelMentions';
 
 // BUG CORRIGIDO: <img src={u.avatarUrl}> quebrava (bloqueado pela CSP
@@ -140,6 +140,8 @@ function renderInline(text, ctx, keyPrefix) {
     // closing paren, a comma) is excluded from the match so "check ```
     // out https://x.com." doesn't swallow the sentence's own final dot.
     { name: 'link', re: /https?:\/\/[^\s<]+[^\s<.,!?)\]]/ },
+    // Fase 9: "/wiki/regras" solto no texto (o Pingu cita assim) abre a wiki.
+    { name: 'wikiLink', re: /(?<![\w/.:-])\/wiki\/[a-z0-9]+(?:-[a-z0-9]+)*/ },
   ];
 
   let best = null;
@@ -241,6 +243,15 @@ function renderInline(text, ctx, keyPrefix) {
           }}
         >
           {url}
+        </a>,
+      );
+      break;
+    }
+    case 'wikiLink': {
+      const path = match[0];
+      nodes.push(
+        <a key={key} href={path} className="chat-link chat-link-internal" onClick={(e) => { e.preventDefault(); openInternalPath(path); }}>
+          {path}
         </a>,
       );
       break;

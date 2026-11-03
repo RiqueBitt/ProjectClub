@@ -4162,7 +4162,7 @@ model ModRating {
   @@index([modioGameId])
 }
 
-// ============================================================
+// =====================================================
 
 // Fase 4 — comunidade e economia
 // Tabelas novas, sem relação (FK) com User de propósito: só ids indexados,
@@ -4500,4 +4500,100 @@ model CreatorItemReport {
 
   @@unique([itemId, reporterId])
   @@index([status])
+}
+
+// ---------------------------------------------------------------------------
+// Fase 9 — Pingu (services/pingu/*). Tabelas novas, sem relação com as
+// antigas (só ids), pra não mexer em nada que já existe.
+// ---------------------------------------------------------------------------
+
+// Wiki da comunidade (/wiki): a equipe edita, todo mundo lê. O Pingu busca
+// trechos daqui pra responder sobre regras e funcionalidades.
+model WikiPage {
+  id        String   @id @default(uuid())
+  slug      String   @unique @db.VarChar(80)
+  title     String   @db.VarChar(120)
+  category  String   @default("Geral") @db.VarChar(60)
+  body      String   @db.Text
+  updatedBy String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([category])
+}
+
+// Configurações das funções do Pingu (Painel da Equipe → Pingu). Uma linha só.
+model PinguConfig {
+  id               String   @id @default("singleton")
+  welcomeEnabled   Boolean  @default(true)
+  welcomeChannelId String?
+  welcomeTemplate  String?  @db.Text
+  welcomeAi        Boolean  @default(false)
+  modAssistEnabled Boolean  @default(true)
+  modAssistAi      Boolean  @default(true)
+  modExtraWords    String?  @db.Text
+  summaryEnabled   Boolean  @default(true)
+  translateEnabled Boolean  @default(true)
+  quizDailyEnabled Boolean  @default(false)
+  quizChannelId    String?
+  quizHour         Int      @default(20)
+  quizWindowSec    Int      @default(60)
+  quizCoins        Int      @default(20)
+  quizXp           Int      @default(30)
+  // Dia (Brasília, "AAAA-MM-DD") do último quiz diário — evita repetir no mesmo dia.
+  quizLastDailyDay String?  @db.VarChar(10)
+  updatedAt        DateTime @updatedAt
+}
+
+// Banco de perguntas do Quiz do Pingu. answers = JSON ["resposta", "outra forma"].
+// Perguntas sugeridas pela IA entram PENDING até a equipe aprovar.
+model PinguQuizQuestion {
+  id          String    @id @default(uuid())
+  question    String    @db.VarChar(300)
+  answers     String    @db.Text
+  category    String    @default("Geral") @db.VarChar(40)
+  status      String    @default("APPROVED") @db.VarChar(16) // APPROVED | PENDING
+  source      String    @default("STAFF") @db.VarChar(16) // SEED | STAFF | IA
+  createdBy   String?
+  timesAsked  Int       @default(0)
+  lastAskedAt DateTime?
+  createdAt   DateTime  @default(now())
+
+  @@index([status])
+}
+
+// Cada rodada do quiz (placar = rodadas vencidas por pessoa).
+model PinguQuizRound {
+  id         String    @id @default(uuid())
+  channelId  String
+  questionId String?
+  question   String    @db.VarChar(300)
+  startedBy  String?
+  winnerId   String?
+  answeredAt DateTime?
+  coins      Int       @default(0)
+  xp         Int       @default(0)
+  endsAt     DateTime
+  createdAt  DateTime  @default(now())
+
+  @@index([winnerId])
+  @@index([channelId, createdAt])
+}
+
+// Alerta do assistente de moderação (só pra equipe; o Pingu nunca pune).
+model PinguModAlert {
+  id           String    @id @default(uuid())
+  messageId    String
+  channelId    String
+  authorId     String
+  reasons      String    @db.Text // JSON ["motivo", …]
+  snippet      String    @db.Text
+  aiVerdict    String?   @db.VarChar(8) // SIM | NAO | null (sem IA)
+  status       String    @default("PENDING") @db.VarChar(16) // PENDING | RESOLVED | DISMISSED
+  reviewedById String?
+  reviewedAt   DateTime?
+  createdAt    DateTime  @default(now())
+
+  @@index([status, createdAt])
+  @@index([messageId])
 }

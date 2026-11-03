@@ -12,6 +12,12 @@
 // - Só texto: nada de imagem, áudio, arquivo ou ação no site. As respostas
 //   saem sem imagens/links de imagem e sem @todos.
 // - Uma pergunta por vez (a VPS tem 2 vCPU): fila curta e espera por pessoa.
+//   A MESMA fila atende tudo que usa a IA (Fase 9): perguntas diretas
+//   primeiro, depois pedidos de uma pessoa (resumo, tradução) e por último
+//   o trabalho de fundo (moderação, boas-vindas, gerar pergunta de quiz).
+//   Fila cheia: uma pergunta direta tira da fila o trabalho de fundo.
+// - Wiki (/wiki): pra cada pergunta, o trecho mais parecido da wiki entra no
+//   prompt (services/pingu/wiki.js), com "(veja /wiki/slug)".
 //
 // Configuração (variáveis de ambiente; sem PINGU_OLLAMA_URL fica desligado):
 //   PINGU_OLLAMA_URL  ex.: https://38-92-41-54.sslip.io  (proxy na VPS)
@@ -43,6 +49,10 @@ const CONTEXT_CHARS = 240;
 const NUM_CTX = 1024;
 const NUM_PREDICT = 120;
 const MAX_INSTRUCTIONS = 2000;
+// Prioridades da fila única (menor = antes).
+const PRIORITY = { QUESTION: 0, USER: 1, BACKGROUND: 2 };
+const OFFLINE_TEXT = 'O Pingu está offline agora (a IA dele está fora do ar). Tenta de novo mais tarde! 🐧';
+const BUSY_TEXT = 'O Pingu está com muita gente na fila agora. Tenta de novo em um minutinho! 🐧';
 
 const BASE_PROMPT = (name) => `Você é o ${name}, assistente do Project Club (comunidade brasileira com chat, voz, Fórum, Economia, Loja e Guerra das Cartas). Responda em português do Brasil, simples e amigável, em 1 a 3 frases curtas, sem listas nem negrito. Só responda em texto: não crie imagens nem faça ações no site. Quando não souber algo do Project Club, admita e indique a equipe. Não invente regras, preços ou datas e nunca peça senhas.`;
 
@@ -58,14 +68,18 @@ let started = false;
 let healthTimer = null;
 const queue = [];
 let busy = false;
+let seq = 0;
 const lastAskAt = new Map();
+// Testes: dá pra ligar "de mentira" e trocar a chamada da IA.
+let forceEnabled = false;
+let chatImpl = null;
 
 const config = () => ({
   url: String(process.env.PINGU_OLLAMA_URL || '').trim().replace(/\/+$/, ''),
   key: String(process.env.PINGU_OLLAMA_KEY || '').trim(),
   model: String(process.env.PINGU_MODEL || 'qwen3.5:2b').trim(),
 });
-const enabled = () => !!config().url;
+const enabled = () => forceEnabled || !!config().url;
 
 async function ollama(path, { body, timeoutMs }) {
   const { url, key } = config();
@@ -237,8 +251,20 @@ function cleanAnswer(text, { truncated = false } = {}) {
   return truncated && t ? finishSentence(t) : t;
 }
 
+/** Trecho da wiki pra pergunta (nunca lança; sem wiki = null). */
+function wikiContextFor(question) {
+  try {
+    const wiki = require('./pingu/wiki');
+    return wiki.buildWikiContext(question, wiki.cachedPages());
+  } catch { return null; }
+}
+
 function buildChat(job) {
-  const messages = [{ role: 'system', content: systemPrompt() }];
+  let system = systemPrompt();
+  if (job.wiki?.text) {
+    system += `\nTrecho da wiki do Project Club (use se ajudar e cite o endereço entre parênteses):\n${job.wiki.text}`;
+  }
+  const messages = [{ role: 'system', content: system }];
   // Respondendo o Pingu: a mensagem dele entra pra ele saber do que se trata.
   if (job.previousAnswer) messages.push({ role: 'assistant', content: job.previousAnswer });
   messages.push({ role: 'user', content: job.question || 'Oi!' });
@@ -271,17 +297,7 @@ async function answer(job) {
   try {
     let text;
     try {
-      const res = await ollama('/api/chat', {
-        timeoutMs: ANSWER_TIMEOUT_MS,
-        body: {
-          model: config().model,
-          messages: buildChat(job),
-          stream: false,
-          think: false,
-          keep_alive: '24h',
-          options: { num_ctx: NUM_CTX, num_predict: NUM_PREDICT, temperature: 0.5, top_p: 0.9 },
-        },
-      });
+      const res = await callChat(buildChat(job), { temperature: 0.5 });
       text = cleanAnswer(res?.message?.content, { truncated: res?.done_reason === 'length' });
     } catch (err) {
       console.warn('[pingu] falha ao responder:', err.message);
@@ -297,16 +313,146 @@ async function answer(job) {
   }
 }
 
+/** Uma chamada /api/chat (sem streaming, sem "pensar", contexto curto). */
+async function callChat(messages, { numPredict = NUM_PREDICT, temperature = 0.3, timeoutMs = ANSWER_TIMEOUT_MS } = {}) {
+  const body = {
+    model: config().model,
+    messages,
+    stream: false,
+    think: false,
+    keep_alive: '24h',
+    options: { num_ctx: NUM_CTX, num_predict: numPredict, temperature, top_p: 0.9 },
+  };
+  if (chatImpl) return chatImpl(body, { timeoutMs });
+  return ollama('/api/chat', { timeoutMs, body });
+}
+
 async function pump() {
   if (busy) return;
   busy = true;
   try {
     while (queue.length) {
-      const job = queue.shift();
+      const task = queue.shift();
       // eslint-disable-next-line no-await-in-loop
-      await answer(job).catch((err) => console.error('[pingu] erro:', err?.message || err));
+      await Promise.resolve().then(task.run).catch((err) => console.error('[pingu] erro:', err?.message || err));
     }
   } finally { busy = false; }
+}
+
+/**
+ * Põe uma tarefa na fila única, por prioridade (e ordem de chegada).
+ * Fila cheia: tira a tarefa menos importante, se a nova for mais
+ * importante que ela (o `drop` dela é chamado); senão devolve false.
+ */
+function enqueue(task) {
+  if (queue.length >= QUEUE_MAX) {
+    let idx = -1;
+    for (let i = queue.length - 1; i >= 0; i -= 1) {
+      if (queue[i].priority > task.priority && (idx < 0 || queue[i].priority > queue[idx].priority)) idx = i;
+    }
+    if (idx < 0) return false;
+    const [dropped] = queue.splice(idx, 1);
+    try { dropped.drop?.(); } catch { /* ignora */ }
+  }
+  task.seq = seq++;
+  const at = queue.findIndex((t) => t.priority > task.priority);
+  if (at < 0) queue.push(task); else queue.splice(at, 0, task);
+  pump();
+  return true;
+}
+
+const pinguError = (code) => Object.assign(new Error(code === 'OFFLINE' ? OFFLINE_TEXT : BUSY_TEXT), { code, status: 503 });
+
+/**
+ * Pergunta qualquer coisa pra IA pela fila única. Resolve com
+ * { text, truncated } (texto cru, quem chama limpa). Rejeita com
+ * err.code 'OFFLINE' (IA fora do ar/desligada) ou 'BUSY' (fila cheia).
+ */
+function askModel(messages, { priority = PRIORITY.USER, numPredict = NUM_PREDICT, temperature = 0.3, timeoutMs = ANSWER_TIMEOUT_MS } = {}) {
+  return new Promise((resolve, reject) => {
+    if (!enabled() || !online) { reject(pinguError('OFFLINE')); return; }
+    const ok = enqueue({
+      priority,
+      run: async () => {
+        try {
+          const res = await callChat(messages, { numPredict, temperature, timeoutMs });
+          resolve({ text: String(res?.message?.content || '').replace(/<think>[\s\S]*?<\/think>/gi, '').trim(), truncated: res?.done_reason === 'length' });
+        } catch (err) {
+          console.warn('[pingu] falha na IA:', err?.message || err);
+          await checkHealth().catch(() => {});
+          reject(err?.code ? err : pinguError(online ? 'BUSY' : 'OFFLINE'));
+        }
+      },
+      drop: () => reject(pinguError('BUSY')),
+    });
+    if (!ok) reject(pinguError('BUSY'));
+  });
+}
+
+const isOnline = () => enabled() && online;
+
+/** id da conta do Pingu (cria a conta se precisar — boas-vindas e quiz funcionam sem IA). */
+async function botId() {
+  if (!pinguId) pinguId = await ensureAccount();
+  return pinguId;
+}
+
+/**
+ * Posta uma mensagem como o Pingu num canal (boas-vindas, quiz…).
+ * mentions: [{ targetType: 'USER', targetId }]. Devolve a mensagem criada.
+ */
+async function postAsPingu(channelId, content, { replyToId = null, mentions = [] } = {}) {
+  const authorId = await botId();
+  const { messageInclude, roomFor } = require('../controllers/messageController');
+  const message = await db().message.create({
+    data: {
+      content, authorId, channelId, replyToId, quickReactions: '[]',
+      mentions: mentions.length ? { create: mentions.map((m) => ({ targetType: m.targetType, targetId: m.targetId })) } : undefined,
+    },
+    include: messageInclude,
+  });
+  io?.to(roomFor({ channelId })).emit('message:new', message);
+  return message;
+}
+
+/** Resposta só pra uma pessoa (não fica no canal): chega pelo socket pessoal. */
+function sendEphemeral(userId, payload) {
+  io?.notifyUser?.(userId, 'pingu:ephemeral', { at: new Date().toISOString(), ...payload });
+}
+
+// Comandos depois do @pingu (só o começo da mensagem).
+const RESUME_RE = /^(resum[eao]|resumir|resumo)\b/i;
+const QUIZ_RE = /^quiz\b/i;
+
+async function isStaff(userId) {
+  const u = await db().user.findUnique({ where: { id: userId }, select: { platformRole: true } }).catch(() => null);
+  return !!u && ['ADMIN', 'MODERATOR'].includes(u.platformRole);
+}
+
+/** Recursos da Fase 9 que olham TODA mensagem de canal (baratos; nunca lançam). */
+function runMessageHooks(ctx) {
+  const { message } = ctx;
+  if (!message || (pinguId && message.authorId === pinguId)) return;
+  try { require('./pingu/quiz').onMessage(io, message); } catch (err) { console.warn('[pingu] quiz:', err?.message || err); }
+  try { require('./pingu/modAssist').onMessage(io, ctx); } catch (err) { console.warn('[pingu] moderação:', err?.message || err); }
+}
+
+/** @pingu resume / @pingu quiz. true = era um comando (já tratado). */
+function handleCommand(message, question, channel) {
+  if (RESUME_RE.test(question)) {
+    require('./pingu/summary').requestSummary({ userId: message.authorId, channelId: message.channelId, channelName: channel?.name, until: message.createdAt || new Date() })
+      .then((r) => sendEphemeral(message.authorId, { kind: 'summary', channelId: message.channelId, ...r }))
+      .catch((err) => sendEphemeral(message.authorId, { kind: 'summary', channelId: message.channelId, error: err?.message || 'Não deu pra resumir agora.' }));
+    return true;
+  }
+  if (QUIZ_RE.test(question)) {
+    isStaff(message.authorId).then((ok) => {
+      if (!ok) { sendEphemeral(message.authorId, { kind: 'info', channelId: message.channelId, text: 'Só a equipe pode começar um quiz. 🐧' }); return null; }
+      return require('./pingu/quiz').startRound(io, { channelId: message.channelId, startedBy: message.authorId });
+    }).catch((err) => sendEphemeral(message.authorId, { kind: 'info', channelId: message.channelId, error: err?.message || 'Não deu pra começar o quiz.' }));
+    return true;
+  }
+  return false;
 }
 
 /**
@@ -315,8 +461,13 @@ async function pump() {
  */
 function onChannelMessage(ioServer, { message, channel, mentionRows, threadRoot }) {
   try {
-    if (!enabled() || !channel || !isForPingu(message, mentionRows)) return;
     io = io || ioServer;
+    if (channel) runMessageHooks({ message, channel, mentionRows });
+    if (!channel || !pinguId || !isForPingu(message, mentionRows)) return;
+    const question = cleanQuestion(message.content);
+    // Comandos funcionam até com a IA desligada (respondem "offline" só pra quem pediu).
+    if (!message.replyTo && handleCommand(message, question, channel)) return;
+    if (!enabled()) return;
     const now = Date.now();
     const job = {
       channelId: message.channelId, channel, threadId: message.threadId || null, threadRoot: threadRoot || null,
@@ -324,7 +475,8 @@ function onChannelMessage(ioServer, { message, channel, mentionRows, threadRoot 
       previousAnswer: message.replyTo?.authorId === pinguId
         ? String(message.replyTo.content || '').replace(/\s+/g, ' ').trim().slice(0, CONTEXT_CHARS) || null
         : null,
-      question: cleanQuestion(message.content),
+      question,
+      wiki: wikiContextFor(question),
     };
     if (!online) {
       postAnswer(job, 'Estou desligado agora (a minha IA está fora do ar). Tenta de novo mais tarde! 🐧').catch(() => {});
@@ -332,14 +484,23 @@ function onChannelMessage(ioServer, { message, channel, mentionRows, threadRoot 
     }
     if (now - (lastAskAt.get(message.authorId) || 0) < USER_COOLDOWN_MS) return; // segura o spam em silêncio
     lastAskAt.set(message.authorId, now);
-    if (queue.length >= QUEUE_MAX) {
-      postAnswer(job, 'Tem muita gente falando comigo agora! Me chama de novo em um minutinho. 🐧').catch(() => {});
-      return;
-    }
-    queue.push(job);
-    pump();
+    const busyAnswer = () => postAnswer(job, 'Tem muita gente falando comigo agora! Me chama de novo em um minutinho. 🐧').catch(() => {});
+    if (!enqueue({ priority: PRIORITY.QUESTION, run: () => answer(job), drop: busyAnswer })) busyAnswer();
   } catch (err) {
     console.error('[pingu] erro ao receber mensagem:', err?.message || err);
+  }
+}
+
+/** Wiki, configurações, quiz diário: funcionam mesmo sem a IA. */
+async function startFeatures() {
+  await require('./pingu/config').loadConfig().catch((err) => console.warn('[pingu] config:', err?.message || err));
+  await require('./pingu/wiki').ensureSeed().catch((err) => console.warn('[wiki] seed:', err?.message || err));
+  await require('./pingu/quiz').ensureSeed().catch((err) => console.warn('[pingu] quiz seed:', err?.message || err));
+  require('./pingu/quiz').startScheduler(io);
+  // Conta já existente: o quiz e as boas-vindas reconhecem o Pingu sem IA.
+  if (!pinguId) {
+    const existing = await db().user.findUnique({ where: { username: USERNAME }, select: { id: true } }).catch(() => null);
+    if (existing) pinguId = existing.id;
   }
 }
 
@@ -347,6 +508,7 @@ async function start(ioServer) {
   if (started) return;
   started = true;
   io = ioServer;
+  await startFeatures().catch((err) => console.warn('[pingu] funções:', err?.message || err));
   if (!enabled()) { console.log('[pingu] desligado (sem PINGU_OLLAMA_URL)'); return; }
   try {
     pinguId = await ensureAccount();
@@ -364,4 +526,19 @@ async function start(ioServer) {
   healthTimer.unref?.();
 }
 
-module.exports = { start, onChannelMessage, adminState, updateFromAdmin, setImageFromAdmin, _test: { isForPingu, cleanQuestion, cleanAnswer, systemPrompt, setSettings: (v) => { settings = { ...settings, ...v }; }, setPinguId: (id) => { pinguId = id; } } };
+module.exports = {
+  start, onChannelMessage, adminState, updateFromAdmin, setImageFromAdmin,
+  // Fase 9: fila única da IA e ajudantes pros recursos novos (services/pingu/*).
+  askModel, isOnline, botId, postAsPingu, sendEphemeral, cleanAnswer, PRIORITY, OFFLINE_TEXT, BUSY_TEXT,
+  getPinguId: () => pinguId,
+  _test: {
+    isForPingu, cleanQuestion, cleanAnswer, systemPrompt, buildChat, enqueue,
+    setSettings: (v) => { settings = { ...settings, ...v }; },
+    setPinguId: (id) => { pinguId = id; },
+    setEnabled: (v) => { forceEnabled = !!v; },
+    setOnline: (v) => { online = !!v; },
+    setChat: (fn) => { chatImpl = fn; },
+    queueLength: () => queue.length + (busy ? 1 : 0),
+    reset: () => { queue.length = 0; busy = false; lastAskAt.clear(); },
+  },
+};

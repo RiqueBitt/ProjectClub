@@ -63,6 +63,8 @@ const ICONS = {
   dot: <circle cx="12" cy="12" r="2" />,
   bell: <><path d="M6 16V11a6 6 0 0 1 12 0v5l2 2H4z" /><path d="M10 21a2 2 0 0 0 4 0" /></>,
   back: <path d="m15 6-6 6 6 6" />,
+  // "Traduzir com o Pingu" (globo).
+  translate: <><circle cx="12" cy="12" r="9" /><path d="M3 12h18M12 3a14 14 0 0 1 0 18M12 3a14 14 0 0 0 0 18" /></>,
 };
 
 // Ícone deduzido do texto do item — cobre menus de outras telas que ainda
