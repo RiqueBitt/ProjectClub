@@ -70,6 +70,7 @@ import { isFeatureEnabled } from '../utils/features';
 import MissionsAdmin from '../components/admin/MissionsAdmin.jsx';
 import SupportersAdmin from '../components/admin/SupportersAdmin.jsx';
 import DonationGoalAdmin from '../components/admin/DonationGoalAdmin.jsx';
+import { CouponsAdmin, GoalsAdmin, InterestRolesAdmin } from '../components/admin/CommunityAdmin.jsx';
 import { StaffHealthTab, StaffUserSearchTab } from '../components/admin/StaffTools.jsx';
 // Painel de saúde completo (erros agrupados, calls, servidor de mídia, backups).
 import StaffOpsPanel from '../components/admin/StaffOpsPanel.jsx';
@@ -134,6 +135,10 @@ const TABS = {
   clubs: { label: 'Clubes', desc: 'Clubes criados pelos membros.' },
   clanIcons: { label: 'Ícones de clube', desc: 'Ícones disponíveis para os clubes.' },
   achievements: { label: 'Conquistas', desc: 'Conquistas, requisitos e raridades.' },
+  // Fase 4 — comunidade e economia.
+  metasComunidade: { label: 'Metas coletivas', desc: 'Metas da semana pra comunidade inteira (mensagens, call, Fórum) e a recompensa de quem participar.' },
+  interesses: { label: 'Cargos por interesse', desc: 'Cargos que os membros escolhem sozinhos (jogos e assuntos que curtem). Só cargos sem permissão.' },
+  cupons: { label: 'Cupons', desc: 'Cupons de desconto da Loja: porcentagem ou valor fixo, validade, limite de usos e compra mínima.' },
   gifMove: { label: 'GIFa Move', desc: 'Posição e tamanho do GIF animado na tela da comunidade.' },
   feeds: { label: 'Fórum', desc: 'Temas do Fórum: crie ou exclua.' },
   updates: { label: 'Atualizações', desc: 'Notas de atualização que aparecem no Início.' },
@@ -188,9 +193,9 @@ const HIDDEN_TABS = new Set([
 const TAB_GROUPS = [
   { label: 'Pessoas', icon: 'people', tabs: ['busca', 'inscricoes', 'users', 'badges', 'roles'] },
   { label: 'Moderação', icon: 'shield', tabs: ['reports', 'revisoes', 'automodDm', 'moderacao', 'modReports', 'logs', 'honeypot'] },
-  { label: 'Comunidade', icon: 'community', tabs: ['channels', 'pingu', 'emojis', 'stickers', 'clubs', 'clanIcons', 'achievements', 'gifMove'] },
+  { label: 'Comunidade', icon: 'community', tabs: ['channels', 'pingu', 'emojis', 'stickers', 'clubs', 'clanIcons', 'achievements', 'metasComunidade', 'interesses', 'gifMove'] },
   { label: 'Conteúdo', icon: 'content', tabs: ['feeds', 'updates', 'events', 'announcements', 'appCatalog'] },
-  { label: 'Economia', icon: 'economy', tabs: ['economia', 'decoracoes', 'apoio', 'metaDoacao', 'casas', 'album'] },
+  { label: 'Economia', icon: 'economy', tabs: ['economia', 'decoracoes', 'cupons', 'apoio', 'metaDoacao', 'casas', 'album'] },
   { label: 'Guerra das Cartas', icon: 'cards', tabs: ['cartasEstatisticas', 'cartasCartas', 'cartasPacotes', 'cartasCampanha', 'cartasTorneios', 'cartasFundos', 'cartasRegras', 'cartasJogadores', 'cartasTrocas', 'cartasPartidas'] },
   { label: 'Mods', icon: 'mods', tabs: ['modGames', 'workshopGames', 'gamebananaGames'] },
   { label: 'Sistema', icon: 'system', tabs: ['numeros', 'painelSaude', 'saude', 'servidorVoz', 'integracoes', 'sistema', 'maintenance', 'reload'] },
@@ -339,6 +344,9 @@ export default function AdminPanel() {
           {tab === 'decoracoes' && <ShopAdminTab />}
           {tab === 'apoio' && <SupportersAdmin />}
           {tab === 'metaDoacao' && <DonationGoalAdmin />}
+          {tab === 'cupons' && <CouponsAdmin />}
+          {tab === 'metasComunidade' && <GoalsAdmin />}
+          {tab === 'interesses' && <InterestRolesAdmin />}
           {tab === 'casas' && <HousesAdminTab />}
           {tab === 'sistema' && <SystemTab />}
           {tab === 'moderacao' && <ModerationTab />}
@@ -1308,7 +1316,7 @@ function AchievementsAdminTab() {
             <div className="admin-user-row">
               <AchievementIcon achievement={a} size={32} />
               <div className="admin-user-row-info">
-                <div className="admin-user-row-name">{a.name} {!a.enabled && <span className="dim">(desativada)</span>}</div>
+                <div className="admin-user-row-name">{a.name} {!a.enabled && <span className="dim">(desativada)</span>} {a.hidden && <span className="dim">(secreta)</span>}</div>
                 <div className="admin-user-row-meta dim">{ACHIEVEMENT_RARITY_LABEL[a.rarity]} · {a.progressType} · meta {a.target}</div>
               </div>
               <button className="btn-secondary" onClick={() => setEditingId(editingId === a.id ? null : a.id)}>Editar</button>
@@ -1339,6 +1347,7 @@ function AchievementForm({ achievement, progressTypes, rarities, onClose, onSave
   const [progressType, setProgressType] = useState(achievement?.progressType || progressTypes[0]);
   const [target, setTarget] = useState(achievement?.target || 1);
   const [enabled, setEnabled] = useState(achievement?.enabled ?? true);
+  const [hidden, setHidden] = useState(!!achievement?.hidden); // Fase 4: conquista secreta
   const [iconFile, setIconFile] = useState(null);
   const [error, setError] = useState('');
 
@@ -1348,7 +1357,7 @@ function AchievementForm({ achievement, progressTypes, rarities, onClose, onSave
     try {
       let id = achievement?.id;
       if (isEdit) {
-        await adminUpdateAchievement(id, { name, description, rarity, progressType, target, enabled });
+        await adminUpdateAchievement(id, { name, description, rarity, progressType, target, enabled, hidden });
       } else {
         const { achievement: created } = await adminCreateAchievement({ key, name, description, rarity, progressType, target });
         id = created.id;
@@ -1383,6 +1392,7 @@ function AchievementForm({ achievement, progressTypes, rarities, onClose, onSave
       </label>
       <label>META (valor pra desbloquear)<input type="number" min="1" value={target} onChange={(e) => setTarget(e.target.value)} required /></label>
       <label className="checkbox-row"><input type="checkbox" checked={enabled} onChange={(e) => setEnabled(e.target.checked)} /> Ativa (aparece no catálogo)</label>
+      {isEdit && <label className="checkbox-row"><input type="checkbox" checked={hidden} onChange={(e) => setHidden(e.target.checked)} /> Secreta (aparece como "???" até alguém desbloquear)</label>}
       <label>ÍCONE (opcional — usa a medalha padrão se não escolher nenhum)
         <input type="file" accept="image/*" onChange={(e) => setIconFile(e.target.files[0])} />
       </label>

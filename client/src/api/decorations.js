@@ -2,7 +2,8 @@ import { api } from './client';
 
 export const listDecorations = () => api.get('/decorations').then((r) => r.data);
 // expectedPrice = preço que a pessoa confirmou; o servidor recusa (409) se o real for outro.
-export const buyDecoration = (id, currency, expectedPrice) => api.post(`/decorations/${id}/buy`, { currency, expectedPrice }).then((r) => r.data);
+// `coupon` (opcional): cupom de desconto da Loja (Fase 4).
+export const buyDecoration = (id, currency, expectedPrice, coupon) => api.post(`/decorations/${id}/buy`, { currency, expectedPrice, ...(coupon ? { coupon } : {}) }).then((r) => r.data);
 export const equipDecoration = (id) => api.post('/decorations/equip', { id }).then((r) => r.data);
 export const adminListDecorations = () => api.get('/decorations/admin/all').then((r) => r.data);
 export const adminSaveDecoration = (id, fields, file) => {
@@ -15,9 +16,11 @@ export const adminDeleteDecoration = (id) => api.delete(`/decorations/admin/${id
 
 // Loja completa: molduras + efeitos de perfil + coleções.
 export const getShop = () => api.get('/decorations/shop').then((r) => r.data);
-export const buyEffect = (id, currency, expectedPrice) => api.post(`/decorations/effects/${id}/buy`, { currency, expectedPrice }).then((r) => r.data);
+// `coupon` (opcional): cupom de desconto da Loja (Fase 4).
+export const buyEffect = (id, currency, expectedPrice, coupon) => api.post(`/decorations/effects/${id}/buy`, { currency, expectedPrice, ...(coupon ? { coupon } : {}) }).then((r) => r.data);
 export const equipEffect = (id) => api.post('/decorations/effects/equip', { id }).then((r) => r.data);
-export const buyCollection = (id, currency, expectedPrice) => api.post(`/decorations/collections/${id}/buy`, { currency, expectedPrice }).then((r) => r.data);
+// `coupon` (opcional): cupom de desconto da Loja (Fase 4).
+export const buyCollection = (id, currency, expectedPrice, coupon) => api.post(`/decorations/collections/${id}/buy`, { currency, expectedPrice, ...(coupon ? { coupon } : {}) }).then((r) => r.data);
 
 const toForm = (fields, files) => {
   const fd = new FormData();
@@ -39,9 +42,11 @@ export const adminSaveCollection = (id, fields, files) => {
 export const adminDeleteCollection = (id) => api.delete(`/decorations/admin/collections/${id}`).then((r) => r.data);
 
 // Fontes do nome e estilos de perfil.
-export const buyFont = (id, currency, expectedPrice) => api.post(`/decorations/fonts/${id}/buy`, { currency, expectedPrice }).then((r) => r.data);
+// `coupon` (opcional): cupom de desconto da Loja (Fase 4).
+export const buyFont = (id, currency, expectedPrice, coupon) => api.post(`/decorations/fonts/${id}/buy`, { currency, expectedPrice, ...(coupon ? { coupon } : {}) }).then((r) => r.data);
 export const equipFont = (id) => api.post('/decorations/fonts/equip', { id }).then((r) => r.data);
-export const buyStyle = (id, currency, expectedPrice) => api.post(`/decorations/styles/${id}/buy`, { currency, expectedPrice }).then((r) => r.data);
+// `coupon` (opcional): cupom de desconto da Loja (Fase 4).
+export const buyStyle = (id, currency, expectedPrice, coupon) => api.post(`/decorations/styles/${id}/buy`, { currency, expectedPrice, ...(coupon ? { coupon } : {}) }).then((r) => r.data);
 export const equipStyle = (id) => api.post('/decorations/styles/equip', { id }).then((r) => r.data);
 
 // Itens limitados e trocas.

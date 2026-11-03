@@ -46,6 +46,7 @@ async function awardMessageXp(userId, content) {
       ...(levelUp && newLevelData.coinsReward > 0 ? { coins: { increment: newLevelData.coinsReward } } : {}),
     },
   });
+  require('./community/hooks').onXp(userId, xpGain); // retrospectiva do mês
 
   if (!levelUp) return null;
   if (newLevelData.coinsReward > 0) {
@@ -74,6 +75,7 @@ async function awardXp(userId, xp, { coins = 0, kind = 'XP', label = 'XP' } = {}
     data: { accountXp: newXp, accountLevel: lvl.level, ...(coins + levelCoins > 0 ? { coins: { increment: coins + levelCoins } } : {}) },
   });
   const ledger = require('./economyLedger');
+  require('./community/hooks').onXp(userId, xpGain); // retrospectiva do mês
   if (coins > 0 || xpGain > 0) ledger.recordTransaction(userId, { kind, label, coins, xp: xpGain });
   if (!levelUp) return { levelUp: false, xp: xpGain, coins };
   if (levelCoins) ledger.recordTransaction(userId, { kind: 'LEVEL', label: `Subiu para o nível ${lvl.level}`, coins: levelCoins });

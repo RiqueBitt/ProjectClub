@@ -161,6 +161,9 @@ async function isDone(key) {
 async function track(userId, type, amount = 1, io = null) {
   try {
     if (!userId || !MISSION_TYPES[type] || !(amount > 0)) return;
+    // Fase 4: competição dos Clubes, metas coletivas, retrospectiva e
+    // conquistas secretas (só soma em memória — não espera o banco).
+    require('./community/hooks').onTrack(userId, type, amount, io);
     // Primeiros passos: avisa o checklist (a conferência é no resgate).
     if (type === 'MESSAGES' || type === 'REACTIONS') require('./onboarding').nudge(userId, type === 'MESSAGES' ? 'FIRST_MESSAGE' : 'REACT', io);
     const missions = (await getActiveMissions()).filter((m) => m.type === type);
@@ -318,6 +321,7 @@ async function claim(userId, missionId, io = null) {
     return { balance, levelUp, coins, mult, item };
   });
 
+  if (m.rewardXp > 0) require('./community/hooks').onXp(userId, m.rewardXp); // retrospectiva do mês
   // Pontos da temporada do mês (passe de missões).
   const seasonPoints = await require('./missionSeason').addPoints(userId, m.period).catch(() => 0);
   recordTransaction(userId, { kind: 'MISSION', label: `Missão: ${m.title}${result.mult > 1 ? ` (bônus ${String(result.mult).replace('.', ',')}x de apoio)` : ''}`, coins: result.coins, gems: m.rewardGems, xp: m.rewardXp });

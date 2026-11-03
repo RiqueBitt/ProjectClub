@@ -418,6 +418,9 @@ function createApp() {
   // externo dos webhooks (sem login: a URL secreta é a credencial).
   app.use('/api/integrations', require('./routes/integrations'));
   app.use('/api/webhooks', require('./routes/integrations').publicRouter);
+  // Fase 4 — comunidade e economia (indicações, sorteio, Bora Jogar, metas,
+  // temporadas, cupons, reputação, gorjetas...).
+  require('./routes/communityExtras').mount(app);
   // Sem requireAuth de propósito — <img src="..."> do navegador nunca
   // manda o cabeçalho Authorization (só fetch/axios conseguem fazer
   // isso), então colocar autenticação aqui quebraria TODA imagem do

@@ -53,6 +53,7 @@ router.post('/channels/temp-voice', tempVoiceLimiter, async (req, res, next) => 
   try {
     const user = await require('../config/prisma').user.findUnique({ where: { id: req.user.id }, select: { id: true, displayName: true, username: true } });
     const r = await tempVoice.createRoom(user, req.body || {}, { io: req.app.get('io') });
+    if (!r.existed) require('../services/community/hooks').onTempRoomCreated(user.id, req.app.get('io')); // conquista secreta
     res.status(r.existed ? 200 : 201).json(r);
   } catch (err) { if (err.status) return res.status(err.status).json({ error: err.message }); next(err); }
 });

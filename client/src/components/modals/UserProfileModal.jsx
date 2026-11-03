@@ -59,6 +59,7 @@ import { updateProfile, uploadAvatar, uploadBanner, reportUserProfile } from '..
 import { PfIcon, PfCard } from './profileParts.jsx';
 import { looksLikeGif, isGifByContent, GIF_AVATAR_MAX_MB } from '../../utils/gifDetect';
 import { conversationPath, postPath } from '../../utils/prettyLinks';
+import { getReputation } from '../../api/community';
 export { PfIcon, PfCard };
 
 // Estado vazio pequeno, dentro de um card.
@@ -330,6 +331,14 @@ export default function UserProfileModal() {
   useEffect(() => {
     // Valor real chega junto do cabeçalho (applySummary).
     setFanStatus({ count: 0, isFan: false });
+  }, [userId]);
+
+  // Fase 4: reputação (agradecimentos recebidos) — contador na fileira de números.
+  const [reputation, setReputation] = useState(null);
+  useEffect(() => {
+    setReputation(null);
+    if (!userId) return;
+    getReputation(userId).then((r) => setReputation(r.total)).catch(() => setReputation(null));
   }, [userId]);
 
   const submitTestimonial = () => {
@@ -1444,6 +1453,12 @@ export default function UserProfileModal() {
                     <span className="pf-stat-icon"><PfIcon name="star" size={16} /></span>
                     <span className="pf-stat-text"><b>{user.accountLevel ?? 1}</b><span>Nível</span></span>
                   </div>
+                  {reputation !== null && (
+                    <div className="pf-stat" title="Agradecimentos recebidos da comunidade">
+                      <span className="pf-stat-icon"><PfIcon name="heart" size={16} /></span>
+                      <span className="pf-stat-text"><b>{reputation}</b><span>Reputação</span></span>
+                    </div>
+                  )}
                   {/* Item pedido: "seguir" do lado de Ups — o número fica
                       junto dos outros contadores; o botão fica junto dos
                       outros botões de ação. */}

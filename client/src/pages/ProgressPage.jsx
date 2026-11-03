@@ -208,7 +208,8 @@ function Achievements({ achievements }) {
       if (status === 'UNLOCKED' && !a.unlocked) continue;
       if (status === 'LOCKED' && a.unlocked) continue;
       if (rarity !== 'ALL' && a.rarity !== rarity) continue;
-      (by[categoryFor(a.progressType)] ||= []).push(a);
+      // Secretas ficam juntas (mesmo depois de desbloqueadas).
+      (by[categoryFor(a.hidden ? 'SECRET' : a.progressType)] ||= []).push(a);
     }
     // Dentro de cada categoria: as mais perto de completar primeiro, desbloqueadas no fim.
     const score = (a) => (a.unlocked ? 2 : 1 - (a.progress || 0) / (a.target || 1));
@@ -261,9 +262,11 @@ function Achievements({ achievements }) {
             {items.map((a) => {
               const pct = a.unlocked ? 100 : Math.min(100, Math.floor(((a.progress || 0) / (a.target || 1)) * 100));
               return (
-                <article key={a.id} className={`pg-ach-card${a.unlocked ? ' done' : ''}`} style={{ '--rarity': RARITY_COLOR[a.rarity] }}>
+                <article key={a.id} className={`pg-ach-card${a.unlocked ? ' done' : ''}${a.hidden && !a.unlocked ? ' secret' : ''}`} style={{ '--rarity': RARITY_COLOR[a.rarity] }}>
                   <div className="pg-ach-icon">
-                    <AchievementIcon achievement={a} size={44} locked={!a.unlocked} />
+                    {a.hidden && !a.unlocked
+                      ? <span className="pg-ach-secret" aria-label="Conquista secreta">?</span>
+                      : <AchievementIcon achievement={a} size={44} locked={!a.unlocked} />}
                     {!a.unlocked && <span className="pg-ach-lock"><PageIcon name="lock" size={12} strokeWidth={2.2} /></span>}
                   </div>
                   <div className="pg-ach-body">
@@ -272,7 +275,9 @@ function Achievements({ achievements }) {
                       <span className="pg-ach-rarity">{RARITY_LABEL[a.rarity]}</span>
                     </div>
                     <p>{a.description}</p>
-                    {a.unlocked ? (
+                    {a.hidden && !a.unlocked ? (
+                      <span className="pg-ach-date">Secreta: descubra como desbloquear</span>
+                    ) : a.unlocked ? (
                       <span className="pg-ach-date"><PageIcon name="check" size={14} strokeWidth={2.4} /> {a.unlockedAt ? `Desbloqueada em ${new Date(a.unlockedAt).toLocaleDateString('pt-BR')}` : 'Desbloqueada'}</span>
                     ) : (
                       <div className="pg-ach-progress">

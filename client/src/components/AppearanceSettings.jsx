@@ -171,7 +171,7 @@ export function LayoutCustomizer() {
             <div className="pc-season-list" aria-label="Datas com tema">
               {Object.entries(SEASONS).map(([key, s]) => (
                 <span key={key} className={`pc-season-chip ${nowSeason === key ? 'is-now' : ''}`} title={s.when}>
-                  <i style={{ background: { natal: '#e23d3d', anonovo: '#f5c542', carnaval: '#ff4fa3', halloween: '#ff8a1f', aniversario: 'var(--brand)' }[key] }} />
+                  <i style={{ background: { natal: '#e23d3d', anonovo: '#f5c542', carnaval: '#ff4fa3', halloween: '#ff8a1f', festajunina: '#e8a33d', aniversario: 'var(--brand)' }[key] }} />
                   {s.label}{nowSeason === key ? ' · agora' : ''}
                 </span>
               ))}

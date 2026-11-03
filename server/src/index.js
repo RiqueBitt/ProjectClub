@@ -165,6 +165,10 @@ require('./services/youtubeAnnouncer').startYoutubeAnnouncer(io);
 require('./services/voiceCredentials').load();
 require('./services/voiceUsage').startUsageTicker(io);
 require('./services/voiceLegacyCleanup').cleanupLegacyVoiceKeys();
+// Fase 4 (comunidade e economia): contadores de atividade + tarefas da
+// semana/mês/dia (Clubes, metas, sorteio, post da semana, retrospectiva,
+// Bora Jogar e indicações).
+require('./services/community/scheduler').startCommunityJobs(io);
 // Lembrete de evento 15 min antes pra quem respondeu "Eu vou".
 require('./services/eventReminders').startEventReminders(io);
 // Mensagens agendadas e lembretes pessoais (jobs leves, claim atômico).

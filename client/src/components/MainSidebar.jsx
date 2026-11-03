@@ -76,7 +76,7 @@ export const ITEMS = [
   // Economia (round 5): saldo, baú diário, missões, histórico e atalhos
   // pra Loja/Ranking. `system` = some pra membros se a staff desligar
   // "economia" em Admin → Sistemas (admin sempre vê).
-  { to: '/economia', icon: ECONOMY_NAV_ICON, isImg: true, labelKey: 'nav.economia', system: 'economia', match: (p) => p.startsWith('/economia') || p.startsWith('/missoes') || p.startsWith('/loja') },
+  { to: '/economia', icon: ECONOMY_NAV_ICON, isImg: true, labelKey: 'nav.economia', system: 'economia', match: (p) => p.startsWith('/economia') || p.startsWith('/missoes') || p.startsWith('/loja') || p.startsWith('/sorteio') },
   { to: '/progresso', icon: ranksIcon, isImg: true, labelKey: 'nav.progresso', match: (p) => p.startsWith('/progresso') || p.startsWith('/rank') || p.startsWith('/conquistas') },
   { to: '/tickets', icon: supportIcon, isImg: true, labelKey: 'nav.suporte', match: (p) => p.startsWith('/tickets') },
   // Navegador do Project Club: app para computador, app do celular e site.

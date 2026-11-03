@@ -29,6 +29,9 @@ const ContextMenuContext = createContext(null);
 // Teclado: setas/Home/End navegam, Enter/Espaço ativam, Esc fecha.
 
 const ICONS = {
+  // Fase 4: "Agradecer" e "Dar gorjeta" no menu da mensagem.
+  heart: <path d="M12 20s-7.5-4.5-9-9.5C2 6.9 4.4 4 7.4 4c2 0 3.6 1.1 4.6 2.7C13 5.1 14.6 4 16.6 4c3 0 5.4 2.9 4.4 6.5-1.5 5-9 9.5-9 9.5Z" />,
+  coin: <><circle cx="12" cy="12" r="9" /><path d="M12 7.6l1.3 2.65 2.9.42-2.1 2.05.5 2.9L12 14.25l-2.6 1.37.5-2.9-2.1-2.05 2.9-.42z" /></>,
   user: <><circle cx="12" cy="8" r="4" /><path d="M4 21a8 8 0 0 1 16 0" /></>,
   id: <><rect x="3" y="5" width="18" height="14" rx="2.5" /><circle cx="9" cy="11" r="2" /><path d="M6 16a3 3 0 0 1 6 0M14.5 10h4M14.5 13.5h3" /></>,
   smilePlus: <><path d="M21 12a9 9 0 1 1-6.2-8.56" /><path d="M8.5 14.5a4.5 4.5 0 0 0 7 0M9 9.5h.01M15 9.5h.01M19 2v6M16 5h6" /></>,

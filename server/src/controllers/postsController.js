@@ -31,7 +31,8 @@ function parseTags(raw) {
   try { const v = raw ? JSON.parse(raw) : []; return Array.isArray(v) ? v.filter((t) => typeof t === 'string') : []; } catch { return []; }
 }
 function shapePost(p) {
-  return p ? { ...p, tags: parseTags(p.tags), pinned: !!p.pinnedAt } : p;
+  // postOfWeek: selo "Post da semana" (Fase 4 — cache em memória, sem consulta extra).
+  return p ? { ...p, tags: parseTags(p.tags), pinned: !!p.pinnedAt, postOfWeek: require('../services/community/postOfWeek').isPostOfWeek(p.id) } : p;
 }
 const isStaffUser = (user) => ['ADMIN', 'MODERATOR'].includes(user?.platformRole);
 
@@ -362,6 +363,20 @@ async function listFeaturedPostsThisMonth(req, res, next) {
   } catch (err) { next(err); }
 }
 
+// GET /posts/post-of-week — Fase 4: o "Post da semana" mais recente (seção
+// do Início). Sem post escolhido ainda → { post: null }.
+async function getPostOfWeek(req, res, next) {
+  try {
+    const potw = await require('../services/community/postOfWeek').latest();
+    if (!potw) return res.json({ post: null });
+    const post = await prisma.post.findUnique({ where: { id: potw.postId }, include: POST_INCLUDE });
+    if (!post) return res.json({ post: null });
+    const myVote = await prisma.postVote.findUnique({ where: { postId_userId: { postId: post.id, userId: req.user.id } } }).catch(() => null);
+    const shaped = await attachPolls(shapePost({ ...post, myVote: myVote?.value || 0 }), req.user.id);
+    res.json({ post: { ...shaped, postOfWeek: true }, weekKey: potw.weekKey, rewardCoins: potw.rewardCoins });
+  } catch (err) { next(err); }
+}
+
 // POST /posts/:id/pin { pinned } — staff fixa/desafixa (fica no topo das listas).
 async function pinPost(req, res, next) {
   try {
@@ -416,5 +431,5 @@ module.exports = {
   votePostPoll,
   listPosts, createPost, uploadPostImage, getPost, deletePost, votePost,
   listComments, addComment, voteComment, deleteComment,
-  listFeaturedPostsThisMonth, pinPost, updatePostTags, parseTags,
+  listFeaturedPostsThisMonth, pinPost, updatePostTags, parseTags, getPostOfWeek,
 };

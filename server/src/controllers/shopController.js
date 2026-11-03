@@ -55,7 +55,8 @@ const idFromJson = (raw) => { try { return raw ? JSON.parse(raw).id || null : nu
 
 const sup = require('../services/supporters');
 const ledger = () => require('../services/economyLedger');
-const fail = (msg, status = 400, extra) => Object.assign(new Error(msg), { status, extra });
+const coupons = () => require('../services/community/coupons');
+const fail =(msg, status = 400, extra) => Object.assign(new Error(msg), { status, extra });
 const sendFail = (res, e) => res.status(e.status).json({ error: e.message, ...(e.extra || {}) });
 const noFunds = (currency) => fail(currency === 'gems' ? 'Gemas insuficientes.' : 'Moedas insuficientes.', 400, { code: 'INSUFFICIENT_FUNDS' });
 
@@ -213,17 +214,23 @@ async function buyItem(kind, req, res, next) {
     if (sup.exclusiveOf(item)) return res.status(403).json({ error: `Item exclusivo de ${sup.TIER_LABEL[sup.exclusiveOf(item)]} — não é vendido, é liberado pelo apoio.`, code: 'EXCLUSIVE' });
     const userId = req.user.id;
     let price;
+    let coupon = null;
     try {
       await prisma.$transaction(async (tx) => {
         const p = sup.priceFor(item, currency, await tierOf(tx, userId));
         if (p.final === null) throw fail(`Esse ${K.label} não é vendido nessa moeda.`);
-        checkExpected(req.body, p.final);
-        price = p;
         const already = await tx[K.own].findUnique({ where: K.uniq(userId, item.id) });
         if (already && !already.expiresAt) throw fail(`Você já tem esse ${K.label}.`, 400, { code: 'ALREADY_OWNED' });
-        if (p.final > 0) {
+        // Fase 4: cupom de desconto (opcional) — usado dentro desta mesma
+        // transação, então some junto se a compra falhar.
+        coupon = req.body?.coupon
+          ? await coupons().applyInTx(tx, { code: req.body.coupon, userId, price: p.final, currency, target: `${K.label}: ${item.name || item.id}` })
+          : null;
+        price = coupon ? { ...p, final: coupon.final } : p;
+        checkExpected(req.body, price.final);
+        if (price.final > 0) {
           // Desconta só se tiver saldo (condição no próprio update evita corrida).
-          const r = await tx.user.updateMany({ where: { id: userId, [currency]: { gte: p.final } }, data: { [currency]: { decrement: p.final } } });
+          const r = await tx.user.updateMany({ where: { id: userId, [currency]: { gte: price.final } }, data: { [currency]: { decrement: price.final } } });
           if (r.count === 0) throw noFunds(currency);
         }
         // UNIQUE(userId, itemId): compra repetida em paralelo desfaz tudo
@@ -240,10 +247,10 @@ async function buyItem(kind, req, res, next) {
       if (e.code === 'P2002') return res.status(400).json({ error: `Você já tem esse ${K.label}.`, code: 'ALREADY_OWNED' });
       throw e;
     }
-    const label = `Loja: ${K.label} ${item.name || ''}`.trim() + (price.discount ? ` (-${price.discount}% Assinante)` : '');
+    const label = `Loja: ${K.label} ${item.name || ''}`.trim() + (price.discount ? ` (-${price.discount}% Assinante)` : '') + (coupon ? ` (cupom ${coupon.code})` : '');
     if (price.final > 0) ledger().recordTransaction(userId, { kind: 'SHOP', label, [currency]: -price.final });
     const me = await prisma.user.findUnique({ where: { id: userId }, select: { coins: true, gems: true } });
-    res.json({ ok: true, paid: price.final, currency, base: price.base, discount: price.discount, ...me });
+    res.json({ ok: true, paid: price.final, currency, base: price.base, discount: price.discount, coupon: coupon ? { code: coupon.code, discount: coupon.discount } : null, ...me });
   } catch (err) { next(err); }
 }
 const buyEffect = (req, res, next) => buyItem('effect', req, res, next);
@@ -326,7 +333,7 @@ async function buyCollection(req, res, next) {
     const sellD = col.decorations.filter(sellable);
     const sellE = col.effects.filter(sellable);
     const sellI = col.items.filter(sellable);
-    let paid = 0; let source = null;
+    let paid = 0; let source = null; let coupon = null;
     try {
       await prisma.$transaction(async (tx) => {
         const tier = await tierOf(tx, userId);
@@ -350,6 +357,11 @@ async function buyCollection(req, res, next) {
         const sum = each.reduce((a, v) => a + (v || 0), 0);
         paid = allPriced ? Math.min(bundle.final, sum) : bundle.final;
         source = paid === bundle.final ? bundle.source : (tier !== 'NONE' ? 'SUBSCRIBER' : null);
+        // Fase 4: cupom de desconto (opcional), dentro da mesma transação.
+        if (req.body?.coupon) {
+          coupon = await coupons().applyInTx(tx, { code: req.body.coupon, userId, price: paid, currency, target: `coleção: ${col.name || col.id}` });
+          paid = coupon.final;
+        }
         checkExpected(req.body, paid);
         if (paid > 0) {
           const r = await tx.user.updateMany({ where: { id: userId, [currency]: { gte: paid } }, data: { [currency]: { decrement: paid } } });
@@ -367,9 +379,9 @@ async function buyCollection(req, res, next) {
       if (e.code === 'P2002') return res.status(409).json({ error: 'Compra já processada.', code: 'ALREADY_OWNED' });
       throw e;
     }
-    if (paid > 0) ledger().recordTransaction(userId, { kind: 'SHOP', label: `Loja: coleção ${col.name || ''}`.trim() + (source === 'SUBSCRIBER' ? ' (desconto Assinante)' : ''), [currency]: -paid });
+    if (paid > 0) ledger().recordTransaction(userId, { kind: 'SHOP', label: `Loja: coleção ${col.name || ''}`.trim() + (source === 'SUBSCRIBER' ? ' (desconto Assinante)' : '') + (coupon ? ` (cupom ${coupon.code})` : ''), [currency]: -paid });
     const me = await prisma.user.findUnique({ where: { id: userId }, select: { coins: true, gems: true } });
-    res.json({ ok: true, paid, currency, ...me });
+    res.json({ ok: true, paid, currency, coupon: coupon ? { code: coupon.code, discount: coupon.discount } : null, ...me });
   } catch (err) { next(err); }
 }
 

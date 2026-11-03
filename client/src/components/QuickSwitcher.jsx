@@ -48,6 +48,12 @@ const PAGES = [
   { path: '/missoes', label: 'Economia e Loja › Missões', keywords: 'missões tarefas diárias semanais recompensas' },
   { path: '/loja', label: 'Economia e Loja › Loja', keywords: 'loja molduras efeitos comprar decorações fontes' },
   { path: '/economia?aba=temporada', label: 'Economia e Loja › Passe do clube', keywords: 'passe temporada assinante' },
+  { path: '/sorteio', label: 'Economia e Loja › Sorteio', keywords: 'sorteio bilhete prêmio rifa' },
+  { path: '/participar', label: 'Participar › Bora Jogar', keywords: 'bora jogar grupo jogatina partida lfg' },
+  { path: '/participar?aba=interesses', label: 'Participar › Interesses', keywords: 'interesses cargos jogos' },
+  { path: '/participar?aba=reputacao', label: 'Participar › Reputação', keywords: 'reputação agradecer ranking' },
+  { path: '/participar?aba=convites', label: 'Participar › Convidar amigos', keywords: 'convite indicação amigo código' },
+  { path: '/retrospectiva', label: 'Retrospectiva do mês', keywords: 'retrospectiva resumo mês estatísticas' },
   // Casas/Figurinhas desligadas no código (utils/features.js).
   ...(isFeatureEnabled('houses') ? [{ path: '/casas', label: 'Casas', keywords: 'casa' }] : []),
   ...(isFeatureEnabled('cardsWar') ? [{ path: '/cartas', label: 'Guerra das Cartas', keywords: 'cartas jogo de cartas pacotes baralho duelo figurinhas tcg' }] : []),

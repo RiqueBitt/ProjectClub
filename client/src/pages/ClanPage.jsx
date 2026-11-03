@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext.jsx';
 import { useVoice } from '../context/VoiceContext.jsx';
 import { useStore } from '../store/useStore';
@@ -16,12 +16,15 @@ import { formatMessageTime } from '../utils/formatTime';
 import '../styles/clubs.css';
 import { useLiveRefresh } from '../utils/liveRefresh';
 import '../styles/contentx.css';
+import ClanWeekly from '../components/community/ClanWeekly.jsx';
 
 const ROLE_LABEL = { OWNER: 'Dono', SUB_OWNER: 'Sub-dono', ADMIN: 'Admin', MODERATOR: 'Moderador', MEMBER: 'Membro' };
 const ROLE_ORDER = ['OWNER', 'SUB_OWNER', 'ADMIN', 'MODERATOR', 'MEMBER'];
 const TABS = [
   { key: 'chat', label: 'Chat', icon: 'chat' },
   { key: 'members', label: 'Membros', icon: 'user' },
+  // Fase 4: competição semanal entre Clubes.
+  { key: 'competicao', label: 'Competição', icon: 'trophy' },
   { key: 'tags', label: 'Tag', icon: 'hash' },
   { key: 'settings', label: 'Configurações', icon: 'key' },
 ];
@@ -40,7 +43,8 @@ export default function ClanPage() {
   const pending = useStore((s) => s.myClanPendingRequests);
   const setMyClan = useStore((s) => s.setMyClan);
   const { confirmAsync, DialogElement } = usePromptDialog();
-  const [tab, setTab] = useState('chat');
+  const [searchParams] = useSearchParams();
+  const [tab, setTab] = useState(() => (TABS.some((t) => t.key === searchParams.get('aba')) ? searchParams.get('aba') : 'chat'));
   const [messages, setMessages] = useState(null);
   const [content, setContent] = useState('');
   const [icons, setIcons] = useState([]);
@@ -273,6 +277,10 @@ export default function ClanPage() {
             </ul>
           </section>
         </div>
+      )}
+
+      {tab === 'competicao' && (
+        <section className="cb-panel"><ClanWeekly clanId={myClan.id} /></section>
       )}
 
       {tab === 'tags' && (
