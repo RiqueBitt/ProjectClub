@@ -1,5 +1,5 @@
 import { useEffect } from 'react';
-import { scanInstalledModsLocally } from '../../utils/mods';
+import { scanInstalledModsLocally, listInstalledModsLocally } from '../../utils/mods';
 import { loadModsLibrary } from './ModsLibrary.jsx';
 import { checkableItems, checkUpdatesForItems, pendingUpdates, updateInstalledMod } from './modUpdates.js';
 import {
@@ -48,10 +48,21 @@ async function runRound(bridge) {
         // eslint-disable-next-line no-await-in-loop
         const verdict = await bridge.check(game.installPath, game.steamAppId);
         if (!verdict?.ok) continue;
+        // O que já está instalado (mesmo dado que a tela de Mods usa) — sem
+        // isso as dependências do Thunderstore seriam reinstaladas à toa.
+        // eslint-disable-next-line no-await-in-loop
+        const installed = await listInstalledModsLocally(game.installPath, game.steamAppId).catch(() => null);
+        // Sem tela aberta não há cartão de progresso: as outras funções do
+        // gerenciador não fazem nada aqui.
+        const noop = () => {};
+        const mgr = {
+          installedFolders: new Set([...(installed?.enabled || []), ...(installed?.disabled || [])]),
+          trackInstall: noop, untrackInstall: noop, completeInstall: noop,
+        };
         for (const row of items) {
           try {
             // eslint-disable-next-line no-await-in-loop
-            const r = await updateInstalledMod({ game, row });
+            const r = await updateInstalledMod({ game, row, mgr });
             results.push({ status: r.status === 'updated' ? 'updated' : 'skipped', name: itemDisplayName(row) });
           } catch {
             // A versão anterior foi mantida pelo app de PC (modRollback).
