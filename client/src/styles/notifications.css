@@ -29,6 +29,15 @@
 .nt .nt-item[data-kind='event'] { --k: #f0b232; }
 .nt .nt-item[data-kind='mission'] { --k: var(--green); }
 .nt .nt-item[data-kind='shop'] { --k: #e98bff; }
+/* Fase 5: aviso de segurança (novo acesso) + botão "Não fui eu". */
+.nt .nt-item[data-kind='security'] { --k: var(--red, #f23f43); }
+.nt .nt-security-btn {
+  margin-top: 6px; padding: 5px 12px; border-radius: 999px; font-size: 12.5px; font-weight: 700;
+  border: 1px solid color-mix(in srgb, var(--k) 55%, transparent);
+  background: color-mix(in srgb, var(--k) 12%, transparent); color: var(--k); cursor: pointer;
+}
+.nt .nt-security-btn:hover { background: color-mix(in srgb, var(--k) 22%, transparent); }
+.nt .nt-security-btn:focus-visible { outline: 2px solid var(--k); outline-offset: 2px; }
 .nt .nt-item.unread { background: color-mix(in srgb, var(--k) 9%, transparent); }
 .nt .nt-item.clickable { cursor: pointer; }
 .nt .nt-item.clickable:hover { background: color-mix(in srgb, var(--k) 15%, transparent); }

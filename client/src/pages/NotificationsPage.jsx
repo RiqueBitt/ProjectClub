@@ -243,14 +243,24 @@ export default function NotificationsPage() {
   const renderItem = (it) => {
     if (it.kind === 'notice') {
       const n = it.data;
-      const icon = n.kind === 'GIFT' ? 'gift' : (n.kind === 'EVENT_REMINDER' || n.kind === 'REMINDER') ? 'reminder' : n.kind === 'SCHEDULED_FAILED' ? 'conversation' : 'notice';
-      const lead = n.kind === 'EVENT_REMINDER' ? 'Lembrete de evento' : n.kind === 'REMINDER' ? 'Lembrete' : n.kind === 'SCHEDULED_FAILED' ? 'Agendada' : n.kind === 'GIFT' ? 'Presente' : n.kind === 'DIGEST' ? 'Resumo' : 'Aviso';
+      const isSecurity = n.kind === 'SECURITY';
+      const icon = isSecurity ? 'security' : n.kind === 'GIFT' ? 'gift' : (n.kind === 'EVENT_REMINDER' || n.kind === 'REMINDER') ? 'reminder' : n.kind === 'SCHEDULED_FAILED' ? 'conversation' : 'notice';
+      const lead = isSecurity ? 'Segurança' : n.kind === 'EVENT_REMINDER' ? 'Lembrete de evento' : n.kind === 'REMINDER' ? 'Lembrete' : n.kind === 'SCHEDULED_FAILED' ? 'Agendada' : n.kind === 'GIFT' ? 'Presente' : n.kind === 'DIGEST' ? 'Resumo' : 'Aviso';
       return (
         <li key={it.key} className={`notifications-item nt-item clickable${n.readAt ? ' is-read' : ' unread'}`} data-kind={icon} onClick={() => openNotice(n)}>
           <NtIcon kind={icon} />
           <div className="nt-body">
             <div className="nt-line"><span className="truncate">{lead}: <strong>{n.title}</strong></span><time>{when(n.createdAt)}</time></div>
             {n.body && <span className="nt-sub truncate">{n.body}</span>}
+            {/* Novo acesso (Fase 5): atalho direto pra encerrar a sessão. */}
+            {isSecurity && n.data?.type === 'new_login' && (
+              <button
+                type="button" className="nt-security-btn"
+                onClick={(e) => { e.stopPropagation(); openNotice({ ...n, link: '/seguranca/sessoes' }); }}
+              >
+                Não fui eu
+              </button>
+            )}
           </div>
           {!n.readAt && <span className="nt-dot" aria-label="Não lida" />}
         </li>
@@ -433,7 +443,7 @@ export default function NotificationsPage() {
   );
 }
 
-const KIND_ICON = { testimonial: 'pen', relationship: 'heart', friend: 'userPlus', channel: 'at', conversation: 'mail', event: 'sparkles', mission: 'trophy', shop: 'store', gift: 'gift', reminder: 'clock', notice: 'bell' };
+const KIND_ICON = { testimonial: 'pen', relationship: 'heart', friend: 'userPlus', channel: 'at', conversation: 'mail', event: 'sparkles', mission: 'trophy', shop: 'store', gift: 'gift', reminder: 'clock', notice: 'bell', security: 'shield' };
 
 // Avatar de quem gerou + selinho com o ícone do tipo; sem pessoa, só o ícone.
 function NtIcon({ kind, user }) {

@@ -30,10 +30,15 @@ const cookieOpts = () => ({
   path: '/api/auth',
 });
 
-async function setKeepCookie(res, userId) {
+// `refreshTokenId` (Fase 5): o cookie passa a lembrar QUAL sessão (refresh
+// token) o criou. Assim, encerrar só aquele aparelho em Configurações →
+// Segurança também invalida o "lembrar login" dele (ver keepSessionAlive
+// em authController.js) — antes só "derrubar todas" fazia isso.
+async function setKeepCookie(res, userId, refreshTokenId = null) {
   try {
     const { sealData } = await iron();
-    const sealed = await sealData({ uid: userId, iat: Date.now() }, { password: PASSWORD, ttl: TTL_SECONDS });
+    const payload = { uid: userId, iat: Date.now(), ...(refreshTokenId ? { rid: String(refreshTokenId) } : {}) };
+    const sealed = await sealData(payload, { password: PASSWORD, ttl: TTL_SECONDS });
     res.cookie(COOKIE, sealed, cookieOpts());
   } catch (err) {
     console.warn('[sessão] não deu pra criar o cookie de lembrar login:', err?.message || err);
@@ -44,8 +49,9 @@ function clearKeepCookie(res) {
   res.clearCookie(COOKIE, { path: '/api/auth' });
 }
 
-// Devolve o userId se o cookie for válido e não tiver sido derrubado.
-async function readKeepCookie(req) {
+// Devolve { uid, rid } se o cookie for válido e não tiver sido derrubado
+// (rid = refresh token que criou o cookie; ausente em cookies antigos).
+async function readKeepCookieData(req) {
   const raw = req.cookies?.[COOKIE];
   if (!raw) return null;
   try {
@@ -54,10 +60,16 @@ async function readKeepCookie(req) {
     if (!data?.uid || !data?.iat) return null;
     const revokedAt = Number(await redis.get(revKey(data.uid))) || 0; // erro no Redis → cai no catch → recusa
     if (data.iat < revokedAt) return null;
-    return data.uid;
+    return { uid: data.uid, rid: typeof data.rid === 'string' ? data.rid : null };
   } catch {
     return null;
   }
+}
+
+// Devolve o userId se o cookie for válido e não tiver sido derrubado.
+async function readKeepCookie(req) {
+  const data = await readKeepCookieData(req);
+  return data ? data.uid : null;
 }
 
 // Chamar sempre que todas as sessões de alguém forem derrubadas.
@@ -67,4 +79,4 @@ async function markSessionsRevoked(userId) {
   }
 }
 
-module.exports = { setKeepCookie, clearKeepCookie, readKeepCookie, markSessionsRevoked };
+module.exports = { setKeepCookie, clearKeepCookie, readKeepCookie, readKeepCookieData, markSessionsRevoked };
