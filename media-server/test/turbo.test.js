@@ -158,6 +158,21 @@ test('dynacast: o publicador recebe producerLayers conforme o que os outros assi
   assert.equal(rooms.rooms.has(room), false, 'sala fechou sem timer pendurado');
 });
 
+test('scripts/tune-host.sh: sintaxe, --dry-run sem root e não mexe no compose/.env', () => {
+  const { execFileSync } = require('child_process');
+  const path = require('path');
+  const fs = require('fs');
+  const file = path.join(__dirname, '..', 'scripts/tune-host.sh');
+  execFileSync('bash', ['-n', file]);
+  const out = execFileSync('bash', [file, '--dry-run'], { encoding: 'utf8' });
+  assert.match(out, /dry-run/);
+  assert.match(out, /net\.core\.somaxconn = 4096/);
+  assert.match(out, /vm\.swappiness = 10/);
+  const src = fs.readFileSync(file, 'utf8');
+  assert.doesNotMatch(src, /docker compose (up|down|restart)/, 'não reinicia nada');
+  assert.doesNotMatch(src, /set_env|sed -i/, 'não edita .env/compose');
+});
+
 test('dynacast: producer sem simulcast (Android, 1 camada) não gera aviso', async () => {
   const room = 'turbo-single';
   const a = await connect(tokenFor('u-one', room));
