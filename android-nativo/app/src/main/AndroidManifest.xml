@@ -245,6 +245,20 @@
             android:name=".notify.CallActionReceiver"
             android:exported="false" />
 
+        <!-- Widget da tela inicial "Project Club — quem está online"
+             (widget/OnlineWidget.kt). Só o sistema manda o APPWIDGET_UPDATE. -->
+        <receiver
+            android:name=".widget.OnlineWidgetProvider"
+            android:exported="false"
+            android:label="@string/widget_online_label">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/online_widget_info" />
+        </receiver>
+
         <meta-data
             android:name="com.google.firebase.messaging.default_notification_channel_id"
             android:value="mensagens" />

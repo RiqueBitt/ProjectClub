@@ -74,12 +74,15 @@ class App : Application(), coil.ImageLoaderFactory {
         ProcessLifecycleOwner.get().lifecycle.addObserver(object : DefaultLifecycleObserver {
             override fun onStart(owner: LifecycleOwner) {
                 _isForeground.value = true; repo.realtime.connect()
+                // Widget "quem está online": dados novos sempre que o app abre.
+                com.projectclub.android.widget.OnlineWidget.requestUpdate(this@App)
                 com.projectclub.android.data.Updater.refreshPermission()
                 appScope.launch { com.projectclub.android.data.Updater.check() }
             }
             override fun onStop(owner: LifecycleOwner) {
                 _isForeground.value = false
                 com.projectclub.android.ui.theme.AppIcons.applyPending(this@App)
+                com.projectclub.android.widget.OnlineWidget.requestUpdate(this@App)
                 // Saiu do app: instala a atualização baixada sem perguntar nada
                 // (Android 12+), nunca no meio de uma chamada de voz.
                 val U = com.projectclub.android.data.Updater
@@ -103,7 +106,11 @@ class App : Application(), coil.ImageLoaderFactory {
 
     private fun onAlert(a: Alert) {
         when (a) {
-            Alert.SessionStarted -> registerPush()
+            Alert.SessionStarted -> {
+                registerPush()
+                // Entrou na conta (ou a sessão voltou): o widget pega os dados novos.
+                com.projectclub.android.widget.OnlineWidget.requestUpdate(this)
+            }
             is Alert.DirectMessage -> {
                 val m = a.message
                 val conv = m.conversationId ?: return

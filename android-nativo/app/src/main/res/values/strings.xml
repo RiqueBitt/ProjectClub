@@ -1,4 +1,10 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="app_name">Project Club</string>
+    <!-- Widget "quem está online" (widget/OnlineWidget.kt) -->
+    <string name="widget_online_label">Quem está online</string>
+    <string name="widget_online_description">Quantos amigos estão online e quem está em call no Project Club.</string>
+    <string name="widget_online_placeholder_count">—</string>
+    <string name="widget_online_placeholder_label">amigos online</string>
+    <string name="widget_online_placeholder_voice">Toque para abrir o app</string>
 </resources>
