@@ -419,8 +419,7 @@ async function getStats(req, res, next) {
     const [
       userCount, messageCount, bannedCount, last24h, last7d,
       pendingApplications, pendingReports, pendingAutomodFlags, pendingModReports,
-      pendingAppeals, pendingCreatorItems,
-      pendingAppeals, pendingPinguAlerts,
+      pendingAppeals, pendingCreatorItems, pendingPinguAlerts,
     ] = await Promise.all([
       prisma.user.count(),
       prisma.message.count(),
@@ -442,8 +441,7 @@ async function getStats(req, res, next) {
       stats: {
         userCount, messageCount, bannedCount, newUsersLast24h: last24h, newUsersLast7d: last7d,
         pendingApplications, pendingReports, pendingAutomodFlags, pendingModReports,
-        pendingAppeals, pendingCreatorItems,
-        pendingAppeals, pendingPinguAlerts,
+        pendingAppeals, pendingCreatorItems, pendingPinguAlerts,
       },
     });
   } catch (err) { next(err); }
