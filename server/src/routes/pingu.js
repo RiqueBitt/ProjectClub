@@ -2,7 +2,8 @@ const express = require('express');
 const crypto = require('crypto');
 const { requireAuth } = require('../middleware/auth');
 
-// Pingu pra qualquer membro: resumo do que perdeu, tradução e placar do quiz.
+// Pingu pra qualquer membro: resumo do que perdeu, tradução, placar do quiz
+// e a lista de comandos.
 // Resumo/tradução são SÓ pra quem pediu: a rota responde 202 na hora e o
 // resultado chega pelo socket pessoal ('pingu:ephemeral', com o requestId) —
 // a IA é lenta e o pedido não pode ficar preso esperando.
@@ -61,6 +62,12 @@ router.post('/translate', async (req, res) => {
   } catch (err) {
     if (!res.headersSent) fail(res, err);
   }
+});
+
+// Pingu Turbo: lista de comandos (popover "Comandos do Pingu" no perfil dele).
+router.get('/help', (req, res) => {
+  const { COMMANDS } = require('../services/pingu/tools');
+  res.json({ online: bot().isOnline(), pinguId: bot().getPinguId(), commands: COMMANDS });
 });
 
 router.get('/quiz/scoreboard', async (req, res) => {

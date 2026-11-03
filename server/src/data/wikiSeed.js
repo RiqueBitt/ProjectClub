@@ -91,10 +91,22 @@ Ficar em call com outras pessoas dá XP e moedas (veja /wiki/economia).
     body: `
 # Pingu, o assistente de IA
 
-O Pingu (@pingu) é o assistente de IA do Project Club. A IA roda num servidor próprio da comunidade, então às vezes ele fica offline; quando isso acontece ele avisa.
+O Pingu (@pingu) é o assistente de IA do Project Club. A IA roda num servidor próprio da comunidade, então às vezes ele fica offline; quando isso acontece ele avisa. Escreva @pingu ajuda para ver todos os comandos.
 
 ## Como chamar
-Escreva @pingu seguido da pergunta em qualquer canal, ou responda uma mensagem dele. Ele responde uma pergunta por vez, em texto curto. Se muita gente chamar ao mesmo tempo, ele pede para tentar de novo em um minutinho.
+Escreva @pingu seguido da pergunta em qualquer canal, ou responda uma mensagem dele. A resposta aparece sendo escrita ao vivo. Ele lembra das duas últimas perguntas por 10 minutos, então dá pra continuar o assunto ("e o outro?").
+
+## Respostas na hora
+Contas ("@pingu quanto é 15% de 200"), conversões ("10 km em milhas"), hora e data, dados ("rola um d20"), cara ou coroa, sorteios, "escolhe entre A, B ou C" e contagem regressiva ("quanto falta pro natal") saem na hora, sem usar a IA.
+
+## Imagens
+"@pingu desenhe um pinguim astronauta" (ou crie uma imagem, gere, imagem, draw) cria uma imagem. Diga "quadrada", "paisagem" ou "retrato" e use "@pingu de novo" para outra versão. Há um intervalo entre pedidos e um limite por dia (apoiadores têm mais). Nada de nudez, violência, ódio ou pessoas reais.
+
+## Lembretes e enquetes
+"@pingu me lembra em 20 min de tirar o bolo" ou "amanhã às 9h" cria um lembrete nas suas notificações. "@pingu enquete Qual o melhor jogo? Minecraft / Terraria" cria uma enquete no canal.
+
+## Explicar e reescrever
+Respondendo a mensagem de alguém: "@pingu explica", "@pingu resume isso" ou "@pingu melhora esse texto".
 
 ## Resumo do que você perdeu
 No topo de um canal, o botão "Resumir o que perdi" (ou escrever @pingu resume) faz um resumo em tópicos das mensagens desde a sua última visita. Só você vê o resumo.
@@ -105,8 +117,11 @@ No menu de uma mensagem (botão direito), "Traduzir com o Pingu" mostra a tradu�
 ## Quiz
 A equipe pode iniciar um quiz num canal: o Pingu faz a pergunta e quem acertar primeiro ganha moedas e XP.
 
+## No privado
+Dá para mandar mensagem direta para o Pingu: ele responde do mesmo jeito e a conversa fica só entre vocês dois (não vai para a moderação nem para o histórico de imagens).
+
 ## O que ele não faz
-O Pingu não cria imagens, não faz ações no site, nunca pede senha e nunca pune ninguém. Ele não lê mensagens diretas.
+O Pingu não faz ações no site sozinho, nunca pede senha e nunca pune ninguém: ele só avisa a equipe.
 `,
   },
   {
@@ -133,4 +148,27 @@ Problema com algum app? Abra um ticket em Suporte.
   },
 ];
 
-module.exports = { WIKI_SEED };
+// Texto da página do Pingu na semente ANTIGA (antes do Pingu Turbo): se a
+// página ainda estiver igual, ensureSeed troca pela nova.
+const WIKI_PINGU_OLD_BODY = `
+# Pingu, o assistente de IA
+
+O Pingu (@pingu) é o assistente de IA do Project Club. A IA roda num servidor próprio da comunidade, então às vezes ele fica offline; quando isso acontece ele avisa.
+
+## Como chamar
+Escreva @pingu seguido da pergunta em qualquer canal, ou responda uma mensagem dele. Ele responde uma pergunta por vez, em texto curto. Se muita gente chamar ao mesmo tempo, ele pede para tentar de novo em um minutinho.
+
+## Resumo do que você perdeu
+No topo de um canal, o botão "Resumir o que perdi" (ou escrever @pingu resume) faz um resumo em tópicos das mensagens desde a sua última visita. Só você vê o resumo.
+
+## Tradução
+No menu de uma mensagem (botão direito), "Traduzir com o Pingu" mostra a tradução só para você.
+
+## Quiz
+A equipe pode iniciar um quiz num canal: o Pingu faz a pergunta e quem acertar primeiro ganha moedas e XP.
+
+## O que ele não faz
+O Pingu não cria imagens, não faz ações no site, nunca pede senha e nunca pune ninguém. Ele não lê mensagens diretas.
+`;
+
+module.exports = { WIKI_SEED, WIKI_PINGU_OLD_BODY };
