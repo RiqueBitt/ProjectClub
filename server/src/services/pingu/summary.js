@@ -70,25 +70,50 @@ function cleanBullets(text) {
   return lines.slice(0, 5).map((l) => `• ${clip(l, 220)}`).join('\n');
 }
 
+// Leitura marcada agora há pouco (a pessoa acabou de abrir o canal pra
+// pedir o resumo) não diz o que ela perdeu — nesse caso usa outra pista.
+const RECENT_READ_MS = 2 * 60 * 1000;
+
+/**
+ * Desde quando resumir: 1) a última leitura que o app conhecia ao abrir o
+ * canal (`since`); 2) a leitura salva no servidor, se não for de agora;
+ * 3) pelo comando "@pingu resume" (`until` = hora do comando), desde a
+ * mensagem anterior da própria pessoa; 4) nada (= últimas 60 mensagens).
+ */
+async function resolveSince({ userId, channelId, since, until }) {
+  const given = since ? new Date(since) : null;
+  if (given && !Number.isNaN(given.getTime())) return given;
+  const st = await db().channelReadState.findUnique({ where: { channelId_userId: { channelId, userId } }, select: { lastReadAt: true } }).catch(() => null);
+  const read = st?.lastReadAt ? new Date(st.lastReadAt) : null;
+  const ref = until ? new Date(until).getTime() : Date.now();
+  if (read && ref - read.getTime() > RECENT_READ_MS) return read;
+  if (until) {
+    const prev = await db().message.findFirst({
+      where: { channelId, authorId: userId, threadId: null, createdAt: { lt: new Date(until) } },
+      orderBy: { createdAt: 'desc' }, select: { createdAt: true },
+    }).catch(() => null);
+    if (prev?.createdAt) return prev.createdAt;
+  }
+  return null;
+}
+
 /**
  * Pede o resumo de um canal pra uma pessoa. A checagem de acesso ao canal
  * é de quem chama (rota usa assertAccess; o comando @pingu já veio de
  * alguém que escreveu no canal). Devolve { text } ou { error }.
  */
-async function requestSummary({ userId, channelId, channelName, since = null }) {
+async function requestSummary({ userId, channelId, channelName, since = null, until = null }) {
   const cfg = require('./config').getConfig();
   if (!cfg.summaryEnabled) return { error: 'O resumo do Pingu está desligado pela equipe.' };
   if (!bot().isOnline()) return { error: bot().OFFLINE_TEXT };
   const lim = limiter.take(userId);
   if (!lim.ok) return { error: `Você pediu um resumo agora há pouco. Tenta de novo em ${Math.ceil(lim.retryInMs / 1000)} s.` };
   try {
-    let after = since ? new Date(since) : null;
-    if (!after || Number.isNaN(after.getTime())) {
-      const st = await db().channelReadState.findUnique({ where: { channelId_userId: { channelId, userId } }, select: { lastReadAt: true } }).catch(() => null);
-      after = st?.lastReadAt || null;
-    }
+    const after = await resolveSince({ userId, channelId, since, until });
+    const end = until ? new Date(until) : null;
+    const createdAt = { ...(after ? { gt: after } : {}), ...(end && !Number.isNaN(end.getTime()) ? { lt: end } : {}) };
     const rows = await db().message.findMany({
-      where: { channelId, threadId: null, deleted: false, ...(after ? { createdAt: { gt: after } } : {}) },
+      where: { channelId, threadId: null, deleted: false, ...(Object.keys(createdAt).length ? { createdAt } : {}) },
       orderBy: { createdAt: 'desc' },
       take: MAX_MESSAGES,
       select: {

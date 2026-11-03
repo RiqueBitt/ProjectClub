@@ -440,7 +440,7 @@ function runMessageHooks(ctx) {
 /** @pingu resume / @pingu quiz. true = era um comando (já tratado). */
 function handleCommand(message, question, channel) {
   if (RESUME_RE.test(question)) {
-    require('./pingu/summary').requestSummary({ userId: message.authorId, channelId: message.channelId, channelName: channel?.name })
+    require('./pingu/summary').requestSummary({ userId: message.authorId, channelId: message.channelId, channelName: channel?.name, until: message.createdAt || new Date() })
       .then((r) => sendEphemeral(message.authorId, { kind: 'summary', channelId: message.channelId, ...r }))
       .catch((err) => sendEphemeral(message.authorId, { kind: 'summary', channelId: message.channelId, error: err?.message || 'Não deu pra resumir agora.' }));
     return true;
