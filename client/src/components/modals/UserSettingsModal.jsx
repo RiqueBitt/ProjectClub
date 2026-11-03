@@ -3,7 +3,7 @@ import PasskeysBlock from '../settings/PasskeysBlock.jsx';
 import { setExtra, getExtra, useExtra } from '../../utils/extraPrefs';
 import { useLiveRefresh } from '../../utils/liveRefresh';
 import ProfileShopItems from '../shop/ProfileShopItems.jsx';
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, lazy, Suspense } from 'react';
 import { currentHighQualityAvailability, NOISE_QUALITY } from '../../voice/noiseModels.js';
 import { useTranslation } from 'react-i18next';
 import { createPortal } from 'react-dom';
@@ -103,6 +103,8 @@ import {
   listMyShortcuts, setShortcut, deleteShortcut,
   uploadMyCustomPendant, removeMyCustomPendant,
 } from '../../api/endpoints';
+// Clipes (Fase 7): só baixa no app de PC com suporte, quando a aba abre.
+const ClipsSettings = lazy(() => import('../settings/ClipsSettings.jsx'));
 
 // Item pedido: separar "Edição do Perfil" das "Configurações gerais" da
 // aplicação, e dentro de Perfil, separar a EDIÇÃO (avatar/banner/bio/
@@ -2404,6 +2406,10 @@ export default function UserSettingsModal({ onClose }) {
                   </div>
                   <Toggle on={userSettings.overlayNotifications} onChange={(v) => updateUserSetting('overlayNotifications', v)} label={TOGGLE_LABEL.overlayNotifications} />
                 </div>
+              )}
+              {/* Clipes dos últimos 30 s (Fase 7): só no app de PC com suporte. */}
+              {typeof window !== 'undefined' && window.electronAPI?.clips && (
+                <Suspense fallback={null}><ClipsSettings /></Suspense>
               )}
             </>
           )}

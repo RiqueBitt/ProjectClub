@@ -87,6 +87,9 @@ const BrowserBridge = BROWSER_ON ? lazy(() => import('../browser/BrowserShell.js
 // PC antigo nem é baixada.
 const HAS_MOD_AUTO_UPDATE = typeof window !== 'undefined' && !!window.electronAPI?.mods?.autoUpdate;
 const ModAutoUpdater = HAS_MOD_AUTO_UPDATE ? lazy(() => import('./mods/ModAutoUpdater.jsx')) : null;
+// Clipes dos últimos 30 s (Fase 7): indicador "Clipes ativos" + "Clipe salvo".
+const HAS_CLIPS = typeof window !== 'undefined' && !!window.electronAPI?.clips;
+const ClipsIndicator = HAS_CLIPS ? lazy(() => import('../components/ClipsIndicator.jsx')) : null;
 // Perfil completo (~80 KB com as seções): só baixa quando alguém abre um perfil.
 const UserProfileModal = lazy(() => import('../components/modals/UserProfileModal.jsx'));
 const AmigosPage = lazy(() => import('./AmigosPage.jsx'));
@@ -602,6 +605,7 @@ export default function MainApp() {
       {BROWSER_ON ? <Suspense fallback={null}><BrowserHost /><BrowserBridge /></Suspense> : <DesktopLinkFallback />}
       {CARDS_WAR_ON && <Suspense fallback={null}><CardsNotifier /></Suspense>}
       {HAS_MOD_AUTO_UPDATE && <Suspense fallback={null}><ModAutoUpdater /></Suspense>}
+      {HAS_CLIPS && <Suspense fallback={null}><ClipsIndicator /></Suspense>}
     </div>
   );
 }
