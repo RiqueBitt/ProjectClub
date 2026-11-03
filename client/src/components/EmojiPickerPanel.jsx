@@ -4,6 +4,7 @@ import { useSheetDrag } from '../utils/useSheetDrag';
 import emojiGroups from 'unicode-emoji-json/data-by-group.json';
 import StyledEmoji from './StyledEmoji.jsx';
 import PersonalStickersSection from './PersonalStickersSection.jsx';
+import CreatorStickersSection from './CreatorStickersSection.jsx';
 import { addFavoriteGif, removeFavoriteGif, searchGifsApi, listGifCategories } from '../api/endpoints';
 import starIcon from '../assets/icons/star.png';
 
@@ -313,6 +314,8 @@ export default function EmojiPicker({ serverEmojis = [], serverStickers = [], on
             <div className="emoji-picker-unicode-scroll" ref={stickerScrollRef}>
               {/* Pacote de figurinhas personalizadas (Assinante/Super) — no topo. */}
               <PersonalStickersSection query={query} onPickSticker={onPickSticker} onClose={onClose} />
+              {/* Fase 8: figurinhas compradas na Loja dos criadores. */}
+              <CreatorStickersSection query={query} onPickSticker={onPickSticker} onClose={onClose} />
               {stickerGroups.map((g) => {
                 const filtered = q ? g.list.filter((s) => s.name.toLowerCase().includes(q)) : g.list;
                 if (filtered.length === 0) return null;

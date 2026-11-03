@@ -19,6 +19,8 @@ export const ECONOMY_HUB_TABS = [
   { id: 'geral', label: 'Visão geral', icon: 'grid', to: '/economia' },
   { id: 'missoes', label: 'Missões', icon: 'bolt', to: '/missoes' },
   { id: 'loja', label: 'Loja', icon: 'store', to: '/loja' },
+  // Fase 8: criações dos membros (LojaCriadoresPage.jsx).
+  { id: 'criadores', label: 'Criadores', icon: 'sparkles', to: '/loja/criadores' },
   { id: 'temporada', label: 'Passe do clube', icon: 'crown', to: '/economia?aba=temporada', className: 'pk-tab-gold' },
   { id: 'historico', label: 'Histórico', icon: 'clock', to: '/economia?aba=historico' },
   { id: 'sorteio', label: 'Sorteio', icon: 'gift', to: '/sorteio' },

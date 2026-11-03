@@ -20,6 +20,7 @@ import { canViewProfileImage, viewProfileImage } from '../utils/viewProfileImage
 import ProfileEffectOverlay from './ProfileEffectOverlay.jsx';
 import { profileStyleClass } from '../utils/profileStyle';
 import { cssZoom } from '../utils/cssZoom';
+import { MiniProfilePet } from './pet/ProfilePet.jsx';
 
 // Quantos cargos mostrar no popup compacto (a bio é limitada por CSS a 3
 // linhas — .mini-profile-bio) — o perfil completo (UserProfileModal) mostra
@@ -428,6 +429,9 @@ export default function MiniProfileCard() {
                 <div className="mini-profile-bio">{renderRichContent(user.bio, { emojiMap: bioEmojiMap })}</div>
               </div>
             )}
+
+            {/* Fase 8: mascote pinguim (só aparece se a pessoa já adotou). */}
+            <MiniProfilePet userId={user.id} />
 
             {visibleRoles.length > 0 && (
               <div className="mini-profile-section">

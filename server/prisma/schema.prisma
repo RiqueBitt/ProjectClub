@@ -4163,6 +4163,7 @@ model ModRating {
 }
 
 // ============================================================
+
 // Fase 4 — comunidade e economia
 // Tabelas novas, sem relação (FK) com User de propósito: só ids indexados,
 // pra `prisma db push` nunca precisar mexer nas tabelas que já existem.
@@ -4411,4 +4412,92 @@ model TipDaily {
   sent   Int    @default(0)
 
   @@id([userId, dayKey])
+}
+
+// ===================== Fase 8 =====================
+
+// Mascote pinguim do perfil (um por pessoa). Evolui de estágio
+// (0 filhote → 1 jovem → 2 adulto → 3 lendário) com a participação na
+// plataforma — ver services/pet.js. `stage` guarda o maior estágio já
+// alcançado (nunca regride). `equipped` = JSON { cabeca, rosto, pescoco, mao }.
+model PetPenguin {
+  userId      String    @id
+  name        String    @default("Pingo") @db.VarChar(24)
+  color       String    @default("blue") @db.VarChar(16)
+  stage       Int       @default(0)
+  xp          Int       @default(0)
+  streak      Int       @default(0)
+  bestStreak  Int       @default(0)
+  careCount   Int       @default(0)
+  lastCareDay String?   @db.VarChar(10)
+  lastCaredAt DateTime?
+  equipped    String?   @db.VarChar(400)
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+}
+
+// Acessórios do pinguim que a pessoa comprou (catálogo fica no código:
+// services/pet.js → ACCESSORIES). A chave composta impede compra dupla.
+model PetAccessoryOwned {
+  userId      String
+  accessoryId String   @db.VarChar(32)
+  pricePaid   Int      @default(0)
+  createdAt   DateTime @default(now())
+
+  @@id([userId, accessoryId])
+}
+
+// Loja dos criadores: criações enviadas pelos membros (emoji, figurinha ou
+// moldura) com preço em moedas. Só aparece na loja depois que a equipe
+// aprova. status: PENDING | APPROVED | REJECTED | REMOVED.
+// decorationId: moldura aprovada vira uma AvatarDecoration numa coleção
+// oculta ("Loja dos criadores") — assim usa o mesmo sistema de posse e
+// equipar das molduras da Loja.
+model CreatorItem {
+  id           String    @id @default(uuid())
+  creatorId    String
+  kind         String    @db.VarChar(16)
+  name         String    @db.VarChar(32)
+  description  String?   @db.VarChar(200)
+  imageUrl     String    @db.VarChar(500)
+  priceCoins   Int
+  status       String    @default("PENDING") @db.VarChar(16)
+  rejectReason String?   @db.VarChar(300)
+  reviewedById String?
+  reviewedAt   DateTime?
+  decorationId String?
+  sales        Int       @default(0)
+  earnings     Int       @default(0)
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  @@index([status, kind])
+  @@index([creatorId])
+}
+
+// Compra de um item da Loja dos criadores (uma por pessoa por item).
+model CreatorPurchase {
+  id        String   @id @default(uuid())
+  itemId    String
+  buyerId   String
+  pricePaid Int
+  fee       Int      @default(0)
+  createdAt DateTime @default(now())
+
+  @@unique([itemId, buyerId])
+  @@index([buyerId])
+}
+
+// Denúncia de um item da Loja dos criadores (uma por pessoa por item).
+// status: OPEN | RESOLVED
+model CreatorItemReport {
+  id         String   @id @default(uuid())
+  itemId     String
+  reporterId String
+  reason     String   @db.VarChar(300)
+  status     String   @default("OPEN") @db.VarChar(16)
+  createdAt  DateTime @default(now())
+
+  @@unique([itemId, reporterId])
+  @@index([status])
 }

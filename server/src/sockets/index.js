@@ -964,6 +964,8 @@ function initSockets(httpServer) {
     ytWatch.register(io, socket, userId);
     // Sala de estudos (Pomodoro compartilhado na call) — ver focusRoom.js.
     require('./focusRoom').register(io, socket, userId);
+    // Praça virtual 2D (Fase 8) — ver plaza.js.
+    require('./plaza').register(io, socket, userId);
 
     socket.on('voice:raise-hand', async ({ channelId, raised }) => {
       // Checa se a pessoa está mesmo na sala (o roster já mora no Redis

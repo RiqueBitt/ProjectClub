@@ -39,6 +39,7 @@ import { getProfileSummary } from '../../api/profileSummary';
 import { visibleProfileSectionOrder } from '../../utils/profileSections';
 import FeaturedModpackSection from '../FeaturedModpackSection.jsx';
 import ProfileGamesSection from '../games/ProfileGamesSection.jsx';
+import ProfilePet from '../pet/ProfilePet.jsx';
 import { lookQuery, shareProfile, IgnoreButton } from '../profile/ProfileActions.jsx';
 import { useProfileExtras, MuralCard, RecentActivityCard, StatBadgesCard, WishlistCard, MuralEditorModal } from '../profile/ProfileExtras.jsx';
 import '../../styles/profile.css';
@@ -1515,6 +1516,8 @@ export default function UserProfileModal() {
                     </div>
                   </section>
                 ))}
+                {/* Fase 8: mascote pinguim do perfil. */}
+                <ProfilePet userId={user.id} isMe={isMe} onNavigate={closeProfile} />
                 <ProfileGamesSection userId={user.id} />
               </div>
 

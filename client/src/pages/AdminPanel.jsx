@@ -78,6 +78,7 @@ import VoiceServerAdmin from '../components/admin/VoiceServerAdmin.jsx';
 import PinguAdmin from '../components/admin/PinguAdmin.jsx';
 import IntegrationsAdmin from '../components/admin/IntegrationsAdmin.jsx';
 import AppealsAdmin from '../components/admin/AppealsAdmin.jsx';
+import CreatorShopAdmin from '../components/admin/CreatorShopAdmin.jsx';
 import { CardsAdminCards, CardsAdminPacks, CardsAdminSettings, CardsAdminPlayers, CardsAdminTrades, CardsAdminMatches, CardsAdminStats, CardsAdminCampaign, CardsAdminTournaments, CardsAdminBoards } from '../cards/CardsAdmin.jsx';
 
 // ============================================================
@@ -147,6 +148,7 @@ const TABS = {
   appCatalog: { label: 'Apps', desc: 'Apps e launchers listados na área de Apps.' },
   economia: { label: 'Economia e missões', desc: 'Missões diárias/semanais, baús diários, moedas e recompensas.' },
   decoracoes: { label: 'Loja', desc: 'Molduras de avatar, efeitos de perfil e coleções vendidos na Loja.' },
+  criadores: { label: 'Loja dos criadores', desc: 'Aprove ou recuse emojis, figurinhas e molduras enviados pelos membros, remova itens e veja as denúncias.' },
   metaDoacao: { label: 'Meta de doações', desc: 'A barrinha verde que todos veem no topo da barra lateral: defina a meta e adicione cada doação recebida.' },
   apoio: { label: 'Gerenciamento de Apoio', desc: 'Conceda ou remova Assinante e Super Assinante, com motivo e histórico de quem mudou.' },
   casas: { label: 'Casas e móveis', desc: 'Casas, mapas, grupos e catálogo de móveis.' },
@@ -180,6 +182,7 @@ const TAB_PENDING_KEY = {
   inscricoes: 'pendingApplications', reports: 'pendingReports',
   automodDm: 'pendingAutomodFlags', modReports: 'pendingModReports',
   revisoes: 'pendingAppeals',
+  criadores: 'pendingCreatorItems',
 };
 
 // Ferramentas de sistemas desligados no código (utils/features.js) somem
@@ -195,7 +198,7 @@ const TAB_GROUPS = [
   { label: 'Moderação', icon: 'shield', tabs: ['reports', 'revisoes', 'automodDm', 'moderacao', 'modReports', 'logs', 'honeypot'] },
   { label: 'Comunidade', icon: 'community', tabs: ['channels', 'pingu', 'emojis', 'stickers', 'clubs', 'clanIcons', 'achievements', 'metasComunidade', 'interesses', 'gifMove'] },
   { label: 'Conteúdo', icon: 'content', tabs: ['feeds', 'updates', 'events', 'announcements', 'appCatalog'] },
-  { label: 'Economia', icon: 'economy', tabs: ['economia', 'decoracoes', 'cupons', 'apoio', 'metaDoacao', 'casas', 'album'] },
+  { label: 'Economia', icon: 'economy', tabs: ['economia', 'decoracoes', 'cupons', 'criadores', 'apoio', 'metaDoacao', 'casas', 'album'] },
   { label: 'Guerra das Cartas', icon: 'cards', tabs: ['cartasEstatisticas', 'cartasCartas', 'cartasPacotes', 'cartasCampanha', 'cartasTorneios', 'cartasFundos', 'cartasRegras', 'cartasJogadores', 'cartasTrocas', 'cartasPartidas'] },
   { label: 'Mods', icon: 'mods', tabs: ['modGames', 'workshopGames', 'gamebananaGames'] },
   { label: 'Sistema', icon: 'system', tabs: ['numeros', 'painelSaude', 'saude', 'servidorVoz', 'integracoes', 'sistema', 'maintenance', 'reload'] },
@@ -376,6 +379,7 @@ export default function AdminPanel() {
           {tab === 'servidorVoz' && <VoiceServerAdmin />}
           {tab === 'pingu' && <PinguAdmin />}
           {tab === 'integracoes' && <IntegrationsAdmin />}
+          {tab === 'criadores' && <CreatorShopAdmin />}
           {tab === 'busca' && <StaffUserSearchTab />}
           {tab === 'cartasCartas' && <CardsAdminCards />}
           {tab === 'cartasPacotes' && <CardsAdminPacks />}

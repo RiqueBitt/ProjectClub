@@ -272,6 +272,8 @@ export default function EconomyPage({ initialTab = 'geral' }) {
     // no topo — ver components/HubTabs.jsx). Compras continuam validadas
     // só no servidor (shopController), nada mudou nas regras.
     { id: 'loja', label: 'Loja', icon: 'store' },
+    // Fase 8: Loja dos criadores (página própria, mesma barra de abas).
+    { id: 'criadores', label: 'Criadores', icon: 'sparkles' },
     // Passe do clube: exclusivo de Assinantes (botão dourado). Quem não assina
     // vai direto pra Loja → Assinatura.
     { id: 'temporada', label: 'Passe do clube', icon: 'crown', count: season?.isSupporter ? (seasonReady || undefined) : undefined, className: 'pk-tab-gold' },
@@ -314,6 +316,7 @@ export default function EconomyPage({ initialTab = 'geral' }) {
           onChange={(id) => {
             if (id === 'loja') navigate('/loja');
             else if (id === 'sorteio') navigate('/sorteio');
+            else if (id === 'criadores') navigate('/loja/criadores');
             else if (id === 'temporada' && season && !season.isSupporter) navigate('/loja?secao=assinatura');
             else setTab(id);
           }}

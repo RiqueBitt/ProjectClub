@@ -137,6 +137,10 @@ const SecurityShortcutPage = lazy(() => import('./SecurityShortcutPage.jsx'));
 const ParticiparPage = lazy(() => import('./ParticiparPage.jsx')); // Bora Jogar, interesses, reputação, convites
 const SorteioPage = lazy(() => import('./SorteioPage.jsx'));
 const RetrospectivaPage = lazy(() => import('./RetrospectivaPage.jsx'));
+// Fase 8: mascote pinguim, Praça virtual 2D e Loja dos criadores.
+const MeuPinguimPage = lazy(() => import('./MeuPinguimPage.jsx'));
+const PracaPage = lazy(() => import('./PracaPage.jsx'));
+const LojaCriadoresPage = lazy(() => import('./LojaCriadoresPage.jsx'));
 
 // Interface com UMA barra lateral principal só (MainSidebar.jsx —
 // Chat/Amigos/Perfil/Notificações/Ranks/Busca/Suporte). A antiga dupla
@@ -181,6 +185,12 @@ export default function MainApp() {
   const location = useLocation();
   // Favoritos/ignorados (menu da mensagem) carregam uma vez.
   useEffect(() => { useMsgExtras.getState().load(); }, []);
+  // Fase 8: emojis da Loja dos criadores (pra desenhar no chat). Best-effort.
+  useEffect(() => {
+    import('../api/fase8').then((m) => m.getCreatorEmojiMap())
+      .then((d) => useStore.getState().setCreatorEmojiMap(d.emojis))
+      .catch(() => {});
+  }, []);
   // Link de mensagem (?m=ID): pula até ela ao abrir o canal/conversa.
   // /canal/<nome> e /dm/<@> (e os antigos /channels/<id>...) → id de verdade
   // (re-roda quando o canal/conversa termina de carregar).
@@ -534,6 +544,9 @@ export default function MainApp() {
                 <Route path="/atividade" element={<AtividadePage />} />
                 <Route path="/loja" element={<LojaPage />} />
                 <Route path="/loja/colecao/:colecao" element={<LojaPage />} />
+                <Route path="/loja/criadores" element={<LojaCriadoresPage />} />
+                <Route path="/meu-pinguim" element={<MeuPinguimPage />} />
+                <Route path="/praca" element={<PracaPage />} />
                 {/* Anúncios e Eventos: canal unificado (ver AnunciosEventosPage.jsx). */}
                 <Route path="/anuncios" element={<AnunciosEventosPage tab="anuncios" />} />
                 <Route path="/anuncios-e-eventos" element={<Navigate to="/anuncios" replace />} />
