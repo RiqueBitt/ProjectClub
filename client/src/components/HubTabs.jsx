@@ -21,6 +21,7 @@ export const ECONOMY_HUB_TABS = [
   { id: 'loja', label: 'Loja', icon: 'store', to: '/loja' },
   { id: 'temporada', label: 'Passe do clube', icon: 'crown', to: '/economia?aba=temporada', className: 'pk-tab-gold' },
   { id: 'historico', label: 'Histórico', icon: 'clock', to: '/economia?aba=historico' },
+  { id: 'sorteio', label: 'Sorteio', icon: 'gift', to: '/sorteio' },
 ];
 
 export function hubPathFor(tabs, id) {

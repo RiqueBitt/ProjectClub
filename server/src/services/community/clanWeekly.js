@@ -27,11 +27,15 @@ async function standings(weekKey, over = {}) {
     select: { id: true, name: true, iconColor: true, iconId: true },
   });
   const byId = new Map(clans.map((c) => [c.id, c]));
+  const iconIds = [...new Set(clans.map((c) => c.iconId).filter(Boolean))];
+  const icons = iconIds.length ? await d.db.clanIcon.findMany({ where: { id: { in: iconIds } }, select: { id: true, url: true } }).catch(() => []) : [];
+  const iconById = new Map(icons.map((i) => [i.id, i]));
   return rows
     .filter((r) => byId.has(r.scopeId))
     .map((r, i) => ({
       rank: i + 1, clanId: r.scopeId, name: byId.get(r.scopeId).name, iconColor: byId.get(r.scopeId).iconColor,
-      iconId: byId.get(r.scopeId).iconId, points: r.points, messages: r.messages, voiceMinutes: r.voiceMinutes, forumPosts: r.forumPosts,
+      icon: iconById.get(byId.get(r.scopeId).iconId) || null,
+      points: r.points, messages: r.messages, voiceMinutes: r.voiceMinutes, forumPosts: r.forumPosts,
     }));
 }
 

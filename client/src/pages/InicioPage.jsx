@@ -17,6 +17,7 @@ import ArenaPromo from '../cards/ArenaPromo.jsx';
 import MinecraftStatusCard from '../components/MinecraftStatusCard.jsx';
 import { isFeatureEnabled } from '../utils/features';
 import { channelPath, postPath } from '../utils/prettyLinks';
+import { useCommunityHome, HomeCommunityMain, HomeCommunitySide } from '../components/community/HomeCommunity.jsx';
 
 const EVENT_STATUS_LABEL = { UPCOMING: 'Em breve', ACTIVE: 'Ativo', ENDED: 'Encerrado' };
 // Item pedido: mostra só os 4 vídeos mais recentes do canal.
@@ -155,6 +156,8 @@ export default function InicioPage() {
   const [featuredPosts, setFeaturedPosts] = useState(null);
   const [stats, setStats] = useState(null);
   const [me, setMe] = useState(null);
+  // Fase 4: temporada, metas coletivas, post da semana, aniversários, Clubes.
+  const communityHome = useCommunityHome();
 
   useEffect(() => {
     listUpdates().then((d) => setUpdates(d.updates)).catch(() => setUpdates([]));
@@ -291,6 +294,7 @@ export default function InicioPage() {
 
       <div className="home-grid">
         <div className="home-main">
+          <HomeCommunityMain home={communityHome} />
           <Section icon="calendar" title="Eventos">
             {events === null && <Empty>Carregando…</Empty>}
             {events !== null && upcomingEvents.length === 0 && <Empty>Nenhum evento agendado. Fique de olho: quando a equipe criar um, ele aparece aqui.</Empty>}
@@ -355,6 +359,7 @@ export default function InicioPage() {
         </div>
 
         <aside className="home-side">
+          <HomeCommunitySide home={communityHome} />
           <Section icon="voice" title="Em chamada agora" className="home-card">
             {liveCalls.length === 0 && <Empty>Ninguém em chamada. Entre numa sala e chame o pessoal.</Empty>}
             {liveCalls.map(({ channel, people }) => (

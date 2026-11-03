@@ -13,6 +13,7 @@ import { useLiveRefresh } from '../utils/liveRefresh';
 import FeedPoll from '../components/FeedPoll.jsx';
 import { pinPost } from '../api/contentx';
 import '../styles/contentx.css';
+import '../styles/community4.css';
 import { postPath, absoluteUrl } from '../utils/prettyLinks';
 
 // Tags podem chegar como array (lista do Fórum) ou texto JSON (outras telas).
@@ -191,6 +192,7 @@ const FEED_ICONS = {
   plus: 'M12 5v14M5 12h14',
   pin: 'M9 4h6l-1 5 3 3v2H7v-2l3-3-1-5ZM12 14v6',
   tag: 'M3 12V4h8l9 9-8 8-9-9ZM7.5 8.5h.01',
+  star: 'm12 3 2.7 5.6 6.1.9-4.4 4.3 1 6.1L12 17l-5.4 2.9 1-6.1-4.4-4.3 6.1-.9L12 3Z',
 };
 export function FeedIcon({ name, size = 16, filled = false }) {
   return (
@@ -239,6 +241,7 @@ export function PostCard({ post, onVote, onOpen, onPin, onTag }) {
   return (
     <article className={`fp-card${post.pinnedAt ? ' cxf-pinned' : ''}`} onClick={onOpen} onKeyDown={onKey} tabIndex={0} aria-label={post.title}>
       {post.pinnedAt && <span className="cxf-pin-flag"><FeedIcon name="pin" size={13} /> Fixado pela staff</span>}
+      {post.postOfWeek && <span className="c4-potw-flag" title="O post mais votado de uma semana (Fase 4)"><FeedIcon name="star" size={13} /> Post da semana</span>}
       <header className="fp-card-head">
         <span className="fp-club">
           {post.community.iconUrl

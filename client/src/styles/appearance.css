@@ -138,6 +138,7 @@ html[data-pc-season='natal'] { --pc-season-a: #e23d3d; --pc-season-b: #2eaa5c; }
 html[data-pc-season='anonovo'] { --pc-season-a: #f5c542; --pc-season-b: #f7e7a6; }
 html[data-pc-season='carnaval'] { --pc-season-a: #ff4fa3; --pc-season-b: #ffd23f; }
 html[data-pc-season='halloween'] { --pc-season-a: #ff8a1f; --pc-season-b: #8d4bff; }
+html[data-pc-season='festajunina'] { --pc-season-a: #e8a33d; --pc-season-b: #d9452b; }
 html[data-pc-season='aniversario'] { --pc-season-a: var(--brand); --pc-season-b: #ff6fb5; }
 
 html[data-pc-season] .app-shell .top-search-bar { position: relative; }

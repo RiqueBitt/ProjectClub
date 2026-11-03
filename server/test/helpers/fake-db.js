@@ -229,6 +229,7 @@ const FASE4_MODELS = {
   activityCounter: { pk: ['scope', 'scopeId', 'periodKey'], defaults: { messages: 0, voiceMinutes: 0, forumPosts: 0, reactions: 0, xp: 0, points: 0 } },
   clanWeekResult: { pk: ['weekKey'] },
   clan: {},
+  clanIcon: {},
   referralCode: { pk: ['userId'], unique: [['code']] },
   referral: { unique: [['inviteeId'], ['applicationId']], defaults: { status: 'PENDING', inviteeId: null, applicationId: null, inviteeIp: null, monthKey: null, inviterCoins: 0, inviteeCoins: 0, rewardedAt: null, note: null } },
   refreshToken: {},

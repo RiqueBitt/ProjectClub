@@ -607,6 +607,10 @@ export function SocketProvider({ children }) {
     socket.on('automod:raid-alert', ({ reason }) => {
       useStore.getState().pushNotice(`⚠️ Proteção anti-raid ativada: ${reason}`);
     });
+    // Fase 4: meta coletiva da semana batida pela comunidade inteira.
+    socket.on('goals:reached', ({ title, target, rewardCoins }) => {
+      useStore.getState().pushNotice(`A comunidade bateu a meta da semana${title ? ` "${title}"` : ''} (${Number(target || 0).toLocaleString('pt-BR')})!${rewardCoins ? ` Quem participou ganha ${rewardCoins} moedas na virada da semana.` : ''}`);
+    });
 
     // Item pedido: "Sobreposição no jogo (overlay)... Pedido de
     // amizade... aparece na overlay" — antes esse evento só tocava um

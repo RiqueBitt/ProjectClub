@@ -135,6 +135,9 @@ export const SEASONS = {
   anonovo: { label: 'Ano Novo', greeting: 'Feliz Ano Novo!', when: '1 a 6 de janeiro' },
   carnaval: { label: 'Carnaval', greeting: 'Bom Carnaval!', when: 'sábado até quarta de cinzas' },
   halloween: { label: 'Halloween', greeting: 'Feliz Halloween!', when: '20 a 31 de outubro' },
+  // Fase 4: temporada nova (o servidor sabe das mesmas datas — ver
+  // server/src/services/community/seasons.js).
+  festajunina: { label: 'Festa Junina', greeting: 'Arraiá do Project Club!', when: '1 a 30 de junho' },
   aniversario: { label: 'Aniversário do Project Club', greeting: 'Parabéns, Project Club!', when: `${PROJECT_CLUB_BIRTHDAY.day}/${String(PROJECT_CLUB_BIRTHDAY.month).padStart(2, '0')} e os 2 dias seguintes` },
 };
 
@@ -145,6 +148,7 @@ export function seasonForDate(date = new Date()) {
   if (m === 12) return 'natal';
   if (m === 1 && d <= 6) return 'anonovo';
   if (m === 10 && d >= 20) return 'halloween';
+  if (m === 6) return 'festajunina';
   const bd = new Date(y, PROJECT_CLUB_BIRTHDAY.month - 1, PROJECT_CLUB_BIRTHDAY.day);
   const dayMs = 86400000;
   const today = new Date(y, m - 1, d);

@@ -276,6 +276,8 @@ export default function EconomyPage({ initialTab = 'geral' }) {
     // vai direto pra Loja → Assinatura.
     { id: 'temporada', label: 'Passe do clube', icon: 'crown', count: season?.isSupporter ? (seasonReady || undefined) : undefined, className: 'pk-tab-gold' },
     { id: 'historico', label: 'Histórico', icon: 'clock' },
+    // Fase 4: sorteio semanal (página própria, mesma barra de abas).
+    { id: 'sorteio', label: 'Sorteio', icon: 'gift' },
   ];
 
   const resetDaily = missionData?.resets?.daily ? untilText(missionData.resets.daily, now) : null;
@@ -311,6 +313,7 @@ export default function EconomyPage({ initialTab = 'geral' }) {
           tabs={tabs} value={tab} label="Seções da Economia" className="eco-tabs"
           onChange={(id) => {
             if (id === 'loja') navigate('/loja');
+            else if (id === 'sorteio') navigate('/sorteio');
             else if (id === 'temporada' && season && !season.isSupporter) navigate('/loja?secao=assinatura');
             else setTab(id);
           }}
