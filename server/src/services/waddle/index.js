@@ -21,6 +21,7 @@
 //
 // Configuração (.env): ver docs/praca-club-penguin.md.
 const path = require('path');
+const fs = require('fs');
 const { URL } = require('url');
 const WebSocket = require('ws');
 const env = require('../../config/env');
@@ -264,13 +265,116 @@ function cachedRouter(w) {
 // ---------------------------------------------------------------------------
 // Dados pro cliente (PracaPage)
 
-/** Entrada do jogo pra data configurada: o SWF que a página original do WF embute. */
+/** Nomes das festas em português (o nome original continua sendo a chave). */
+const PARTY_PT = {
+  'Halloween Party': 'Festa de Halloween', 'Holiday Party': 'Festa de Natal', 'Operation: Blackout': 'Operação: Blecaute',
+  'Puffle Party': 'Festa dos Puffles', 'Medieval Party': 'Festa Medieval', 'Marvel Super Hero Takeover': 'Invasão dos Super-Heróis Marvel',
+  'Card-Jitsu Party': 'Festa do Card-Jitsu', 'Music Jam': 'Festival de Música', 'Make Your Mark: Ultimate Jam': 'Deixe Sua Marca: Festival Supremo',
+  'Fair': 'A Feira', 'The Fair': 'A Feira', 'April Fools': 'Dia da Mentira', 'Earth Day': 'Dia da Terra', 'Easter Egg Hunt': 'Caça aos Ovos de Páscoa',
+  'Underwater Expedition': 'Expedição Submarina', 'Fashion Show': 'Desfile de Moda', 'Adventure Party: Temple of Fruit': 'Festa da Aventura: Templo das Frutas',
+  'Island Adventure Party': 'Festa da Aventura na Ilha', 'Wilderness Expedition': 'Expedição Selvagem', '6th Anniversary Party': 'Festa de 6º Aniversário',
+  '7th Anniversary Party': 'Festa de 7º Aniversário', 'Battle of Doom': 'Batalha da Perdição', 'Great Snow Race': 'Grande Corrida na Neve',
+};
+const partyLabel = (name) => (name ? PARTY_PT[name] || name : null);
+
+/** Código numérico estável (2 dígitos) pra festa: entra na contentVersion. */
+function partyCode(party) {
+  if (!party) return '';
+  let h = 7;
+  for (const ch of String(party)) h = (h * 31 + ch.charCodeAt(0)) % 90;
+  return String(10 + h);
+}
+
+/**
+ * Entrada do jogo pra data configurada: o SWF que a página original do WF
+ * embute e as flashvars. Durante uma festa a `contentVersion` ganha o código
+ * da festa: as salas/crumbs mudam de conteúdo na MESMA rota, e sem isso o
+ * cache do navegador (30 dias) mostraria a ilha sem a decoração. Quando a
+ * festa acaba, volta à versão original — e os arquivos normais já estão no
+ * cache.
+ */
 async function getEntry(w) {
   const html = await w.http.getFileServer().resolve('');
   const text = typeof html === 'string' ? html : html ? html.toString('utf-8') : '';
   const data = text.match(/<object[^>]*\sdata="([^"]+)"/i);
   const flashvars = text.match(/name="flashvars"\s+value="([^"]*)"/i);
-  return { swf: data ? data[1] : '/boots.swf', flashvars: flashvars ? flashvars[1] : 'lang=en' };
+  let fv = flashvars ? flashvars[1] : 'lang=en';
+  const party = w.gameData.getPartyName ? w.gameData.getPartyName() : null;
+  if (party) fv = fv.replace(/(contentVersion=)(\d+)/, (_, k, v) => `${k}${v}${partyCode(party)}`);
+  return { swf: data ? data[1] : '/boots.swf', flashvars: fv, party };
+}
+
+// ---------------------------------------------------------------------------
+// Pacotes de download ("jogo base" e "evento")
+//
+// O navegador baixa o jogo arquivo por arquivo conforme o Flash pede, o que
+// deixa a primeira abertura lenta. A página "instala" o jogo base uma vez
+// (baixa estes arquivos com barra de progresso; ficam no cache HTTP por 30
+// dias) e só pede o pacote de evento quando há festa na ilha. As URLs levam
+// as mesmas query strings que o cliente usa (senão o cache não bate).
+
+const BASE_CLIENT = ['club_penguin.swf', 'load.swf', 'shell.swf', 'dependencies.json', 'airtower.swf', 'sentry.swf', 'stamps.swf', 'login.swf', 'engine.swf', 'gridview.swf', 'mail.swf', 'book.swf', 'stampbook.swf', 'buddies.swf', 'rooms_common.swf', 'phone.swf', 'music/Music.swf', 'notifications.swf', 'banning.swf', 'world.swf', 'igloo.swf', 'map.swf', 'puffle_adoption.swf', 'puffle_care.swf', 'penguin.swf', 'interface.swf', 'fonts/en/FontLibrary.swf'];
+const BASE_CONTENT = ['global/crumbs/global_crumbs.swf', 'local/en/crumbs/local_crumbs.swf', 'local/en/news/news_crumbs.swf', 'global/content/map_triggers.json', 'global/logo/logo.swf', 'global/content/party.swf', 'global/content/map.swf', 'global/penguin/penguin.swf', 'global/igloo/assets/igloo_background.swf'];
+const BASE_CONFIGS = ['game_strings', 'games', 'stamps', 'paths', 'paper_items', 'rooms', 'igloos', 'puffle_items', 'puffles', 'furniture_items', 'newspapers', 'postcards', 'safe_chat_messages', 'mascot_messages', 'tour_guide_messages', 'penguin_action_frames', 'general', 'chunking_map', 'stage_script_messages', 'polaroids', 'cover', 'mascots', 'jokes', 'igloo_floors', 'igloo_locations', 'player_colors'];
+const BASE_ROOMS = ['town', 'coffee', 'book', 'dance', 'lounge', 'shop', 'village', 'lodge', 'attic', 'mtn', 'plaza', 'pet', 'dojo', 'dojoext', 'pizza', 'stage', 'beach', 'light', 'beacon', 'dock', 'forts', 'rink', 'forest', 'cove', 'berg', 'cave', 'mine', 'shack', 'boiler', 'party'];
+
+function parseFlashvars(fv) {
+  const out = {};
+  for (const part of String(fv || '').split('&')) { const [k, v = ''] = part.split('='); if (k) out[k] = v; }
+  return out;
+}
+
+async function sizeOf(w, route) {
+  // tamanho só de arquivos da mídia (os gerados são pequenos)
+  try {
+    let rel = w.gameData.lookupFile(route);
+    if (typeof rel === 'function') rel = rel(w.settings);
+    if (!rel) return 0;
+    const st = await fs.promises.stat(path.join(process.env.WADDLE_MEDIA_DIR || path.join(process.env.WADDLE_DATA_DIR, 'media'), rel)).catch(() => null);
+    return st ? st.size : 0;
+  } catch { return 0; }
+}
+
+async function getBundles(w) {
+  const entry = await getEntry(w);
+  const fv = parseFlashvars(entry.flashvars);
+  const q = { client: fv.clientVersion ? `?clientVersion=${fv.clientVersion}` : '', content: fv.contentVersion ? `?contentVersion=${fv.contentVersion}` : '', config: fv.configVersion ? `?configVersion=${fv.configVersion}` : '' };
+  const party = entry.party;
+  const files = [];
+  const add = async (route, query) => {
+    if (!w.http.getFileServer().knowsRoute(route)) return;
+    files.push({ url: `/${route}${query}`, size: await sizeOf(w, route) });
+  };
+  const take = () => files.splice(0);
+  let base; let content;
+  if (entry.swf !== '/boots.swf') {
+    for (const f of BASE_CLIENT) await add(`play/v2/client/${f}`, q.client);
+    for (const f of BASE_CONFIGS) await add(`play/en/web_service/game_configs/${f}.json`, q.config);
+    await add('play/web_service/environment_data.xml', q.config);
+    await add('playstart/xml/start_module_config.xml', '');
+    await add('playstart/swf/start_module.swf', '?cacheVersion=');
+    base = take();
+    // conteúdo da ilha (crumbs, mapa, salas): fora de festa é parte do jogo
+    // base; em festa muda de versão e vira o pacote do evento
+    for (const f of BASE_CONTENT) await add(`play/v2/content/${f}`, q.content);
+    for (const r of BASE_ROOMS) await add(`play/v2/content/global/rooms/${r}.swf`, q.content);
+    content = take();
+  } else {
+    for (const f of ['boots.swf', 'play/v2/load.swf', 'play/v2/shell/shell.swf', 'play/v2/client/engine.swf', 'play/v2/client/interface.swf', 'play/v2/login/login.swf']) await add(f, '');
+    base = take();
+    for (const f of ['play/v2/content/global/crumbs/global_crumbs.swf', 'play/v2/content/local/en/crumbs/local_crumbs.swf']) await add(f, '');
+    for (const r of BASE_ROOMS) await add(`play/v2/content/global/rooms/${r}.swf`, '');
+    content = take();
+  }
+  const total = (list) => list.reduce((n, f) => n + f.size, 0);
+  const baseList = party ? base : base.concat(content);
+  const year = w.settings.settings.version.slice(0, 4);
+  return {
+    // muda só quando o cliente/conteúdo muda de verdade (não a cada festa)
+    version: `${year}|${fv.clientVersion || ''}|${(fv.contentVersion || '').slice(0, party ? -2 : undefined)}|${fv.configVersion || ''}`,
+    base: { files: baseList, bytes: total(baseList) },
+    event: party ? { name: partyLabel(party), key: `${party}@${year}`, files: content, bytes: total(content) } : null,
+  };
 }
 
 async function getConfig(user) {
@@ -290,7 +394,8 @@ async function getConfig(user) {
     entry,
     version: s.settings.version,
     as3: !!w.gameData.getAs3(),
-    party: w.gameData.getPartyName ? w.gameData.getPartyName() : null,
+    party: entry.party || null,
+    partyLabel: partyLabel(entry.party),
     lang: (entry.flashvars.match(/lang=(\w+)/) || [])[1] || 'en',
     stage: { width: 760, height: 480 },
     // Ruffle: host:porta que o SWF tenta abrir → WebSocket do site
@@ -301,6 +406,7 @@ async function getConfig(user) {
     penguin: { id, name: json.name, color: json.color, coins: json.coins, member: !!json.is_member },
     online: w.world.getAllPlayersInfo().length,
     media,
+    bundles: await getBundles(w),
     ticket: issueTicket(user.id),
   };
 }
@@ -312,7 +418,7 @@ function mediaState() {
 async function getStatus() {
   if (!instance) return { ready: false, online: 0, media: mediaState(), error: lastError ? String(lastError.message || lastError) : null };
   const media = mediaState();
-  return { ready: media.state === 'ready' || media.state === 'partial', online: instance.world.getAllPlayersInfo().length, version: instance.settings.settings.version, party: instance.gameData.getPartyName ? instance.gameData.getPartyName() : null, media };
+  return { ready: media.state === 'ready' || media.state === 'partial', online: instance.world.getAllPlayersInfo().length, version: instance.settings.settings.version, party: instance.gameData.getPartyName ? instance.gameData.getPartyName() : null, partyLabel: partyLabel(instance.gameData.getPartyName ? instance.gameData.getPartyName() : null), media };
 }
 
 module.exports = { getWaddle, mountHttp, attachUpgrade, getConfig, getStatus, ensurePenguin, cachedRouter };

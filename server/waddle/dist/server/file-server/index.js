@@ -91,7 +91,8 @@ class FileServer {
                 else {
                     // mídia de verdade (não gerada) pode ficar em cache no navegador
                     const isMedia = this.gameData.lookupFile(route) !== undefined && !this.modFiles.has(route);
-                    res.set('Cache-Control', isMedia ? 'public, max-age=604800, immutable' : 'no-cache');
+                    // mídia: 30 dias (as URLs mudam de versão quando o conteúdo muda); gerados: revalidam por ETag
+                    res.set('Cache-Control', isMedia ? 'public, max-age=2592000, immutable' : 'no-cache');
                     const split = route.split('.');
                     // if less than 1, then there was no file extension
                     // route with no file extension -> a GET request for an HTML file

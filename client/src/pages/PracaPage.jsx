@@ -26,6 +26,43 @@ import '../styles/praca.css';
 const RUFFLE_SRC = '/ruffle/ruffle.js';
 const STAGE = { w: 760, h: 480 };
 const MUTE_KEY = 'pc.praca.muted';
+const BASE_KEY = 'pc.praca.base'; // versão do jogo base já instalada neste navegador
+const EVENT_KEY = 'pc.praca.event.'; // + chave do evento → pacote baixado
+const CONCURRENCY = 6;
+
+const readLS = (k) => { try { return localStorage.getItem(k); } catch { return null; } };
+const writeLS = (k, v) => { try { localStorage.setItem(k, v); } catch { /* ignora */ } };
+const fmtMB = (b) => `${Math.max(1, Math.round(b / 1048576))} MB`;
+
+/**
+ * "Instala" um pacote: baixa os arquivos (as mesmas URLs que o jogo pede,
+ * com cache de 30 dias no servidor) com progresso. Depois disso o jogo abre
+ * direto do cache do navegador. Falha de um arquivo não derruba o resto.
+ */
+async function installBundle(files, { signal, onProgress }) {
+  const total = files.reduce((n, f) => n + (f.size || 0), 0);
+  let doneBytes = 0; let doneFiles = 0; let failed = 0;
+  const queue = files.slice();
+  const report = () => onProgress({ ratio: total ? Math.min(1, doneBytes / total) : doneFiles / Math.max(1, files.length), doneFiles, files: files.length, bytes: doneBytes, total });
+  const worker = async () => {
+    while (queue.length) {
+      if (signal?.aborted) return;
+      const f = queue.shift();
+      try {
+        const res = await fetch(f.url, { signal, credentials: 'same-origin', cache: 'default' });
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        await res.arrayBuffer();
+      } catch (err) {
+        if (err?.name === 'AbortError') return;
+        failed += 1;
+      }
+      doneBytes += f.size || 0; doneFiles += 1; report();
+    }
+  };
+  report();
+  await Promise.all(Array.from({ length: Math.min(CONCURRENCY, files.length) }, worker));
+  return { failed };
+}
 
 let rufflePromise = null;
 function loadRuffle() {
@@ -52,7 +89,7 @@ function readMuted() {
 export default function PracaPage() {
   const { user } = useAuth();
   const [cfg, setCfg] = useState(null);
-  const [phase, setPhase] = useState('config'); // config | media | loading | playing | error
+  const [phase, setPhase] = useState('config'); // config | media | install | event | loading | playing | error
   const [media, setMedia] = useState(null); // estado da mídia no servidor (primeira inicialização)
   const [error, setError] = useState('');
   const [muted, setMuted] = useState(readMuted);
@@ -62,6 +99,8 @@ export default function PracaPage() {
   const [needsTap, setNeedsTap] = useState(false);
   // entrada automática: 'start' | 'form' | 'server' | 'world' | 'manual' | null
   const [entering, setEntering] = useState(null);
+  const [install, setInstall] = useState(null); // progresso da instalação do jogo base / evento
+  const [ready, setReady] = useState(null); // config liberada pro Ruffle (depois da instalação)
   const [showBar, setShowBar] = useState(false); // tela cheia no celular: barra aparece por 3 s ao tocar
   const [hint, setHint] = useState(() => { try { return localStorage.getItem('pc.praca.hint') !== '1'; } catch { return true; } });
 
@@ -112,8 +151,44 @@ export default function PracaPage() {
     return () => { alive = false; };
   }, []);
 
+  // 1b) instalação: o jogo base é baixado UMA vez (uma "atualização"), só o
+  // de 2012; o conteúdo de evento só quando há festa, e a pessoa decide.
+  useEffect(() => {
+    if (!cfg) return undefined;
+    const b = cfg.bundles;
+    if (!b || !b.base?.files?.length) { setReady(cfg); return undefined; }
+    const ac = new AbortController();
+    let alive = true;
+    (async () => {
+      if (readLS(BASE_KEY) !== b.version) {
+        setPhase('install');
+        setInstall({ kind: 'base', name: 'Club Penguin 2012', ratio: 0, total: b.base.bytes });
+        await installBundle(b.base.files, { signal: ac.signal, onProgress: (p) => { if (alive) setInstall((i) => ({ ...i, ...p })); } });
+        if (!alive) return;
+        writeLS(BASE_KEY, b.version);
+      }
+      if (b.event && readLS(EVENT_KEY + b.event.key) !== '1') {
+        setPhase('event');
+        setInstall({ kind: 'event', name: b.event.name, ratio: 0, total: b.event.bytes, ask: true });
+        return; // a pessoa escolhe "Baixar" ou "Depois"
+      }
+      setReady(cfg);
+    })();
+    return () => { alive = false; ac.abort(); };
+  }, [cfg]);
+
+  const downloadEvent = useCallback(async () => {
+    const b = cfg?.bundles; if (!b?.event) return;
+    setInstall((i) => ({ ...i, ask: false, ratio: 0 }));
+    await installBundle(b.event.files, { signal: autoAbort.current?.signal, onProgress: (p) => setInstall((i) => ({ ...i, ...p })) });
+    writeLS(EVENT_KEY + b.event.key, '1');
+    setReady(cfg);
+  }, [cfg]);
+  const skipEvent = useCallback(() => { setReady(cfg); }, [cfg]);
+
   // 2) sobe o Ruffle com o jogo
   useEffect(() => {
+    const cfg = ready;
     if (!cfg || !stageRef.current) return undefined;
     let alive = true;
     setPhase('loading');
@@ -183,7 +258,7 @@ export default function PracaPage() {
       try { playerRef.current?.remove(); } catch { /* ignora */ }
       playerRef.current = null;
     };
-  }, [cfg, touch]);
+  }, [ready, touch]);
 
   // 3) escala do palco: cabe na área disponível mantendo 760x480
   useEffect(() => {
@@ -266,7 +341,7 @@ export default function PracaPage() {
 
   const dismissHint = () => { setHint(false); try { localStorage.setItem('pc.praca.hint', '1'); } catch { /* ignora */ } };
 
-  const retry = () => { setError(''); setCfg(null); setPhase('config'); api.get('/plaza/config').then(({ data }) => { setCfg(data); setOnline(data.online || 0); }).catch((err) => { setError(err?.response?.data?.error || 'A Praça está indisponível agora.'); setPhase('error'); }); };
+  const retry = () => { setError(''); setCfg(null); setReady(null); setPhase('config'); api.get('/plaza/config').then(({ data }) => { setCfg(data); setOnline(data.online || 0); }).catch((err) => { setError(err?.response?.data?.error || 'A Praça está indisponível agora.'); setPhase('error'); }); };
 
   return (
     <div className={`praca-page${full ? ' is-full' : ''}${touch ? ' is-touch' : ''}${showBar ? ' show-bar' : ''}`} ref={pageRef}>
@@ -277,9 +352,9 @@ export default function PracaPage() {
             <svg viewBox="0 0 64 64" width="26" height="26"><ellipse cx="32" cy="36" rx="20" ry="24" fill="currentColor" /><ellipse cx="32" cy="40" rx="12" ry="16" fill="#fff" /><circle cx="25" cy="24" r="4" fill="#fff" /><circle cx="39" cy="24" r="4" fill="#fff" /><circle cx="26" cy="25" r="2" fill="#1c1e21" /><circle cx="40" cy="25" r="2" fill="#1c1e21" /><path d="M27 30 Q32 37 37 30 Q32 33 27 30 Z" fill="#F5A623" /></svg>
           </span>
           <div>
-            <h1>Praça</h1>
+            <h1>Club Penguin</h1>
             <span className="praca-sub">
-              {cfg ? <>Você é <strong>{cfg.penguin.name}</strong>{cfg.penguin.member ? ' · membro' : ''}</> : 'Club Penguin do Project Club'}
+              {cfg ? <>Você é <strong>{cfg.penguin.name}</strong>{cfg.penguin.member ? ' · membro' : ''}</> : 'A Praça do Project Club'}
             </span>
           </div>
         </div>
@@ -313,10 +388,32 @@ export default function PracaPage() {
           style={{ width: Math.round(STAGE.w * scale), height: Math.round(STAGE.h * scale) }}
         />
         {phase !== 'playing' && phase !== 'error' && (
-          <div className="praca-overlay">
-            <div className="praca-loader" aria-hidden="true" />
-            <strong>{phase === 'config' ? 'Preparando seu pinguim…' : phase === 'media' ? 'Preparando a ilha no servidor…' : 'Carregando a ilha…'}</strong>
-            {phase === 'media' ? (
+          <div className={`praca-overlay${phase === 'event' && install?.ask ? ' is-ask' : ''}`}>
+            {!(phase === 'event' && install?.ask) && <div className="praca-loader" aria-hidden="true" />}
+            <strong>
+              {phase === 'config' ? 'Preparando seu pinguim…'
+                : phase === 'media' ? 'Preparando a ilha no servidor…'
+                  : phase === 'install' ? `Instalando ${install?.name || 'o jogo'}…`
+                    : phase === 'event' ? (install?.ask ? `Evento: ${install.name}` : `Baixando ${install?.name}…`)
+                      : 'Carregando a ilha…'}
+            </strong>
+            {phase === 'install' || (phase === 'event' && !install?.ask) ? (
+              <>
+                <span>
+                  {phase === 'install' ? 'Atualização única: o jogo base fica guardado no seu navegador e as próximas vezes abrem na hora.' : 'O conteúdo do evento está sendo baixado.'}
+                </span>
+                <div className="praca-progress" role="progressbar" aria-valuenow={Math.round((install?.ratio || 0) * 100)} aria-valuemin={0} aria-valuemax={100}><span style={{ width: `${Math.round((install?.ratio || 0) * 100)}%` }} /></div>
+                <small className="praca-progress-label">{install?.total ? `${fmtMB(install.bytes || 0)} de ${fmtMB(install.total)}` : `${install?.doneFiles || 0} de ${install?.files || 0} arquivos`} · {Math.round((install?.ratio || 0) * 100)}%</small>
+              </>
+            ) : phase === 'event' ? (
+              <>
+                <span>A ilha está em festa! Baixe o conteúdo do evento <strong>{install?.name}</strong> ({fmtMB(install?.total || 0)}) para ver a decoração, os itens e as salas especiais.</span>
+                <div className="praca-overlay-actions">
+                  <button type="button" className="pet-btn primary" onClick={downloadEvent}>Baixar evento</button>
+                  <button type="button" className="pet-btn" onClick={skipEvent}>Depois</button>
+                </div>
+              </>
+            ) : phase === 'media' ? (
               <>
                 <span>Isso só acontece na primeira vez: o servidor está baixando e extraindo os arquivos do jogo{media?.current ? ` (${media.current})` : ''}.</span>
                 {media?.state === 'downloading' && typeof media.progress === 'number' && (
@@ -325,7 +422,7 @@ export default function PracaPage() {
                 {media?.state === 'extracting' && <span>Extraindo…</span>}
               </>
             ) : (
-              <span>Na primeira vez pode demorar um pouco: o jogo inteiro vem pro seu navegador.</span>
+              <span>Abrindo o jogo a partir do seu navegador.</span>
             )}
           </div>
         )}

@@ -33,8 +33,6 @@ export const ACTIVITY_NAV_ICON = `data:image/svg+xml,${encodeURIComponent('<svg 
 // Ícone da Economia (moeda) — mesmo esquema de máscara dos outros ícones.
 const ECONOMY_NAV_ICON = `data:image/svg+xml,${encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="black" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M14.5 9a2.5 2.5 0 0 0-2.5-1.5c-1.4 0-2.5.8-2.5 2s1.1 1.7 2.5 2 2.5.8 2.5 2-1.1 2-2.5 2A2.6 2.6 0 0 1 9.5 15M12 6v1.5M12 16.5V18"/></svg>')}`;
 // Ícone do Navegador (globo) — mesmo esquema de máscara dos outros ícones.
-// Fase 8: Praça virtual (ícone de pinguim em traço, mesmo estilo dos outros).
-const PLAZA_NAV_ICON = `data:image/svg+xml,${encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="black" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3c-3.6 0-6 3.6-6 8.5S8 21 12 21s6-4.6 6-9.5S15.6 3 12 3z"/><path d="M9.5 13.5c0 2.6 1.1 4.5 2.5 4.5s2.5-1.9 2.5-4.5"/><circle cx="10" cy="8.5" r=".6" fill="black"/><circle cx="14" cy="8.5" r=".6" fill="black"/><path d="M11 10.6l1 .9 1-.9"/></svg>')}`;
 const BROWSER_NAV_ICON =`data:image/svg+xml,${encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="black" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3c2.5 2.5 3.5 5.5 3.5 9s-1 6.5-3.5 9c-2.5-2.5-3.5-5.5-3.5-9s1-6.5 3.5-9z"/></svg>')}`;
 export const ITEMS = [
   // Item pedido: "crie uma nova categoria chamada Início, primeira
@@ -54,8 +52,8 @@ export const ITEMS = [
   { to: '/comunidades', icon: feedIcon, isImg: true, labelKey: 'nav.feeds', match: (p) => p === '/comunidades' || isPostPath(p) },
   // (removido do menu a pedido do dono — rota continua existindo)
   { to: '/dms', icon: friendsIcon, isImg: true, labelKey: 'nav.amigos', match: (p) => p === '/dms' || isDmPath(p) || p.startsWith('/clans') },
-  // Praça: Club Penguin completo (PracaPage.jsx, Waddle Forever embutido no servidor).
-  { to: '/praca', icon: PLAZA_NAV_ICON, isImg: true, labelKey: 'nav.praca', label: 'Praça', match: (p) => p.startsWith('/praca') },
+  // Praça (Club Penguin): virou o botão "Club Penguin" junto de Novidades e
+  // Economia (components/FeaturedChannels.jsx), fora da barra de ícones.
   // Item pedido originalmente: "crie uma nova categoria chamada Jogos,
   // posicionada logo abaixo da categoria Amigos" — item único levando
   // pra /jogos (ver JogosPage.jsx), mesmo padrão que o resto desta

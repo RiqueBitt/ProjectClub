@@ -26,6 +26,8 @@ const PATHS = {
   store: 'M5 8h14l-1 12H6L5 8zM9 8V6a3 3 0 0 1 6 0v2M9 12h.01M15 12h.01',
   // Economia: moeda com estrela
   coin: 'M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18zM12 7.6l1.3 2.65 2.9.42-2.1 2.05.5 2.9L12 14.25l-2.6 1.37.5-2.9-2.1-2.05 2.9-.42z',
+  // Club Penguin (Praça): pinguim de perfil, bico e asa
+  penguin: 'M12 3c-3.3 0-5.5 2.6-5.5 6.2 0 2 .4 3.6 1.1 5.1L6 17.5l3 .6c.9 1.1 1.9 1.9 3 1.9s2.1-.8 3-1.9l3-.6-1.6-3.2c.7-1.5 1.1-3.1 1.1-5.1C17.5 5.6 15.3 3 12 3zM9.8 8.2h.01M14.2 8.2h.01M10.5 10.5c1 .9 2 .9 3 0M9 20.5h6',
   // Guerra das Cartas: duas cartas em leque
   cards: 'M8 4h9a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2zM4 7.5 6 7M4 7.5v10.2a2 2 0 0 0 1.6 2L6 20M12.5 9l1.3 2.6 2.7.4-2 1.9.5 2.7-2.5-1.3-2.5 1.3.5-2.7-2-1.9 2.7-.4z',
 };
@@ -40,6 +42,13 @@ export function FeaturedGlyph({ name, size = 16 }) {
 
 // Guerra das Cartas (quando ligada) em primeiro, depois Novidades e Economia.
 export const FEATURED = [
+  // Club Penguin (Praça): o jogo completo, em azul-marinho (pedido do dono).
+  {
+    key: 'praca', label: 'Club Penguin', icon: 'penguin', to: '/praca',
+    hint: 'A ilha do Club Penguin: entre com o seu pinguim',
+    match: (p) => p.startsWith('/praca'), tag: 'Jogar',
+    feature: 'plaza',
+  },
   {
     key: 'arena', label: 'Guerra das Cartas', icon: 'cards', to: '/cartas',
     hint: 'Jogo de cartas: colecione, monte seu baralho e batalhe', match: (p) => p.startsWith('/cartas'), tag: 'Jogar',

@@ -110,7 +110,7 @@ export async function autoLogin({ player, as3, name, signal, onStep = () => {} }
 
     // 2) formulário
     onStep('form');
-    await waitForResource((u) => /\/login\.swf/i.test(u), 20_000, signal).catch(() => {});
+    await waitForResource((u) => /\/login\.swf/i.test(u), 40_000, signal).catch(() => {});
     await wait(as3 ? 2200 : 1500);
     // O primeiro clique só dá foco ao campo (o texto digitado logo em seguida
     // se perde); o segundo clique, com o campo já ativo, aceita a digitação.
@@ -126,10 +126,12 @@ export async function autoLogin({ player, as3, name, signal, onStep = () => {} }
     // 3) servidor (único): primeiro da lista
     onStep('server');
     await wait(as3 ? 3500 : 2500);
+    // Em conexão lenta o mundo demora a responder: espera com paciência
+    // (a sala baixando é o sinal de que entrou) antes de tentar de novo.
     for (let attempt = 0; attempt < 3 && !inWorld(); attempt++) {
       await d.click(L.servers.first);
       try {
-        await waitForResource((u) => /\/rooms\/[a-z_0-9]+\.swf/i.test(u), 12_000, signal);
+        await waitForResource((u) => /\/rooms\/[a-z_0-9]+\.swf/i.test(u), attempt === 0 ? 45_000 : 20_000, signal);
         break;
       } catch (err) {
         if (err.message === 'abort') throw err;
