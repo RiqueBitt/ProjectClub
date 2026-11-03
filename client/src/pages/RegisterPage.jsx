@@ -106,6 +106,15 @@ export default function RegisterPage() {
   // identidade fica num cookie assinado no servidor; aqui só mostramos e
   // pré-preenchemos. Ela é conectada à conta quando a staff aprovar.
   const [oauthPending, setOauthPending] = useState(null);
+  // Fase 4: convite de amigo (/register?convite=CODIGO). Guardado na sessão
+  // pra não se perder se a pessoa passar pelo "Inscrever-se com Google".
+  const [referralCode] = useState(() => {
+    const fromUrl = (params.get('convite') || '').trim().toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 16);
+    try {
+      if (fromUrl) sessionStorage.setItem('pc-convite', fromUrl);
+      return fromUrl || sessionStorage.getItem('pc-convite') || '';
+    } catch { return fromUrl; }
+  });
 
   useEffect(() => {
     const code = params.get('oauth_error');
@@ -208,8 +217,10 @@ export default function RegisterPage() {
         password: form.password,
         birthDate: parseBirthDate(form.birthDay, form.birthMonth, form.birthYear),
         answers: { ...answers, howFoundOther: answers.howFoundOther.trim(), joinReason: answers.joinReason.trim() },
+        ...(referralCode ? { referralCode } : {}),
       };
       const result = await submitApplication(payload);
+      try { sessionStorage.removeItem('pc-convite'); } catch { /* sem sessionStorage */ }
       // E-mail do dono (PLATFORM_ADMIN_EMAIL) é aprovado na hora e já entra.
       if (result.autoApproved) {
         applySession(result);
@@ -258,6 +269,11 @@ export default function RegisterPage() {
       reaction={reaction}
     >
       <div ref={panelTopRef} className="pc-scroll-anchor" />
+      {referralCode && (
+        <p className="pc-muted" role="status" style={{ textAlign: 'center', margin: '0 0 10px' }}>
+          Você foi convidado(a) por um amigo (código <b>{referralCode}</b>). Quando sua conta for aprovada e você ficar ativo, os dois ganham moedas.
+        </p>
+      )}
       <ol className="pc-steps" aria-label="Etapas da inscrição">
         {STEPS.map((s, i) => (
           <li key={s.id} className={i === step ? 'current' : i < step ? 'done' : ''} aria-current={i === step ? 'step' : undefined}>
