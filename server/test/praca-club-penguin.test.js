@@ -57,7 +57,7 @@ const put = (rel, content) => { const f = path.join(mediaDir, rel); fs.mkdirSync
 if (!realMedia) {
   put('default/websites/classic-cpip-boots.html', '<html><head></head><body><object data="/boots.swf"><param name="flashvars" value="lang=en"></object></body></html>');
   // modo calendário (padrão) cai na era moderna (AS3): página com o cliente novo
-  put('default/websites/classic-as3.html', '<html><head></head><body><object data="/play/v2/client/club_penguin.swf"><param name="flashvars" value="play=/play/&lang=en"></object></body></html>');
+  put('default/websites/classic-as3.html', '<html><head></head><body><object data="/play/v2/client/club_penguin.swf"><param name="flashvars" value="play=/play/&nau=&nal=&nas=&nad=&lang=en&clientVersion=21639&contentVersion=84421&configVersion=1"></object></body></html>');
   put('default/websites/classic/css/baseline.css', 'body{}');
 }
 
@@ -67,6 +67,7 @@ const { signAccessToken } = require('../src/services/tokens');
 let server; let base; let token;
 test.before(async () => {
   const app = express();
+  app.get('/pack/:kind', (req, res, next) => waddle.streamPack(req.params.kind, res).catch(next));
   waddle.mountHttp(app);
   app.use((req, res) => res.status(404).send('site'));
   server = http.createServer(app);
@@ -177,4 +178,34 @@ test('mundo: entra, fala (com automod) e abrir em outro lugar derruba a sessão 
   await b.open();
   assert.equal(await closed, 4001);
   b.ws.close();
+});
+
+test('pacote de instalação: um fluxo só com todos os arquivos do jogo (cabeçalho + bytes)', async () => {
+  const cfg = await waddle.getConfig(user);
+  assert.ok(cfg.bundles.base.files.length > 0);
+  assert.match(cfg.bundles.base.pack.url, /^\/api\/plaza\/pack\/base\?v=/);
+  assert.equal(cfg.autoEntry, 'flashvars');
+  assert.match(cfg.entry.flashvars, /nau=Rique%20Bitt&nal=projectclub/);
+  const res = await fetch(`${base}/pack/base`);
+  assert.equal(res.status, 200);
+  const buf = Buffer.from(await res.arrayBuffer());
+  let off = 0; const seen = [];
+  while (off + 4 <= buf.length) {
+    const hlen = buf.readUInt32BE(off);
+    const head = JSON.parse(buf.subarray(off + 4, off + 4 + hlen).toString('utf-8'));
+    seen.push(head);
+    off += 4 + hlen + head.s;
+  }
+  assert.equal(off, buf.length, 'fluxo termina exatamente no fim do último arquivo');
+  assert.ok(seen.some((h) => h.u.startsWith('/play/en/web_service/game_configs/game_strings.json')), 'traz os arquivos gerados');
+  const gs = seen.find((h) => h.u.startsWith('/play/en/web_service/game_configs/game_strings.json'));
+  assert.equal(gs.t, 'application/json');
+});
+
+test('tradução: tabela [chave, texto] do cliente mantém as chaves em inglês', () => {
+  const { translateJson } = require('../waddle/dist/server/i18n/index.js');
+  const out = translateJson({ lang: [['Penguin Name:', 'Penguin Name:'], ['login_x', 'Login']] });
+  assert.equal(out.lang[0][0], 'Penguin Name:');
+  assert.equal(out.lang[0][1], 'Nome do Pinguim:');
+  assert.equal(out.lang[1][1], 'Entrar');
 });

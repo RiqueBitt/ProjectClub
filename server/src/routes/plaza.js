@@ -16,6 +16,11 @@ router.get('/config', requireAuth, async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
+// Pacote de instalação (jogo completo / evento) num fluxo único.
+router.get('/pack/:kind(base|event)', requireAuth, async (req, res, next) => {
+  try { await waddle.streamPack(req.params.kind, res); } catch (err) { next(err); }
+});
+
 // Sem login: quantos pinguins estão na ilha (pra badge da barra lateral).
 router.get('/status', async (req, res, next) => {
   try { res.json(await waddle.getStatus()); } catch (err) { next(err); }

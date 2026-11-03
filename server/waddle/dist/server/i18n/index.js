@@ -73,11 +73,18 @@ function translateJson(value) {
     const d = getDictionary();
     if (d.size === 0)
         return value;
+    // tabela de textos do cliente AS3 (game_strings.json): lista de pares
+    // [chave, texto] — a chave muitas vezes é a própria frase em inglês e o
+    // cliente procura por ela: só o texto pode ser traduzido
+    const isPairTable = (v) => v.length > 0 && v.every((x) => Array.isArray(x) && x.length === 2 && typeof x[0] === 'string' && typeof x[1] === 'string');
     const walk = (v) => {
         if (typeof v === 'string')
             return d.get(v) ?? v;
-        if (Array.isArray(v))
+        if (Array.isArray(v)) {
+            if (isPairTable(v))
+                return v.map(([k, x]) => [k, d.get(x) ?? x]);
             return v.map(walk);
+        }
         if (v && typeof v === 'object') {
             const out = {};
             for (const [k, x] of Object.entries(v))

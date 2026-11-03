@@ -335,18 +335,47 @@ async function sizeOf(w, route) {
   } catch { return 0; }
 }
 
+/**
+ * Arquivos do "jogo completo" (2012) na data atual: tudo que o cliente AS3
+ * serve em /play, menos o que é por demanda e enorme — roupas (650 MB, cada
+ * item baixa quando alguém veste) e o arquivo de jornais antigos (170 MB).
+ * Devolve [rota, query] já com a query string que o cliente usa.
+ */
+function completeRoutes(w, q) {
+  const out = [];
+  for (const route of w.gameData.getAllRoutes().keys()) {
+    if (!(route.startsWith('play/v2/') || route.startsWith('playstart/') || route.startsWith('play/start/'))) continue;
+    if (route.startsWith('play/v2/content/global/clothing/')) continue;
+    if (route.startsWith('play/v2/content/local/') && !route.startsWith('play/v2/content/local/en/')) continue;
+    if (route.startsWith('play/v2/content/local/en/news/')) continue;
+    const query = route.startsWith('play/v2/client/') ? q.client : route.startsWith('play/v2/content/') ? q.content : route.startsWith('play/v2/games/') ? q.games : route.startsWith('playstart/swf/') ? '?cacheVersion=' : '';
+    out.push([route, query]);
+  }
+  return out;
+}
+
+const bundleCache = new Map(); // version → bundles (lista grande; calculada uma vez por versão)
+
 async function getBundles(w) {
   const entry = await getEntry(w);
   const fv = parseFlashvars(entry.flashvars);
-  const q = { client: fv.clientVersion ? `?clientVersion=${fv.clientVersion}` : '', content: fv.contentVersion ? `?contentVersion=${fv.contentVersion}` : '', config: fv.configVersion ? `?configVersion=${fv.configVersion}` : '' };
+  const q = { client: fv.clientVersion ? `?clientVersion=${fv.clientVersion}` : '', content: fv.contentVersion ? `?contentVersion=${fv.contentVersion}` : '', config: fv.configVersion ? `?configVersion=${fv.configVersion}` : '', games: fv.minigameVersion ? `?minigameVersion=${fv.minigameVersion}` : '' };
   const party = entry.party;
+  const year = w.settings.settings.version.slice(0, 4);
+  // muda só quando o cliente/conteúdo muda de verdade (não a cada festa)
+  const version = `${year}|${fv.clientVersion || ''}|${(fv.contentVersion || '').slice(0, party ? -2 : undefined)}|${fv.configVersion || ''}`;
+  const cacheKey = `${version}|${party || ''}|${w.settings.settings.version}`;
+  if (bundleCache.has(cacheKey)) return bundleCache.get(cacheKey);
+
   const files = [];
+  const seen = new Set();
   const add = async (route, query) => {
-    if (!w.http.getFileServer().knowsRoute(route)) return;
+    if (seen.has(route) || !w.http.getFileServer().knowsRoute(route)) return;
+    seen.add(route);
     files.push({ url: `/${route}${query}`, size: await sizeOf(w, route) });
   };
   const take = () => files.splice(0);
-  let base; let content;
+  let base; let content; let complete;
   if (entry.swf !== '/boots.swf') {
     for (const f of BASE_CLIENT) await add(`play/v2/client/${f}`, q.client);
     for (const f of BASE_CONFIGS) await add(`play/en/web_service/game_configs/${f}.json`, q.config);
@@ -354,27 +383,68 @@ async function getBundles(w) {
     await add('playstart/xml/start_module_config.xml', '');
     await add('playstart/swf/start_module.swf', '?cacheVersion=');
     base = take();
-    // conteúdo da ilha (crumbs, mapa, salas): fora de festa é parte do jogo
-    // base; em festa muda de versão e vira o pacote do evento
+    // conteúdo da ilha (crumbs, mapa, salas, catálogos): fora de festa é parte
+    // do jogo; em festa muda de versão e vira o pacote do evento
     for (const f of BASE_CONTENT) await add(`play/v2/content/${f}`, q.content);
     for (const r of BASE_ROOMS) await add(`play/v2/content/global/rooms/${r}.swf`, q.content);
+    for (const [route, query] of completeRoutes(w, q)) {
+      if (/^play\/v2\/content\/(global\/(rooms|crumbs|content|music)|local\/en\/(crumbs|catalogues))\//.test(route)) await add(route, query);
+    }
     content = take();
+    // o resto do jogo completo (minigames, iglu, puffles, cartões, livros...)
+    for (const [route, query] of completeRoutes(w, q)) await add(route, query);
+    complete = take();
   } else {
     for (const f of ['boots.swf', 'play/v2/load.swf', 'play/v2/shell/shell.swf', 'play/v2/client/engine.swf', 'play/v2/client/interface.swf', 'play/v2/login/login.swf']) await add(f, '');
     base = take();
     for (const f of ['play/v2/content/global/crumbs/global_crumbs.swf', 'play/v2/content/local/en/crumbs/local_crumbs.swf']) await add(f, '');
     for (const r of BASE_ROOMS) await add(`play/v2/content/global/rooms/${r}.swf`, '');
     content = take();
+    complete = [];
   }
   const total = (list) => list.reduce((n, f) => n + f.size, 0);
-  const baseList = party ? base : base.concat(content);
-  const year = w.settings.settings.version.slice(0, 4);
-  return {
-    // muda só quando o cliente/conteúdo muda de verdade (não a cada festa)
-    version: `${year}|${fv.clientVersion || ''}|${(fv.contentVersion || '').slice(0, party ? -2 : undefined)}|${fv.configVersion || ''}`,
-    base: { files: baseList, bytes: total(baseList) },
-    event: party ? { name: partyLabel(party), key: `${party}@${year}`, files: content, bytes: total(content) } : null,
+  // pacote base (instalação única): com festa, o conteúdo da festa fica fora
+  // dele (vira o pacote do evento); o resto do jogo completo entra sempre
+  const baseList = (party ? base : base.concat(content)).concat(complete);
+  const result = {
+    version,
+    base: { files: baseList, bytes: total(baseList), pack: { url: `/api/plaza/pack/base?v=${encodeURIComponent(cacheKey)}`, files: baseList.length, bytes: total(baseList) } },
+    event: party ? { name: partyLabel(party), key: `${party}@${year}`, files: content, bytes: total(content), pack: { url: `/api/plaza/pack/event?v=${encodeURIComponent(cacheKey)}`, files: content.length, bytes: total(content) } } : null,
   };
+  bundleCache.clear();
+  bundleCache.set(cacheKey, result);
+  return result;
+}
+
+const MIME = { swf: 'application/x-shockwave-flash', json: 'application/json', xml: 'text/xml', txt: 'text/plain', html: 'text/html', mp3: 'audio/mpeg', png: 'image/png', jpg: 'image/jpeg', gif: 'image/gif', css: 'text/css', js: 'text/javascript' };
+
+/**
+ * Pacote de instalação: todos os arquivos de um pacote num único fluxo
+ * (cabeçalho de 4 bytes + JSON {u,s,t} + bytes, repetido). A página grava
+ * cada um no cache do navegador. Um pedido só, em vez de milhares.
+ */
+async function streamPack(kind, res) {
+  const w = await getWaddle();
+  const b = await getBundles(w);
+  const list = kind === 'event' ? (b.event ? b.event.files : []) : b.base.files;
+  const fsrv = w.http.getFileServer();
+  const { translateJsonText } = require('../../../waddle/dist/server/i18n/index.js');
+  res.status(200).set({ 'Content-Type': 'application/octet-stream', 'Cache-Control': 'no-store', 'X-Pack-Files': String(list.length), 'X-Pack-Bytes': String(list.reduce((n, f) => n + f.size, 0)) });
+  for (const f of list) {
+    if (res.destroyed || res.writableEnded) return;
+    const route = f.url.slice(1).split('?')[0];
+    let body;
+    try { body = await fsrv.resolve(route); } catch { body = undefined; }
+    if (body === undefined) continue;
+    const ext = route.split('.').pop();
+    if (ext === 'json') body = translateJsonText(body);
+    const buf = Buffer.isBuffer(body) ? body : Buffer.from(String(body), 'utf-8');
+    const head = Buffer.from(JSON.stringify({ u: f.url, s: buf.length, t: MIME[ext] || 'application/octet-stream' }), 'utf-8');
+    const len = Buffer.alloc(4); len.writeUInt32BE(head.length, 0);
+    const ok = res.write(Buffer.concat([len, head, buf]));
+    if (!ok) await new Promise((r) => res.once('drain', r));
+  }
+  res.end();
 }
 
 async function getConfig(user) {
@@ -390,8 +460,17 @@ async function getConfig(user) {
   }
   const entry = await getEntry(w);
   const s = w.settings;
+  // Entrada automática do próprio cliente (2012): com nau/nal nas flashvars
+  // o shell faz o login sozinho e escolhe o servidor — sem tela de login.
+  // A senha é ignorada pelo servidor (o ticket do WebSocket é a credencial).
+  let autoEntry = 'synthetic'; // a página "clica" nas telas de login
+  if (/(^|&)nau=/.test(entry.flashvars)) {
+    entry.flashvars = entry.flashvars.replace(/(^|&)nau=[^&]*/, `$1nau=${encodeURIComponent(json.name)}`).replace(/(^|&)nal=[^&]*/, '$1nal=projectclub').replace(/(^|&)nad=[^&]*/, '$1nad=');
+    autoEntry = 'flashvars';
+  }
   return {
     entry,
+    autoEntry,
     version: s.settings.version,
     as3: !!w.gameData.getAs3(),
     party: entry.party || null,
@@ -421,4 +500,4 @@ async function getStatus() {
   return { ready: media.state === 'ready' || media.state === 'partial', online: instance.world.getAllPlayersInfo().length, version: instance.settings.settings.version, party: instance.gameData.getPartyName ? instance.gameData.getPartyName() : null, partyLabel: partyLabel(instance.gameData.getPartyName ? instance.gameData.getPartyName() : null), media };
 }
 
-module.exports = { getWaddle, mountHttp, attachUpgrade, getConfig, getStatus, ensurePenguin, cachedRouter };
+module.exports = { getWaddle, mountHttp, attachUpgrade, getConfig, getStatus, ensurePenguin, cachedRouter, streamPack };

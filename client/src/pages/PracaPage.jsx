@@ -3,7 +3,8 @@ import { useAuth } from '../context/AuthContext.jsx';
 import { api } from '../api/client.js';
 import { enterGameMode, exitGameMode } from '../minijogos/orientation.js';
 import { isTouchDevice } from '../minijogos/touch/detect.js';
-import { autoLogin } from '../praca/autoLogin.js';
+import { autoLogin, watchEntry } from '../praca/autoLogin.js';
+import { gameCacheReady, clearGameCache, installPack, installFiles } from '../praca/installer.js';
 import '../styles/praca.css';
 
 // Praça = Club Penguin completo, rodando em cima do Waddle Forever embutido no
@@ -26,45 +27,44 @@ import '../styles/praca.css';
 const RUFFLE_SRC = '/ruffle/ruffle.js';
 const STAGE = { w: 760, h: 480 };
 const MUTE_KEY = 'pc.praca.muted';
-const BASE_KEY = 'pc.praca.base'; // versão do jogo base já instalada neste navegador
+const BASE_KEY = 'pc.praca.base'; // versão do jogo instalada neste navegador
 const EVENT_KEY = 'pc.praca.event.'; // + chave do evento → pacote baixado
-const CONCURRENCY = 6;
 
 const readLS = (k) => { try { return localStorage.getItem(k); } catch { return null; } };
 const writeLS = (k, v) => { try { localStorage.setItem(k, v); } catch { /* ignora */ } };
 const fmtMB = (b) => `${Math.max(1, Math.round(b / 1048576))} MB`;
+const wait = (ms) => new Promise((r) => setTimeout(r, ms));
 
 /**
- * "Instala" um pacote: baixa os arquivos (as mesmas URLs que o jogo pede,
- * com cache de 30 dias no servidor) com progresso. Depois disso o jogo abre
- * direto do cache do navegador. Falha de um arquivo não derruba o resto.
+ * Instala um pacote (jogo completo ou evento): no navegador, pelo pacote
+ * único gravado no Cache Storage; sem isso, arquivo a arquivo no cache HTTP.
+ * Tenta de novo algumas vezes se a rede cair.
  */
-async function installBundle(files, { signal, onProgress }) {
-  const total = files.reduce((n, f) => n + (f.size || 0), 0);
-  let doneBytes = 0; let doneFiles = 0; let failed = 0;
-  const queue = files.slice();
-  const report = () => onProgress({ ratio: total ? Math.min(1, doneBytes / total) : doneFiles / Math.max(1, files.length), doneFiles, files: files.length, bytes: doneBytes, total });
-  const worker = async () => {
-    while (queue.length) {
-      if (signal?.aborted) return;
-      const f = queue.shift();
-      try {
-        const res = await fetch(f.url, { signal, credentials: 'same-origin', cache: 'default' });
-        if (!res.ok) throw new Error(`HTTP ${res.status}`);
-        await res.arrayBuffer();
-      } catch (err) {
-        if (err?.name === 'AbortError') return;
-        failed += 1;
+async function installBundle(bundle, useCache, { signal, onProgress }) {
+  if (useCache && bundle.pack) {
+    let lastErr;
+    for (let attempt = 0; attempt < 3; attempt++) {
+      try { return await installPack(bundle.pack, { signal, onProgress }); } catch (err) {
+        if (err?.name === 'AbortError' || signal?.aborted) throw err;
+        lastErr = err; onProgress({ retry: attempt + 1 }); await wait(1500 * (attempt + 1));
       }
-      doneBytes += f.size || 0; doneFiles += 1; report();
     }
-  };
-  report();
-  await Promise.all(Array.from({ length: Math.min(CONCURRENCY, files.length) }, worker));
-  return { failed };
+    throw lastErr;
+  }
+  return installFiles(bundle.files, { signal, onProgress });
 }
 
 let rufflePromise = null;
+
+function installSwfAddressShim() {
+  const noop = () => {};
+  window.SWFAddress = {
+    getValue: () => '/login', getPath: () => '/login', getIds: () => ['praca'], getStrict: () => true,
+    getStatus: () => '', getTitle: () => document.title, getTracker: () => '', getHistory: () => true, getBaseURL: () => '/praca', getAutoUpdate: () => false,
+    setValue: noop, setTitle: noop, setStatus: noop, setHistory: noop, setStrict: noop, setTracker: noop, setAutoUpdate: noop, addId: noop, back: noop, forward: noop, up: noop,
+    popup: noop, href: noop, onInit: noop, onChange: noop,
+  };
+}
 function loadRuffle() {
   if (window.RufflePlayer?.newest) return Promise.resolve(window.RufflePlayer);
   if (!rufflePromise) {
@@ -151,8 +151,10 @@ export default function PracaPage() {
     return () => { alive = false; };
   }, []);
 
-  // 1b) instalação: o jogo base é baixado UMA vez (uma "atualização"), só o
-  // de 2012; o conteúdo de evento só quando há festa, e a pessoa decide.
+  // 1b) instalação: o jogo COMPLETO (2012) é baixado UMA vez (uma
+  // "atualização") e fica no navegador; o conteúdo de evento só quando há
+  // festa, e a pessoa decide. Depois disso o jogo roda inteiro do navegador.
+  const useCacheRef = useRef(false);
   useEffect(() => {
     if (!cfg) return undefined;
     const b = cfg.bundles;
@@ -160,19 +162,30 @@ export default function PracaPage() {
     const ac = new AbortController();
     let alive = true;
     (async () => {
-      if (readLS(BASE_KEY) !== b.version) {
-        setPhase('install');
-        setInstall({ kind: 'base', name: 'Club Penguin 2012', ratio: 0, total: b.base.bytes });
-        await installBundle(b.base.files, { signal: ac.signal, onProgress: (p) => { if (alive) setInstall((i) => ({ ...i, ...p })); } });
+      try {
+        const useCache = await gameCacheReady();
         if (!alive) return;
-        writeLS(BASE_KEY, b.version);
+        useCacheRef.current = useCache;
+        const installed = readLS(BASE_KEY);
+        if (installed !== b.version) {
+          setPhase('install');
+          setInstall({ kind: 'base', name: 'Club Penguin 2012', ratio: 0, total: b.base.bytes, update: !!installed });
+          if (useCache) await clearGameCache(); // versão nova: zera a antiga
+          await installBundle(b.base, useCache, { signal: ac.signal, onProgress: (p) => { if (alive) setInstall((i) => ({ ...i, ...p })); } });
+          if (!alive) return;
+          writeLS(BASE_KEY, b.version);
+        }
+        if (b.event && readLS(EVENT_KEY + b.event.key) !== '1') {
+          setPhase('event');
+          setInstall({ kind: 'event', name: b.event.name, ratio: 0, total: b.event.bytes, ask: true });
+          return; // a pessoa escolhe "Baixar" ou "Depois"
+        }
+        setReady(cfg);
+      } catch (err) {
+        if (!alive || err?.name === 'AbortError') return;
+        setError(`A instalação do jogo falhou (${err?.message || err}). Confira a conexão e tente de novo.`);
+        setPhase('error');
       }
-      if (b.event && readLS(EVENT_KEY + b.event.key) !== '1') {
-        setPhase('event');
-        setInstall({ kind: 'event', name: b.event.name, ratio: 0, total: b.event.bytes, ask: true });
-        return; // a pessoa escolhe "Baixar" ou "Depois"
-      }
-      setReady(cfg);
     })();
     return () => { alive = false; ac.abort(); };
   }, [cfg]);
@@ -180,8 +193,10 @@ export default function PracaPage() {
   const downloadEvent = useCallback(async () => {
     const b = cfg?.bundles; if (!b?.event) return;
     setInstall((i) => ({ ...i, ask: false, ratio: 0 }));
-    await installBundle(b.event.files, { signal: autoAbort.current?.signal, onProgress: (p) => setInstall((i) => ({ ...i, ...p })) });
-    writeLS(EVENT_KEY + b.event.key, '1');
+    try {
+      await installBundle(b.event, useCacheRef.current, { onProgress: (p) => setInstall((i) => ({ ...i, ...p })) });
+      writeLS(EVENT_KEY + b.event.key, '1');
+    } catch { /* sem o pacote o jogo abre do mesmo jeito (baixa por demanda) */ }
     setReady(cfg);
   }, [cfg]);
   const skipEvent = useCallback(() => { setReady(cfg); }, [cfg]);
@@ -200,6 +215,10 @@ export default function PracaPage() {
       const socketProxy = cfg.socketProxy.map((p) => ({ host: p.host, port: p.port, proxyUrl: `${wsBase()}${p.path}?token=${encodeURIComponent(cfg.ticket)}` }));
       // socketProxy é lido da config global na criação do player
       RufflePlayer.config = { ...(RufflePlayer.config || {}), socketProxy, publicPath: '/ruffle/', polyfills: false };
+      // O cliente 2012 lê o "estado" inicial pela biblioteca SWFAddress da
+      // página (ExternalInterface): respondendo "/login" ele pula a tela de
+      // abertura e vai direto ao login — que, com nau/nal, é automático.
+      if (cfg.autoEntry === 'flashvars') installSwfAddressShim();
       const player = RufflePlayer.newest().createPlayer();
       playerRef.current = player;
       player.className = 'praca-player';
@@ -234,7 +253,11 @@ export default function PracaPage() {
         const ac = new AbortController();
         autoAbort.current = ac;
         setEntering('start');
-        autoLogin({ player, as3: !!cfg.as3, name: cfg.penguin.name, signal: ac.signal, onStep: (st) => { if (alive) setEntering(st); } }).then((ok) => {
+        const onStep = (st) => { if (alive) setEntering(st); };
+        const entry = cfg.autoEntry === 'flashvars'
+          ? watchEntry({ signal: ac.signal, onStep }) // o próprio jogo entra (nau/nal)
+          : autoLogin({ player, as3: !!cfg.as3, name: cfg.penguin.name, signal: ac.signal, onStep });
+        entry.then((ok) => {
           if (!alive) return;
           setEntering(ok ? 'world' : 'manual');
           window.setTimeout(() => { if (alive) setEntering(null); }, ok ? 800 : 0);
@@ -400,7 +423,7 @@ export default function PracaPage() {
             {phase === 'install' || (phase === 'event' && !install?.ask) ? (
               <>
                 <span>
-                  {phase === 'install' ? 'Atualização única: o jogo base fica guardado no seu navegador e as próximas vezes abrem na hora.' : 'O conteúdo do evento está sendo baixado.'}
+                  {phase === 'install' ? (install?.update ? 'Atualização do jogo: a versão nova está sendo guardada no seu navegador.' : 'Atualização única: o jogo completo fica guardado no seu navegador e as próximas vezes abrem na hora, sem baixar nada.') : 'O conteúdo do evento está sendo baixado.'}{install?.retry ? ` (tentando de novo, ${install.retry}/3)` : ''}
                 </span>
                 <div className="praca-progress" role="progressbar" aria-valuenow={Math.round((install?.ratio || 0) * 100)} aria-valuemin={0} aria-valuemax={100}><span style={{ width: `${Math.round((install?.ratio || 0) * 100)}%` }} /></div>
                 <small className="praca-progress-label">{install?.total ? `${fmtMB(install.bytes || 0)} de ${fmtMB(install.total)}` : `${install?.doneFiles || 0} de ${install?.files || 0} arquivos`} · {Math.round((install?.ratio || 0) * 100)}%</small>

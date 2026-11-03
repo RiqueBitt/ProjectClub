@@ -777,6 +777,11 @@ export class GameData {
     return this.state.files.get(route);
   }
 
+  /** Todas as rotas de arquivos servidas na data atual (rota → arquivo da mídia). */
+  public getAllRoutes(): Map<string, string | ((s: SettingsManager) => string)> {
+    return this.state.files;
+  }
+
   public getDate() {
     return this.date;
   }

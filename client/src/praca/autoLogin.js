@@ -33,6 +33,7 @@ const LAYOUTS = {
 };
 
 const wait = (ms) => new Promise((r) => setTimeout(r, ms));
+const log = (...a) => { try { console.debug('[praca:auto]', `${(performance.now() / 1000).toFixed(1)}s`, ...a); } catch { /* ok */ } };
 
 function makeDriver(player) {
   const canvas = () => player.shadowRoot?.querySelector('canvas') || player;
@@ -76,9 +77,11 @@ function makeDriver(player) {
  * Observa os recursos que o jogo baixa e resolve quando um deles bate com
  * `test`. Rejeita no timeout.
  */
-function waitForResource(test, timeoutMs, signal) {
+function waitForResource(test, timeoutMs, signal, since = 0) {
   return new Promise((resolve, reject) => {
-    const seen = performance.getEntriesByType('resource').some((e) => test(e.name));
+    // só recursos baixados DEPOIS de `since`: a instalação do jogo baixa
+    // esses mesmos arquivos antes, e não podem contar como "tela aberta"
+    const seen = performance.getEntriesByType('resource').some((e) => e.startTime >= since && test(e.name));
     if (seen) return resolve();
     let done = false;
     const obs = new PerformanceObserver((list) => {
@@ -99,18 +102,19 @@ function waitForResource(test, timeoutMs, signal) {
 export async function autoLogin({ player, as3, name, signal, onStep = () => {} }) {
   const L = LAYOUTS[as3 ? 'as3' : 'as2'];
   const d = makeDriver(player);
-  // já entrou no mundo? (recarregou a página com o jogo em cache, por ex.)
-  const inWorld = () => performance.getEntriesByType('resource').some((e) => /\/rooms\/[a-z_0-9]+\.swf/i.test(e.name));
+  const since = performance.now();
+  const inWorld = () => performance.getEntriesByType('resource').some((e) => e.startTime >= since && /\/rooms\/[a-z_0-9]+\.swf/i.test(e.name));
   try {
     // 1) tela inicial
-    onStep('start');
-    await waitForResource((u) => /start_module\.swf|login\/backgrounds\/|startscreen\.xml/i.test(u), 90_000, signal);
+    onStep('start'); log('esperando tela inicial');
+    await waitForResource((u) => /start_module\.swf|login\/backgrounds\/|startscreen\.xml/i.test(u), 90_000, signal, since);
     await wait(as3 ? 2500 : 1800); // o módulo ainda desenha depois de baixar
+    log('tela inicial: clicando em Entrar');
     await d.click(L.start.login);
 
     // 2) formulário
     onStep('form');
-    await waitForResource((u) => /\/login\.swf/i.test(u), 40_000, signal).catch(() => {});
+    await waitForResource((u) => /\/login\.swf/i.test(u), 40_000, signal, since).then(() => log('login.swf carregou'), () => log('login.swf não apareceu; tentando mesmo assim'));
     await wait(as3 ? 2200 : 1500);
     // O primeiro clique só dá foco ao campo (o texto digitado logo em seguida
     // se perde); o segundo clique, com o campo já ativo, aceita a digitação.
@@ -119,28 +123,53 @@ export async function autoLogin({ player, as3, name, signal, onStep = () => {} }
       await d.click(pos); await wait(300);
       await d.type(text); await wait(250);
     };
-    await fill(L.form.name, name);
-    await fill(L.form.pass, 'projectclub');
+    await fill(L.form.name, name); log('nome preenchido');
+    await fill(L.form.pass, 'projectclub'); log('senha preenchida');
     await d.click(L.form.submit);
 
     // 3) servidor (único): primeiro da lista
-    onStep('server');
+    onStep('server'); log('formulário enviado');
     await wait(as3 ? 3500 : 2500);
     // Em conexão lenta o mundo demora a responder: espera com paciência
     // (a sala baixando é o sinal de que entrou) antes de tentar de novo.
     for (let attempt = 0; attempt < 3 && !inWorld(); attempt++) {
-      await d.click(L.servers.first);
+      await d.click(L.servers.first); log('clicou no servidor', attempt);
       try {
-        await waitForResource((u) => /\/rooms\/[a-z_0-9]+\.swf/i.test(u), attempt === 0 ? 45_000 : 20_000, signal);
+        await waitForResource((u) => /\/rooms\/[a-z_0-9]+\.swf/i.test(u), attempt === 0 ? 45_000 : 20_000, signal, since);
         break;
       } catch (err) {
         if (err.message === 'abort') throw err;
       }
     }
+    log(inWorld() ? 'entrou na ilha' : 'desistiu');
     onStep(inWorld() ? 'world' : 'manual');
     return inWorld();
   } catch (err) {
     onStep('manual');
     return false;
+  }
+}
+
+/**
+ * Cliente 2012 com entrada automática própria (flashvars nau/nal): o jogo
+ * faz login e escolhe o servidor sozinho; aqui só acompanhamos pra manter
+ * o "Entrando…" por cima até a primeira sala aparecer. Resolve true quando
+ * entrou, false se o jogo parou em alguma tela (a pessoa segue manualmente).
+ */
+export async function watchEntry({ signal, onStep = () => {} }) {
+  const since = performance.now();
+  const inWorld = () => performance.getEntriesByType('resource').some((e) => e.startTime >= since && /\/rooms\/[a-z_0-9]+\.swf/i.test(e.name));
+  try {
+    onStep('start'); log('entrada automática do cliente: esperando');
+    await waitForResource((u) => /\/login\.swf|start_module\.swf/i.test(u), 90_000, signal, since).catch(() => {});
+    onStep('form');
+    await waitForResource((u) => /\/rooms\/[a-z_0-9]+\.swf/i.test(u), 120_000, signal, since);
+    log('entrou na ilha');
+    onStep('world');
+    return true;
+  } catch (err) {
+    log(err?.message === 'abort' ? 'cancelado' : 'o jogo não entrou sozinho');
+    onStep(inWorld() ? 'world' : 'manual');
+    return inWorld();
   }
 }

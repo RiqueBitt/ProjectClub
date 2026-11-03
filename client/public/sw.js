@@ -1,11 +1,36 @@
-/* Service worker do Project Club — SÓ notificações push.
+/* Service worker do Project Club — notificações push + arquivos do Club Penguin.
  *
- * De propósito NÃO faz cache de nada: uma versão antiga deste app já
+ * De propósito NÃO faz cache do app: uma versão antiga deste app já
  * guardou arquivos num service worker e serviu layout velho pra sempre
- * (ver client/src/main.jsx). Aqui o único trabalho é receber push do
- * servidor (Web Push/VAPID) e mostrar/abrir a notificação. Rede e
- * arquivos continuam 100% com o navegador. */
-const VERSION = 'pc-sw-2';
+ * (ver client/src/main.jsx). Rede e arquivos do site continuam 100% com o
+ * navegador. A única exceção são os arquivos do JOGO da Praça (/play/…,
+ * /playstart/…): a página "instala" o jogo completo no Cache Storage
+ * (pc-praca) e aqui eles são servidos de lá — o jogo roda inteiro do
+ * navegador, sem baixar nada de novo. Esses arquivos têm versão na URL, e o
+ * que não estiver no cache vai pra rede e entra no cache ao passar. */
+const VERSION = 'pc-sw-3';
+const GAME_CACHE = 'pc-praca';
+const isGameUrl = (url) => url.origin === self.location.origin && (url.pathname.startsWith('/play/') || url.pathname.startsWith('/playstart/'));
+
+self.addEventListener('fetch', (event) => {
+  const req = event.request;
+  if (req.method !== 'GET') return;
+  let url;
+  try { url = new URL(req.url); } catch { return; }
+  if (!isGameUrl(url)) return; // todo o resto: navegador normal
+  event.respondWith((async () => {
+    const cache = await caches.open(GAME_CACHE);
+    const hit = await cache.match(req.url);
+    if (hit) return hit;
+    const res = await fetch(req);
+    // só mídia versionada entra no cache (os gerados vêm como no-cache)
+    try {
+      const cc = res.headers.get('Cache-Control') || '';
+      if (res.ok && /immutable/.test(cc)) cache.put(req.url, res.clone()).catch(() => {});
+    } catch { /* ok */ }
+    return res;
+  })());
+});
 
 self.addEventListener('install', () => { self.skipWaiting(); });
 self.addEventListener('activate', (event) => { event.waitUntil(self.clients.claim()); });

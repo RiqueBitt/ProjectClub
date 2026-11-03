@@ -666,6 +666,10 @@ class GameData {
     lookupFile(route) {
         return this.state.files.get(route);
     }
+    /** Todas as rotas de arquivos servidas na data atual (rota → arquivo da mídia). */
+    getAllRoutes() {
+        return this.state.files;
+    }
     getDate() {
         return this.date;
     }
