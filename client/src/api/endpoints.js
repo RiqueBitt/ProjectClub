@@ -211,6 +211,29 @@ export const uploadPinguImage = (kind, file) => {
   const fd = new FormData(); fd.append(kind, file);
   return api.post(`/admin/pingu/${kind}`, fd).then((r) => r.data);
 };
+// Fase 9 — funções do Pingu (painel): configurações, quiz e alertas de moderação.
+export const getPinguConfig = () => api.get('/admin/pingu/config').then((r) => r.data);
+export const updatePinguConfig = (data) => api.patch('/admin/pingu/config', data).then((r) => r.data);
+export const listPinguQuizQuestions = (status) => api.get('/admin/pingu/quiz/questions', { params: status ? { status } : {} }).then((r) => r.data);
+export const createPinguQuizQuestion = (data) => api.post('/admin/pingu/quiz/questions', data).then((r) => r.data);
+export const updatePinguQuizQuestion = (id, data) => api.patch(`/admin/pingu/quiz/questions/${id}`, data).then((r) => r.data);
+export const deletePinguQuizQuestion = (id) => api.delete(`/admin/pingu/quiz/questions/${id}`).then((r) => r.data);
+export const generatePinguQuizQuestion = (topic) => api.post('/admin/pingu/quiz/generate', { topic }, { timeout: 180000 }).then((r) => r.data);
+export const startPinguQuiz = (channelId, questionId) => api.post('/admin/pingu/quiz/start', { channelId, questionId }).then((r) => r.data);
+export const getPinguQuizScoreboardAdmin = () => api.get('/admin/pingu/quiz/scoreboard').then((r) => r.data);
+export const listPinguAlerts = (status) => api.get('/admin/pingu/alerts', { params: { status } }).then((r) => r.data);
+export const updatePinguAlert = (id, status) => api.patch(`/admin/pingu/alerts/${id}`, { status }).then((r) => r.data);
+// Pingu pra todo mundo: resumo e tradução (resultado chega pelo socket 'pingu:ephemeral').
+export const getPinguStatus = () => api.get('/pingu/status').then((r) => r.data);
+export const requestPinguSummary = (channelId, since) => api.post('/pingu/summary', { channelId, since }).then((r) => r.data);
+export const requestPinguTranslation = (messageId, lang) => api.post('/pingu/translate', { messageId, lang }).then((r) => r.data);
+export const getPinguQuizScoreboard = () => api.get('/pingu/quiz/scoreboard').then((r) => r.data);
+// Wiki da comunidade (/wiki).
+export const listWikiPages = (q) => api.get('/wiki', { params: q ? { q } : {} }).then((r) => r.data);
+export const getWikiPage = (slug) => api.get(`/wiki/${encodeURIComponent(slug)}`).then((r) => r.data);
+export const createWikiPage = (data) => api.post('/wiki', data).then((r) => r.data);
+export const updateWikiPage = (slug, data) => api.put(`/wiki/${encodeURIComponent(slug)}`, data).then((r) => r.data);
+export const deleteWikiPage = (slug) => api.delete(`/wiki/${encodeURIComponent(slug)}`).then((r) => r.data);
 export const uploadCommunityIcon = (file) => {
   const fd = new FormData(); fd.append('icon', file);
   return api.post('/admin/community/icon', fd).then((r) => r.data);

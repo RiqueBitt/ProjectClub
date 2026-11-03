@@ -15,7 +15,7 @@
 //   /eventos/<id>               evento (também /comunidade/eventos?evento=<id>)
 //   /channels/<id>              canal
 //   /comunidades/<slug>         Tema do Feed
-import { getPost, getModpack, getMod, getUserProfile, listEvents } from '../api/endpoints';
+import { getPost, getModpack, getMod, getUserProfile, listEvents, getWikiPage } from '../api/endpoints';
 import { useStore } from '../store/useStore';
 import { findChannel, findMemberUser, channelPathFrom, eventPath, postPath } from './prettyPaths';
 import { resolveLinkRemote } from './prettyLinks';
@@ -53,6 +53,8 @@ export function parseInternalLink(raw) {
     case 'channels':
     case 'canal': return id ? { kind: 'channel', id, path } : null;
     case 'comunidades': return id ? { kind: 'club', id, path } : null;
+    // Wiki da comunidade (Fase 9): /wiki e /wiki/<página>.
+    case 'wiki': return { kind: 'wiki', id: id || '', path };
     case 'cartas': {
       const sala = u.searchParams.get('sala');
       return sala && /^[A-Za-z0-9]{4,12}$/.test(sala) ? { kind: 'battle', id: sala.toUpperCase(), path } : null;
@@ -217,6 +219,16 @@ async function resolve(link) {
         image: club.iconUrl || null, imageShape: 'square',
         meta: [club.postCount != null ? `${club.postCount} posts` : null].filter(Boolean),
         action: 'Abrir', path: `/comunidades/${club.slug}`,
+      };
+    }
+    case 'wiki': {
+      if (!link.id) return null;
+      const { page } = await getWikiPage(link.id);
+      return {
+        kind: 'wiki', label: `Wiki · ${page.category}`, title: page.title,
+        text: stripText(String(page.body || '').replace(/[#*_>`-]/g, ' '), 140),
+        image: null, imageShape: 'square',
+        meta: [], action: 'Ler', path: `/wiki/${page.slug}`,
       };
     }
     default: return null;

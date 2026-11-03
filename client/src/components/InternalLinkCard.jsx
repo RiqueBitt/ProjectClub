@@ -21,6 +21,7 @@ const KIND_ICON = {
   event: 'M4 6h16v14H4zM4 10h16M8 3v5M16 3v5',
   channel: 'M5 9h14M5 15h14M10 4 8 20M16 4l-2 16',
   club: 'M4 4h7v7H4zM13 4h7v7h-7zM4 13h7v7H4zM13 13h7v7h-7z',
+  wiki: 'M4 5a2 2 0 0 1 2-2h12v16H6a2 2 0 0 0-2 2zM4 5v16M8 7h6M8 11h6',
 };
 
 export function LinkKindIcon({ kind, size = 14 }) {

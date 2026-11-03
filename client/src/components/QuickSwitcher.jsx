@@ -39,6 +39,7 @@ const PAGES = [
   { path: '/jogos/mods', label: 'Mods', keywords: 'modpacks jogos instalar' },
   { path: '/progresso', label: 'Progresso', keywords: 'ranks conquistas recompensas nível xp' },
   { path: '/tickets', label: 'Suporte', keywords: 'ajuda tickets denúncia' },
+  { path: '/wiki', label: 'Wiki', keywords: 'wiki regras ajuda como funciona pingu guia' },
   { path: '/notifications', label: 'Notificações', keywords: 'avisos sino' },
   { path: '/search', label: 'Busca', keywords: 'procurar pesquisar' },
   { path: '/anuncios', label: 'Novidades', keywords: 'novidades anúncios avisos staff' },
