@@ -275,10 +275,46 @@ function onManagementLine(line) {
  * Conecta no servidor escolhido. `server` = { id, country, countryName }
  * (só pra mostrar), `configText` = configuração vinda de /api/vpn.
  */
+// Túnel dividido: o próprio Project Club (site, servidor de voz, TURN) NÃO
+// passa pela VPN. Os servidores da VPN são de voluntários e muitos IPs deles
+// são bloqueados pelo provedor do site (aparecia só "Forbidden"), além de a
+// voz ficar com mais atraso indo e voltando pelo outro país.
+const BYPASS_HOSTS = [
+  'projectclub.shardweb.app',
+  '179-197-228-137.sslip.io', 'turn-179-197-228-137.sslip.io',
+  '38-92-41-54.sslip.io',
+];
+const IPV4_RE = /^(25[0-5]|2[0-4]\d|1?\d?\d)(\.(25[0-5]|2[0-4]\d|1?\d?\d)){3}$/;
+
+/** Linhas `route <ip> 255.255.255.255 net_gateway` para os IPs dados (só IPv4 válidos, sem repetir). */
+function bypassRoutes(ips) {
+  const uniq = [...new Set((ips || []).filter((ip) => IPV4_RE.test(ip)))].slice(0, 32);
+  return uniq.map((ip) => `route ${ip} 255.255.255.255 net_gateway`).join('\n');
+}
+
+async function resolveBypassIps(hosts = BYPASS_HOSTS, { resolve4 = require('dns').promises.resolve4 } = {}) {
+  const out = [];
+  await Promise.all(hosts.map(async (h) => {
+    try { out.push(...(await Promise.race([resolve4(h), new Promise((_, rej) => setTimeout(() => rej(new Error('dns')), 3000))]))); } catch { /* sem DNS: segue sem esse */ }
+  }));
+  return out;
+}
+
 async function connect(configText, server) {
   if (['connecting', 'connected', 'disconnecting'].includes(state.status)) await disconnect();
   let sanitized;
   try { sanitized = sanitizeConfig(configText); } catch (err) { fail(err.message); return state; }
+  // Os servidores do VPN Gate passaram a pedir usuário/senha (AUTH_FAILED
+  // sem eles). O padrão público do projeto é vpn/vpn — vai embutido na
+  // configuração (nada digitado pela pessoa, nada secreto).
+  if (!/^\s*<auth-user-pass>/m.test(sanitized.config)) {
+    sanitized = { ...sanitized, config: `${sanitized.config.replace(/\s*$/, '')}\nauth-user-pass\n<auth-user-pass>\nvpn\nvpn\n</auth-user-pass>\nauth-nocache\n` };
+  }
+  // Resolve ANTES de ligar a VPN (depois o DNS já iria pelo túnel).
+  try {
+    const routes = bypassRoutes(await resolveBypassIps());
+    if (routes) sanitized = { ...sanitized, config: `${sanitized.config.replace(/\s*$/, '')}\n# Project Club fora da VPN (túnel dividido)\n${routes}\n` };
+  } catch { /* sem as rotas extras a VPN funciona igual */ }
   userStopped = false;
   const firstTime = process.platform === 'win32' && windowsNeedsInstall();
   setState({
@@ -361,7 +397,7 @@ function init(mainWindow, secureHandle) {
 function setWindow(mainWindow) { win = mainWindow; }
 
 module.exports = {
-  init, setWindow, configure, connect, disconnect, getState: () => state,
+  init, setWindow, configure, connect, disconnect, getState: () => state, bypassRoutes, resolveBypassIps, BYPASS_HOSTS,
   // puros (testes)
   sanitizeConfig, openvpnArgs, parseState, elevatedScript, windowsLaunchArgs, WIN_FEATURES,
 };
