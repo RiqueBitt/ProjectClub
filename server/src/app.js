@@ -419,7 +419,7 @@ function createApp() {
   app.use('/api/integrations', require('./routes/integrations'));
   app.use('/api/webhooks', require('./routes/integrations').publicRouter);
   // Fase 4 — comunidade e economia (indicações, sorteio, Bora Jogar, metas,
-  // temporadas, cupons, reputação, gorjetas, padrinhos...).
+  // temporadas, cupons, reputação, gorjetas...).
   require('./routes/communityExtras').mount(app);
   // Sem requireAuth de propósito — <img src="..."> do navegador nunca
   // manda o cabeçalho Authorization (só fetch/axios conseguem fazer

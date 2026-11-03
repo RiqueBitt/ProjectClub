@@ -8,7 +8,7 @@ const { createRateLimitStore } = require('../config/rateLimitStore');
 const { requireAuth } = require('../middleware/auth');
 const { requirePlatformAdmin } = require('../middleware/platformAdmin');
 const { requireSystemEnabled } = require('../middleware/systemToggle');
-const { route, isStaff, httpError } = require('../services/community/common');
+const { route, isStaff } = require('../services/community/common');
 
 const io = (req) => req.app.get('io');
 const over = (req) => ({ io: io(req) });
@@ -33,10 +33,9 @@ function mount(app) {
     const svc = (name) => require(`../services/community/${name}`);
     const settle = (p) => p.then((v) => v).catch(() => null);
     const economyOff = await require('../services/community/common').economyDisabled(require('../config/prisma')).catch(() => false);
-    const [season, goals, birthdays, clans, raffle, potw] = await Promise.all([
+    const [season, goals, clans, raffle, potw] = await Promise.all([
       settle(svc('seasons').status(req.user.id, over(req))),
       settle(svc('communityGoals').progress(req.user.id, over(req))),
-      settle(svc('birthdays').todayList(over(req))),
       settle(svc('clanWeekly').standings(require('../utils/spTime').weekBounds().key, over(req))),
       settle(svc('raffle').overview(req.user.id, over(req))),
       settle(svc('postOfWeek').latest(over(req))),
@@ -44,7 +43,6 @@ function mount(app) {
     res.json({
       season: season?.season ? season : null,
       goals,
-      birthdays: birthdays || [],
       clanTop: (clans || []).slice(0, 3),
       raffle: raffle && !economyOff ? { prize: raffle.prize, endsAt: raffle.endsAt, myTickets: raffle.myTickets, participants: raffle.participants } : null,
       postOfWeek: potw,
@@ -153,17 +151,6 @@ function mount(app) {
     res.json(await require('../services/community/tips').tip(req.user, { messageId: req.body?.messageId, amount: req.body?.amount }, over(req)));
   }));
   app.use('/api/tips', tips);
-
-  // ---------- Padrinhos + preferências de participação ----------
-  const mentors = express.Router();
-  mentors.use(requireAuth);
-  mentors.get('/', route(async (req, res) => { res.json(await require('../services/community/mentors').overview(req.user, over(req))); }));
-  mentors.patch('/prefs', perUser('preferencias', 60_000, 20), route(async (req, res) => {
-    const body = req.body || {};
-    if (body.mentorOptIn === undefined && body.birthdayOptIn === undefined) throw httpError(400, 'Nada para salvar.');
-    res.json(await require('../services/community/mentors').setPrefs(req.user, body, over(req)));
-  }));
-  app.use('/api/mentors', mentors);
 }
 
 module.exports = { mount };

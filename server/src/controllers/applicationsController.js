@@ -202,7 +202,7 @@ async function submitApplication(req, res, next) {
         oauthSignup().clearSignupCookie(res);
       }
       await sendInitialVerificationCode(user);
-      // Fase 4: indicação (se veio com convite) e padrinho de novato.
+      // Fase 4: indicação (se veio com convite).
       require('../services/community/hooks').onAccountApproved({ userId: user.id, referralCode: req.body.referralCode, ip: req.ip }, req.app.get('io'));
       const accessToken = await issueSession(res, user, req.headers['user-agent'], req.ip);
       const selfUser = await prisma.user.findUnique({ where: { id: user.id }, select: SELF_USER_FIELDS });
@@ -285,7 +285,7 @@ async function approveApplication(req, res, next) {
       where: { id }, data: { status: 'APPROVED', reviewedById: req.user.id, reviewedAt: new Date() },
     });
     await logPlatformAction(req, { action: 'APPLICATION_APPROVE', targetType: 'APPLICATION', targetId: id, metadata: { email: application.email } });
-    // Fase 4: liga a indicação (se a inscrição veio com convite) e escolhe um padrinho.
+    // Fase 4: liga a indicação (se a inscrição veio com convite).
     require('../services/community/hooks').onAccountApproved({ userId: user.id, applicationId: id }, req.app.get('io'));
 
     const loginUrl = `${env.CLIENT_ORIGIN}/login`;

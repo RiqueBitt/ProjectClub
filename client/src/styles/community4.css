@@ -124,20 +124,6 @@
 .c4-interest.on svg { color: var(--tint, var(--brand)); }
 .c4-dot { width: 9px; height: 9px; border-radius: 50%; background: var(--tint, var(--text-muted)); opacity: .8; }
 
-/* ---------- Interruptor ---------- */
-.c4-toggle { display: flex; align-items: center; gap: 14px; padding: 10px 2px; cursor: pointer; position: relative; }
-.c4-toggle + .c4-toggle { border-top: 1px solid var(--border); }
-.c4-toggle.is-disabled { cursor: not-allowed; opacity: .6; }
-.c4-toggle-text { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 3px; }
-.c4-toggle-text strong { font-size: 14px; color: var(--header-primary); }
-.c4-toggle-text small { font-size: 12.5px; color: var(--text-muted); line-height: 1.45; }
-.c4-toggle input { position: absolute; opacity: 0; pointer-events: none; }
-.c4-switch { width: 42px; height: 24px; flex-shrink: 0; border-radius: 999px; background: var(--bg-modifier-hover); border: 1px solid var(--border); position: relative; transition: background .2s; }
-.c4-switch::after { content: ''; position: absolute; top: 2px; left: 2px; width: 18px; height: 18px; border-radius: 50%; background: #fff; box-shadow: 0 1px 3px rgba(0, 0, 0, .3); transition: transform .2s; }
-.c4-toggle input:checked + .c4-switch { background: var(--green); border-color: transparent; }
-.c4-toggle input:checked + .c4-switch::after { transform: translateX(18px); }
-.c4-toggle input:focus-visible + .c4-switch { outline: 2px solid var(--brand); outline-offset: 2px; }
-
 /* ---------- Sorteio ---------- */
 .c4-prize { display: flex; flex-direction: column; align-items: flex-end; gap: 2px; }
 .c4-prize small { font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: .4px; color: var(--text-muted); }
@@ -191,7 +177,7 @@
 .c4-season-btn { background: #fff; color: #15161c; border-color: transparent; }
 .c4-season-done { display: inline-flex; align-items: center; gap: 6px; padding: 8px 14px; border-radius: 999px; background: rgba(255, 255, 255, .18); font-weight: 700; font-size: 13.5px; }
 
-/* ---------- Início: metas, post da semana, aniversários, Clubes, atalhos ---------- */
+/* ---------- Início: metas, post da semana, Clubes, atalhos ---------- */
 .c4-goals { display: flex; flex-direction: column; gap: 14px; }
 .c4-goal { display: flex; flex-direction: column; gap: 6px; }
 .c4-goal small { font-size: 12.5px; color: var(--text-muted); }
@@ -204,10 +190,6 @@
   display: inline-flex; align-items: center; gap: 5px; align-self: flex-start; margin-bottom: 6px;
   padding: 3px 10px; border-radius: 999px; font-size: 12px; font-weight: 800; color: #1f1300; background: #f5c542;
 }
-.c4-bday-list { display: flex; flex-wrap: wrap; gap: 6px; }
-.c4-bday-person { display: inline-flex; align-items: center; gap: 8px; max-width: 100%; padding: 4px 10px 4px 4px; border-radius: 999px; background: var(--bg-primary); border: 1px solid var(--border); color: var(--header-primary); font: inherit; font-size: 13px; font-weight: 600; cursor: pointer; }
-.c4-bday-person:hover { border-color: color-mix(in srgb, var(--brand) 55%, var(--border)); }
-.c4-bday .c4-small { margin-top: 8px; }
 .c4-podium { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
 .c4-podium li { display: flex; align-items: center; gap: 8px; font-size: 13.5px; color: var(--header-primary); min-width: 0; }
 .c4-podium li .truncate { flex: 1; min-width: 0; }
@@ -264,5 +246,5 @@
 }
 @media (prefers-reduced-motion: reduce) {
   .c4-flash { animation: none; }
-  .c4-bar > span, .c4-switch, .c4-switch::after { transition: none; }
+  .c4-bar > span { transition: none; }
 }

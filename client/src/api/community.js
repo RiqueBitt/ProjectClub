@@ -1,10 +1,10 @@
 import { api } from './client';
 
 // Fase 4 — comunidade e economia (rotas em server/src/routes/communityExtras.js,
-// clans.js, posts.js e birthdays.js).
+// clans.js e posts.js).
 const data = (r) => r.data;
 
-// Início: tudo numa chamada (temporada, metas, aniversariantes, Clubes, sorteio).
+// Início: tudo numa chamada (temporada, metas, Clubes, sorteio).
 export const getCommunityHome = () => api.get('/community-home').then(data);
 
 // Competição semanal dos Clubes.
@@ -59,13 +59,6 @@ export const getReputationRanking = (period = '30d') => api.get('/reputation/ran
 // Gorjetas.
 export const getTipStatus = () => api.get('/tips/status').then(data);
 export const sendTip = (messageId, amount) => api.post('/tips', { messageId, amount }).then(data);
-
-// Padrinhos + preferências (padrinho e aniversário).
-export const getMentorship = () => api.get('/mentors').then(data);
-export const saveCommunityPrefs = (prefs) => api.patch('/mentors/prefs', prefs).then(data);
-
-// Aniversariantes de hoje (só quem ligou a opção).
-export const getBirthdaysToday = () => api.get('/birthdays/today').then(data);
 
 // Mensagem de erro amigável vinda do servidor.
 export const errText = (e, fallback = 'Algo deu errado. Tente de novo.') => e?.response?.data?.error || fallback;

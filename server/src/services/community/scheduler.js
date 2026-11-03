@@ -8,7 +8,7 @@
 const activity = require('./activity');
 
 const TICK_MS = 60 * 1000;
-const HOURLY_EVERY_TICKS = 5; // indicações/padrinhos: confere a cada 5 min (chave por hora)
+const HOURLY_EVERY_TICKS = 5; // indicações: confere a cada 5 min (chave por hora)
 
 const JOBS = [
   ['bora-jogar', (o) => require('./playGroups').tick(o)],
@@ -17,11 +17,9 @@ const JOBS = [
   ['post-da-semana', (o) => require('./postOfWeek').pickIfDue(o)],
   ['sorteio', (o) => require('./raffle').drawIfDue(o)],
   ['retrospectiva', (o) => require('./monthlyRecap').runIfDue(o)],
-  ['aniversarios', (o) => require('./birthdays').runIfDue(o)],
 ];
 const HOURLY_JOBS = [
   ['indicacoes', (o) => require('./referrals').hourlyTick(o)],
-  ['padrinhos', (o) => require('./mentors').hourlyTick(o)],
 ];
 
 let timer = null;

@@ -52,7 +52,6 @@ const PAGES = [
   { path: '/participar', label: 'Participar › Bora Jogar', keywords: 'bora jogar grupo jogatina partida lfg' },
   { path: '/participar?aba=interesses', label: 'Participar › Interesses', keywords: 'interesses cargos jogos' },
   { path: '/participar?aba=reputacao', label: 'Participar › Reputação', keywords: 'reputação agradecer ranking' },
-  { path: '/participar?aba=padrinhos', label: 'Participar › Padrinhos', keywords: 'padrinho madrinha novato aniversário' },
   { path: '/participar?aba=convites', label: 'Participar › Convidar amigos', keywords: 'convite indicação amigo código' },
   { path: '/retrospectiva', label: 'Retrospectiva do mês', keywords: 'retrospectiva resumo mês estatísticas' },
   // Casas/Figurinhas desligadas no código (utils/features.js).

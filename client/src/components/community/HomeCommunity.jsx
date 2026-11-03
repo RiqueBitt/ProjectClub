@@ -8,14 +8,13 @@ import { useLiveRefresh } from '../../utils/liveRefresh';
 import { postPath } from '../../utils/prettyLinks';
 import { PostCard } from '../../pages/CommunitiesPage.jsx';
 import { Ico } from '../PagesKit.jsx';
-import UserAvatar from '../UserAvatar.jsx';
 import ClanIcon from '../ClanIcon.jsx';
 import { Countdown, ProgressBar, fmt } from './CommunityBits.jsx';
 
 // Seções da Fase 4 no Início: temporada temática, metas coletivas da
-// semana, Post da semana, aniversariantes (só quem ligou a opção), pódio
-// dos Clubes e atalhos de participação. Uma chamada só (/community-home);
-// cada parte some sozinha se não tiver nada pra mostrar.
+// semana, Post da semana, pódio dos Clubes e atalhos de participação.
+// Uma chamada só (/community-home); cada parte some sozinha se não tiver
+// nada pra mostrar.
 
 export function useCommunityHome() {
   const [data, setData] = useState(null);
@@ -124,19 +123,6 @@ export function HomeCommunitySide({ home }) {
   ];
   return (
     <>
-      {data?.birthdays?.length > 0 && (
-        <section className="home-section home-card c4-bday">
-          <header className="home-section-head"><h2><Ico name="gift" size={17} /> Aniversariantes de hoje</h2></header>
-          <div className="c4-bday-list">
-            {data.birthdays.map((u) => (
-              <button key={u.id} type="button" className="c4-bday-person" onClick={() => useStore.getState().openProfile(u.id)}>
-                <UserAvatar user={u} size={36} /> <span className="truncate">{u.displayName}</span>
-              </button>
-            ))}
-          </div>
-          <p className="c4-small">Mande os parabéns!</p>
-        </section>
-      )}
       {data?.clanTop?.length > 0 && (
         <section className="home-section home-card">
           <header className="home-section-head">

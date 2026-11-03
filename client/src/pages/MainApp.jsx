@@ -134,7 +134,7 @@ const MiniJogosPage = lazy(() => import('./MiniJogosPage.jsx')); // Mini-Jogos (
 // "Não fui eu" do aviso de novo acesso → Configurações → Segurança (Fase 5).
 const SecurityShortcutPage = lazy(() => import('./SecurityShortcutPage.jsx'));
 // Fase 4 — comunidade e economia.
-const ParticiparPage = lazy(() => import('./ParticiparPage.jsx')); // Bora Jogar, interesses, reputação, padrinhos, convites
+const ParticiparPage = lazy(() => import('./ParticiparPage.jsx')); // Bora Jogar, interesses, reputação, convites
 const SorteioPage = lazy(() => import('./SorteioPage.jsx'));
 const RetrospectivaPage = lazy(() => import('./RetrospectivaPage.jsx'));
 

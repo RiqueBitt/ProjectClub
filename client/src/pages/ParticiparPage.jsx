@@ -3,18 +3,16 @@ import { PageHero, PillTabs } from '../components/PagesKit.jsx';
 import PlayGroupsTab from '../components/community/PlayGroupsTab.jsx';
 import ReferralsTab from '../components/community/ReferralsTab.jsx';
 import InterestsTab from '../components/community/InterestsTab.jsx';
-import MentorsTab from '../components/community/MentorsTab.jsx';
 import ReputationTab from '../components/community/ReputationTab.jsx';
 import '../styles/community4.css';
 
 // "Participar": tudo que é de convivência na comunidade num lugar só —
-// Bora Jogar, convites, interesses, padrinhos e reputação. Cada aba tem
+// Bora Jogar, convites, interesses e reputação. Cada aba tem
 // link próprio (/participar?aba=...), usado nos avisos.
 const TABS = [
   { id: 'jogar', label: 'Bora Jogar', icon: 'bolt', Page: PlayGroupsTab },
   { id: 'interesses', label: 'Interesses', icon: 'tag', Page: InterestsTab },
   { id: 'reputacao', label: 'Reputação', icon: 'heart', Page: ReputationTab },
-  { id: 'padrinhos', label: 'Padrinhos', icon: 'shield', Page: MentorsTab },
   { id: 'convites', label: 'Convites', icon: 'gift', Page: ReferralsTab },
 ];
 

@@ -4412,34 +4412,3 @@ model TipDaily {
 
   @@id([userId, dayKey])
 }
-
-// Preferências de participação (tudo começa desligado = opt-in).
-model CommunityPrefs {
-  userId        String   @id
-  mentorOptIn   Boolean  @default(false)
-  birthdayOptIn Boolean  @default(false)
-  updatedAt     DateTime @updatedAt
-}
-
-// Padrinho de novatos: um padrinho por conta nova.
-model Mentorship {
-  id         String    @id @default(uuid())
-  mentorId   String
-  menteeId   String    @unique
-  status     String    @default("ACTIVE") @db.VarChar(12) // ACTIVE | REWARDED | EXPIRED
-  createdAt  DateTime  @default(now())
-  rewardedAt DateTime?
-
-  @@index([mentorId, status])
-  @@index([status, createdAt])
-}
-
-// Parabéns automáticos: no máximo uma comemoração por pessoa por ano
-// (o ano aqui é o da comemoração, nunca o de nascimento).
-model BirthdayCelebration {
-  userId    String
-  year      Int
-  createdAt DateTime @default(now())
-
-  @@id([userId, year])
-}

@@ -1,12 +1,9 @@
-// Fase 4: indicação de amigos, padrinho de novatos, aniversários,
-// reputação ("Agradecer") e cargos por interesse.
+// Fase 4: indicação de amigos, reputação ("Agradecer") e cargos por interesse.
 const test = require('node:test');
 const assert = require('node:assert');
 const { fase4Db, spies } = require('./helpers/fake-db');
 const common = require('../src/services/community/common');
 const referrals = require('../src/services/community/referrals');
-const mentors = require('../src/services/community/mentors');
-const birthdays = require('../src/services/community/birthdays');
 const reputation = require('../src/services/community/reputation');
 const interestRoles = require('../src/services/community/interestRoles');
 const secrets = require('../src/services/community/secretAchievements');
@@ -89,99 +86,6 @@ test('indicação: conta banida não paga e indicações velhas expiram', async 
   assert.equal(r.rejected, 1);
   assert.equal(r.expired, 1);
   assert.equal(coinsOf(db, 'ana'), 0);
-});
-
-// ---------------- Padrinho ----------------
-test('padrinho: escolhe quem tem menos afilhados e respeita o máximo', () => {
-  const loads = new Map([['a', 2], ['b', 0], ['c', mentors.MAX_ACTIVE_MENTEES]]);
-  assert.equal(mentors.pickMentor(['a', 'b', 'c'], loads), 'b');
-  assert.equal(mentors.pickMentor(['c'], loads), null);
-});
-
-test('padrinho: só nível mínimo pode se oferecer; apadrinha conta nova, abre DM e avisa os dois', async () => {
-  reset();
-  const s = spies();
-  const today = new Date(NOW.getTime() - DAY).toISOString().slice(0, 10);
-  const db = fase4Db({
-    user: [
-      { id: 'vet', accountLevel: mentors.MIN_LEVEL, displayName: 'Veterana', coins: 0 },
-      { id: 'vet2', accountLevel: 20, displayName: 'Veterano', coins: 0 },
-      { id: 'low', accountLevel: 2, displayName: 'Baixo' },
-      { id: 'novo', accountLevel: 1, displayName: 'Novo' },
-    ],
-    userActiveDay: [{ userId: 'vet', day: today }, { userId: 'vet2', day: today }],
-    mentorship: [{ id: 'm0', mentorId: 'vet2', menteeId: 'outro', status: 'ACTIVE', createdAt: NOW }],
-  });
-  await assert.rejects(mentors.setPrefs({ id: 'low' }, { mentorOptIn: true }, { db }), /nível/);
-  await mentors.setPrefs({ id: 'vet' }, { mentorOptIn: true }, { db });
-  await mentors.setPrefs({ id: 'vet2' }, { mentorOptIn: true }, { db });
-  const opened = [];
-  const row = await mentors.assignMentor('novo', { db, now: NOW, notify: s.notify, ensureDirectConversation: async (a, b) => { opened.push([a, b]); return { id: 'cv9' }; } });
-  assert.equal(row.mentorId, 'vet', 'a que tem menos afilhados');
-  assert.deepEqual(opened, [['vet', 'novo']]);
-  assert.equal(s.notices.length, 2);
-  assert.equal(s.notices[0].link, '/conversations/cv9');
-  assert.equal(await mentors.assignMentor('novo', { db, now: NOW }), null, 'um padrinho por conta');
-});
-
-test('padrinho: ganha moedas quando o afilhado fica ativo 7 dias; expira depois da janela', async () => {
-  reset();
-  const s = spies();
-  const start = new Date(NOW.getTime() - 10 * DAY);
-  const days = Array.from({ length: mentors.MENTEE_ACTIVE_DAYS }, (_, i) => ({ userId: 'novo', day: new Date(start.getTime() + i * DAY).toISOString().slice(0, 10) }));
-  const db = fase4Db({
-    user: [{ id: 'vet', coins: 0 }, { id: 'novo', displayName: 'Novo' }, { id: 'sumiu', displayName: 'Sumiu' }],
-    mentorship: [
-      { id: 'm1', mentorId: 'vet', menteeId: 'novo', status: 'ACTIVE', createdAt: start },
-      { id: 'm2', mentorId: 'vet', menteeId: 'sumiu', status: 'ACTIVE', createdAt: new Date(NOW.getTime() - 40 * DAY) },
-    ],
-    userActiveDay: days,
-  });
-  const r = await mentors.processRewards({ db, now: NOW, notify: s.notify, ledger: s.ledgerFn });
-  assert.deepEqual(r, { rewarded: 1, expired: 1 });
-  assert.equal(coinsOf(db, 'vet'), mentors.REWARD_COINS);
-  await mentors.processRewards({ db, now: NOW, notify: s.notify, ledger: s.ledgerFn });
-  assert.equal(coinsOf(db, 'vet'), mentors.REWARD_COINS, 'paga uma vez só');
-});
-
-// ---------------- Aniversário ----------------
-test('aniversário: só dia/mês em Brasília; 29/02 comemora em 28/02 fora do ano bissexto', () => {
-  const at = (iso) => new Date(iso);
-  assert.ok(birthdays.isBirthdayToday(at('1999-11-02T00:00:00Z'), NOW));
-  assert.ok(!birthdays.isBirthdayToday(at('1999-11-03T00:00:00Z'), NOW));
-  assert.ok(birthdays.isBirthdayToday(at('2000-02-29T00:00:00Z'), at('2027-02-28T15:00:00Z')));
-  assert.ok(!birthdays.isBirthdayToday(at('2000-02-29T00:00:00Z'), at('2028-02-28T15:00:00Z')));
-  assert.ok(!birthdays.isBirthdayToday(null, NOW));
-});
-
-test('aniversário: só quem ligou a opção; presente + aviso pros amigos, uma vez por ano', async () => {
-  reset();
-  const s = spies();
-  const db = fase4Db({
-    user: [
-      { id: 'ana', displayName: 'Ana', birthDate: new Date('1995-11-02T00:00:00Z'), coins: 0 },
-      { id: 'bia', displayName: 'Bia', birthDate: new Date('1990-11-02T00:00:00Z'), coins: 0 }, // não ligou
-      { id: 'caio', displayName: 'Caio', coins: 0 },
-    ],
-    communityPrefs: [{ userId: 'ana', birthdayOptIn: true }, { userId: 'bia', birthdayOptIn: false }],
-    friendship: [{ id: 'f1', requesterId: 'caio', addresseeId: 'ana', status: 'ACCEPTED' }],
-  });
-  const early = new Date('2026-11-02T09:00:00Z'); // 6h em Brasília
-  assert.equal(await birthdays.runIfDue({ db, now: early }), null);
-  const r = await birthdays.runIfDue({ db, now: NOW, notify: s.notify, ledger: s.ledgerFn });
-  assert.equal(r.celebrated, 1);
-  assert.equal(coinsOf(db, 'ana'), birthdays.BIRTHDAY_COINS);
-  assert.equal(coinsOf(db, 'bia'), 0);
-  assert.deepEqual(s.notices.map((n) => n.userId).sort(), ['ana', 'caio']);
-  // Nada de ano/idade nos textos.
-  assert.ok(s.notices.every((n) => !/\b(19|20)\d\d\b|anos/.test(`${n.title} ${n.body}`)));
-  common._resetSettled();
-  db._store.jobRun = [];
-  await birthdays.runIfDue({ db, now: NOW, notify: s.notify, ledger: s.ledgerFn });
-  assert.equal(coinsOf(db, 'ana'), birthdays.BIRTHDAY_COINS, 'uma comemoração por ano');
-  const list = await birthdays.todayList({ db, now: NOW });
-  assert.deepEqual(list.map((u) => u.id), ['ana']);
-  assert.ok(!('birthDate' in list[0]), 'a lista nunca leva a data');
 });
 
 // ---------------- Reputação ----------------
