@@ -1104,6 +1104,10 @@ model Conversation {
   // Link bonito de GRUPO (/dm/grupo-amigos) — DM 1:1 usa o @ da outra
   // pessoa (/dm/fulano) e fica sem slug. Ver services/slugs.js.
   slug      String?  @db.VarChar(100)
+  // Mensagens temporárias (Fase 5): null = desligado; 86400 (24 horas) ou
+  // 604800 (7 dias). Mensagens novas criadas com isto ligado ganham
+  // Message.expiresAt e são apagadas pela faxina (services/ephemeralMessages.js).
+  ephemeralSeconds Int?
 
   members  ConversationMember[]
   messages Message[]
@@ -1387,6 +1391,9 @@ model Message {
   threadLastReplyAt DateTime?
   threadLastReplyId String?
   threadArchivedAt  DateTime?
+  // Mensagem temporária (DM com "Mensagens temporárias" ligado): apagada de
+  // verdade pela faxina depois desta data. null = mensagem normal.
+  expiresAt         DateTime?
 
   edits MessageEdit[]
 
@@ -1413,6 +1420,8 @@ model Message {
   @@index([threadId, createdAt])
   // Varredura de arquivamento automático (só raízes de tópico).
   @@index([isThread, threadLastReplyAt])
+  // Faxina das mensagens temporárias (expiresAt <= agora).
+  @@index([expiresAt])
   // Busca de mensagens por texto (MATCH ... AGAINST em modo booleano).
   @@fulltext([content])
 }
@@ -4075,4 +4084,52 @@ model ChannelWebhook {
   uses        Int       @default(0)
 
   @@index([channelId])
+}
+
+// --- Fase 5: segurança ---
+
+// Login por QR Code ("Entrar com o celular"). O PC cria o pareamento e
+// mostra um QR com `code`; o celular (já logado) confere e aprova; o PC
+// troca o `secret` (que NUNCA vai no QR) por uma sessão normal. Só os
+// hashes (sha256) ficam salvos. Vale 2 minutos e é de uso único.
+// Estados: PENDING -> SCANNED -> APPROVED -> CONSUMED (ou DENIED / expirado).
+model QrLoginPairing {
+  id          String    @id @default(uuid())
+  codeHash    String    @unique @db.VarChar(64)
+  secretHash  String    @unique @db.VarChar(64)
+  status      String    @default("PENDING") @db.VarChar(12)
+  requesterIp String?   @db.VarChar(64)
+  requesterUa String?   @db.VarChar(400)
+  scannedById String?
+  scannedAt   DateTime?
+  userId      String?
+  approvedAt  DateTime?
+  consumedAt  DateTime?
+  expiresAt   DateTime
+  createdAt   DateTime  @default(now())
+
+  @@index([expiresAt])
+}
+
+// Revisão de banimento/suspensão: a pessoa punida pede UMA revisão por
+// punição (punishmentKey identifica a punição — ver services/appeals.js) e
+// a equipe aceita (tira a punição) ou recusa com uma resposta.
+model PunishmentAppeal {
+  id            String    @id @default(uuid())
+  userId        String
+  kind          String    @db.VarChar(12) // BAN | SUSPENSION
+  punishmentKey String    @db.VarChar(120)
+  reason        String?   @db.VarChar(191) // motivo da punição na hora do pedido
+  until         DateTime? // fim da suspensão na hora do pedido
+  message       String?   @db.Text
+  status        String    @default("PENDING") @db.VarChar(12) // PENDING | ACCEPTED | DENIED
+  staffReply    String?   @db.Text
+  reviewedById  String?
+  reviewedAt    DateTime?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  @@unique([userId, punishmentKey])
+  @@index([status, createdAt])
+  @@index([userId, createdAt])
 }
