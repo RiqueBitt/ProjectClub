@@ -209,47 +209,11 @@ function currentRefreshHash(req) {
   return raw ? hashToken(raw) : null;
 }
 
-// "Chrome no Windows", "Safari no iPhone", "App desktop"... — só pra
-// mostrar na lista de sessões e no e-mail de novo acesso. Heurística
-// simples de propósito (sem dependência nova).
-function describeDevice(userAgent) {
-  const ua = String(userAgent || '');
-  if (!ua) return 'Dispositivo desconhecido';
-  let browser = 'Navegador';
-  if (/Electron\//i.test(ua)) browser = 'App desktop';
-  else if (/Edg(e|A|iOS)?\//i.test(ua)) browser = 'Edge';
-  else if (/OPR\/|Opera/i.test(ua)) browser = 'Opera';
-  else if (/SamsungBrowser/i.test(ua)) browser = 'Samsung Internet';
-  else if (/Firefox\/|FxiOS/i.test(ua)) browser = 'Firefox';
-  else if (/Chrome\/|CriOS/i.test(ua)) browser = 'Chrome';
-  else if (/Safari\//i.test(ua)) browser = 'Safari';
-  let os = '';
-  if (/Android/i.test(ua)) os = 'Android';
-  else if (/iPhone/i.test(ua)) os = 'iPhone';
-  else if (/iPad/i.test(ua)) os = 'iPad';
-  else if (/Windows/i.test(ua)) os = 'Windows';
-  else if (/Mac OS X|Macintosh/i.test(ua)) os = 'macOS';
-  else if (/CrOS/i.test(ua)) os = 'ChromeOS';
-  else if (/Linux/i.test(ua)) os = 'Linux';
-  if (/ProjectClub|Capacitor|wv\)/i.test(ua) && os === 'Android') browser = 'App';
-  return os ? `${browser} no ${os}` : browser;
-}
-
-// IP mascarado pra lista de sessões — o suficiente pra pessoa reconhecer
-// "essa é minha rede de casa", sem expor o endereço inteiro na tela.
-function maskIp(ip) {
-  if (!ip) return null;
-  const clean = String(ip).replace(/^::ffff:/i, '');
-  if (/^\d+\.\d+\.\d+\.\d+$/.test(clean)) {
-    const parts = clean.split('.');
-    return `${parts[0]}.${parts[1]}.x.x`;
-  }
-  if (clean.includes(':')) {
-    const groups = clean.split(':').filter(Boolean);
-    return `${groups.slice(0, 2).join(':')}:…`;
-  }
-  return null;
-}
+// "Chrome no Windows", "Safari no iPhone"... e o IP mascarado moraram aqui;
+// foram pra services/sessionSecurity.js (Fase 5) pra serem testáveis sem
+// banco. Continuam exportados daqui com o mesmo nome.
+const sessionSecurity = require('../services/sessionSecurity');
+const { describeDevice, maskIp } = sessionSecurity;
 
 async function issueSession(res, user, userAgent, ipAddress, { sessionStartedAt } = {}) {
   const accessToken = signAccessToken(user);
@@ -261,6 +225,7 @@ async function issueSession(res, user, userAgent, ipAddress, { sessionStartedAt 
     },
   });
   res.locals.refreshTokenId = created.id;
+  res.locals.refreshTokenSessionStartedAt = created.sessionStartedAt;
   res.cookie('refreshToken', raw, {
     httpOnly: true,
     sameSite: 'lax',
@@ -268,7 +233,8 @@ async function issueSession(res, user, userAgent, ipAddress, { sessionStartedAt 
     maxAge: env.REFRESH_TOKEN_TTL_DAYS * 24 * 60 * 60 * 1000,
     path: '/api/auth',
   });
-  await sessionKeep.setKeepCookie(res, user.id);
+  // O "lembrar login" guarda qual token o criou (ver sessionKeep.js).
+  await sessionKeep.setKeepCookie(res, user.id, created.id);
   return accessToken;
 }
 
@@ -379,6 +345,19 @@ async function isNewDeviceLogin(userId, userAgent, ipAddress) {
   }
 }
 
+// Aviso in-app (Fase 5): além do e-mail, um aviso em Notificações (e push)
+// com aparelho e rede aproximada, e o atalho "Não fui eu" que abre
+// Configurações → Segurança → Dispositivos conectados. Nunca bloqueia o login.
+function sendNewLoginNoticeInBackground(req, user, userAgent, ipAddress, sessionId) {
+  try {
+    const notice = sessionSecurity.buildLoginNotice({ userAgent, ip: ipAddress, sessionId });
+    require('../services/notices').createNotice(req.app?.get?.('io'), user.id, notice)
+      .catch((err) => console.error('[login] falha ao criar aviso de novo acesso:', err?.message || err));
+  } catch (err) {
+    console.error('[login] falha ao montar aviso de novo acesso:', err?.message || err);
+  }
+}
+
 // Nunca bloqueia o login — erro de SMTP aqui só vai pro log.
 function sendNewLoginAlertInBackground(user, userAgent, ipAddress) {
   sendNewLoginAlert(user.email, {
@@ -387,6 +366,11 @@ function sendNewLoginAlertInBackground(user, userAgent, ipAddress) {
     when: new Date(),
     appUrl: env.CLIENT_ORIGIN,
   }).catch((err) => console.error('[login] falha ao enviar alerta de novo acesso:', err.message));
+}
+
+// Token de revisão de punição (Fase 5) — nunca derruba o login se falhar.
+function signAppealTokenSafe(userId) {
+  try { return require('../services/appeals').signAppealToken(userId); } catch { return undefined; }
 }
 
 async function login(req, res, next) {
@@ -431,11 +415,13 @@ async function login(req, res, next) {
       return res.status(401).json({ error: 'Credenciais inválidas.' });
     }
 
+    // Fase 5: com a senha certa, a conta punida recebe um token curto que
+    // só serve pra pedir revisão da punição (ver services/appeals.js).
     if (user.isPlatformBanned) {
-      return res.status(403).json({ error: 'Esta conta foi banida da plataforma.', platformBanned: true, reason: user.platformBanReason || undefined });
+      return res.status(403).json({ error: 'Esta conta foi banida da plataforma.', platformBanned: true, reason: user.platformBanReason || undefined, appealToken: signAppealTokenSafe(user.id) });
     }
     if (user.suspendedUntil && new Date(user.suspendedUntil) > new Date()) {
-      return res.status(403).json({ error: `Esta conta está suspensa até ${new Date(user.suspendedUntil).toLocaleString('pt-BR')}.`, suspendedUntil: user.suspendedUntil });
+      return res.status(403).json({ error: `Esta conta está suspensa até ${new Date(user.suspendedUntil).toLocaleString('pt-BR')}.`, suspendedUntil: user.suspendedUntil, appealToken: signAppealTokenSafe(user.id) });
     }
     // Conta desativada pela própria pessoa (Configurações -> "Excluir
     // conta"). Antes o login passava e só o requireAuth barrava depois,
@@ -481,7 +467,10 @@ async function completeLogin(req, res, user) {
   // própria sessão nova sempre "bate" consigo mesma).
   const newDevice = await isNewDeviceLogin(user.id, userAgent, req.ip);
   const accessToken = await issueSession(res, user, userAgent, req.ip);
-  if (newDevice) sendNewLoginAlertInBackground(user, userAgent, req.ip);
+  if (newDevice) {
+    sendNewLoginAlertInBackground(user, userAgent, req.ip);
+    sendNewLoginNoticeInBackground(req, user, userAgent, req.ip, res.locals.refreshTokenId);
+  }
   // Conta desativada temporariamente pela própria pessoa: entrar reativa.
   let reactivated = false;
   if (user.selfDeactivatedAt) {
@@ -537,8 +526,15 @@ async function refresh(req, res, next) {
     // Sem cookie de refresh (ou inválido mais abaixo): tenta o "lembrar
     // login" selado (iron-session) antes de mandar pra tela de login.
     const restoreFromKeep = async () => {
-      const uid = await sessionKeep.readKeepCookie(req);
+      const keep = await sessionKeep.readKeepCookieData(req);
+      const uid = keep?.uid;
       if (!uid) return false;
+      // SEGURANÇA (Fase 5): o cookie de "lembrar login" de um aparelho que
+      // foi encerrado em "Sair deste dispositivo" não recria a sessão.
+      if (!(await sessionSecurity.keepSessionAlive(keep.rid))) {
+        sessionKeep.clearKeepCookie(res);
+        return false;
+      }
       const user = await prisma.user.findUnique({ where: { id: uid } });
       if (isAccountBlocked(user)) return false;
       await maybePromoteToPlatformAdmin(user);
@@ -743,7 +739,11 @@ async function revokeSession(req, res, next) {
     const session = await prisma.refreshToken.findUnique({ where: { id } });
     if (!session || session.userId !== req.user.id) return res.status(404).json({ error: 'Sessão não encontrada.' });
     if (session.tokenHash === currentHash) return res.status(400).json({ error: 'Use "Sair" para encerrar a sessão atual.' });
-    await revokeRefreshTokens({ id }, REVOKE_REASONS.REVOKED);
+    // Encerra a sessão inteira (o token atual e um filho que esteja nascendo
+    // numa rotação ao mesmo tempo) — antes, uma renovação simultânea
+    // escapava e o aparelho "encerrado" continuava logado.
+    await sessionSecurity.revokeSessionFamily(session, REVOKE_REASONS.REVOKED);
+    require('../services/securityLog').logSecurityEvent(req, 'SESSION_REVOKED').catch(() => {});
     res.json({ ok: true });
   } catch (err) { next(err); }
 }
@@ -761,7 +761,9 @@ async function revokeOtherSessions(req, res, next) {
     );
     // Derruba o "lembrar login" dos outros aparelhos e renova o deste.
     await sessionKeep.markSessionsRevoked(req.user.id);
-    await sessionKeep.setKeepCookie(res, req.user.id);
+    const current = currentHash ? await prisma.refreshToken.findUnique({ where: { tokenHash: currentHash }, select: { id: true } }) : null;
+    await sessionKeep.setKeepCookie(res, req.user.id, current?.id || null);
+    require('../services/securityLog').logSecurityEvent(req, 'SESSIONS_REVOKED_OTHERS').catch(() => {});
     res.json({ ok: true });
   } catch (err) { next(err); }
 }
@@ -1008,7 +1010,10 @@ async function changePassword(req, res, next) {
     // Derruba o "lembrar login" dos outros aparelhos e renova o deste.
     await sessionKeep.markSessionsRevoked(user.id);
     await require('./accountSwitchController').revokeAllFor(user.id); // contas salvas pra troca também saem
-    if (currentHash) await sessionKeep.setKeepCookie(res, user.id);
+    if (currentHash) {
+      const current = await prisma.refreshToken.findUnique({ where: { tokenHash: currentHash }, select: { id: true } });
+      await sessionKeep.setKeepCookie(res, user.id, current?.id || null);
+    }
     res.json({ ok: true, keptCurrentSession: !!currentHash });
   } catch (err) { next(err); }
 }
@@ -1085,4 +1090,5 @@ module.exports = {
   recoveryCodesStatus, regenerateRecoveryCodesHandler,
   createEmailVerificationCode, issueSession, REVOKE_REASONS, describeDevice, maskIp,
   completeLogin, verifyTotpOnce, consumeRecoveryCode, registerFailedLogin, isAccountBlocked,
+  signAppealTokenSafe,
 };

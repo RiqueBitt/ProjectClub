@@ -773,7 +773,14 @@ export default function UserSettingsModal({ onClose }) {
   // request nobody needs for the (much more common) Profile/Appearance tabs.
   useEffect(() => {
     if (tab !== 'SECURITY' || sessions !== null) return;
-    listSessions().then((d) => setSessions(d.sessions)).catch(() => setSessionsError('Não foi possível carregar suas sessões.'));
+    listSessions().then((d) => {
+      setSessions(d.sessions);
+      // "Não fui eu" (aviso de novo acesso → /seguranca/sessoes): rola até
+      // a lista de dispositivos conectados.
+      let focus = null;
+      try { focus = sessionStorage.getItem('pc-settings-focus'); sessionStorage.removeItem('pc-settings-focus'); } catch { /* sem storage */ }
+      if (focus === 'sessions') setTimeout(() => document.getElementById('settings-sessions')?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 60);
+    }).catch(() => setSessionsError('Não foi possível carregar suas sessões.'));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [tab]);
 
@@ -1719,9 +1726,9 @@ export default function UserSettingsModal({ onClose }) {
 
           <ConnectedAccountsBlock />
 
-          <div className="settings-block">
-            <h4 className="settings-h4-row">Sessões ativas {sessions && <span className="settings-chip">{sessions.length}</span>}</h4>
-            <p className="dim">Dispositivos e navegadores onde sua conta está logada agora. Encerre os que você não reconhece.</p>
+          <div className="settings-block" id="settings-sessions">
+            <h4 className="settings-h4-row">Dispositivos conectados {sessions && <span className="settings-chip">{sessions.length}</span>}</h4>
+            <p className="dim">Sessões ativas: aparelhos e navegadores onde sua conta está logada agora. Não reconhece algum? Saia dele e troque sua senha.</p>
             <FieldError>{sessionsError}</FieldError>
             {sessions === null && !sessionsError && <SettingsSkeleton rows={2} />}
             {sessions && (
@@ -1738,9 +1745,13 @@ export default function UserSettingsModal({ onClose }) {
                         </div>
                         <div className="dim">Conectado desde {new Date(s.createdAt).toLocaleString('pt-BR')}</div>
                       </div>
-                      {!s.isCurrent && (
-                        <button className="btn-secondary" disabled={revokingId === s.id} onClick={() => doRevokeSession(s.id)}>
-                          {revokingId === s.id ? '...' : 'Encerrar'}
+                      {s.isCurrent ? (
+                        <button className="btn-secondary" onClick={() => logout()} title="Sai da sua conta neste aparelho">
+                          Sair deste dispositivo
+                        </button>
+                      ) : (
+                        <button className="btn-secondary" disabled={revokingId === s.id} onClick={() => doRevokeSession(s.id)} aria-label={`Sair deste dispositivo: ${s.device || describeSession(s.userAgent)}`}>
+                          {revokingId === s.id ? '...' : 'Sair deste dispositivo'}
                         </button>
                       )}
                     </div>
@@ -1748,7 +1759,7 @@ export default function UserSettingsModal({ onClose }) {
                 </div>
                 {sessions.some((s) => !s.isCurrent) && (
                   <button className="btn-danger" disabled={revokingOthers} onClick={doRevokeOthers}>
-                    {revokingOthers ? '...' : 'Encerrar todas as outras sessões'}
+                    {revokingOthers ? '...' : 'Sair de todos os outros'}
                   </button>
                 )}
               </>

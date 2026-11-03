@@ -80,6 +80,8 @@ async function listConversations(req, res, next) {
         members: c.members.map((cm) => maskUserStatus(cm.user, me)),
         lastMessage: last ? { ...last, attachmentCount: last._count?.attachments || 0, _count: undefined } : null,
         lastReadAt: m.lastReadAt,
+        // Mensagens temporárias (Fase 5): null = desligado.
+        ephemeralSeconds: c.ephemeralSeconds ?? null,
         inbox: m.inbox || 'main',
         pinnedAt: m.pinnedAt || null,
         otherReadAt: other && !off.has(me) && !off.has(other.userId) ? other.lastReadAt : null,
@@ -174,6 +176,7 @@ async function hydrate(id) {
     icon: conversation.icon,
     ownerId: conversation.isGroup ? (conversation.ownerId || conversation.members[0]?.userId || null) : null,
     members: conversation.members.map((cm) => maskUserStatus(cm.user, null)),
+    ephemeralSeconds: conversation.ephemeralSeconds ?? null,
   };
 }
 
@@ -332,6 +335,57 @@ async function updateConversation(req, res, next) {
   } catch (err) { next(err); }
 }
 
+// PATCH /conversations/:id/ephemeral { mode: 'off' | '24h' | '7d' } —
+// "Mensagens temporárias" (Fase 5). Qualquer participante pode mudar; vale
+// pras mensagens NOVAS (as antigas não ganham prazo). Uma linha de sistema
+// na conversa mostra quem mudou — ver services/ephemeralMessages.js.
+async function setEphemeral(req, res, next) {
+  try {
+    const { id } = req.params;
+    const ephemeral = require('../services/ephemeralMessages');
+    const seconds = ephemeral.normalizeMode(req.body?.mode);
+    if (seconds === undefined) return res.status(400).json({ error: 'Opção inválida. Use desligado, 24 horas ou 7 dias.' });
+    const membership = await prisma.conversationMember.findUnique({
+      where: { conversationId_userId: { conversationId: id, userId: req.user.id } },
+    });
+    if (!membership) return res.status(403).json({ error: 'Você não é membro desta conversa.' });
+    const conversation = await prisma.conversation.findUnique({
+      where: { id }, select: { id: true, isGroup: true, ephemeralSeconds: true, members: { select: { userId: true } } },
+    });
+    if (!conversation) return res.status(404).json({ error: 'Conversa não encontrada.' });
+    // DM 1:1: mesma regra de quem pode mandar mensagem (bloqueio etc.) — a
+    // linha de sistema também é uma mensagem na conversa.
+    if (!conversation.isGroup) {
+      const other = conversation.members.find((m) => m.userId !== req.user.id);
+      if (other && !(await canSendDirectMessage(req.user.id, other.userId))) {
+        return res.status(403).json({ error: DM_DENIAL_MESSAGES.blocked });
+      }
+    }
+    if ((conversation.ephemeralSeconds ?? null) === seconds) return res.json({ conversation: await hydrate(id), unchanged: true });
+
+    await prisma.conversation.update({ where: { id }, data: { ephemeralSeconds: seconds } });
+    const io = req.app.get('io');
+    // Linha de sistema (fica no histórico, sem prazo — mostra quem mudou).
+    let systemMessage = null;
+    try {
+      const { messageInclude } = require('./messageController');
+      systemMessage = await prisma.message.create({
+        data: {
+          authorId: req.user.id,
+          conversationId: id,
+          embed: ephemeral.buildEphemeralSystemEmbed({ actorName: req.user.displayName, seconds }),
+        },
+        include: messageInclude,
+      });
+      io?.to(`conversation:${id}`).emit('message:new', systemMessage);
+    } catch (err) { console.error('[temporárias] aviso no chat falhou:', err?.message || err); }
+
+    const hydrated = await hydrate(id);
+    hydrated.members.forEach((m) => io?.notifyUser?.(m.id, 'conversation:new', { conversation: hydrated }));
+    res.json({ conversation: hydrated, systemMessage });
+  } catch (err) { next(err); }
+}
+
 // POST /conversations/:id/icon — custom group photo. Without one, the
 // client renders a mosaic of the members' own avatars instead (see
 // ConversationIcon in DMSidebar.jsx) — this is purely optional, never
@@ -459,4 +513,5 @@ async function ensureDirectConversation(userIdA, userIdB) {
 module.exports = {
   listConversations, createConversation, addMember, markRead, ensureDirectConversation,
   updateConversation, uploadIcon, leaveConversation, removeMember, setPinned, MAX_PINNED_CONVERSATIONS,
+  setEphemeral,
 };

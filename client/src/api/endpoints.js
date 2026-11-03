@@ -24,6 +24,23 @@ export const deleteAccount = (password) => api.post('/auth/delete-account', { pa
 export const listSessions = () => api.get('/auth/sessions').then((r) => r.data);
 export const revokeSession = (id) => api.delete(`/auth/sessions/${id}`).then((r) => r.data);
 export const revokeOtherSessions = () => api.delete('/auth/sessions/other').then((r) => r.data);
+// "Entrar com o celular" (login por QR Code — ver server/src/services/qrLogin.js).
+// PC: cria o QR, consulta o estado com o segredo e troca por sessão.
+export const qrLoginStart = () => api.post('/auth/qr/start').then((r) => r.data);
+export const qrLoginPoll = (secret) => api.post('/auth/qr/poll', { secret }).then((r) => r.data);
+export const qrLoginExchange = (secret) => api.post('/auth/qr/exchange', { secret }).then((r) => r.data);
+// Celular (logado): vê quem está pedindo e aprova/recusa.
+export const qrLoginScan = (code) => api.post('/auth/qr/scan', { code }).then((r) => r.data);
+export const qrLoginApprove = (code) => api.post('/auth/qr/approve', { code }).then((r) => r.data);
+export const qrLoginDeny = (code) => api.post('/auth/qr/deny', { code }).then((r) => r.data);
+// Revisão de banimento/suspensão (Fase 5). A pessoa punida usa o token curto
+// que o login devolveu junto do 403 (cabeçalho X-Appeal-Token, sem sessão).
+export const getMyAppeal = (token) => api.get('/appeals/mine', { headers: { 'X-Appeal-Token': token } }).then((r) => r.data);
+export const submitAppeal = (token, message) => api.post('/appeals', { message }, { headers: { 'X-Appeal-Token': token } }).then((r) => r.data);
+// Equipe: fila de pedidos e decisão.
+export const staffListAppeals = (status = 'PENDING', cursor = null) => api.get('/appeals/staff', { params: { status, ...(cursor ? { cursor } : {}) } }).then((r) => r.data);
+export const staffAcceptAppeal = (id, reply) => api.post(`/appeals/staff/${encodeURIComponent(id)}/accept`, { reply }).then((r) => r.data);
+export const staffDenyAppeal = (id, reply) => api.post(`/appeals/staff/${encodeURIComponent(id)}/deny`, { reply }).then((r) => r.data);
 // Entrar com Google/Discord/GitHub (ver server/src/controllers/oauthController.js).
 export const getOAuthProviders = () => api.get('/auth/oauth/providers').then((r) => r.data);
 export const oauthStartUrl = (provider, from = 'login') => `/api/auth/oauth/${encodeURIComponent(provider)}/start?from=${from}`;
@@ -128,6 +145,8 @@ export const createConversation = (userIds, name) => api.post('/conversations', 
 export const markConversationRead = (id) => api.post(`/conversations/${id}/read`).then((r) => r.data);
 export const addConversationMember = (id, userId) => api.post(`/conversations/${id}/members`, { userId }).then((r) => r.data);
 export const renameConversation = (id, name) => api.patch(`/conversations/${id}`, { name }).then((r) => r.data);
+// Mensagens temporárias (Fase 5): mode = 'off' | '24h' | '7d'.
+export const setConversationEphemeral = (id, mode) => api.patch(`/conversations/${encodeURIComponent(id)}/ephemeral`, { mode }).then((r) => r.data);
 export const uploadConversationIcon = (id, file) => {
   const fd = new FormData(); fd.append('icon', file);
   return api.post(`/conversations/${id}/icon`, fd).then((r) => r.data);

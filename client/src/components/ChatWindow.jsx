@@ -48,6 +48,7 @@ import ChatIcon from './ChatIcons.jsx';
 import { STATUS_LABEL } from '../utils/status';
 import PenguinAvatar, { isPenguinAvatarUrl, penguinColorFromUrl } from './PenguinAvatar.jsx';
 import { usePinnedMessages, PinnedButton, PinnedStrip } from './PinnedMessages.jsx';
+import EphemeralToggle from './EphemeralToggle.jsx';
 import NavIcon from './NavIcons.jsx';
 import ChannelSearchPanel from './ChannelSearchPanel.jsx';
 import { SeenReceipt } from './MessageExtras.jsx';
@@ -1507,6 +1508,8 @@ function ChatWindowInner({ conversationId, channelId }) {
           />
           {channelId && (!channel?.type || channel.type === 'TEXT') && <ThreadsButton channelId={channelId} />}
           <button className={`icon-btn chat-header-btn ${searchOpen ? 'on' : ''}`} onClick={() => setSearchOpen((v) => !v)} title="Buscar mensagens (Ctrl+F)" aria-label="Buscar mensagens"><ChatIcon name="search" /></button>
+          {/* Mensagens temporárias (Fase 5): desligado / 24 horas / 7 dias. */}
+          {conversationId && dmConvo && <EphemeralToggle conversation={dmConvo} />}
           {conversationId && (
             <button
               className={`icon-btn chat-header-btn ${voice.call?.channelId === `dm:${conversationId}` ? 'on' : ''}`}

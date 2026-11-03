@@ -8,6 +8,7 @@
 //   - ActivityEvent com mais de 90 dias
 //   - UserNotice JÁ LIDO com mais de 90 dias (não lido fica)
 //   - ErrorLog sem ocorrência nova há mais de 30 dias
+//   - QrLoginPairing (login por QR) vencido há mais de 1 dia
 //
 // Roda 5 min depois do boot e depois a cada 24h. Com mais de uma instância,
 // um lock no Redis (SET NX) garante que só uma faz a faxina por rodada.
@@ -42,6 +43,8 @@ function buildTasks(now = Date.now()) {
     { name: 'ActivityEvent', model: 'activityEvent', where: { createdAt: { lt: ago(90) } } },
     { name: 'UserNotice', model: 'userNotice', where: { readAt: { not: null }, createdAt: { lt: ago(90) } } },
     { name: 'ErrorLog', model: 'errorLog', where: { lastSeen: { lt: ago(30) } } },
+    // Fase 5: pareamentos do "Entrar com o celular" (valem 2 min) vencidos há 1 dia.
+    { name: 'QrLoginPairing', model: 'qrLoginPairing', where: { expiresAt: { lt: ago(1) } } },
   ];
 }
 

@@ -17,6 +17,7 @@ const { isValidReactionEmoji } = require('../utils/reactionEmoji');
 const { sharedIdempotency } = require('../services/messageIdempotency');
 const threadsService = require('../services/threads');
 const { buildPinSystemEmbed, isSystemMessage } = require('../utils/systemMessage');
+const ephemeral = require('../services/ephemeralMessages');
 
 // Discord-style cap: once a message already has this many *distinct* emoji
 // reacted to it, nobody can pile on a brand new one — you can still toggle
@@ -271,6 +272,9 @@ async function listMessages(req, res, next) {
       deleted: false,
       threadId: null,
       ...(topLevelOnly === 'true' ? { replyToId: null } : {}),
+      // Mensagem temporária já vencida (a faxina passa a cada 2 min) não
+      // aparece mais pra ninguém — ver services/ephemeralMessages.js.
+      ...(conversationId ? { AND: [{ OR: [{ expiresAt: null }, { expiresAt: { gt: new Date() } }] }] } : {}),
     };
 
     // "Pular para a mensagem" (busca, fixadas, link): janela em volta da
@@ -697,6 +701,9 @@ async function createMessageInner(req, res) {
       mentionRows = await resolveMentions(prisma, content);
     }
 
+    // Mensagens temporárias (Fase 5): DM com o modo ligado → prazo pra sumir.
+    const expiresAt = conversationId ? await ephemeral.expiryForConversation(conversationId) : null;
+
     const message = await prisma.message.create({
       data: {
         content: content || null,
@@ -712,6 +719,7 @@ async function createMessageInner(req, res) {
         embed: embed ? JSON.stringify(embed) : null,
         stickerUrl,
         quickReactions,
+        ...(expiresAt ? { expiresAt } : {}),
         attachments: {
           // Item pedido: "o ícone de olho... vai marcar imagem com
           // spoiler" — o cliente manda um array JSON na mesma ordem
@@ -1131,6 +1139,8 @@ async function forwardMessage(req, res, next) {
       conversationId: original.conversationId || null,
       createdAt: original.createdAt,
     };
+    // Encaminhada pra uma DM com mensagens temporárias: também some no prazo.
+    const expiresAt = target.conversationId ? await ephemeral.expiryForConversation(target.conversationId) : null;
     const message = await prisma.message.create({
       data: {
         content,
@@ -1140,6 +1150,7 @@ async function forwardMessage(req, res, next) {
         embed: original.embed || null,
         stickerUrl: original.stickerUrl || null,
         forwardedFrom: JSON.stringify(forwardedFrom),
+        ...(expiresAt ? { expiresAt } : {}),
         attachments: {
           create: original.attachments.map((a) => ({
             url: a.url, filename: a.filename, mimeType: a.mimeType, size: a.size, isSpoiler: a.isSpoiler,

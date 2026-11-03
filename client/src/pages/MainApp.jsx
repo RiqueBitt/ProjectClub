@@ -123,6 +123,8 @@ const JogosPage = lazy(() => import('./JogosPage.jsx'));
 const ModsPage = lazy(() => import('./ModsPage.jsx'));
 const GameLibraryPage = lazy(() => import('./GameLibraryPage.jsx')); // biblioteca de jogos (tempo de jogo)
 const MiniJogosPage = lazy(() => import('./MiniJogosPage.jsx')); // Mini-Jogos (jogos que já vêm no app)
+// "Não fui eu" do aviso de novo acesso → Configurações → Segurança (Fase 5).
+const SecurityShortcutPage = lazy(() => import('./SecurityShortcutPage.jsx'));
 
 // Interface com UMA barra lateral principal só (MainSidebar.jsx —
 // Chat/Amigos/Perfil/Notificações/Ranks/Busca/Suporte). A antiga dupla
@@ -536,6 +538,7 @@ export default function MainApp() {
                 <Route path="/jogos/biblioteca" element={<GameLibraryPage />} />
                 <Route path="/jogos/biblioteca/:ref" element={<LibraryRoute Page={GameLibraryPage} />} />
                 <Route path="/minijogos" element={<MiniJogosPage />} />
+                <Route path="/seguranca/sessoes" element={<SecurityShortcutPage />} />
                 {/* Navegador do Project Club (desligado em utils/features.js). */}
                 <Route path="/navegador" element={BROWSER_ON ? <BrowserPage /> : <Navigate to="/" replace />} />
                 {/* Links bonitos: /dm/<@> ou /dm/grupo-<nome> e /canal/<nome>. Os

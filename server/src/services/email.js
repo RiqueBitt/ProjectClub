@@ -257,3 +257,37 @@ async function sendOfflineNotification(to, { type, actorName, appUrl }) {
     html: emailLayout(bodyHtml),
   });
 }
+
+// Fase 5: resposta da equipe a um pedido de revisão de banimento/suspensão
+// (ver services/appeals.js). A resposta foi escrita pela staff, então passa
+// por escapeHtml como qualquer texto vindo de pessoas.
+async function sendAppealDecision(to, { accepted, kindLabel = 'punição', reply = null, appUrl }) {
+  const heading = accepted
+    ? `Seu pedido de revisão de ${kindLabel} foi aceito`
+    : `Seu pedido de revisão de ${kindLabel} foi recusado`;
+  const lead = accepted
+    ? 'A equipe do Project Club analisou o seu pedido e retirou a punição. Você já pode entrar de novo.'
+    : 'A equipe do Project Club analisou o seu pedido e manteve a punição.';
+  const button = accepted
+    ? `<div style="text-align:center; margin:0 0 8px;">
+      <a href="${escapeHtml(appUrl)}" style="display:inline-block; background:linear-gradient(135deg,#1877F2,#145DBF); color:#ffffff; text-decoration:none; font-weight:700; font-size:15px; padding:14px 36px; border-radius:8px;">Abrir Project Club</a>
+    </div>`
+    : '';
+  const replyHtml = reply
+    ? `<p style="margin:0 0 24px; font-size:14px; color:#2e3338; background-color:#f7f7f8; padding:14px 16px; border-radius:8px; line-height:1.5; white-space:pre-wrap;"><b>Resposta da equipe:</b><br />${escapeHtml(reply)}</p>`
+    : '';
+  const bodyHtml = `
+    <p style="margin:0 0 8px; font-size:15px; color:#2e3338;">${escapeHtml(heading)}</p>
+    <p style="margin:0 0 16px; font-size:14px; color:#2e3338; line-height:1.5;">${escapeHtml(lead)}</p>
+    ${replyHtml}
+    ${button}
+  `;
+  return sendMail({
+    to,
+    subject: `${heading} — Project Club`,
+    text: `${heading}.\n\n${lead}${reply ? `\n\nResposta da equipe: ${reply}` : ''}${accepted ? `\n\n${appUrl}` : ''}`,
+    html: emailLayout(bodyHtml),
+  });
+}
+
+module.exports.sendAppealDecision = sendAppealDecision;
