@@ -17,6 +17,10 @@ router.delete('/icons/:id', iconCtrl.deleteClanIcon);
 
 router.get('/', clanCtrl.listPublicClans);
 router.get('/mine', clanCtrl.getMyClan);
+// Fase 4: competição semanal entre Clubes (antes de /:id, senão "weekly" vira id).
+router.get('/weekly', async (req, res, next) => {
+  try { res.json(await require('../services/community/clanWeekly').overview(req.user, { io: req.app.get('io') })); } catch (err) { next(err); }
+});
 // Item pedido: "Somente por convite — entrada apenas através de
 // convite" — antes de "/:id" de propósito, senão "/invites" seria
 // interpretado como um id de clã.

@@ -1149,6 +1149,10 @@ model Role {
   isDefault   Boolean  @default(false)
   hoist       Boolean  @default(false)
   mentionable Boolean  @default(true)
+  // Fase 4 — "cargo por interesse": a própria pessoa escolhe se quer
+  // (ex.: jogos que curte). Só vale pra cargo SEM permissão nenhuma
+  // (ver services/interestRoles.js).
+  selfAssignable Boolean @default(false)
   createdAt   DateTime @default(now())
   updatedAt   DateTime @default(now()) @updatedAt
 
@@ -1957,6 +1961,8 @@ model Achievement {
   target       Int
   position     Int      @default(0)
   enabled      Boolean  @default(true)
+  // Fase 4 — conquista secreta: aparece como "???" até ser desbloqueada.
+  hidden       Boolean  @default(false)
   createdAt    DateTime @default(now())
 }
 
@@ -4154,4 +4160,286 @@ model ModRating {
   @@unique([userId, modioModId])
   @@index([modioModId])
   @@index([modioGameId])
+}
+
+// ============================================================
+// Fase 4 — comunidade e economia
+// Tabelas novas, sem relação (FK) com User de propósito: só ids indexados,
+// pra `prisma db push` nunca precisar mexer nas tabelas que já existem.
+// ============================================================
+
+// Trava de tarefas agendadas (fechamento semanal, retrospectiva, sorteio...):
+// a primeira instância que cria a linha roda; doneAt marca que terminou.
+model JobRun {
+  key       String    @id @db.VarChar(64)
+  startedAt DateTime  @default(now())
+  doneAt    DateTime?
+  info      String?   @db.VarChar(500)
+}
+
+// Recompensa paga uma vez só: (key, userId) único — quem paga cria a linha
+// na MESMA transação em que dá as moedas, então repetir a tarefa nunca
+// paga em dobro. Ex.: key "clube-semana:2026-W45", "meta:<id>".
+model RewardGrant {
+  key       String   @db.VarChar(64)
+  userId    String
+  coins     Int      @default(0)
+  createdAt DateTime @default(now())
+
+  @@id([key, userId])
+  @@index([userId, createdAt])
+}
+
+// Contadores de atividade por período (alimentados por services/
+// communityActivity.js, em lote a cada minuto):
+//   CLAN_WEEK (scopeId = clanId), COMMUNITY_WEEK (scopeId = "all"),
+//   USER_WEEK e USER_MONTH (scopeId = userId).
+// periodKey: semana "AAAA-Www" ou mês "AAAA-MM" (horário de Brasília).
+model ActivityCounter {
+  scope        String   @db.VarChar(16)
+  scopeId      String   @db.VarChar(64)
+  periodKey    String   @db.VarChar(10)
+  messages     Int      @default(0)
+  voiceMinutes Int      @default(0)
+  forumPosts   Int      @default(0)
+  reactions    Int      @default(0)
+  xp           Int      @default(0)
+  points       Int      @default(0)
+  updatedAt    DateTime @updatedAt
+
+  @@id([scope, scopeId, periodKey])
+  @@index([scope, periodKey, points])
+}
+
+// Resultado da competição semanal entre Clubes (uma linha por semana).
+model ClanWeekResult {
+  weekKey         String   @id @db.VarChar(10)
+  clanId          String?
+  clanName        String?  @db.VarChar(100)
+  points          Int      @default(0)
+  rewardCoins     Int      @default(0)
+  membersRewarded Int      @default(0)
+  standings       String?  @db.Text // JSON: top 10 da semana
+  closedAt        DateTime @default(now())
+}
+
+// Indicação de amigos: código fixo de cada pessoa + uma linha por conta
+// indicada (applicationId/inviteeId únicos = uma indicação por conta nova).
+model ReferralCode {
+  userId    String   @id
+  code      String   @unique @db.VarChar(16)
+  createdAt DateTime @default(now())
+}
+
+model Referral {
+  id            String    @id @default(uuid())
+  inviterId     String
+  inviteeId     String?   @unique
+  applicationId String?   @unique
+  status        String    @default("PENDING") @db.VarChar(16) // PENDING | REWARDED | CAPPED | SUSPECT | EXPIRED | REJECTED
+  inviteeIp     String?   @db.VarChar(64)
+  note          String?   @db.VarChar(160)
+  monthKey      String?   @db.VarChar(7)
+  inviterCoins  Int       @default(0)
+  inviteeCoins  Int       @default(0)
+  createdAt     DateTime  @default(now())
+  rewardedAt    DateTime?
+
+  @@index([inviterId, status])
+  @@index([inviterId, monthKey])
+  @@index([status, createdAt])
+}
+
+// Retrospectiva mensal (gerada no dia 1º pro mês anterior).
+model MonthlyRecap {
+  userId    String
+  monthKey  String   @db.VarChar(7)
+  data      String   @db.Text // JSON com os números do mês
+  createdAt DateTime @default(now())
+
+  @@id([userId, monthKey])
+  @@index([monthKey])
+}
+
+// Post da semana no Fórum (um por semana).
+model PostOfWeek {
+  weekKey     String   @id @db.VarChar(10)
+  postId      String
+  authorId    String
+  score       Int      @default(0)
+  rewardCoins Int      @default(0)
+  createdAt   DateTime @default(now())
+
+  @@index([postId])
+}
+
+// Sorteio semanal: bilhetes por pessoa por semana + resultado do sorteio.
+model RaffleTicket {
+  id        String   @id @default(uuid())
+  weekKey   String   @db.VarChar(10)
+  userId    String
+  count     Int      @default(0)
+  spent     Int      @default(0)
+  updatedAt DateTime @updatedAt
+
+  @@unique([weekKey, userId])
+  @@index([weekKey])
+}
+
+model RaffleDraw {
+  weekKey      String   @id @db.VarChar(10)
+  winnerId     String?
+  prize        Int      @default(0)
+  tickets      Int      @default(0)
+  participants Int      @default(0)
+  drawnAt      DateTime @default(now())
+}
+
+// "Bora Jogar": grupos pra jogar junto num horário marcado.
+model PlayGroup {
+  id             String    @id @default(uuid())
+  ownerId        String
+  game           String    @db.VarChar(80)
+  description    String?   @db.VarChar(500)
+  startsAt       DateTime
+  slots          Int       @default(4)
+  status         String    @default("OPEN") @db.VarChar(12) // OPEN | FULL | CANCELLED | EXPIRED
+  fullNotifiedAt DateTime?
+  createdAt      DateTime  @default(now())
+
+  @@index([status, startsAt])
+  @@index([ownerId])
+}
+
+model PlayGroupMember {
+  id         String    @id @default(uuid())
+  groupId    String
+  userId     String
+  joinedAt   DateTime  @default(now())
+  remindedAt DateTime?
+
+  @@unique([groupId, userId])
+  @@index([userId])
+}
+
+// Metas coletivas da semana (padrão ou definidas pela staff).
+model CommunityGoal {
+  id          String    @id @default(uuid())
+  weekKey     String    @db.VarChar(10)
+  metric      String    @db.VarChar(16) // MESSAGES | VOICE_MINUTES | FORUM_POSTS
+  target      Int
+  rewardCoins Int       @default(0)
+  title       String?   @db.VarChar(120)
+  reachedAt   DateTime?
+  rewardedAt  DateTime?
+  createdById String?
+  createdAt   DateTime  @default(now())
+
+  @@unique([weekKey, metric])
+}
+
+// Temporadas temáticas: recompensa diária (uma por pessoa por dia).
+model SeasonClaim {
+  userId    String
+  dayKey    String   @db.VarChar(10)
+  season    String   @db.VarChar(16)
+  coins     Int      @default(0)
+  createdAt DateTime @default(now())
+
+  @@id([userId, dayKey])
+  @@index([season])
+}
+
+// Cupons de desconto da Loja (compras com moedas).
+model Coupon {
+  id          String    @id @default(uuid())
+  code        String    @unique @db.VarChar(32)
+  kind        String    @default("PERCENT") @db.VarChar(8) // PERCENT | FIXED
+  value       Int
+  maxUses     Int?
+  uses        Int       @default(0)
+  minPrice    Int?
+  expiresAt   DateTime?
+  active      Boolean   @default(true)
+  note        String?   @db.VarChar(120)
+  createdById String?
+  createdAt   DateTime  @default(now())
+}
+
+model CouponUse {
+  id        String   @id @default(uuid())
+  couponId  String
+  userId    String
+  discount  Int      @default(0)
+  target    String?  @db.VarChar(120)
+  createdAt DateTime @default(now())
+
+  @@unique([couponId, userId])
+  @@index([userId])
+}
+
+// Reputação: "Agradecer" (uma vez por dia de quem agradece pra cada pessoa).
+model ReputationThanks {
+  id         String   @id @default(uuid())
+  giverId    String
+  receiverId String
+  targetType String   @db.VarChar(8) // MESSAGE | POST
+  targetId   String
+  dayKey     String   @db.VarChar(10)
+  createdAt  DateTime @default(now())
+
+  @@unique([giverId, receiverId, dayKey])
+  @@index([receiverId, createdAt])
+}
+
+// Gorjetas com moedas + teto diário por pessoa (contador atômico).
+model CoinTip {
+  id        String   @id @default(uuid())
+  fromId    String
+  toId      String
+  amount    Int
+  messageId String?
+  createdAt DateTime @default(now())
+
+  @@index([fromId, createdAt])
+  @@index([toId, createdAt])
+}
+
+model TipDaily {
+  userId String
+  dayKey String @db.VarChar(10)
+  sent   Int    @default(0)
+
+  @@id([userId, dayKey])
+}
+
+// Preferências de participação (tudo começa desligado = opt-in).
+model CommunityPrefs {
+  userId        String   @id
+  mentorOptIn   Boolean  @default(false)
+  birthdayOptIn Boolean  @default(false)
+  updatedAt     DateTime @updatedAt
+}
+
+// Padrinho de novatos: um padrinho por conta nova.
+model Mentorship {
+  id         String    @id @default(uuid())
+  mentorId   String
+  menteeId   String    @unique
+  status     String    @default("ACTIVE") @db.VarChar(12) // ACTIVE | REWARDED | EXPIRED
+  createdAt  DateTime  @default(now())
+  rewardedAt DateTime?
+
+  @@index([mentorId, status])
+  @@index([status, createdAt])
+}
+
+// Parabéns automáticos: no máximo uma comemoração por pessoa por ano
+// (o ano aqui é o da comemoração, nunca o de nascimento).
+model BirthdayCelebration {
+  userId    String
+  year      Int
+  createdAt DateTime @default(now())
+
+  @@id([userId, year])
 }
