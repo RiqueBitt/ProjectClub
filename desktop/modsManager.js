@@ -76,6 +76,7 @@ function downloadToFile(url, destPath, onProgress, redirectsLeft = 5) {
 // lógica antiga continuam reconhecidos (ver "legado" no modRouter).
 const router = require('./modRouter');
 const archive = require('./modArchive');
+const rollback = require('./modRollback');
 
 const { sanitizeModFolderName } = router;
 
@@ -145,19 +146,50 @@ async function installCore({ localFile, filename, gameInstallPath, steamAppId, m
 
     const dir = manifestDir();
     const manifest = router.loadManifest(dir, gameInstallPath);
-    // Reinstalar/atualizar: tira a versão anterior DESTE mod (só os
-    // arquivos dele) — e a cópia do instalador antigo, se houver.
-    if (manifest.mods[key]) { router.removeEntryFiles(manifest.mods[key]); delete manifest.mods[key]; }
     const legacy = router.findLegacy(gameInstallPath, key);
-    if (legacy) {
-      fs.rmSync(legacy.enabledDir, { recursive: true, force: true });
-      fs.rmSync(legacy.disabledDir, { recursive: true, force: true });
+
+    // Atualização segura (Fase 7): antes de tocar em qualquer arquivo,
+    // guarda uma cópia de tudo que esta instalação vai mexer (versão
+    // anterior do mod, originais do jogo e destinos da versão nova). Se
+    // não der pra guardar (disco cheio, sem permissão), para AQUI — nada
+    // foi alterado ainda. Ver modRollback.js.
+    const journal = rollback.createJournal(path.join(tempDir(), `${key}-${Date.now()}.rollback`));
+    try {
+      for (const p of rollback.pathsForInstall({ previous: manifest.mods[key], plan, legacy, key, backupPathFor: router.backupPathFor })) rollback.record(journal, p);
+    } catch (err) {
+      rollback.discard(journal);
+      throw new Error(`Não deu pra guardar uma cópia da versão atual com segurança (${err.message}). Nada foi alterado.`);
     }
 
-    const { entry, conflicts } = router.applyPlan(plan, {
-      manifest, key, meta: { name: modName, source: source || null, sourceId: sourceId != null ? String(sourceId) : null, version: version || null, profileId: game.profile.id },
-    });
-    router.saveManifest(dir, gameInstallPath, manifest);
+    let entry;
+    let conflicts;
+    try {
+      // Reinstalar/atualizar: tira a versão anterior DESTE mod (só os
+      // arquivos dele) — e a cópia do instalador antigo, se houver.
+      if (manifest.mods[key]) { router.removeEntryFiles(manifest.mods[key]); delete manifest.mods[key]; }
+      if (legacy) {
+        fs.rmSync(legacy.enabledDir, { recursive: true, force: true });
+        fs.rmSync(legacy.disabledDir, { recursive: true, force: true });
+      }
+
+      ({ entry, conflicts } = router.applyPlan(plan, {
+        manifest, key, meta: { name: modName, source: source || null, sourceId: sourceId != null ? String(sourceId) : null, version: version || null, profileId: game.profile.id },
+      }));
+      // Confere a versão nova ANTES de descartar a anterior.
+      const missing = rollback.missingFiles(entry);
+      if (missing.length) throw new Error(`a nova versão ficou incompleta (${missing.length} arquivo(s) faltando)`);
+      router.saveManifest(dir, gameInstallPath, manifest);
+    } catch (err) {
+      // O manifesto em disco só é gravado no sucesso — então basta pôr os
+      // arquivos de volta pra tudo ficar exatamente como antes.
+      const undo = rollback.rollback(journal);
+      const tail = undo.errors.length
+        ? ` Não deu pra restaurar ${undo.errors.length} arquivo(s) da versão anterior — reinstale o mod.`
+        : ' A versão anterior foi mantida.';
+      throw new Error(`${err.message}.${tail}`.replace(/\.\./g, '.'));
+    } finally {
+      rollback.discard(journal);
+    }
     onProgress?.({ phase: 'done', percent: 100 });
     return {
       installedPath: commonDir(entry.files.map((f) => f.path)),

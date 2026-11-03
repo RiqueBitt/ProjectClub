@@ -4,7 +4,7 @@
 // ícone na bandeja do sistema, iniciar sozinho com o Windows, e continuar
 // rodando em segundo plano mesmo com a janela fechada — exatamente como
 // Discord/Slack fazem.
-const { app, BrowserWindow, Tray, Menu, shell, ipcMain, globalShortcut, nativeImage, session, desktopCapturer, screen, dialog } = require('electron');
+const { app, BrowserWindow, Tray, Menu, shell, ipcMain, globalShortcut, nativeImage, session, desktopCapturer, screen, dialog, Notification } = require('electron');
 const path = require('path');
 
 const { autoUpdater } = require('electron-updater');
@@ -219,6 +219,12 @@ let pendingDeepLinkRoute = parseDeepLink(findDeepLinkArg(process.argv));
 function openDeepLink(raw) {
   const route = parseDeepLink(raw);
   if (!route) { if (raw) console.warn('[link] projectclub:// inválido ignorado'); return; }
+  navigateToRoute(route);
+}
+// Mostra o app e abre uma página interna (rota já montada e confiável —
+// links projectclub:// validados acima ou rotas fixas do próprio app, como
+// o clique no aviso de "mods atualizados").
+function navigateToRoute(route) {
   if (!mainWindow || mainWindow.isDestroyed()) { pendingDeepLinkRoute = route; return; }
   // Sem servidor: guarda o destino pra quando voltar e mostra a tela de conexão.
   if (connectionGuard.isActive()) { pendingDeepLinkRoute = route; connectionGuard.show(); return; }
@@ -1493,6 +1499,56 @@ if (!gotLock) {
       return { success: true, ...modsManager().deleteLocalModpack(gameKey, packName) };
     } catch (err) {
       return { success: false, error: err.message };
+    }
+  });
+
+  // Atualização automática de mods (Fase 7) — ver modAutoUpdate.js. O
+  // site procura/baixa (tem a conta); aqui fica a configuração local e a
+  // pergunta "posso atualizar este jogo agora?" (nunca com o jogo aberto
+  // nem quando não dá pra saber). A instalação continua passando por
+  // mods:install / mods:install-thunderstore (com a versão anterior
+  // guardada até a nova ser conferida — modRollback.js).
+  const modAutoUpdate = lazy('./modAutoUpdate');
+  let autoUpdateStore = null;
+  const autoUpdateSettings = () => {
+    if (!autoUpdateStore) autoUpdateStore = modAutoUpdate().createSettingsStore(app.getPath('userData'));
+    return autoUpdateStore;
+  };
+  const autoUpdateLastRun = new Map(); // steamAppId -> ms da última rodada liberada
+  secureHandle('mods:auto-update-get', () => {
+    try { return { success: true, settings: autoUpdateSettings().get() }; } catch (err) { return { success: false, error: err.message }; }
+  });
+  secureHandle('mods:auto-update-set', (_event, patch) => {
+    try { return { success: true, settings: autoUpdateSettings().set(patch) }; } catch (err) { return { success: false, error: err.message }; }
+  });
+  secureHandle('mods:auto-update-check', async (_event, { gameInstallPath, steamAppId } = {}) => {
+    try {
+      const au = modAutoUpdate();
+      const installPath = typeof gameInstallPath === 'string' && path.isAbsolute(gameInstallPath) ? gameInstallPath : null;
+      const running = await au.checkGameRunning({ gameInstallPath: installPath, steamAppId }, {
+        currentActivity: () => currentActivity,
+        getRunningSteamAppId: (platform) => steamDetector().getRunningSteamAppId(platform),
+      });
+      const id = Number(steamAppId);
+      const verdict = au.decide({ settings: autoUpdateSettings().get(), steamAppId: id, running, lastRunAt: autoUpdateLastRun.get(id) });
+      if (verdict.ok) autoUpdateLastRun.set(id, Date.now());
+      return { success: true, ...verdict, running: !!running.running, known: !!running.known };
+    } catch (err) {
+      return { success: false, ok: false, reason: 'error', error: err.message };
+    }
+  });
+  // Aviso nativo no fim de uma rodada ("3 mods atualizados: ..."). Clicar
+  // abre o app na tela de Mods.
+  secureHandle('mods:auto-update-notify', (_event, summary) => {
+    try {
+      const text = modAutoUpdate().notificationText(summary);
+      if (!text || !Notification.isSupported()) return { shown: false };
+      const n = new Notification({ title: text.title, body: text.body, silent: true });
+      n.on('click', () => navigateToRoute('/jogos/mods'));
+      n.show();
+      return { shown: true };
+    } catch (err) {
+      return { shown: false, error: err.message };
     }
   });
 

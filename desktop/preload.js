@@ -235,6 +235,17 @@ contextBridge.exposeInMainWorld('electronAPI', {
     // uma vez pro mod pedido em si — ver installThunderstorePackage em
     // desktop/modsManager.js).
     installThunderstore: (payload) => ipcRenderer.invoke('mods:install-thunderstore', payload),
+    // Atualização automática de mods (Fase 7, desligada por padrão) — ver
+    // desktop/modAutoUpdate.js. check() responde se dá pra atualizar o jogo
+    // AGORA (configuração ligada e jogo fechado); notify() mostra o aviso
+    // nativo com o resumo do que foi atualizado.
+    autoUpdate: {
+      version: 1,
+      getSettings: () => ipcRenderer.invoke('mods:auto-update-get'),
+      setSettings: (patch) => ipcRenderer.invoke('mods:auto-update-set', patch || {}),
+      check: (gameInstallPath, steamAppId) => ipcRenderer.invoke('mods:auto-update-check', { gameInstallPath, steamAppId }),
+      notify: (summary) => ipcRenderer.invoke('mods:auto-update-notify', summary || {}),
+    },
     onProgress: (callback) => {
       const listener = (_event, data) => callback(data);
       ipcRenderer.on('mods:progress', listener);
