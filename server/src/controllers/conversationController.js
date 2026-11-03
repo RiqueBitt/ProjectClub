@@ -349,8 +349,18 @@ async function setEphemeral(req, res, next) {
       where: { conversationId_userId: { conversationId: id, userId: req.user.id } },
     });
     if (!membership) return res.status(403).json({ error: 'Você não é membro desta conversa.' });
-    const conversation = await prisma.conversation.findUnique({ where: { id }, select: { id: true, ephemeralSeconds: true } });
+    const conversation = await prisma.conversation.findUnique({
+      where: { id }, select: { id: true, isGroup: true, ephemeralSeconds: true, members: { select: { userId: true } } },
+    });
     if (!conversation) return res.status(404).json({ error: 'Conversa não encontrada.' });
+    // DM 1:1: mesma regra de quem pode mandar mensagem (bloqueio etc.) — a
+    // linha de sistema também é uma mensagem na conversa.
+    if (!conversation.isGroup) {
+      const other = conversation.members.find((m) => m.userId !== req.user.id);
+      if (other && !(await canSendDirectMessage(req.user.id, other.userId))) {
+        return res.status(403).json({ error: DM_DENIAL_MESSAGES.blocked });
+      }
+    }
     if ((conversation.ephemeralSeconds ?? null) === seconds) return res.json({ conversation: await hydrate(id), unchanged: true });
 
     await prisma.conversation.update({ where: { id }, data: { ephemeralSeconds: seconds } });

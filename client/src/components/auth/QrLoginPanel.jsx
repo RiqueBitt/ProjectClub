@@ -118,9 +118,9 @@ export default function QrLoginPanel({ onDone, onCancel }) {
       <AuthAlert>{error}</AuthAlert>
 
       <ol className="pc-qr-steps">
-        <li>No celular, entre no Project Club (site ou app) com a sua conta.</li>
-        <li>Aponte a câmera para o QR Code e abra o link.</li>
-        <li>Confira os dados e toque em <b>Aprovar</b>.</li>
+        <li>No celular, aponte a câmera para o QR Code e abra o link (abre o Project Club no navegador).</li>
+        <li>Se pedir, entre na sua conta no celular.</li>
+        <li>Confira os dados do computador e toque em <b>Aprovar</b>.</li>
       </ol>
 
       {(status === 'EXPIRED' || status === 'DENIED' || status === 'ERROR') && (

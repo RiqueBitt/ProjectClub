@@ -12,6 +12,7 @@ const prisma = require('../config/prisma');
 const env = require('../config/env');
 const qr = require('../services/qrLogin');
 const { describeDevice, maskIp } = require('../services/sessionSecurity');
+const { hashToken } = require('../services/tokens');
 const auth = require('./authController');
 
 function sendError(res, next, err) {
@@ -59,9 +60,30 @@ async function exchange(req, res, next) {
 }
 
 // Só quem já tem a conta verificada aprova acesso pra outro aparelho.
-function requireVerified(req, res) {
+//
+// SEGURANÇA: além do token de acesso (Bearer), o pedido precisa trazer o
+// cookie de sessão (refresh, caminho /api/auth — o navegador e o app
+// Android mandam sozinhos) de uma sessão VIVA desta mesma conta. Sem isso,
+// quem roubasse só um token de acesso (que dura 15 min) conseguiria
+// transformá-lo numa sessão nova de 90 dias aprovando o próprio QR.
+const ROTATION_GRACE_MS = 60 * 1000;
+async function requireLiveSession(req, res) {
   if (!req.user?.emailVerified) {
     res.status(403).json({ error: 'Confirme seu e-mail antes de aprovar acessos pelo celular.', code: 'unverified' });
+    return false;
+  }
+  const raw = req.cookies?.refreshToken;
+  const row = typeof raw === 'string' && raw
+    ? await prisma.refreshToken.findUnique({ where: { tokenHash: hashToken(raw) } })
+    : null;
+  const now = Date.now();
+  const live = !!row && row.userId === req.user.id && new Date(row.expiresAt).getTime() > now && (
+    !row.revoked
+    // Acabou de renovar (o cookie novo ainda está a caminho): vale por 1 min.
+    || (row.revokedReason === 'ROTATED' && row.revokedAt && now - new Date(row.revokedAt).getTime() < ROTATION_GRACE_MS)
+  );
+  if (!live) {
+    res.status(403).json({ error: 'Sua sessão neste aparelho expirou. Entre de novo na sua conta e leia o QR Code outra vez.', code: 'session' });
     return false;
   }
   return true;
@@ -69,7 +91,7 @@ function requireVerified(req, res) {
 
 async function scan(req, res, next) {
   try {
-    if (!requireVerified(req, res)) return;
+    if (!(await requireLiveSession(req, res))) return;
     const row = await qr.scanPairing(bodyToken(req, 'code'), req.user.id);
     res.set('Cache-Control', 'no-store');
     res.json({
@@ -85,7 +107,7 @@ async function scan(req, res, next) {
 function decide(approve) {
   return async (req, res, next) => {
     try {
-      if (!requireVerified(req, res)) return;
+      if (!(await requireLiveSession(req, res))) return;
       await qr.decidePairing(bodyToken(req, 'code'), req.user.id, approve);
       require('../services/securityLog').logSecurityEvent(req, approve ? 'QR_LOGIN_APPROVED' : 'QR_LOGIN_DENIED').catch(() => {});
       res.json({ ok: true, status: approve ? 'APPROVED' : 'DENIED' });
