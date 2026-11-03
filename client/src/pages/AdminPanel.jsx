@@ -81,6 +81,7 @@ import AppealsAdmin from '../components/admin/AppealsAdmin.jsx';
 import CreatorShopAdmin from '../components/admin/CreatorShopAdmin.jsx';
 import PinguAlertsAdmin from '../components/admin/PinguAlertsAdmin.jsx';
 import { CardsAdminCards, CardsAdminPacks, CardsAdminSettings, CardsAdminPlayers, CardsAdminTrades, CardsAdminMatches, CardsAdminStats, CardsAdminCampaign, CardsAdminTournaments, CardsAdminBoards } from '../cards/CardsAdmin.jsx';
+import RoleIcon from '../components/RoleIcon.jsx';
 
 // ============================================================
 // Painel da Equipe — shell redesenhado do zero.
@@ -652,7 +653,7 @@ function RolesAdminTab() {
         {realRoles.length === 0 && <p className="dim">Nenhum cargo criado ainda (além do cargo padrão @todos).</p>}
         {realRoles.map((r) => (
           <div key={r.id} className="admin-user-row">
-            <span className="role-chip" style={roleChipStyle(r.color)}>{r.icon ? `${r.icon} ` : ''}{r.name}</span>
+            <span className="role-chip" style={roleChipStyle(r.color)}><RoleIcon icon={r.icon} />{r.name}</span>
             <span className="dim" style={{ marginLeft: 'auto' }}>posição {r.position}</span>
           </div>
         ))}

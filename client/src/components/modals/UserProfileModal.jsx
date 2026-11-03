@@ -61,6 +61,7 @@ import { PfIcon, PfCard } from './profileParts.jsx';
 import { looksLikeGif, isGifByContent, GIF_AVATAR_MAX_MB } from '../../utils/gifDetect';
 import { conversationPath, postPath } from '../../utils/prettyLinks';
 import { getReputation } from '../../api/community';
+import RoleIcon from '../RoleIcon.jsx';
 export { PfIcon, PfCard };
 
 // Estado vazio pequeno, dentro de um card.
@@ -877,7 +878,7 @@ export default function UserProfileModal() {
           <div className="pf-roles profile-roles-row">
             {visibleRoles.map((r) => (
               <span key={r.id} className="role-chip profile-role-chip pf-role" style={roleChipStyle(r.color)}>
-                {r.icon ? `${r.icon} ` : ''}{r.name}
+                <RoleIcon icon={r.icon} />{r.name}
                 {canManageRoles && (
                   <button
                     type="button"
@@ -932,7 +933,7 @@ export default function UserProfileModal() {
                         style={roleChipStyle(r.color)}
                         onClick={() => addRole(r.id)}
                       >
-                        {r.icon ? `${r.icon} ` : ''}{r.name}
+                        <RoleIcon icon={r.icon} />{r.name}
                       </button>
                     ))}
                   </div>,

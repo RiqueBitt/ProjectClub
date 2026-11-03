@@ -17,6 +17,7 @@ import chatIcon from '../assets/icons/chat.png';
 import errorIcon from '../assets/icons/error.png';
 import ListSkeleton from './ListSkeleton.jsx';
 import { conversationPath } from '../utils/prettyLinks';
+import RoleIcon from './RoleIcon.jsx';
 
 function highestRole(member, roles) {
   const mine = (roles || []).filter((r) => !r.isDefault && member.roleIds?.includes(r.id));
@@ -149,7 +150,7 @@ function MemberGroup({ label, members, roles, dim, cargosEnabled }) {
                   a imagem — só emoji funcionava. Agora renderiza os
                   dois formatos certinho, igual já faz no editor de
                   cargos. */}
-              {m.role?.icon && (m.role.icon.startsWith('/') ? <img src={m.role.icon} alt="" className="role-icon-inline" /> : <span>{m.role.icon} </span>)}
+              <RoleIcon icon={m.role?.icon} />
               {m.user.displayName}
             </span>
             {/* Destaque de Assinante / Super Assinante na lista de membros. */}
