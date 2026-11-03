@@ -112,6 +112,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
   // se deve mostrar de verdade (overlayEnabled/overlayNotifications
   // ligados + um jogo detectado rodando agora).
   showOverlayNotification: (payload) => ipcRenderer.send('overlay:notify', payload),
+  // Sobreposição de voz por cima do jogo (desktop/voiceOverlay.js).
+  voiceOverlay: (payload) => ipcRenderer.send('overlay:voice', payload ?? null),
   // Item pedido: "criar uma nova integração... ProjectMC... o usuário
   // poderá visualizar e baixar o launcher... O usuário poderá escolher
   // se deseja ou não instalar... o Project Club deve conseguir

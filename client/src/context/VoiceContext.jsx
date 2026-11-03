@@ -1656,6 +1656,44 @@ export function VoiceProvider({ children }) {
     return { state, label: LABELS[state], ping: myRtt, sendLoss: connStats?.sendLoss ?? null, provider };
   }, [call, joiningChannelId, reconnecting, reconnectingProvider, myRtt, connStats, provider]);
 
+  // Sobreposição de voz no app de PC (desktop/voiceOverlay.js): quem está na
+  // call e quem está falando, por cima do jogo. O app decide se mostra
+  // (opção ligada + jogo aberto); aqui só manda o retrato da sala, no
+  // máximo ~6x por segundo.
+  const overlaySentRef = useRef({ t: 0, timer: null, last: '' });
+  useEffect(() => {
+    const api = typeof window !== 'undefined' ? window.electronAPI : null;
+    if (!api?.voiceOverlay) return undefined;
+    const ref = overlaySentRef.current;
+    ref.build = () => {
+      let payload = null;
+      if (call?.channelId) {
+        const members = useStore.getState().members || [];
+        const nameOf = (uid) => members.find((m) => m.user.id === uid)?.user?.displayName || 'Alguém';
+        const people = [{ id: user?.id, name: user?.displayName || 'Você', speaking: !!localSpeaking && !muted, muted: !!muted, deafened: !!deafened, me: true }];
+        for (const [uid, p] of Object.entries(participants || {})) {
+          if (uid === user?.id) continue;
+          people.push({ id: uid, name: nameOf(uid), speaking: !!p?.speaking, muted: !!p?.muted, deafened: !!p?.deafened });
+        }
+        payload = { channelName: call.channelName || 'Chamada', people: people.slice(0, 10) };
+      }
+      return payload;
+    };
+    const send = () => {
+      ref.t = Date.now(); ref.timer = null;
+      const payload = ref.build();
+      const key = JSON.stringify(payload);
+      if (key === ref.last) return;
+      ref.last = key;
+      try { api.voiceOverlay(payload); } catch { /* app antigo */ }
+    };
+    const wait = 160 - (Date.now() - ref.t);
+    if (wait <= 0) send();
+    else if (!ref.timer) ref.timer = setTimeout(send, wait);
+    return undefined;
+  }, [call, participants, localSpeaking, muted, deafened, user?.id, user?.displayName]);
+  useEffect(() => () => { clearTimeout(overlaySentRef.current.timer); try { window.electronAPI?.voiceOverlay?.(null); } catch { /* ok */ } }, []);
+
   // Bytes de áudio recebidos de uma pessoa (pro AudioSink perceber "bytes
   // chegando mas nada tocando" e pro diagnóstico). null = desconhecido.
   const getInboundAudioBytes = useCallback((uid) => {

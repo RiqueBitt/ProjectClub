@@ -153,6 +153,7 @@ missions.seedDefaultMissions().catch((err) => {
   console.error('\x1b[31m[missões]\x1b[0m seed falhou:', err.message);
 });
 missions.startVoiceMinutesTicker(io);
+require('./services/tempVoice').startTempVoiceSweeper(io);
 // Voz (só o servidor de mídia próprio): aplica as chaves salvas pelo painel
 // da staff, conta os minutos do mês (telemetria do Painel de saúde) e apaga
 // as chaves antigas da cadeia de provedores que foi removida.

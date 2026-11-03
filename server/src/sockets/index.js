@@ -871,6 +871,8 @@ function initSockets(httpServer) {
         // Só avisa os outros quando a entrada é NOVA de verdade.
         if (added.status === 'added') socket.to(`voice:${channelId}`).emit('voice:user-joined', { channelId, userId, role });
         await broadcastRoster(io, channelId);
+        // Canal-rádio: começa a tocar quando a primeira pessoa entra.
+        ytWatch.ensureRadio(io, channelId).catch(() => {});
       } catch (err) { console.error('[socket] voice:join falhou:', err?.message || err); }
     };
 
@@ -960,6 +962,8 @@ function initSockets(httpServer) {
 
     // YouTube "Assistir juntos" na chamada (yt:open/play/pause/seek/next/close/queue:add) — ver ytWatch.js.
     ytWatch.register(io, socket, userId);
+    // Sala de estudos (Pomodoro compartilhado na call) — ver focusRoom.js.
+    require('./focusRoom').register(io, socket, userId);
 
     socket.on('voice:raise-hand', async ({ channelId, raised }) => {
       // Checa se a pessoa está mesmo na sala (o roster já mora no Redis
@@ -1273,6 +1277,28 @@ function initSockets(httpServer) {
       // Inclui o próprio remetente (io.to): a reação dele também flutua na
       // tela dele, igual pros outros.
       io.to(`voice:${channelId}`).emit('voice:reaction', { channelId, userId, emoji });
+    });
+
+    // Soundboard: toca um som curto pra todo mundo da call (ver
+    // services/soundboard.js). Precisa estar na sala e ter USE_SOUNDBOARD.
+    socket.on('soundboard:play', async ({ channelId, soundId } = {}, ack) => {
+      const reply = (r) => { if (typeof ack === 'function') ack(r); };
+      try {
+        const sb = require('../services/soundboard');
+        if (!channelId || !(await voiceStore.hasParticipant(channelId, userId))) return reply({ ok: false, reason: 'Entre na call para tocar sons.' });
+        if (!String(channelId).startsWith('dm:') && !String(channelId).startsWith('clan:')) {
+          const perms = await getEffectivePermissions(userId, channelId);
+          if (!has(perms, 'USE_SOUNDBOARD')) return reply({ ok: false, reason: 'Você não tem permissão para usar o soundboard aqui.' });
+        }
+        const sound = await sb.findSound(soundId);
+        if (!sound) return reply({ ok: false, reason: 'Esse som não existe mais.' });
+        const gate = sb.allow(userId, channelId);
+        if (!gate.ok) return reply(gate);
+        io.to(`voice:${channelId}`).emit('soundboard:play', { channelId, userId, sound });
+        reply({ ok: true });
+      } catch (err) {
+        reply({ ok: false, reason: 'Não consegui tocar o som.' });
+      }
     });
 
     // ---------- Gravação com consentimento (N) ----------
@@ -1620,6 +1646,7 @@ function initSockets(httpServer) {
       recordingRequests.delete(channelId);
       await voiceStore.deleteRoom(channelId);
       ytWatch.clearIfEmpty(channelId);
+      require('./focusRoom').clearIfEmpty(io, channelId).catch(() => {});
       // Last person just left a DM call room — resolve its chat message
       // (see createCallMessage/updateCallMessage) to whatever actually
       // happened: nobody ever answered -> "Chamada perdida", someone did

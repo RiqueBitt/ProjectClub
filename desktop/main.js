@@ -1532,6 +1532,12 @@ if (!gotLock) {
     if (payload && typeof payload === 'object') showOverlayNotification(payload);
   });
 
+  // Sobreposição de voz (quem está na call e quem fala) — ver voiceOverlay.js.
+  const voiceOverlay = require('./voiceOverlay');
+  voiceOverlay.init({ BrowserWindow, screen, app, getSettings: () => desktopSettings, getActivity: () => currentActivity });
+  secureOn('overlay:voice', (_event, payload) => { voiceOverlay.update(payload); });
+  app.on('before-quit', () => voiceOverlay.destroy());
+
   // Item pedido: "compartilhar tela não funciona no .exe" — o Electron
   // (diferente de um navegador comum) NÃO tem embutido o pedido nativo
   // de "escolher uma tela/janela pra compartilhar" — sem isso configurado

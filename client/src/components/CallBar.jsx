@@ -17,6 +17,22 @@ import { CustomIcon, hasCustomIcon } from './ChannelIcon.jsx';
 import { usePopoverCoordination } from '../utils/popoverCoordinator';
 import '../styles/callbar.css';
 import { conversationPath, channelPath } from '../utils/prettyLinks';
+import { useSocket } from '../context/SocketContext.jsx';
+
+// Ganho por tempo em call (server/src/services/voiceRewards.js): a cada 5 min
+// o servidor paga XP + moedas; aqui aparece um "+15 XP · +3" discreto por 4s.
+function useVoiceReward() {
+  const { socket } = useSocket() || {};
+  const [reward, setReward] = useState(null);
+  useEffect(() => {
+    if (!socket) return undefined;
+    let t = null;
+    const on = (r) => { setReward(r); clearTimeout(t); t = setTimeout(() => setReward(null), 4000); };
+    socket.on('economy:voice-reward', on);
+    return () => { socket.off('economy:voice-reward', on); clearTimeout(t); };
+  }, [socket]);
+  return reward;
+}
 
 // Barra de chamada (rodapé da coluna de canais) — visual refeito: status
 // com sinal/ping do servidor de mídia, nome do canal clicável (abre a chamada), tempo
@@ -188,6 +204,7 @@ export default function CallBar() {
   useEffect(() => { setMiniHidden(false); }, [callId]);
   useEffect(() => { if (onCallView) setMiniHidden(false); }, [onCallView]);
   const elapsed = useCallElapsed(voice?.callStartedAt);
+  const voiceReward = useVoiceReward();
   // Canal da chamada (pro ícone personalizado) — hook antes do return.
   const callChannelId = voice?.call?.channelId || null;
   const callChannel = useStore((s) => (callChannelId ? (s.channels.find((c) => c.id === callChannelId) || s.categories.flatMap((cat) => cat.channels || []).find((c) => c.id === callChannelId) || null) : null));
@@ -252,6 +269,11 @@ export default function CallBar() {
           <span className="cb-backup cb-reconnecting" role="status" aria-live="polite">Reconectando…</span>
         )}
         {elapsed && <span className="cb-time" aria-label="Tempo de chamada">{elapsed}</span>}
+        {voiceReward && (
+          <span className="cb-reward" role="status" title={`Tempo em call hoje: ${voiceReward.minutesToday} de ${voiceReward.capMinutes} min que rendem XP`}>
+            +{voiceReward.xp} XP · +{voiceReward.coins} moedas
+          </span>
+        )}
       </div>
 
       {/* Ícone personalizado do canal (emoji/imagem) também na barra da chamada. */}
