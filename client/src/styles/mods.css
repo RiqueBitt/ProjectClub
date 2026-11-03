@@ -1110,3 +1110,55 @@ button.mdx-ux-tile.dim:hover { border-color: color-mix(in srgb, var(--red) 40%, 
   .mdx-irow .mdx-row-actions { flex-wrap: wrap; padding-left: 0; }
   .mdx-irow .mdx-row-actions > .mdx-btn.primary { order: -1; flex: 1 1 100%; }
 }
+
+/* ============================================================
+   Avaliações de mods (Fase 7)
+   ============================================================ */
+.mdx-stars { display: inline-flex; align-items: center; gap: 2px; color: var(--yellow, #f0b232); vertical-align: middle; }
+.mdx-star { position: relative; display: inline-flex; flex-shrink: 0; color: color-mix(in srgb, var(--text-muted) 55%, transparent); }
+.mdx-star-fill { position: absolute; inset: 0 auto 0 0; overflow: hidden; display: inline-flex; color: var(--yellow, #f0b232); }
+.mdx-stat.rating .mdx-icon { color: var(--yellow, #f0b232); }
+.mdx-rating-summary { display: flex; flex-wrap: wrap; align-items: center; gap: 14px 26px; margin-bottom: 14px; }
+.mdx-rating-big { display: flex; flex-direction: column; align-items: flex-start; gap: 4px; min-width: 120px; }
+.mdx-rating-big > strong { font-size: 34px; line-height: 1; font-weight: 800; color: var(--header-primary); font-variant-numeric: tabular-nums; }
+.mdx-rating-bars { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 4px; flex: 1 1 220px; max-width: 360px; }
+.mdx-rating-bars li { display: grid; grid-template-columns: 28px minmax(0, 1fr) 34px; align-items: center; gap: 8px; font-size: 12px; color: var(--text-muted); }
+.mdx-rating-bar-label { display: inline-flex; align-items: center; gap: 2px; font-weight: 700; }
+.mdx-rating-bar-label .mdx-icon { color: var(--yellow, #f0b232); }
+.mdx-rating-bar { height: 7px; border-radius: 999px; background: var(--bg-primary); overflow: hidden; }
+.mdx-rating-bar > span { display: block; height: 100%; border-radius: inherit; background: var(--yellow, #f0b232); transition: width .3s ease; }
+.mdx-rating-bar-count { text-align: right; font-variant-numeric: tabular-nums; }
+.mdx-rating-form { display: flex; flex-direction: column; gap: 8px; padding: 12px; border-radius: 12px; background: var(--bg-primary); border: 1px solid var(--border); }
+.mdx-rating-form textarea {
+  width: 100%; min-height: 72px; box-sizing: border-box; padding: 10px 12px; border-radius: 10px; resize: vertical;
+  background: var(--bg-secondary); border: 1px solid var(--border); font-size: 14px; color: var(--text-normal); outline: none;
+}
+.mdx-rating-form textarea:focus { border-color: var(--brand); }
+.mdx-rating-form-foot { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; }
+.mdx-error-text { color: var(--red); font-weight: 700; }
+.mdx-star-picker { display: flex; align-items: center; gap: 2px; flex-wrap: wrap; }
+.mdx-star-btn {
+  display: inline-flex; padding: 3px; border: 0; border-radius: 8px; background: transparent; cursor: pointer;
+  color: color-mix(in srgb, var(--text-muted) 70%, transparent); transition: transform .12s ease, color .12s ease;
+}
+.mdx-star-btn.on { color: var(--yellow, #f0b232); }
+.mdx-star-btn:hover:not(:disabled) { transform: scale(1.12); }
+.mdx-star-btn:focus-visible { outline: 2px solid var(--brand); outline-offset: 1px; }
+.mdx-star-btn:disabled { cursor: default; opacity: .7; }
+.mdx-star-label { margin-left: 8px; font-size: 13px; font-weight: 700; color: var(--text-muted); }
+.mdx-rating-mine { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; flex-wrap: wrap; padding: 12px; border-radius: 12px; background: var(--bg-primary); border: 1px solid var(--border); }
+.mdx-rating-mine p { margin: 6px 0 0; font-size: 13.5px; white-space: pre-wrap; overflow-wrap: anywhere; line-height: 1.5; }
+.mdx-rating-mine-stars { display: flex; align-items: center; gap: 8px; margin-top: 3px; font-size: 13px; color: var(--header-primary); }
+.mdx-reviews { margin-top: 12px; }
+.mdx-review-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; flex-wrap: wrap; }
+.mdx-link-btn { margin-top: 6px; padding: 0; border: 0; background: none; font-size: 12px; font-weight: 700; color: var(--red); cursor: pointer; }
+.mdx-link-btn:hover { text-decoration: underline; }
+@media (prefers-reduced-motion: reduce) {
+  .mdx-star-btn, .mdx-rating-bar > span { transition: none; }
+  .mdx-star-btn:hover:not(:disabled) { transform: none; }
+}
+
+/* Atualização automática de mods (Fase 7) */
+.mdx-autoupd-toggle { background: linear-gradient(90deg, color-mix(in srgb, var(--green) 10%, transparent), transparent 60%), var(--bg-secondary); }
+.mdx-autoupd-toggle .mdx-nexus-toggle-icon { color: var(--green); background: color-mix(in srgb, var(--green) 16%, transparent); }
+.mdx-installed-head-right { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; justify-content: flex-end; }

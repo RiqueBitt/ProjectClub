@@ -7,6 +7,7 @@ import { proxyImage } from '../../utils/imageProxy';
 import { Icon, EmptyState, SearchField, ChipRow, Section, SourceChip, hashHue, ProgressBar, progressLabel, useModsManager } from './shared.jsx';
 import { identifyInstalledMods, formatBytes } from './unifiedApi.js';
 import { checkUpdatesForItems, updateKey, updateInstalledMod } from './modUpdates.js';
+import { GameAutoUpdateToggle } from './AutoUpdateToggle.jsx';
 
 // Aba "Instalados" — item pedido: "identificar mods JÁ instalados nos
 // arquivos do jogo e usar as APIs pra achar quais são". Junta numa lista
@@ -203,7 +204,12 @@ export default function InstalledPanel({
       <Section
         title="Mods instalados"
         icon="puzzle"
-        right={scan && <span className="mdx-muted">{counts.on} ativos · {counts.off} desativados</span>}
+        right={(
+          <div className="mdx-installed-head-right">
+            <GameAutoUpdateToggle steamAppId={game.steamAppId} />
+            {scan && <span className="mdx-muted">{counts.on} ativos · {counts.off} desativados</span>}
+          </div>
+        )}
       >
         {error && <p className="mdx-error">{error}</p>}
         {(counts.updates > 0 || updateRun) && (

@@ -6,6 +6,8 @@ import {
   listModProfiles, upsertModProfileItem, listModCollections, addModCollectionItem,
 } from '../../api/endpoints';
 import { isDesktopModsAvailable, installModLocally, modFolderName } from '../../utils/mods';
+import { ModRatingSection, StarRow } from './ModRatings.jsx';
+import { tileRatingLabel, formatAverage, formatRatingCount } from './ratings.js';
 import {
   Icon, formatCount, EmptyState, SkeletonGrid, SearchField, ChipRow, ModTile, LoadMore,
   ModDetailLayout, DetailStat, Section, ProgressBar, progressLabel, useModsManager, formatModDate,
@@ -15,7 +17,10 @@ import {
 const SORT_OPTIONS = [
   { value: 'popular', label: 'Populares' },
   { value: 'downloads', label: 'Mais baixados' },
-  { value: 'rating', label: 'Melhor avaliados' },
+  // "Mais bem avaliados" = notas do Project Club (Fase 7); o antigo
+  // "Melhor avaliados" ordena pelos joinhas do próprio mod.io.
+  { value: 'club', label: 'Mais bem avaliados' },
+  { value: 'rating', label: 'Mais curtidos no mod.io' },
   { value: 'new', label: 'Novos' },
   { value: 'updated', label: 'Atualizados' },
 ];
@@ -88,8 +93,8 @@ export function ModioBrowse({ game, onOpenMod }) {
       {mods === null ? (
         <SkeletonGrid count={8} />
       ) : mods.length === 0 ? (
-        <EmptyState icon={loadError ? 'alert' : 'search'} tone={loadError ? 'danger' : undefined} title={loadError ? 'Não foi possível buscar' : 'Nenhum mod encontrado'}>
-          {loadError || 'Tente outra busca ou outro filtro.'}
+        <EmptyState icon={loadError ? 'alert' : sort === 'club' ? 'star' : 'search'} tone={loadError ? 'danger' : undefined} title={loadError ? 'Não foi possível buscar' : sort === 'club' ? 'Nenhum mod avaliado ainda' : 'Nenhum mod encontrado'}>
+          {loadError || (sort === 'club' ? 'Abra um mod e dê sua nota — os mais bem avaliados pela comunidade aparecem aqui.' : 'Tente outra busca ou outro filtro.')}
         </EmptyState>
       ) : (
         <>
@@ -104,6 +109,10 @@ export function ModioBrowse({ game, onOpenMod }) {
                 stats={[
                   { icon: 'download', value: formatCount(m.stats?.downloads_total) },
                   m.stats?.ratings_positive > 0 && { icon: 'thumb', value: formatCount(m.stats.ratings_positive) },
+                  tileRatingLabel(m.clubRating) && {
+                    icon: 'star', filled: true, className: 'rating', value: tileRatingLabel(m.clubRating),
+                    title: `Média ${formatAverage(m.clubRating.average, m.clubRating.count)} — ${formatRatingCount(m.clubRating.count)} no Project Club`,
+                  },
                 ]}
                 onClick={() => onOpenMod(m.id)}
               />
@@ -142,6 +151,9 @@ export function ModioModDetail({ game, modioModId, onBack }) {
   const [collections, setCollections] = useState(null);
   const [selectedCollectionId, setSelectedCollectionId] = useState('');
   const [addToCollectionMsg, setAddToCollectionMsg] = useState('');
+  // Resumo das avaliações atualizado pela seção de Avaliações (sem
+  // recarregar a página do mod inteira depois de dar uma nota).
+  const [ratingSummary, setRatingSummary] = useState(null);
 
   const refresh = () => {
     getMod(game.modioGameId, modioModId).then(setData).catch(() => setData({ error: true }));
@@ -179,6 +191,8 @@ export function ModioModDetail({ game, modioModId, onBack }) {
   );
 
   const { mod, dependencies, isFavorited, isUpped } = data;
+  const clubRating = ratingSummary || data.clubRating;
+  const clubAvg = formatAverage(clubRating?.average, clubRating?.count);
   const installed = justInstalled || installedFolders.has(modFolderName(mod.name));
 
   const doFavorite = async () => {
@@ -311,6 +325,11 @@ export function ModioModDetail({ game, modioModId, onBack }) {
           {installed && <span className="mdx-installed-pill"><Icon name="check" size={13} strokeWidth={2.6} /> Instalado</span>}
           <DetailStat icon="download">{formatCount(mod.stats?.downloads_total)} downloads</DetailStat>
           {mod.stats?.ratings_positive > 0 && <DetailStat icon="thumb">{formatCount(mod.stats.ratings_positive)}</DetailStat>}
+          {clubAvg && (
+            <span className="mdx-detail-stat" title={`${formatRatingCount(clubRating.count)} no Project Club`}>
+              <StarRow average={clubRating.average} size={14} /> {clubAvg} <span className="mdx-muted">({clubRating.count})</span>
+            </span>
+          )}
           <DetailStat icon="clock">Atualizado em {mod.date_updated ? new Date(mod.date_updated * 1000).toLocaleDateString('pt-BR') : '—'}</DetailStat>
         </>
       )}
@@ -352,6 +371,8 @@ export function ModioModDetail({ game, modioModId, onBack }) {
             )}
           </Section>
 
+
+          <ModRatingSection modioGameId={game.modioGameId} modioModId={modioModId} user={user} onSummaryChange={setRatingSummary} />
 
           <Section title="Comentários" icon="chat">
             <div className="mdx-comment-form">

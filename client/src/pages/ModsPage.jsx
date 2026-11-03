@@ -5,6 +5,7 @@ import GameManager from './mods/GameManager.jsx';
 import { NxmLinkHandler } from './mods/NexusViews.jsx';
 import { peekPendingModpack, peekAnyPendingModpack, clearPendingModpack } from './mods/modpackShared.js';
 import { useLibraryUpdates } from './mods/modUpdates.js';
+import { markModsPageOpen } from './mods/autoUpdatePolicy.js';
 import '../styles/mods.css';
 
 // Item pedido: "Project Club → Apps → Mods → detectar Steam → detectar
@@ -37,6 +38,16 @@ export default function ModsPage() {
   const [notice, setNotice] = useState('');
   const scrollRef = useRef(null);
   const albumScroll = useRef(0);
+
+  // Atualização automática em segundo plano (Fase 7) espera enquanto esta
+  // tela está aberta; quando ela termina uma rodada, a lista se atualiza.
+  useEffect(() => markModsPageOpen(), []);
+  useEffect(() => {
+    const onAuto = () => { library.refreshCounts(); updates.refresh(); };
+    window.addEventListener('pc:mods-auto-updated', onAuto);
+    return () => window.removeEventListener('pc:mods-auto-updated', onAuto);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [library.games]);
 
   const openGame = (game, opts) => {
     albumScroll.current = scrollRef.current?.scrollTop || 0;

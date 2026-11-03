@@ -422,6 +422,8 @@ class Repository(private val context: Context, val api: Api, private val scope: 
 
     private fun endLocalSession(message: String?) {
         messageCache.clear()
+        // Widget "quem está online": nomes de amigos não ficam na tela inicial.
+        runCatching { com.projectclub.android.widget.OnlineWidget.onLoggedOut(context) }
         // Saiu da conta: nada dela fica salvo no aparelho (nem a fila de envio).
         _cachedSession.value = false
         roomSaveJobs.values.forEach { it.cancel() }

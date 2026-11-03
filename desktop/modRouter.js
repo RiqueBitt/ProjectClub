@@ -488,6 +488,6 @@ function scanEntries(game, manifest) {
 module.exports = {
   DISABLED_DIR, sanitizeModFolderName, listFilesRecursive, moveFile, isInside, pathSize,
   guessSteamAppId, gameContext, loadManifest, saveManifest, manifestPath,
-  planInstall, applyPlan, removeEntryFiles, setEntryEnabled,
+  planInstall, applyPlan, removeEntryFiles, setEntryEnabled, backupPathFor, stashPathFor,
   legacyTargetRoot, legacyRoots, findLegacy, scanEntries,
 };

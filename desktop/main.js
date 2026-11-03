@@ -4,7 +4,7 @@
 // ícone na bandeja do sistema, iniciar sozinho com o Windows, e continuar
 // rodando em segundo plano mesmo com a janela fechada — exatamente como
 // Discord/Slack fazem.
-const { app, BrowserWindow, Tray, Menu, shell, ipcMain, globalShortcut, nativeImage, session, desktopCapturer, screen, dialog } = require('electron');
+const { app, BrowserWindow, Tray, Menu, shell, ipcMain, globalShortcut, nativeImage, session, desktopCapturer, screen, dialog, Notification } = require('electron');
 const path = require('path');
 
 const { autoUpdater } = require('electron-updater');
@@ -219,6 +219,12 @@ let pendingDeepLinkRoute = parseDeepLink(findDeepLinkArg(process.argv));
 function openDeepLink(raw) {
   const route = parseDeepLink(raw);
   if (!route) { if (raw) console.warn('[link] projectclub:// inválido ignorado'); return; }
+  navigateToRoute(route);
+}
+// Mostra o app e abre uma página interna (rota já montada e confiável —
+// links projectclub:// validados acima ou rotas fixas do próprio app, como
+// o clique no aviso de "mods atualizados").
+function navigateToRoute(route) {
   if (!mainWindow || mainWindow.isDestroyed()) { pendingDeepLinkRoute = route; return; }
   // Sem servidor: guarda o destino pra quando voltar e mostra a tela de conexão.
   if (connectionGuard.isActive()) { pendingDeepLinkRoute = route; connectionGuard.show(); return; }
@@ -305,6 +311,10 @@ function applyThrottling() {
 // um jogo (não em qualquer app comum, nem sem nada aberto) — guardado
 // aqui pra showOverlayNotification poder checar isso na hora.
 let currentActivity = null;
+// Clipes (Fase 7): o gerenciador só é criado na primeira vez que algo usa
+// (ver clipsMgr dentro do bloco de IPC).
+let clipsInstance = null;
+let clipsMgr = () => null;
 
 // Item pedido: "Sistema... Geral... Iniciar com o sistema... Minimizar
 // para bandeja... Abrir links no aplicativo... Confirmar saída" e
@@ -976,6 +986,7 @@ if (!gotLock) {
     mainWindow.webContents.once('did-finish-load', () => {
       activityCallback = (activity) => {
         currentActivity = activity;
+        if (clipsInstance) clipsInstance.onActivity(activity); // Clipes no modo "Jogo"
         if (mainWindow && !mainWindow.isDestroyed()) {
           mainWindow.webContents.send('activity:detected', activity);
         }
@@ -1496,6 +1507,88 @@ if (!gotLock) {
     }
   });
 
+  // Atualização automática de mods (Fase 7) — ver modAutoUpdate.js. O
+  // site procura/baixa (tem a conta); aqui fica a configuração local e a
+  // pergunta "posso atualizar este jogo agora?" (nunca com o jogo aberto
+  // nem quando não dá pra saber). A instalação continua passando por
+  // mods:install / mods:install-thunderstore (com a versão anterior
+  // guardada até a nova ser conferida — modRollback.js).
+  const modAutoUpdate = lazy('./modAutoUpdate');
+  let autoUpdateStore = null;
+  const autoUpdateSettings = () => {
+    if (!autoUpdateStore) autoUpdateStore = modAutoUpdate().createSettingsStore(app.getPath('userData'));
+    return autoUpdateStore;
+  };
+  const autoUpdateLastRun = new Map(); // steamAppId -> ms da última rodada liberada
+  secureHandle('mods:auto-update-get', () => {
+    try { return { success: true, settings: autoUpdateSettings().get() }; } catch (err) { return { success: false, error: err.message }; }
+  });
+  secureHandle('mods:auto-update-set', (_event, patch) => {
+    try { return { success: true, settings: autoUpdateSettings().set(patch) }; } catch (err) { return { success: false, error: err.message }; }
+  });
+  secureHandle('mods:auto-update-check', async (_event, { gameInstallPath, steamAppId } = {}) => {
+    try {
+      const au = modAutoUpdate();
+      const installPath = typeof gameInstallPath === 'string' && path.isAbsolute(gameInstallPath) ? gameInstallPath : null;
+      const running = await au.checkGameRunning({ gameInstallPath: installPath, steamAppId }, {
+        currentActivity: () => currentActivity,
+        getRunningSteamAppId: (platform) => steamDetector().getRunningSteamAppId(platform),
+      });
+      const id = Number(steamAppId);
+      const verdict = au.decide({ settings: autoUpdateSettings().get(), steamAppId: id, running, lastRunAt: autoUpdateLastRun.get(id) });
+      if (verdict.ok) autoUpdateLastRun.set(id, Date.now());
+      return { success: true, ...verdict, running: !!running.running, known: !!running.known };
+    } catch (err) {
+      return { success: false, ok: false, reason: 'error', error: err.message };
+    }
+  });
+  // Aviso nativo no fim de uma rodada ("3 mods atualizados: ..."). Clicar
+  // abre o app na tela de Mods.
+  secureHandle('mods:auto-update-notify', (_event, summary) => {
+    try {
+      const text = modAutoUpdate().notificationText(summary);
+      if (!text || !Notification.isSupported()) return { shown: false };
+      const n = new Notification({ title: text.title, body: text.body, silent: true });
+      n.on('click', () => navigateToRoute('/jogos/mods'));
+      n.show();
+      return { shown: true };
+    } catch (err) {
+      return { shown: false, error: err.message };
+    }
+  });
+
+  // Clipes dos últimos 30 segundos (Fase 7, desligado por padrão) — ver
+  // clipsManager.js. Com a opção desligada nada é criado (sem janela
+  // escondida, sem atalho global). A configuração fica neste computador.
+  clipsMgr = () => {
+    if (!clipsInstance) {
+      clipsInstance = require('./clipsManager').createClipsManager({
+        app, BrowserWindow, session, desktopCapturer, globalShortcut, Notification, shell, ipcMain,
+        powerMonitor: (() => { try { return require('electron').powerMonitor; } catch { return null; } })(),
+        getActivity: () => currentActivity,
+        onState: (st) => {
+          // Indicador sempre visível enquanto grava: bandeja + app.
+          try { tray?.setToolTip(st.recording ? `Project Club — ● Clipes ativos (${st.settings.hotkey} salva os últimos 30 s)` : 'Project Club'); } catch { /* sem bandeja */ }
+          if (mainWindow && !mainWindow.isDestroyed()) mainWindow.webContents.send('clips:state', st);
+        },
+        onSaved: (info) => { if (mainWindow && !mainWindow.isDestroyed()) mainWindow.webContents.send('clips:saved', info); },
+      });
+    }
+    return clipsInstance;
+  };
+  secureHandle('clips:get-state', () => clipsMgr().getState());
+  secureHandle('clips:set-settings', (_e, patch) => clipsMgr().setSettings(patch && typeof patch === 'object' ? patch : {}));
+  secureHandle('clips:save-now', () => clipsMgr().save().catch((err) => ({ saved: false, reason: 'error', error: err.message })));
+  secureHandle('clips:open-folder', () => clipsMgr().openFolder().then(() => true).catch(() => false));
+  secureHandle('clips:list-displays', () => {
+    try {
+      const primary = screen.getPrimaryDisplay().id;
+      return screen.getAllDisplays().map((d, i) => ({
+        id: d.id, primary: d.id === primary, label: d.label || `Tela ${i + 1}`, size: `${d.size.width}×${d.size.height}`,
+      }));
+    } catch { return []; }
+  });
+
   // Item pedido: "Sistema... Iniciar com o sistema... Minimizar para
   // bandeja... Abrir links no aplicativo... Confirmar saída" e "Jogos e
   // apps... Detecção automática de jogos" — recebe o UserSettings de
@@ -1905,6 +1998,8 @@ if (!gotLock) {
     setDeepLinkHandler();
     createTray();
     setupAutoUpdater();
+    // Clipes: só liga de verdade se a pessoa tiver ativado (clips.json).
+    runAfterStartup(() => { try { clipsMgr()?.init(); } catch (err) { console.warn('[clipes] não iniciou:', err?.message || err); } });
 
     // Configura a inicialização automática só na PRIMEIRA execução — a
     // pessoa não precisa achar isso em nenhum menu escondido. Isso é só
@@ -1966,5 +2061,5 @@ if (!gotLock) {
   });
 
   app.on('before-quit', () => { isQuitting = true; });
-  app.on('will-quit', () => { screenAudio.stop(); globalPtt.stop(); globalShortcut.unregisterAll(); if (activityDetectionRunning) activityDetector().stopActivityDetection(); });
+  app.on('will-quit', () => { if (clipsInstance) clipsInstance.shutdown(); screenAudio.stop(); globalPtt.stop(); globalShortcut.unregisterAll(); if (activityDetectionRunning) activityDetector().stopActivityDetection(); });
 }
