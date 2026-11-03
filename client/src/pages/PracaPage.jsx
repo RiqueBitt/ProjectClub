@@ -75,7 +75,7 @@ export default function PracaPage() {
       if (!alive) return;
       setOnline(data.online || 0);
       setMedia(data.media || null);
-      if (data.media && data.media.state !== 'ready') {
+      if (data.preparing || (data.media && data.media.state !== 'ready')) {
         // O servidor ainda está baixando/extraindo os arquivos do jogo
         // (só acontece na primeira vez): espera, mostrando o progresso.
         setPhase('media');
@@ -86,7 +86,12 @@ export default function PracaPage() {
               const { data: st } = await api.get('/plaza/status');
               if (!alive) return;
               setMedia(st.media || null);
-              if (st.media?.state === 'ready') { setCfg(data); return; }
+              if (st.media?.state === 'ready') {
+                // agora sim a config completa (entry + ticket)
+                const { data: full } = await api.get('/plaza/config');
+                if (alive) setCfg(full);
+                return;
+              }
               if (st.media?.state === 'error') { setError(`Os arquivos do jogo não puderam ser preparados no servidor (${st.media.error || 'erro'}).`); setPhase('error'); return; }
             } catch { /* tenta de novo */ }
           }

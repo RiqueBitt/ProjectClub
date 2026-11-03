@@ -272,6 +272,12 @@ async function getEntry(w) {
 async function getConfig(user) {
   const w = await getWaddle();
   const { id, json } = await ensurePenguin(user);
+  const media = mediaState();
+  if (media.state !== 'ready') {
+    // Primeira inicialização: os arquivos do jogo ainda estão sendo baixados
+    // no servidor. Sem entry/ticket — a página espera e pede de novo.
+    return { preparing: true, media, penguin: { id, name: json.name, color: json.color, coins: json.coins, member: !!json.is_member }, online: w.world.getAllPlayersInfo().length };
+  }
   const entry = await getEntry(w);
   const s = w.settings;
   return {
@@ -286,7 +292,7 @@ async function getConfig(user) {
     ],
     penguin: { id, name: json.name, color: json.color, coins: json.coins, member: !!json.is_member },
     online: w.world.getAllPlayersInfo().length,
-    media: mediaState(),
+    media,
     ticket: issueTicket(user.id),
   };
 }
