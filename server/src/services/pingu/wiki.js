@@ -132,9 +132,13 @@ function slugify(text) {
 // ---------------- banco + cache ----------------
 
 let cache = null; // [{ slug, title, category, body, updatedAt, updatedBy }]
+// Sobe a cada recarga: o cache de respostas do Pingu usa isso pra saber
+// que a wiki mudou (e jogar fora respostas antigas).
+let version = 0;
 
 async function loadPages() {
   cache = await db().wikiPage.findMany({ orderBy: [{ category: 'asc' }, { title: 'asc' }] });
+  version += 1;
   return cache;
 }
 
@@ -215,12 +219,23 @@ async function ensureSeed() {
       await db().wikiPage.create({ data: { slug: p.slug, title: p.title, category: p.category, body: p.body.trim() } }).catch(() => {});
     }
     console.log(`[wiki] ${WIKI_SEED.length} páginas iniciais criadas`);
+  } else {
+    // Pingu Turbo: a página /wiki/pingu da semente antiga dizia que ele não
+    // cria imagens nem lê DM. Só atualiza se ninguém da equipe mexeu nela
+    // (texto idêntico ao da semente antiga).
+    const { WIKI_PINGU_OLD_BODY, WIKI_SEED } = require('../../data/wikiSeed');
+    const fresh = WIKI_SEED.find((p) => p.slug === 'pingu');
+    const page = await db().wikiPage.findUnique({ where: { slug: 'pingu' } }).catch(() => null);
+    if (page && fresh && WIKI_PINGU_OLD_BODY && page.body.trim() === WIKI_PINGU_OLD_BODY.trim()) {
+      await db().wikiPage.update({ where: { slug: 'pingu' }, data: { body: fresh.body.trim() } }).catch(() => {});
+      console.log('[wiki] página /wiki/pingu atualizada pros comandos novos');
+    }
   }
   await loadPages();
 }
 
 module.exports = {
-  listPages, getPage, createPage, updatePage, deletePage, ensureSeed, loadPages, cachedPages,
+  listPages, getPage, createPage, updatePage, deletePage, ensureSeed, loadPages, cachedPages, version: () => version,
   buildWikiContext, scoreSections, splitSections, excerpt, searchPages, slugify, MAX_EXCERPT,
-  _test: { setCache: (pages) => { cache = pages; } },
+  _test: { setCache: (pages) => { cache = pages; version += 1; } },
 };

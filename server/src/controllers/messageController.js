@@ -767,6 +767,8 @@ async function createMessageInner(req, res) {
     if (access?.channel) {
       require('../services/pinguBot').onChannelMessage(io, { message, channel: access.channel, mentionRows, threadRoot });
     }
+    // Pingu na DM (Pingu Turbo): só faz algo se for a DM 1:1 com ele.
+    if (conversationId) require('../services/pinguBot').onDirectMessage(io, { message, conversationId });
     // Resposta no tópico: contador/prévia na raiz + aviso pra quem participa.
     if (threadRoot) {
       threadsService.afterThreadReply(io, { root: threadRoot, message, channel: access?.channel }).catch((err) => {
@@ -1196,6 +1198,8 @@ async function deleteMessage(req, res, next) {
     await prisma.message.update({ where: { id }, data: { deleted: true, content: null } });
     const io = req.app.get('io');
     io?.to(roomFor(existing)).emit('message:delete', { id, conversationId: existing.conversationId, channelId: existing.channelId, threadId: existing.threadId || null });
+    // Pedido ao Pingu apagado (ou a resposta dele sendo escrita): cancela a geração.
+    require('../services/pinguBot').onMessageDeleted(id);
     // Resposta de tópico apagada: desconta do contador da raiz.
     if (existing.threadId) {
       prisma.message.updateMany({ where: { id: existing.threadId, threadReplyCount: { gt: 0 } }, data: { threadReplyCount: { decrement: 1 } } })
