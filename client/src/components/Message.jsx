@@ -38,6 +38,7 @@ import { cssZoom } from '../utils/cssZoom';
 import { registerEditor, getRetry, getCancel } from '../utils/chatComposerBus';
 import { discardOptimistic } from '../utils/messageSender';
 import { EditedTag, ForwardedLabel, ForwardMessageModal, LinkPreview } from './MessageExtras.jsx';
+import { EphemeralMark } from './EphemeralToggle.jsx';
 import ReminderModal from './modals/ReminderModal.jsx';
 import CreateThreadModal from './modals/CreateThreadModal.jsx';
 import { SystemMessageRow, ThreadStarterRow, ThreadCard } from './ChatFeatureBits.jsx';
@@ -448,7 +449,7 @@ function MessageBody({ message, showAuthor, onReply, topics = [], onOpenTopic, i
         </button>
       )}
       {!showAuthor && (
-        <span className="message-gutter-time" title={formatEmbedTime(message.createdAt)}>{formatTimeOnly(message.createdAt)}</span>
+        <span className="message-gutter-time" title={formatEmbedTime(message.createdAt)}>{formatTimeOnly(message.createdAt)}{message.expiresAt && <EphemeralMark expiresAt={message.expiresAt} />}</span>
       )}
       {showAuthor && (
         <div className="avatar clickable" onClick={(e) => useStore.getState().openMiniProfile(message.authorId, e.currentTarget.getBoundingClientRect())}>
@@ -476,6 +477,7 @@ function MessageBody({ message, showAuthor, onReply, topics = [], onOpenTopic, i
             <TagBadge user={message.author} />
             <ClanTagBadge user={message.author} />
             <span className="message-time" title={formatTime(message.createdAt)}>{formatTimeOnly(message.createdAt)}</span>
+            {message.expiresAt && <EphemeralMark expiresAt={message.expiresAt} />}
             {message.pinned && <span className="pin-badge"><img className="ui-icon-sm" src={pinIcon} alt="" /> fixada</span>}
             {message.pending && <span className="pending-badge">enviando…</span>}
             {message.queued && !message.failed && <span className="pending-badge queued-badge">na fila</span>}

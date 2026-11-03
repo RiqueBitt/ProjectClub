@@ -41,12 +41,15 @@ async function createPoll(req, res, next) {
     if (!hours) return res.status(400).json({ error: 'Duração inválida.' });
 
     const io = req.app.get('io');
+    // Mensagens temporárias (Fase 5): enquete numa DM com o modo ligado também some.
+    const expiresAt = conversationId ? await require('../services/ephemeralMessages').expiryForConversation(conversationId) : null;
     const message = await prisma.message.create({
       data: {
         title: cleanQuestion,
         authorId: req.user.id,
         conversationId: conversationId || null,
         channelId: channelId || null,
+        ...(expiresAt ? { expiresAt } : {}),
         poll: {
           create: {
             question: cleanQuestion,

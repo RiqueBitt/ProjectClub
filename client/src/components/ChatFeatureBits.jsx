@@ -22,6 +22,7 @@ const ICONS = {
   bookmark: <path d="M6 4h12v17l-6-4-6 4z" />,
   lock: <><rect x="4" y="11" width="16" height="10" rx="2" /><path d="M8 11V7a4 4 0 0 1 8 0v4" /></>,
   reply: <><path d="M9 17 4 12l5-5" /><path d="M20 18v-2a4 4 0 0 0-4-4H4" /></>,
+  clock: <><circle cx="12" cy="12" r="9" /><path d="M12 7v5l3 2" /></>,
 };
 
 export function FeatureIcon({ name, size = 18, className = '' }) {
@@ -39,8 +40,10 @@ function openPins() {
   window.dispatchEvent(new CustomEvent('pc:open-pins'));
 }
 
-// Aviso do sistema (hoje: só "fixou uma mensagem").
+// Aviso do sistema: "fixou uma mensagem" e (Fase 5) "ativou/desativou as
+// mensagens temporárias".
 export function SystemMessageRow({ message, system }) {
+  if (system.system === 'ephemeral') return <EphemeralSystemRow message={message} system={system} />;
   if (system.system !== 'pin') return null;
   const goTo = () => {
     if (!system.targetId) return;
@@ -56,6 +59,23 @@ export function SystemMessageRow({ message, system }) {
         <b>{message.author?.displayName || 'Alguém'}</b> fixou{' '}
         <button type="button" className="chat-system-link" onClick={goTo}>uma mensagem</button>{' '}
         neste canal. <button type="button" className="chat-system-link" onClick={openPins}>Ver todas as fixadas</button>.
+      </span>
+      <time className="chat-system-time" dateTime={message.createdAt}>{formatMessageTime(message.createdAt)}</time>
+    </div>
+  );
+}
+
+const EPHEMERAL_LABEL = { 86400: '24 horas', 604800: '7 dias' };
+function EphemeralSystemRow({ message, system }) {
+  const label = EPHEMERAL_LABEL[system.seconds];
+  return (
+    <div className="message chat-system-row" data-message-id={message.id} role="note">
+      <span className="chat-system-icon"><FeatureIcon name="clock" size={16} /></span>
+      <span className="chat-system-text">
+        <b>{message.author?.displayName || 'Alguém'}</b>{' '}
+        {label
+          ? <>ativou as mensagens temporárias: mensagens novas somem depois de <b>{label}</b>.</>
+          : <>desativou as mensagens temporárias.</>}
       </span>
       <time className="chat-system-time" dateTime={message.createdAt}>{formatMessageTime(message.createdAt)}</time>
     </div>

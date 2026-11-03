@@ -145,6 +145,8 @@ export const createConversation = (userIds, name) => api.post('/conversations', 
 export const markConversationRead = (id) => api.post(`/conversations/${id}/read`).then((r) => r.data);
 export const addConversationMember = (id, userId) => api.post(`/conversations/${id}/members`, { userId }).then((r) => r.data);
 export const renameConversation = (id, name) => api.patch(`/conversations/${id}`, { name }).then((r) => r.data);
+// Mensagens temporárias (Fase 5): mode = 'off' | '24h' | '7d'.
+export const setConversationEphemeral = (id, mode) => api.patch(`/conversations/${encodeURIComponent(id)}/ephemeral`, { mode }).then((r) => r.data);
 export const uploadConversationIcon = (id, file) => {
   const fd = new FormData(); fd.append('icon', file);
   return api.post(`/conversations/${id}/icon`, fd).then((r) => r.data);
