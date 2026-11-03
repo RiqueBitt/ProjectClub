@@ -9,6 +9,13 @@
 // o medidor lê o sinal ANTES do portão (dá pra reabrir quando você volta a
 // falar) e DEPOIS do RNNoise (o ruído não abre o portão).
 //
+// PORTÃO RÁPIDO (revisão voz-turbo): com a sensibilidade de entrada ligada,
+// a decisão de ABRIR fica num AudioWorklet (public/voice/voice-gate-worklet.js)
+// que mede o nível a cada 2,7ms na thread de áudio — a 1ª sílaba não é mais
+// comida (antes dependia de um setInterval de 40ms, limitado a 1x/s com a
+// aba em segundo plano). Grafo: ... ganho ─► [portão rápido] ─► PORTÃO ─► envio.
+// O worklet não carregou → segue exatamente como antes (só o GainNode).
+//
 // À PROVA DE FALHAS: se o AudioContext não roda (sem gesto do usuário,
 // Safari/iOS suspendeu por interrupção — ligação, outro app de áudio — ou
 // travou), o pipeline entra em modo "direto" (bypass): manda uma cópia da
@@ -24,6 +31,22 @@ import { rmsToDb } from './micGate.js';
 const GATE_OPEN_RAMP_S = 0.008;
 const GATE_CLOSE_RAMP_S = 0.03;
 const RESUME_GRACE_MS = 1500;   // contexto suspenso por mais que isso → modo direto
+const FAST_GATE_URL = '/voice/voice-gate-worklet.js';
+const fastGateContexts = new WeakSet();
+
+// Portão rápido no AudioWorklet (null se o navegador não tem / falhou).
+async function createFastGate(ctx, log) {
+  if (!ctx || !ctx.audioWorklet || typeof window === 'undefined' || typeof window.AudioWorkletNode !== 'function') return null;
+  try {
+    if (!fastGateContexts.has(ctx)) { await ctx.audioWorklet.addModule(FAST_GATE_URL); fastGateContexts.add(ctx); }
+    return new window.AudioWorkletNode(ctx, 'voice-gate-processor', {
+      numberOfInputs: 1, numberOfOutputs: 1, channelCount: 1, channelCountMode: 'explicit', outputChannelCount: [1],
+    });
+  } catch (err) {
+    try { log.warn?.('[voz] portão rápido indisponível, usando o portão de antes:', err?.message || err); } catch { /* ok */ }
+    return null;
+  }
+}
 
 function audioContextClass() {
   if (typeof window === 'undefined') return null;
@@ -35,10 +58,13 @@ function audioContextClass() {
 // `noiseModel`: 'rnnoise' (padrão) | 'dfn3' (alta qualidade, atrás de flag —
 // voice/noiseModels.js). DeepFilterNet3 que falha ao carregar ou deixa a CPU
 // no limite volta pro RNNoise sozinho (`onNoiseFallback(reason)`).
-export async function createMicPipeline(rawTrack, { noise = false, noiseModel = NOISE_MODELS.RNNOISE, dfnBaseUrl = undefined, onNoiseFallback = null, onBypass = null, onRestore = null, onVad = null, log = console } = {}) {
+export async function createMicPipeline(rawTrack, { noise = false, noiseModel = NOISE_MODELS.RNNOISE, dfnBaseUrl = undefined, onNoiseFallback = null, onBypass = null, onRestore = null, onVad = null, fastGate: wantFastGate = true, log = console } = {}) {
   const Ctx = audioContextClass();
   let ctx = null;
   let source = null; let noiseNode = null; let inputGain = null; let gateGain = null; let analyser = null; let dest = null;
+  let fastGate = null;             // AudioWorkletNode do portão rápido (ou null)
+  let fastCfg = { mode: 'bypass', thresholdDb: null, holdMs: null, mainOpen: true };
+  let fastOpen = true;             // último estado avisado pelo worklet
   let processed = null;            // faixa de saída do grafo
   let direct = null;               // cópia da faixa crua (modo direto)
   let mode = 'direct';
@@ -130,7 +156,14 @@ export async function createMicPipeline(rawTrack, { noise = false, noiseModel = 
       analyser.fftSize = 1024;
       buf = new Float32Array(analyser.fftSize);
       dest = ctx.createMediaStreamDestination();
-      inputGain.connect(gateGain);
+      if (wantFastGate) fastGate = await createFastGate(ctx, log);
+      if (fastGate) {
+        fastGate.port.onmessage = (e) => { if (e?.data?.type === 'state') fastOpen = !!e.data.open; };
+        inputGain.connect(fastGate);
+        fastGate.connect(gateGain);
+      } else {
+        inputGain.connect(gateGain);
+      }
       inputGain.connect(analyser);
       gateGain.connect(dest);
       if (noiseWanted && ctx.sampleRate === NOISE_SAMPLE_RATE) noiseNode = await makeNoiseNode();
@@ -165,20 +198,52 @@ export async function createMicPipeline(rawTrack, { noise = false, noiseModel = 
     // Modelo do redutor rodando agora: 'rnnoise' | 'dfn3' | null.
     get noiseModel() { return modelOf(noiseNode); },
     get gateOpen() { return gateOpen; },
+    // O portão rápido (worklet) está decidindo agora?
+    get fastGateActive() { return !!fastGate && fastCfg.mode === 'auto' && mode === 'graph'; },
+    get fastGateLoaded() { return !!fastGate; },
     // Portão: rampa curta no grafo; enabled no modo direto.
-    setGate(open) {
+    // `level` ({ thresholdDb, holdMs } | null): sensibilidade de entrada
+    // ativa → quem ABRE é o portão rápido (worklet) e o GainNode fica aberto;
+    // `open` (decisão da thread principal: piso automático, VAD) continua
+    // segurando aberto. Sem `level` (apertar-pra-falar, portão manual, sem
+    // sensibilidade) → o GainNode decide, como sempre foi.
+    setGate(open, level = null) {
       gateOpen = !!open;
+      const auto = !!(fastGate && level && Number.isFinite(level.thresholdDb));
+      if (fastGate) {
+        const next = auto
+          ? { mode: 'auto', thresholdDb: level.thresholdDb, holdMs: Number.isFinite(level.holdMs) ? level.holdMs : 300, mainOpen: gateOpen }
+          : { mode: 'bypass', thresholdDb: fastCfg.thresholdDb, holdMs: fastCfg.holdMs, mainOpen: true };
+        // Só manda quando muda de verdade (o limite automático anda aos
+        // pouquinhos — diferença < 0,5 dB não vale uma mensagem).
+        const changed = next.mode !== fastCfg.mode || next.mainOpen !== fastCfg.mainOpen || next.holdMs !== fastCfg.holdMs
+          || (next.mode === 'auto' && !(Math.abs((next.thresholdDb ?? 0) - (fastCfg.thresholdDb ?? 0)) < 0.5));
+        if (changed) {
+          fastCfg = next;
+          if (next.mode !== 'auto') fastOpen = true;
+          try { fastGate.port.postMessage({ type: 'config', ...next }); } catch { /* ok */ }
+        }
+      }
+      const gainOpen = auto ? true : gateOpen;
       if (gateGain && ctx) {
-        try {
-          const t = ctx.currentTime;
-          gateGain.gain.cancelScheduledValues(t);
-          gateGain.gain.setValueAtTime(gateGain.gain.value, t);
-          gateGain.gain.linearRampToValueAtTime(gateOpen ? 1 : 0, t + (gateOpen ? GATE_OPEN_RAMP_S : GATE_CLOSE_RAMP_S));
-        } catch { try { gateGain.gain.value = gateOpen ? 1 : 0; } catch { /* ok */ } }
+        const target = gainOpen ? 1 : 0;
+        // Sem reagendar rampa à toa (setGate é chamado a cada tique no modo auto).
+        if (!(gateGain._pcTarget === target && Math.abs(gateGain.gain.value - target) < 1e-3)) {
+          try {
+            const t = ctx.currentTime;
+            gateGain.gain.cancelScheduledValues(t);
+            gateGain.gain.setValueAtTime(gateGain.gain.value, t);
+            gateGain.gain.linearRampToValueAtTime(target, t + (gainOpen ? GATE_OPEN_RAMP_S : GATE_CLOSE_RAMP_S));
+          } catch { try { gateGain.gain.value = target; } catch { /* ok */ } }
+          gateGain._pcTarget = target;
+        }
       }
       if (direct && mode === 'direct') direct.enabled = gateOpen;
     },
-    gateValue() { return gateGain ? gateGain.gain.value : (gateOpen ? 1 : 0); },
+    gateValue() {
+      const g = gateGain ? gateGain.gain.value : (gateOpen ? 1 : 0);
+      return fastGate && fastCfg.mode === 'auto' && mode === 'graph' ? g * (fastOpen ? 1 : 0) : g;
+    },
     setInputGain(g) {
       const v = Math.max(0, Math.min(4, Number(g) || 0));
       if (inputGain) { try { inputGain.gain.value = v; } catch { /* ok */ } }
@@ -223,7 +288,8 @@ export async function createMicPipeline(rawTrack, { noise = false, noiseModel = 
       try { if (ctx) ctx.onstatechange = null; } catch { /* ok */ }
       try { processed?.stop(); } catch { /* ok */ }
       try { direct?.stop(); } catch { /* ok */ }
-      try { source?.disconnect(); noiseNode?.node.disconnect(); inputGain?.disconnect(); gateGain?.disconnect(); } catch { /* ok */ }
+      try { source?.disconnect(); noiseNode?.node.disconnect(); inputGain?.disconnect(); fastGate?.disconnect(); gateGain?.disconnect(); } catch { /* ok */ }
+      try { if (fastGate) { fastGate.port.onmessage = null; fastGate.port.close?.(); } } catch { /* ok */ }
       try { ctx?.close(); } catch { /* ok */ }
       try { rawTrack?.stop(); } catch { /* ok */ }
     },
