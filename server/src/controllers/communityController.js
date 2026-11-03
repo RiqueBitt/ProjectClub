@@ -26,6 +26,8 @@ async function loadCommunityShared() {
     prisma.channel.findMany({ where: { categoryId: null }, orderBy: { position: 'asc' } }),
     prisma.role.findMany({ orderBy: { position: 'desc' } }),
     prisma.user.findMany({
+      // Contas de webhook (apps) não aparecem na lista de membros.
+      where: { NOT: { email: { endsWith: '@webhook.projectclub.local' } } },
       select: {
         id: true, publicId: true, username: true, displayName: true, avatarUrl: true, avatarDecoration: true,
         status: true, customStatus: true, customStatusEmoji: true, profileColor: true,

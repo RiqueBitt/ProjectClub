@@ -75,6 +75,7 @@ import { StaffHealthTab, StaffUserSearchTab } from '../components/admin/StaffToo
 import StaffOpsPanel from '../components/admin/StaffOpsPanel.jsx';
 import VoiceServerAdmin from '../components/admin/VoiceServerAdmin.jsx';
 import PinguAdmin from '../components/admin/PinguAdmin.jsx';
+import IntegrationsAdmin from '../components/admin/IntegrationsAdmin.jsx';
 import { CardsAdminCards, CardsAdminPacks, CardsAdminSettings, CardsAdminPlayers, CardsAdminTrades, CardsAdminMatches, CardsAdminStats, CardsAdminCampaign, CardsAdminTournaments, CardsAdminBoards } from '../cards/CardsAdmin.jsx';
 
 // ============================================================
@@ -147,6 +148,7 @@ const TABS = {
   workshopGames: { label: 'Steam Workshop', desc: 'Jogos ligados ao Steam Workshop.' },
   gamebananaGames: { label: 'GameBanana', desc: 'Jogos ligados ao GameBanana.' },
   sistema: { label: 'Sistemas', desc: 'Ligue ou desligue economia, ranks e outros sistemas.' },
+  integracoes: { label: 'Integrações', desc: 'YouTube → Novidades, status do servidor de Minecraft e webhooks de canais.' },
   pingu: { label: 'Pingu (IA)', desc: 'Perfil do assistente de IA (nome, foto, capa, bio e cores) e o que ele sabe sobre o Project Club.' },
   servidorVoz: { label: 'Servidor de voz', desc: 'Servidor de mídia próprio das chamadas: status e chaves (URL, segredo e TURN).' },
   maintenance: { label: 'Manutenção', desc: 'Coloca a plataforma "em reforma" para todos, menos a equipe.' },
@@ -188,7 +190,7 @@ const TAB_GROUPS = [
   { label: 'Economia', icon: 'economy', tabs: ['economia', 'decoracoes', 'apoio', 'metaDoacao', 'casas', 'album'] },
   { label: 'Guerra das Cartas', icon: 'cards', tabs: ['cartasEstatisticas', 'cartasCartas', 'cartasPacotes', 'cartasCampanha', 'cartasTorneios', 'cartasFundos', 'cartasRegras', 'cartasJogadores', 'cartasTrocas', 'cartasPartidas'] },
   { label: 'Mods', icon: 'mods', tabs: ['modGames', 'workshopGames', 'gamebananaGames'] },
-  { label: 'Sistema', icon: 'system', tabs: ['numeros', 'painelSaude', 'saude', 'servidorVoz', 'sistema', 'maintenance', 'reload'] },
+  { label: 'Sistema', icon: 'system', tabs: ['numeros', 'painelSaude', 'saude', 'servidorVoz', 'integracoes', 'sistema', 'maintenance', 'reload'] },
 ].map((g) => ({ ...g, tabs: g.tabs.filter((t) => !HIDDEN_TABS.has(t)) })).filter((g) => g.tabs.length > 0);
 
 const groupOf = (tab) => TAB_GROUPS.find((g) => g.tabs.includes(tab));
@@ -361,6 +363,7 @@ export default function AdminPanel() {
           {tab === 'painelSaude' && <StaffOpsPanel />}
           {tab === 'servidorVoz' && <VoiceServerAdmin />}
           {tab === 'pingu' && <PinguAdmin />}
+          {tab === 'integracoes' && <IntegrationsAdmin />}
           {tab === 'busca' && <StaffUserSearchTab />}
           {tab === 'cartasCartas' && <CardsAdminCards />}
           {tab === 'cartasPacotes' && <CardsAdminPacks />}
