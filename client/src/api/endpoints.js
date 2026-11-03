@@ -332,6 +332,10 @@ export const deleteCategoryOverwrite = (id, overwriteId) => api.delete(`/communi
 
 // --- Canais ---
 export const createChannel = (payload) => api.post('/community/channels', payload).then((r) => r.data);
+// Salas de voz temporárias (qualquer membro; somem quando ficam vazias).
+export const createTempVoiceRoom = (payload = {}) => api.post('/community/channels/temp-voice', payload).then((r) => r.data);
+export const updateTempVoiceRoom = (id, payload) => api.patch(`/community/channels/temp-voice/${encodeURIComponent(id)}`, payload).then((r) => r.data);
+export const closeTempVoiceRoom = (id) => api.delete(`/community/channels/temp-voice/${encodeURIComponent(id)}`).then((r) => r.data);
 export const updateChannel = (id, payload) => api.patch(`/community/channels/${id}`, payload).then((r) => r.data);
 export const reorderChannels = (order) => api.post('/community/channels/reorder', { order }).then((r) => r.data);
 export const deleteChannel = (id) => api.delete(`/community/channels/${id}`).then((r) => r.data);

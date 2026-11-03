@@ -33,6 +33,7 @@ import { proxyImage } from '../utils/imageProxy';
 import { usePopoverCoordination } from '../utils/popoverCoordinator';
 import ListSkeleton from './ListSkeleton.jsx';
 import { channelPath, absoluteUrl, useRouteRoom } from '../utils/prettyLinks';
+import { TempVoiceCreateButton } from './voice/TempVoiceRoom.jsx';
 
 // Modais de staff/edição: cada um vira um pacote próprio, baixado só
 // quando é aberto (quase ninguém abre — não precisa estar no pacote inicial).
@@ -391,6 +392,9 @@ export default function ChannelSidebar({
                 })()}
                 <svg className="category-chevron" width="12" height="12" viewBox="0 0 24 24" aria-hidden="true"><path d="m6 9 6 6 6-6" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" /></svg>
               </button>
+              {(cat.channels || []).some((c) => c.type === 'VOICE' && !c.isPrivate) && (
+                <span className="category-actions category-actions-temp"><TempVoiceCreateButton categoryId={cat.id} /></span>
+              )}
               {canManage && (
                 <span className="category-actions">
                   <button className="icon-btn-small" title="Criar canal nesta categoria" aria-label={`Criar canal em ${cat.name}`} onClick={() => setChannelModal({ open: true, categoryId: cat.id })}><img className="ui-icon-sm" src={plusIcon} alt="" /></button>

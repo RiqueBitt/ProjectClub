@@ -357,6 +357,8 @@ function startVoiceMinutesTicker(io) {
         }
       }
       for (const uid of counted) track(uid, 'VOICE_MINUTES', 1, io);
+      // XP e moedas por tempo em call (mesma lista: só quem está de verdade).
+      require('./voiceRewards').tick(counted, io).catch((e) => console.error('[voz-xp]', e?.message || e));
     } catch (err) {
       console.error('[missões] contagem de minutos em call falhou:', err?.message || err);
     }

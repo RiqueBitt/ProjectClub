@@ -45,6 +45,23 @@ router.post('/categories/:id/overwrites', categoryCtrl.setCategoryOverwrite);
 router.delete('/categories/:id/overwrites/:overwriteId', categoryCtrl.deleteCategoryOverwrite);
 
 // --- Canais ---
+// Salas de voz temporárias (qualquer membro; ver services/tempVoice.js).
+// Antes de /channels/:id pra "temp-voice" não virar um id.
+const tempVoice = require('../services/tempVoice');
+const tempVoiceLimiter = require('express-rate-limit')({ windowMs: 60_000, limit: 6, standardHeaders: true, legacyHeaders: false, message: { error: 'Muitas salas criadas seguidas. Espere um pouco.' } });
+router.post('/channels/temp-voice', tempVoiceLimiter, async (req, res, next) => {
+  try {
+    const user = await require('../config/prisma').user.findUnique({ where: { id: req.user.id }, select: { id: true, displayName: true, username: true } });
+    const r = await tempVoice.createRoom(user, req.body || {}, { io: req.app.get('io') });
+    res.status(r.existed ? 200 : 201).json(r);
+  } catch (err) { if (err.status) return res.status(err.status).json({ error: err.message }); next(err); }
+});
+router.patch('/channels/temp-voice/:id', async (req, res, next) => {
+  try { res.json({ channel: await tempVoice.updateRoom(req.user, req.params.id, req.body || {}, { io: req.app.get('io') }) }); } catch (err) { if (err.status) return res.status(err.status).json({ error: err.message }); next(err); }
+});
+router.delete('/channels/temp-voice/:id', async (req, res, next) => {
+  try { await tempVoice.closeRoom(req.user, req.params.id, { io: req.app.get('io') }); res.json({ ok: true }); } catch (err) { if (err.status) return res.status(err.status).json({ error: err.message }); next(err); }
+});
 router.post('/channels', channelCtrl.createChannel);
 router.patch('/channels/:id', channelCtrl.updateChannel);
 router.post('/channels/:id/icon', uploadImage.single('icon'), channelCtrl.uploadChannelIcon);

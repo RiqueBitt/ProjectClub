@@ -409,6 +409,9 @@ function createApp() {
   app.use('/api/mobile', require('./routes/mobile'));
   app.use('/api/push', pushRoutes);
   app.use('/api/voice', voiceRoutes);
+  app.use('/api/soundboard', require('./routes/soundboard'));
+  app.use('/api/radio', require('./routes/radio'));
+  app.use('/api/focus', require('./routes/focus'));
   // Sem requireAuth de propósito — <img src="..."> do navegador nunca
   // manda o cabeçalho Authorization (só fetch/axios conseguem fazer
   // isso), então colocar autenticação aqui quebraria TODA imagem do

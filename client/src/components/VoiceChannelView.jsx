@@ -17,6 +17,10 @@ import { getVoicePref, setVoicePref, onVoicePrefsChange } from '../utils/voicePr
 import { useContextMenu } from '../context/ContextMenuContext.jsx';
 import { buildVoiceModerationItems } from './voice/voiceModerationMenu';
 import { useVideoViewport } from '../voice/useVideoViewport';
+import { TempVoiceRoomBar } from './voice/TempVoiceRoom.jsx';
+import { SoundboardButton } from './voice/Soundboard.jsx';
+import { FocusButton } from './voice/FocusRoom.jsx';
+import { RadioChip, RadioSettings } from './voice/RadioSettings.jsx';
 
 // ============================================================
 // Canal de voz — visual refeito.
@@ -78,6 +82,7 @@ function CallHeader({ channel, count, isStage, children }) {
       <span className="vc-chip"><span className="vc-live" /> Ao vivo</span>
       <span className="vc-chip"><Icon name="people" size={15} /> {count}</span>
       {elapsed && <span className="vc-chip vc-mono">{elapsed}</span>}
+      {channel.tempOwnerId && <span className="vc-chip" title="Some sozinha 1 minuto depois de ficar vazia">Temporária</span>}
       {children}
     </header>
   );
@@ -123,6 +128,13 @@ export default function VoiceChannelView({ channel }) {
           <span className="vc-lobby-icon">{hasCustomIcon(channel) ? <CustomIcon item={channel} className="vc-lobby-custom-icon" /> : <Icon name={isStage ? 'stage' : 'speaker'} size={30} />}</span>
           <h2>{channel.name}</h2>
           {channel.topic && <p className="vc-lobby-topic">{channel.topic}</p>}
+          <TempVoiceRoomBar channel={channel} myUserId={user?.id} />
+          {!isStage && !channel.tempOwnerId && (
+            <div className="tvr-bar">
+              <RadioChip channelId={channel.id} />
+              {(user?.platformRole === 'ADMIN' || hasPermission(getMyCommunityPermissions(roles, members, user?.id, user?.platformRole), 'MANAGE_CHANNELS')) && <RadioSettings channelId={channel.id} />}
+            </div>
+          )}
 
           {roster.length > 0 ? (
             <div className="vc-lobby-people">
@@ -499,6 +511,8 @@ function VoiceCallControls({ voice, micLocked, onActivity }) {
         {/* Transmitindo: troca 720p/1080p e 15/30/60 FPS sem parar. */}
         {screenOn && <ScreenQualityMenu voice={voice} className="vc-sqm" />}
         {!micLocked && <ReactionBar voice={voice} />}
+        {!micLocked && voice?.call?.channelId && <SoundboardButton channelId={voice.call.channelId} />}
+        {voice?.call?.channelId && <FocusButton channelId={voice.call.channelId} />}
         {onActivity && <ActivitiesButton onPick={onActivity} />}
         {!micLocked && <RecordButton voice={voice} />}
         <span className="vc-dock-sep" aria-hidden="true" />

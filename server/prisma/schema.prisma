@@ -1196,6 +1196,9 @@ model Channel {
   // Link bonito (/canal/chat-geral) — ver services/slugs.js. Sem @unique de
   // propósito (unique novo trava o prisma db push); a unicidade é no código.
   slug            String?   @db.VarChar(100)
+  // Sala de voz temporária (services/tempVoice.js): quem criou. Some sozinha
+  // quando fica vazia. null = canal normal.
+  tempOwnerId     String?
 
   messages   Message[]
   readStates ChannelReadState[]
@@ -4020,4 +4023,29 @@ model PersonalSticker {
   createdAt DateTime @default(now())
 
   @@index([ownerId])
+}
+
+// Rádio do Project Club: um canal de voz que toca uma lista de músicas em
+// loop, sincronizada pra todo mundo da sala (usa o "Assistir juntos" no modo
+// música — ver sockets/ytWatch.js e services/radio.js). Só a equipe controla.
+model RadioStation {
+  channelId String   @id
+  enabled   Boolean  @default(true)
+  shuffle   Boolean  @default(true)
+  // JSON: [{ videoId, title }]
+  playlist  String   @db.Text
+  updatedBy String?
+  updatedAt DateTime @updatedAt
+}
+
+// Sala de estudos (Pomodoro na call): minutos de foco por pessoa por dia
+// (dia de Brasília, "AAAA-MM-DD"). Ranking de foco = soma do período.
+model FocusDay {
+  userId  String
+  day     String   @db.VarChar(10)
+  minutes Int      @default(0)
+  updatedAt DateTime @updatedAt
+
+  @@id([userId, day])
+  @@index([day])
 }

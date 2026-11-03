@@ -12,6 +12,7 @@ const { redis } = require('../config/redis');
 const voiceStore = require('../services/voiceRoomStore');
 const { getEffectivePermissions } = require('../services/authz');
 const { has } = require('../services/permissions');
+const radio = require('../services/radio');
 
 const KEY = (roomId) => `voice:yt:${roomId}`;
 const TTL_SEC = 12 * 60 * 60;
@@ -93,6 +94,8 @@ function register(io, socket, userId) {
         if (!acc) { deny(roomId, 'Você precisa estar na chamada.'); return; }
         if (needControl && !acc.canControl) { deny(roomId, 'Você não tem permissão para controlar o vídeo.'); return; }
         const st = await getState(roomId);
+        // Rádio: quem ouve não mexe na música (só quem gerencia o canal).
+        if (st?.radio && needControl && !acc.canManage) { deny(roomId, 'Na rádio só a equipe controla a música.'); return; }
         // Sala esvaziou e o estado sobrou: descarta.
         const result = await fn({ roomId, st, payload, acc });
         if (result === undefined) return; // nada mudou
@@ -155,7 +158,12 @@ function register(io, socket, userId) {
   on('yt:next', async ({ st, payload }) => {
     if (!st) return undefined;
     if (payload.fromVideoId && payload.fromVideoId !== st.videoId) return undefined;
-    const [next, ...rest] = st.queue || [];
+    let [next, ...rest] = st.queue || [];
+    // Rádio: acabou a volta → começa outra (loop).
+    if (!next && st.radio) {
+      const station = await radio.getStation(payload.channelId);
+      if (station?.enabled) [next, ...rest] = radio.nextRound(station, { avoidFirst: st.videoId });
+    }
     if (!next) return payload.fromVideoId ? { ...st, playing: false, positionSec: currentPos(st), updatedAt: Date.now() } : null;
     return { ...st, videoId: next.videoId, title: next.title || null, playing: true, positionSec: 0, updatedAt: Date.now(), startedBy: next.addedBy || userId, queue: rest };
   });
@@ -168,6 +176,23 @@ function register(io, socket, userId) {
     }
     return null;
   });
+}
+
+// Alguém entrou num canal de voz: se o canal é uma rádio e nada está
+// tocando, começa a programação (pra todo mundo da sala).
+async function ensureRadio(io, roomId) {
+  if (!isCommunityChannelId(roomId)) return false;
+  const station = await radio.getStation(roomId);
+  if (!station?.enabled) return false;
+  if (await getState(roomId)) return false;
+  const [first, ...rest] = radio.nextRound(station);
+  if (!first) return false;
+  const state = { videoId: first.videoId, title: first.title, playing: true, positionSec: 0, updatedAt: Date.now(), hostId: null, startedBy: null, mode: 'music', radio: true, queue: rest };
+  // NX: duas entradas ao mesmo tempo não começam duas rádios.
+  const ok = await redis.set(KEY(roomId), JSON.stringify(state), 'EX', TTL_SEC, 'NX');
+  if (ok !== 'OK') return false;
+  io.to(`voice:${roomId}`).emit('yt:state', { channelId: roomId, state, serverNow: Date.now() });
+  return true;
 }
 
 // Chamado em voice:sync — reenvia o estado atual a quem reconcilia.
@@ -183,4 +208,4 @@ async function clearIfEmpty(roomId) {
   try { if ((await voiceStore.roomSize(roomId)) === 0) await redis.del(KEY(roomId)); } catch { /* ignora */ }
 }
 
-module.exports = { register, sendState, clearIfEmpty, parseVideoId, currentPos };
+module.exports = { register, sendState, clearIfEmpty, ensureRadio, parseVideoId, currentPos };

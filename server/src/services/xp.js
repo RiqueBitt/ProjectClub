@@ -58,4 +58,27 @@ async function awardMessageXp(userId, content) {
   return { levelUp: true, oldLevel, newLevel: newLevelData.level, newLevelName: newLevelData.name, coinsReward: newLevelData.coinsReward };
 }
 
-module.exports = { awardMessageXp };
+// XP (e moedas) vindos de outras fontes que não mensagem — ex.: tempo em
+// call (services/voiceRewards.js). Mesma regra de nível/recompensa do XP por
+// mensagem; não mexe no intervalo anti-flood das mensagens.
+async function awardXp(userId, xp, { coins = 0, kind = 'XP', label = 'XP' } = {}) {
+  const user = await prisma.user.findUnique({ where: { id: userId }, select: { accountXp: true, accountLevel: true, supporterTier: true } });
+  if (!user) return null;
+  const xpGain = Math.max(0, require('./supporters').withXpBonus(Math.trunc(xp) || 0, user.supporterTier));
+  const newXp = user.accountXp + xpGain;
+  const lvl = calculateLevel(newXp);
+  const levelUp = lvl.level > user.accountLevel;
+  const levelCoins = levelUp && lvl.coinsReward > 0 ? lvl.coinsReward : 0;
+  await prisma.user.update({
+    where: { id: userId },
+    data: { accountXp: newXp, accountLevel: lvl.level, ...(coins + levelCoins > 0 ? { coins: { increment: coins + levelCoins } } : {}) },
+  });
+  const ledger = require('./economyLedger');
+  if (coins > 0 || xpGain > 0) ledger.recordTransaction(userId, { kind, label, coins, xp: xpGain });
+  if (!levelUp) return { levelUp: false, xp: xpGain, coins };
+  if (levelCoins) ledger.recordTransaction(userId, { kind: 'LEVEL', label: `Subiu para o nível ${lvl.level}`, coins: levelCoins });
+  prisma.activityEvent.create({ data: { userId, type: 'LEVEL_UP', data: JSON.stringify({ level: lvl.level, levelName: lvl.name }) } }).catch(() => {});
+  return { levelUp: true, xp: xpGain, coins, oldLevel: user.accountLevel, newLevel: lvl.level, newLevelName: lvl.name, coinsReward: levelCoins };
+}
+
+module.exports = { awardMessageXp, awardXp };
