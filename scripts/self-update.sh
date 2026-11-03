@@ -13,14 +13,15 @@ APP=/app
 TMP=/tmp/pc-update
 rm -rf "$TMP" && mkdir -p "$TMP"
 curl -fsSL "https://codeload.github.com/RiqueBitt/ProjectClub/tar.gz/$SHA" | tar xz -C "$TMP" \
-  --wildcards '*/server/src' '*/server/prisma' '*/server/scripts' '*/server/package.json' \
+  --wildcards '*/server/src' '*/server/prisma' '*/server/scripts' '*/server/waddle' '*/server/package.json' \
   '*/scripts' '*/client/dist' '*/client/package.json' '*/package.json' '*/package-lock.json'
 SRC=$(find "$TMP" -mindepth 1 -maxdepth 1 -type d | head -1)
 test -f "$SRC/client/dist/index.html" || { echo "DEPLOY-FALHOU: sem client/dist"; exit 1; }
 test -f "$SRC/server/src/index.js" || { echo "DEPLOY-FALHOU: sem server/src"; exit 1; }
 
 # Troca pasta por pasta (renomear é instantâneo: nunca fica meio copiado).
-for p in server/src server/prisma server/scripts scripts client/dist; do
+# server/waddle: servidor do Club Penguin da Praça (dist compilado + manifesto da mídia).
+for p in server/src server/prisma server/scripts server/waddle scripts client/dist; do
   rm -rf "$APP/$p.novo" "$APP/$p.velho"
   cp -a "$SRC/$p" "$APP/$p.novo"
   if [ -e "$APP/$p" ]; then mv "$APP/$p" "$APP/$p.velho"; fi
