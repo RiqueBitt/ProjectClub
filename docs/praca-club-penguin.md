@@ -72,6 +72,14 @@ WADDLE_MEDIA_DIR=/tmp/wf/media npm run waddle:standalone   # só o jogo, porta 2
 
 O banco precisa da tabela nova: `npm run prisma:push` (model `WaddlePenguin`).
 
+## Limite de download do Backblaze
+
+Contas B2 têm um teto diário de download (painel do Backblaze → **Caps &
+Alerts**). Quando estoura, o bucket responde 403 e o servidor devolve 503 pros
+SWFs ainda não cacheados (os já baixados continuam funcionando). Aumente o
+teto lá — ou, na primeira vez, aqueça o cache copiando a pasta `media` inteira
+pra `WADDLE_MEDIA_DIR` (é só uma pasta de arquivos; qualquer cópia serve).
+
 ## Limites conhecidos
 
 - Ruffle emula AS2 muito bem; a era moderna (AS3, 2012+) ainda trava em várias

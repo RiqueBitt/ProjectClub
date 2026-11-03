@@ -72,8 +72,14 @@ async function download(rel: string, url: string): Promise<Buffer> {
   const timer = setTimeout(() => controller.abort(), 60_000);
   try {
     const res = await fetch(url, { signal: controller.signal });
+    if (res.status === 404) {
+      throw Object.assign(new Error(`Mídia não encontrada no bucket: ${rel}`), { code: 'ENOENT' });
+    }
     if (!res.ok) {
-      throw Object.assign(new Error(`Mídia não encontrada no bucket (${res.status}): ${rel}`), { code: 'ENOENT' });
+      // 403 = limite diário de download da conta B2 ("Caps & Alerts"), 5xx = bucket fora.
+      // Não é "não existe": o site NÃO pode responder com a página do React no lugar.
+      const detail = (await res.text().catch(() => '')).slice(0, 200);
+      throw Object.assign(new Error(`Bucket da mídia respondeu ${res.status} para ${rel}: ${detail}`), { code: 'EMEDIA', status: res.status });
     }
     const buffer: Buffer = Buffer.from(new Uint8Array(await res.arrayBuffer()));
     const file = localPath(rel);

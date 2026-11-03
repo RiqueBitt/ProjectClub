@@ -106,6 +106,10 @@ class FileServer {
                 if (err?.code === 'ENOENT') {
                     next();
                 }
+                else if (err?.code === 'EMEDIA') {
+                    console.error(`[waddle] ${err.message}`);
+                    res.status(503).set('Cache-Control', 'no-store').type('text').send('Mídia do jogo indisponível no momento.');
+                }
                 else {
                     next(err);
                 }
