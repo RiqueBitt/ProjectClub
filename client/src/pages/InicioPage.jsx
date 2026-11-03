@@ -14,6 +14,7 @@ import inicioIcon from '../assets/icons/logo-project-club.png';
 import { useLiveRefresh, sameData } from '../utils/liveRefresh';
 import { bootSection, onBootSection, bootstrapActive } from '../utils/bootstrap';
 import ArenaPromo from '../cards/ArenaPromo.jsx';
+import MinecraftStatusCard from '../components/MinecraftStatusCard.jsx';
 import { isFeatureEnabled } from '../utils/features';
 import { channelPath, postPath } from '../utils/prettyLinks';
 
@@ -285,6 +286,8 @@ export default function InicioPage() {
       </nav>
 
       {isFeatureEnabled('cardsWar') && (!disabledSystems.includes('cartas') || user?.platformRole === 'ADMIN') && <ArenaPromo />}
+
+      <MinecraftStatusCard />
 
       <div className="home-grid">
         <div className="home-main">

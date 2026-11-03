@@ -412,6 +412,10 @@ function createApp() {
   app.use('/api/soundboard', require('./routes/soundboard'));
   app.use('/api/radio', require('./routes/radio'));
   app.use('/api/focus', require('./routes/focus'));
+  // Integrações (Minecraft, YouTube → Novidades, webhooks) e o envio
+  // externo dos webhooks (sem login: a URL secreta é a credencial).
+  app.use('/api/integrations', require('./routes/integrations'));
+  app.use('/api/webhooks', require('./routes/integrations').publicRouter);
   // Sem requireAuth de propósito — <img src="..."> do navegador nunca
   // manda o cabeçalho Authorization (só fetch/axios conseguem fazer
   // isso), então colocar autenticação aqui quebraria TODA imagem do

@@ -158,6 +158,7 @@ missions.seedDefaultMissions().catch((err) => {
 });
 missions.startVoiceMinutesTicker(io);
 require('./services/tempVoice').startTempVoiceSweeper(io);
+require('./services/youtubeAnnouncer').startYoutubeAnnouncer(io);
 // Voz (só o servidor de mídia próprio): aplica as chaves salvas pelo painel
 // da staff, conta os minutos do mês (telemetria do Painel de saúde) e apaga
 // as chaves antigas da cadeia de provedores que foi removida.

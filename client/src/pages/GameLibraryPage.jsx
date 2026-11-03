@@ -10,6 +10,7 @@ import {
 } from '../components/games/GameLibraryParts.jsx';
 import '../styles/game-library.css';
 import '../styles/contentx.css';
+import GameRanking from '../components/games/GameRanking.jsx';
 
 // Gráfico simples de barras: horas por semana (últimas 8 semanas). Quando
 // ainda não existe registro por dia (dados novos começam a contar a
@@ -250,6 +251,8 @@ export default function GameLibraryPage({ userId: propUserId } = {}) {
             )}
           </>
         )}
+
+        {isMe && <GameRanking />}
       </div>
     </div>
   );

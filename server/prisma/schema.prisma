@@ -4049,3 +4049,30 @@ model FocusDay {
   @@id([userId, day])
   @@index([day])
 }
+
+// Integrações configuradas pela equipe (Painel → Integrações): YouTube →
+// Novidades, status do Minecraft etc. Uma linha por integração, JSON livre
+// validado no código (services/integrationConfig.js).
+model IntegrationConfig {
+  key       String   @id @db.VarChar(40)
+  data      String   @db.Text
+  updatedBy String?
+  updatedAt DateTime @updatedAt
+}
+
+// Webhooks de canais: serviços externos postam mensagens num canal pela URL
+// secreta (só o hash do token fica guardado). Cada webhook tem uma conta
+// própria de "app" (userId) pra mensagem aparecer com o nome/foto dele.
+model ChannelWebhook {
+  id          String    @id @default(uuid())
+  channelId   String
+  userId      String
+  name        String    @db.VarChar(80)
+  tokenHash   String    @db.VarChar(64)
+  createdById String
+  createdAt   DateTime  @default(now())
+  lastUsedAt  DateTime?
+  uses        Int       @default(0)
+
+  @@index([channelId])
+}

@@ -117,4 +117,4 @@ function startScheduler(io) {
   setInterval(tick, 60 * 1000).unref?.();
 }
 
-module.exports = { list, create, update, remove, publishDue, startScheduler };
+module.exports = { list, create, update, remove, publishDue, startScheduler, announceNew };

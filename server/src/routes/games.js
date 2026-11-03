@@ -8,6 +8,15 @@ router.use(requireAuth);
 
 router.get('/library/:userId', ctrl.getLibrary);
 
+// Ranking por jogo (horas jogadas entre quem a biblioteca é visível pra você).
+const ranking = require('../services/gameRanking');
+router.get('/ranking', async (req, res, next) => {
+  try { res.json({ games: await ranking.topGames(req.user.id) }); } catch (err) { next(err); }
+});
+router.get('/ranking/:gameKey', async (req, res, next) => {
+  try { res.json(await ranking.topPlayers(req.user.id, req.params.gameKey)); } catch (err) { next(err); }
+});
+
 // Busca de jogos pra montar o Mural do perfil (qualquer jogo, não só os
 // jogados): loja da Steam, com cache curto em memória.
 const searchCache = new Map();
