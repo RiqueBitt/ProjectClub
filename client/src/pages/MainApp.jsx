@@ -82,6 +82,11 @@ const BrowserHost = BROWSER_ON ? lazy(() => import('../browser/BrowserHost.jsx')
 const BrowserPage = BROWSER_ON ? lazy(() => import('../browser/BrowserShell.jsx').then((m) => ({ default: m.BrowserPage }))) : null;
 const BrowserDock = BROWSER_ON ? lazy(() => import('../browser/BrowserShell.jsx').then((m) => ({ default: m.BrowserDock }))) : null;
 const BrowserBridge = BROWSER_ON ? lazy(() => import('../browser/BrowserShell.jsx').then((m) => ({ default: m.BrowserBridge }))) : null;
+// Atualização automática de mods (Fase 7): só existe no app de PC com
+// suporte (window.electronAPI.mods.autoUpdate) — no navegador e no app de
+// PC antigo nem é baixada.
+const HAS_MOD_AUTO_UPDATE = typeof window !== 'undefined' && !!window.electronAPI?.mods?.autoUpdate;
+const ModAutoUpdater = HAS_MOD_AUTO_UPDATE ? lazy(() => import('./mods/ModAutoUpdater.jsx')) : null;
 // Perfil completo (~80 KB com as seções): só baixa quando alguém abre um perfil.
 const UserProfileModal = lazy(() => import('../components/modals/UserProfileModal.jsx'));
 const AmigosPage = lazy(() => import('./AmigosPage.jsx'));
@@ -596,6 +601,7 @@ export default function MainApp() {
       {CINEMA_ON && <Suspense fallback={null}><CinemaApp /><CinemaHost /></Suspense>}
       {BROWSER_ON ? <Suspense fallback={null}><BrowserHost /><BrowserBridge /></Suspense> : <DesktopLinkFallback />}
       {CARDS_WAR_ON && <Suspense fallback={null}><CardsNotifier /></Suspense>}
+      {HAS_MOD_AUTO_UPDATE && <Suspense fallback={null}><ModAutoUpdater /></Suspense>}
     </div>
   );
 }

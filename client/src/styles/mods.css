@@ -1157,3 +1157,8 @@ button.mdx-ux-tile.dim:hover { border-color: color-mix(in srgb, var(--red) 40%, 
   .mdx-star-btn, .mdx-rating-bar > span { transition: none; }
   .mdx-star-btn:hover:not(:disabled) { transform: none; }
 }
+
+/* Atualização automática de mods (Fase 7) */
+.mdx-autoupd-toggle { background: linear-gradient(90deg, color-mix(in srgb, var(--green) 10%, transparent), transparent 60%), var(--bg-secondary); }
+.mdx-autoupd-toggle .mdx-nexus-toggle-icon { color: var(--green); background: color-mix(in srgb, var(--green) 16%, transparent); }
+.mdx-installed-head-right { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; justify-content: flex-end; }

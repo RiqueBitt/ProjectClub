@@ -4,6 +4,7 @@ import { isDesktopModsAvailable, detectSteamGames, listInstalledModsLocally } fr
 import { Icon, GameCover, SourceChip, EmptyState, SkeletonGrid, SearchField, ChipRow, SOURCE_ORDER } from './shared.jsx';
 import { NexusLinkToggle } from './NexusViews.jsx';
 import ModsHome from './ModsHome.jsx';
+import { AutoUpdateToggle } from './AutoUpdateToggle.jsx';
 
 // Itens da Steam que não são jogos (pacotes de runtime, Proton, SteamVR,
 // redistribuíveis) — item pedido: "remova o Steamworks Common
@@ -12,6 +13,55 @@ const STEAM_TOOL_IDS = new Set([228980, 1070560, 1391110, 1628350, 250820, 18263
 const STEAM_TOOL_NAME = /redistributable|^proton\b|steam linux runtime|steamvr|steamworks|easyanticheat runtime|battleye service|dedicated server|\bsdk\b/i;
 function isSteamTool(game) {
   return STEAM_TOOL_IDS.has(Number(game.steamAppId)) || STEAM_TOOL_NAME.test(game.name || '');
+}
+
+// Detecção da biblioteca (Steam local + cruzamento com as fontes de mods),
+// sem estado de React — usada pelo hook abaixo e pela atualização
+// automática em segundo plano (ModAutoUpdater.jsx).
+export async function loadModsLibrary() {
+  // Item pedido 30: a detecção roda LOCALMENTE (steamDetector.js,
+  // dentro do app desktop) — só a lista de AppIDs encontrados
+  // sobe pro servidor, pra cruzar com os catálogos de suporte
+  // (mod.io, Workshop, GameBanana e Thunderstore, todos
+  // staff-editáveis).
+  const detection = await detectSteamGames();
+  if (!(detection.steamFound && detection.games?.length > 0)) return { steamFound: detection.steamFound, games: [] };
+  const appIds = detection.games.map((g) => g.steamAppId);
+  const names = Object.fromEntries(detection.games.map((g) => [g.steamAppId, g.name || '']));
+  const [{ games: modioSupported }, { games: workshopSupported }, { games: gamebananaSupported }, { games: thunderstoreSupported }, { games: nexusSupported }] = await Promise.all([
+    matchSteamGames(appIds).catch(() => ({ games: [] })),
+    matchWorkshopGames(appIds).catch(() => ({ games: [] })),
+    matchGameBananaGames(appIds).catch(() => ({ games: [] })),
+    matchThunderstoreGames(appIds).catch(() => ({ games: [] })),
+    // Nexus Mods (fonte do Vortex): acha o jogo pelo AppID ou nome.
+    matchNexusGames(appIds, names).catch(() => ({ games: [] })),
+  ]);
+
+  // Álbum: TODOS os jogos detectados viram um cartão (com ou
+  // sem suporte). Item pedido: "funda o Workshop e o GameBanana
+  // na mesma aba... pra não ter esse tipo de game repetido" —
+  // tudo num Map por steamAppId, então um jogo com suporte em
+  // mais de uma fonte continua sendo UM cartão só.
+  const merged = new Map();
+  for (const g of detection.games.filter((x) => !isSteamTool(x))) {
+    if (merged.has(g.steamAppId)) continue;
+    merged.set(g.steamAppId, { steamAppId: g.steamAppId, displayName: g.name || `App ${g.steamAppId}`, iconUrl: null, installPath: g.installPath, sources: {} });
+  }
+  const addSource = (list, sourceKey) => {
+    for (const s of list || []) {
+      const entry = merged.get(s.steamAppId);
+      if (!entry) continue;
+      if (s.displayName && !entry.namedBySource) { entry.displayName = s.displayName; entry.namedBySource = true; }
+      if (!entry.iconUrl && s.iconUrl) entry.iconUrl = s.iconUrl;
+      entry.sources[sourceKey] = s;
+    }
+  };
+  addSource(modioSupported, 'modio');
+  addSource(workshopSupported, 'workshop');
+  addSource(gamebananaSupported, 'gamebanana');
+  addSource(thunderstoreSupported, 'thunderstore');
+  addSource(nexusSupported, 'nexus');
+  return { steamFound: detection.steamFound, games: Array.from(merged.values()) };
 }
 
 // Carrega a biblioteca uma vez só (fica no ModsPage), pra voltar do
@@ -38,52 +88,11 @@ export function useModsLibrary() {
     if (!desktopReady) return;
     (async () => {
       try {
-        // Item pedido 30: a detecção roda LOCALMENTE (steamDetector.js,
-        // dentro do app desktop) — só a lista de AppIDs encontrados
-        // sobe pro servidor, pra cruzar com os catálogos de suporte
-        // (mod.io, Workshop, GameBanana e Thunderstore, todos
-        // staff-editáveis).
-        const detection = await detectSteamGames();
-        setSteamFound(detection.steamFound);
-        if (detection.steamFound && detection.games?.length > 0) {
-          const appIds = detection.games.map((g) => g.steamAppId);
-          const names = Object.fromEntries(detection.games.map((g) => [g.steamAppId, g.name || '']));
-          const [{ games: modioSupported }, { games: workshopSupported }, { games: gamebananaSupported }, { games: thunderstoreSupported }, { games: nexusSupported }] = await Promise.all([
-            matchSteamGames(appIds).catch(() => ({ games: [] })),
-            matchWorkshopGames(appIds).catch(() => ({ games: [] })),
-            matchGameBananaGames(appIds).catch(() => ({ games: [] })),
-            matchThunderstoreGames(appIds).catch(() => ({ games: [] })),
-            // Nexus Mods (fonte do Vortex): acha o jogo pelo AppID ou nome.
-            matchNexusGames(appIds, names).catch(() => ({ games: [] })),
-          ]);
-
-          // Álbum: TODOS os jogos detectados viram um cartão (com ou
-          // sem suporte). Item pedido: "funda o Workshop e o GameBanana
-          // na mesma aba... pra não ter esse tipo de game repetido" —
-          // tudo num Map por steamAppId, então um jogo com suporte em
-          // mais de uma fonte continua sendo UM cartão só.
-          const merged = new Map();
-          for (const g of detection.games.filter((x) => !isSteamTool(x))) {
-            if (merged.has(g.steamAppId)) continue;
-            merged.set(g.steamAppId, { steamAppId: g.steamAppId, displayName: g.name || `App ${g.steamAppId}`, iconUrl: null, installPath: g.installPath, sources: {} });
-          }
-          const addSource = (list, sourceKey) => {
-            for (const s of list || []) {
-              const entry = merged.get(s.steamAppId);
-              if (!entry) continue;
-              if (s.displayName && !entry.namedBySource) { entry.displayName = s.displayName; entry.namedBySource = true; }
-              if (!entry.iconUrl && s.iconUrl) entry.iconUrl = s.iconUrl;
-              entry.sources[sourceKey] = s;
-            }
-          };
-          addSource(modioSupported, 'modio');
-          addSource(workshopSupported, 'workshop');
-          addSource(gamebananaSupported, 'gamebanana');
-          addSource(thunderstoreSupported, 'thunderstore');
-          addSource(nexusSupported, 'nexus');
-          const list = Array.from(merged.values());
-          setGames(list);
-          refreshCounts(list);
+        const detected = await loadModsLibrary();
+        setSteamFound(detected.steamFound);
+        if (detected.games.length > 0) {
+          setGames(detected.games);
+          refreshCounts(detected.games);
         }
       } catch {
         setSteamFound(false);
@@ -155,6 +164,7 @@ export default function ModsLibrary({ library, updates, onBack, onOpenGame, noti
         )}
       </header>
       {desktopReady && <NexusLinkToggle />}
+      {desktopReady && <AutoUpdateToggle />}
 
       {notice && (
         <p className="mdx-note mdx-home-notice">
