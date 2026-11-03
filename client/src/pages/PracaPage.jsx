@@ -51,7 +51,8 @@ function readMuted() {
 export default function PracaPage() {
   const { user } = useAuth();
   const [cfg, setCfg] = useState(null);
-  const [phase, setPhase] = useState('config'); // config | loading | playing | error
+  const [phase, setPhase] = useState('config'); // config | media | loading | playing | error
+  const [media, setMedia] = useState(null); // estado da mídia no servidor (primeira inicialização)
   const [error, setError] = useState('');
   const [muted, setMuted] = useState(readMuted);
   const [full, setFull] = useState(false);
@@ -72,8 +73,28 @@ export default function PracaPage() {
     setPhase('config');
     api.get('/plaza/config').then(({ data }) => {
       if (!alive) return;
-      setCfg(data);
       setOnline(data.online || 0);
+      setMedia(data.media || null);
+      if (data.media && data.media.state !== 'ready') {
+        // O servidor ainda está baixando/extraindo os arquivos do jogo
+        // (só acontece na primeira vez): espera, mostrando o progresso.
+        setPhase('media');
+        const poll = async () => {
+          while (alive) {
+            await new Promise((r) => setTimeout(r, 2500));
+            try {
+              const { data: st } = await api.get('/plaza/status');
+              if (!alive) return;
+              setMedia(st.media || null);
+              if (st.media?.state === 'ready') { setCfg(data); return; }
+              if (st.media?.state === 'error') { setError(`Os arquivos do jogo não puderam ser preparados no servidor (${st.media.error || 'erro'}).`); setPhase('error'); return; }
+            } catch { /* tenta de novo */ }
+          }
+        };
+        poll();
+        return;
+      }
+      setCfg(data);
     }).catch((err) => {
       if (!alive) return;
       setError(err?.response?.data?.error || 'A Praça está indisponível agora. Tente de novo em instantes.');
@@ -267,8 +288,18 @@ export default function PracaPage() {
         {phase !== 'playing' && phase !== 'error' && (
           <div className="praca-overlay">
             <div className="praca-loader" aria-hidden="true" />
-            <strong>{phase === 'config' ? 'Preparando seu pinguim…' : 'Carregando a ilha…'}</strong>
-            <span>Na primeira vez pode demorar um pouco: o jogo inteiro vem pro seu navegador.</span>
+            <strong>{phase === 'config' ? 'Preparando seu pinguim…' : phase === 'media' ? 'Preparando a ilha no servidor…' : 'Carregando a ilha…'}</strong>
+            {phase === 'media' ? (
+              <>
+                <span>Isso só acontece na primeira vez: o servidor está baixando e extraindo os arquivos do jogo{media?.current ? ` (${media.current})` : ''}.</span>
+                {media?.state === 'downloading' && typeof media.progress === 'number' && (
+                  <div className="praca-progress" role="progressbar" aria-valuenow={Math.round(media.progress * 100)} aria-valuemin={0} aria-valuemax={100}><span style={{ width: `${Math.round(media.progress * 100)}%` }} /></div>
+                )}
+                {media?.state === 'extracting' && <span>Extraindo…</span>}
+              </>
+            ) : (
+              <span>Na primeira vez pode demorar um pouco: o jogo inteiro vem pro seu navegador.</span>
+            )}
           </div>
         )}
         {phase === 'error' && (

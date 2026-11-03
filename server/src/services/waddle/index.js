@@ -15,6 +15,9 @@
 //     visita com a cor do mascote do perfil.
 //   - Moderação: a fala no jogo passa pelo automod da comunidade (links de
 //     convite, palavras bloqueadas...), igual à Praça antiga.
+//   - Mídia: os SWFs ficam no disco (server/data/waddle/media); se faltar
+//     algo, o servidor baixa os pacotes da release waddle-media do GitHub e
+//     extrai — em segundo plano, sem segurar o resto do site.
 //
 // Configuração (.env): ver docs/praca-club-penguin.md.
 const path = require('path');
@@ -25,11 +28,8 @@ const prisma = require('../../config/prisma');
 const jwt = require('jsonwebtoken');
 const { PrismaPenguinStore } = require('./penguinStore');
 
-// Mídia (SWFs): cache em disco + bucket público. Sem WADDLE_MEDIA_URL, usa a
-// pasta "waddle/" do mesmo bucket B2 dos anexos do site.
-if (!process.env.WADDLE_MEDIA_URL && env.B2_PUBLIC_URL) {
-  process.env.WADDLE_MEDIA_URL = `${env.B2_PUBLIC_URL.replace(/\/+$/, '')}/waddle`;
-}
+// Mídia (SWFs): fica no disco do servidor; na primeira inicialização é
+// baixada da release "waddle-media" do repositório (ver media-store.ts).
 if (!process.env.WADDLE_DATA_DIR) {
   process.env.WADDLE_DATA_DIR = path.resolve(__dirname, '../../../data/waddle');
 }
@@ -60,9 +60,12 @@ async function boot() {
   const { createWaddle } = loadWaddle();
   store = new PrismaPenguinStore(prisma);
   const w = await createWaddle({ db: store, targetIP: FAKE_IP, targetPort: FAKE_HTTP_PORT });
-  const { manifestSize } = require('../../../waddle/dist/common/media-store.js');
-  const mediaUrl = process.env.WADDLE_MEDIA_URL || '(só cache local)';
-  console.log(`[praça] Club Penguin ${w.settings.settings.version} pronto — mídia: ${mediaUrl}, manifesto com ${manifestSize()} arquivos`);
+  const media = require('../../../waddle/dist/common/media-store.js');
+  console.log(`[praça] Club Penguin ${w.settings.settings.version} pronto — manifesto com ${media.manifestSize()} arquivos; conferindo a mídia no disco…`);
+  // Não espera: o site sobe normal; a Praça mostra "preparando" até terminar.
+  media.ensureMedia((msg) => console.log(`[praça] ${msg}`)).then((st) => {
+    if (st.state === 'ready') console.log('[praça] mídia pronta');
+  });
   return w;
 }
 
@@ -283,13 +286,19 @@ async function getConfig(user) {
     ],
     penguin: { id, name: json.name, color: json.color, coins: json.coins, member: !!json.is_member },
     online: w.world.getAllPlayersInfo().length,
+    media: mediaState(),
     ticket: issueTicket(user.id),
   };
 }
 
+function mediaState() {
+  try { return require('../../../waddle/dist/common/media-store.js').getMediaState(); } catch { return { state: 'error', error: 'servidor do jogo não carregou' }; }
+}
+
 async function getStatus() {
-  if (!instance) return { ready: false, online: 0, error: lastError ? String(lastError.message || lastError) : null };
-  return { ready: true, online: instance.world.getAllPlayersInfo().length, version: instance.settings.settings.version };
+  if (!instance) return { ready: false, online: 0, media: mediaState(), error: lastError ? String(lastError.message || lastError) : null };
+  const media = mediaState();
+  return { ready: media.state === 'ready', online: instance.world.getAllPlayersInfo().length, version: instance.settings.settings.version, media };
 }
 
 module.exports = { getWaddle, mountHttp, attachUpgrade, getConfig, getStatus, ensurePenguin, cachedRouter };

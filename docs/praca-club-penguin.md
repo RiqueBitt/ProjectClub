@@ -31,30 +31,35 @@ server/waddle/dist (servidor do WF)  ◄─────────────�
   bloqueadas): a fala bloqueada simplesmente não sai.
 - **Ticket.** O token de acesso do site dura 15 min; o jogo usa um ticket
   próprio (escopo `plaza`, 12 h) só pro WebSocket.
-- **Mídia.** Os ~26 mil SWFs (1,7 GB) ficam no bucket B2, pasta `waddle/`.
-  `server/waddle/media-manifest.json` diz quais existem; o servidor baixa cada
-  arquivo uma vez pro cache em disco e serve de lá (com `Cache-Control`
-  imutável de 7 dias no navegador). Sem bucket configurado, só o cache local
-  responde — útil em desenvolvimento com uma cópia completa da pasta `media`.
+- **Mídia.** Os ~26 mil SWFs (1,7 GB) ficam no **disco do servidor**
+  (`server/data/waddle/media`). Na primeira inicialização, se faltar algo, o
+  servidor baixa os pacotes `.tar` da release **waddle-media** do repositório
+  no GitHub (um por pasta), extrai, confere pelo manifesto
+  (`server/waddle/media-manifest.json`) e grava a marca `.complete.json`. A
+  Praça mostra "Preparando a ilha no servidor" com progresso enquanto isso
+  acontece; depois nada mais é baixado. Os SWFs vão ao navegador com
+  `Cache-Control` imutável de 7 dias.
 
-## Publicar a mídia (uma vez)
+## Publicar a mídia (release waddle-media)
 
-```bash
-git clone --depth 1 https://github.com/nhaar/Waddle-Forever /tmp/wf   # ou use a cópia que já tem
-node scripts/waddle-media.js manifest /tmp/wf/media   # regenera o manifesto (já vem no repo)
-node scripts/waddle-media.js upload   /tmp/wf/media   # sobe pro B2 (pula o que já está lá, pode repetir)
-node scripts/waddle-media.js check                    # confere
-```
+Actions → **Mídia da Praça (release waddle-media)** → *Run workflow*. O
+workflow (`.github/workflows/waddle-media.yml`) baixa a pasta `media` do
+Waddle Forever, confere contra o manifesto, empacota um `.tar` por pasta e
+publica/substitui os assets da release `waddle-media` com o token do próprio
+repositório. Releases aceitam arquivos de até 2 GB e não pesam o Git.
 
-O script lê `B2_*` do `server/.env`. Em produção, `WADDLE_MEDIA_URL` pode
-ficar vazio: o servidor usa `B2_PUBLIC_URL + "/waddle"`.
+Pra mudar a lista de arquivos (nova versão do Waddle Forever):
+`node scripts/waddle-media.js manifest /caminho/Waddle-Forever/media`, commite
+o manifesto e rode o workflow de novo. O servidor percebe o que falta e baixa
+só as pastas afetadas.
 
 ## Variáveis (.env)
 
 | Variável | Padrão | Pra quê |
 | --- | --- | --- |
-| `WADDLE_MEDIA_URL` | `B2_PUBLIC_URL/waddle` | base pública da mídia |
-| `WADDLE_MEDIA_DIR` | `server/data/waddle/media` | cache em disco (ou cópia completa) |
+| `WADDLE_MEDIA_RELEASE` | release `waddle-media` de RiqueBitt/ProjectClub | de onde baixar os pacotes (vazio = nunca baixa) |
+| `WADDLE_MEDIA_DIR` | `server/data/waddle/media` | pasta da mídia no disco (ou cópia completa) |
+| `WADDLE_MEDIA_URL` | — | opcional: base pública com os arquivos soltos (reserva arquivo a arquivo) |
 | `WADDLE_DATA_DIR` | `server/data/waddle` | settings.json, mods, logs |
 | `WADDLE_VERSION` | `2010-10-25` | data do jogo (festas/salas da época). Datas AS3 (2012+) rodam mal no Ruffle |
 
@@ -72,14 +77,6 @@ WADDLE_MEDIA_DIR=/tmp/wf/media npm run waddle:standalone   # só o jogo, porta 2
 
 O banco precisa da tabela nova: `npm run prisma:push` (model `WaddlePenguin`).
 
-## Limite de download do Backblaze
-
-Contas B2 têm um teto diário de download (painel do Backblaze → **Caps &
-Alerts**). Quando estoura, o bucket responde 403 e o servidor devolve 503 pros
-SWFs ainda não cacheados (os já baixados continuam funcionando). Aumente o
-teto lá — ou, na primeira vez, aqueça o cache copiando a pasta `media` inteira
-pra `WADDLE_MEDIA_DIR` (é só uma pasta de arquivos; qualquer cópia serve).
-
 ## Limites conhecidos
 
 - Ruffle emula AS2 muito bem; a era moderna (AS3, 2012+) ainda trava em várias
@@ -89,3 +86,5 @@ pra `WADDLE_MEDIA_DIR` (é só uma pasta de arquivos; qualquer cópia serve).
   só na medida em que o cliente é.
 - Mods do WF (`server/data/waddle/mods`) funcionam, mas são por servidor, não
   por usuário.
+- O disco do servidor precisa de ~2 GB livres pra mídia (1,7 GB extraídos +
+  o pacote temporário durante a extração).

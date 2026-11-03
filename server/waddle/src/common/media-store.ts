@@ -1,31 +1,33 @@
 /**
  * Mídia do jogo (os ~26 mil SWFs do Waddle Forever) no Project Club.
  *
- * A pasta local (MEDIA_DIRECTORY) funciona como CACHE em disco. O que não
- * estiver nela é baixado uma única vez do bucket público (o mesmo Backblaze
- * B2 que o Project Club já usa pra anexos) e gravado no cache; a partir daí
- * é servido do disco. Assim o repositório fica leve e o servidor da Shard
- * Cloud não depende de nada do GitHub pra rodar.
+ * Os arquivos ficam no disco do servidor (MEDIA_DIRECTORY). Na primeira
+ * inicialização, se a pasta não estiver completa, o servidor baixa os pacotes
+ * .tar da release "waddle-media" do repositório no GitHub (um por pasta:
+ * media-default.tar, media-clothing.tar…), extrai e confere pelo manifesto.
+ * Depois disso nada mais é baixado: o jogo roda 100% do disco, sem bucket.
  *
  * Variáveis:
- *   WADDLE_MEDIA_DIR   pasta do cache (padrão server/data/waddle/media). Se
- *                      for apontada pra uma cópia completa da mídia, nada
- *                      é baixado.
- *   WADDLE_MEDIA_URL   base pública onde a mídia foi publicada, ex.:
- *                      https://f005.backblazeb2.com/file/projectclub-teste/waddle
- *                      (ver scripts/waddle-upload-media.js). Sem ela, só o
- *                      cache local é usado.
+ *   WADDLE_MEDIA_DIR      pasta da mídia (padrão server/data/waddle/media). Se
+ *                         for apontada pra uma cópia completa, nada é baixado.
+ *   WADDLE_MEDIA_RELEASE  base dos pacotes (padrão: a release waddle-media de
+ *                         RiqueBitt/ProjectClub). Vazio = não baixa nada.
+ *   WADDLE_MEDIA_URL      (opcional, modo antigo) base pública com os arquivos
+ *                         soltos, ex. uma pasta num bucket; usado só como
+ *                         reserva, arquivo por arquivo, quando definido.
  *
  * O manifesto (server/waddle/media-manifest.json) lista todo arquivo que
- * existe na mídia, pra responder "existe?" sem bater no bucket.
+ * existe na mídia, pra responder "existe?" sem tocar no disco/rede.
  */
 import fs from 'fs';
 import path from 'path';
+import { spawn } from 'child_process';
 import { MEDIA_DIRECTORY } from './utils';
 
 const MANIFEST_PATH = path.resolve(__dirname, '..', '..', 'media-manifest.json');
 
 let manifest: Set<string> | null = null;
+let manifestFiles: string[] = [];
 
 function loadManifest(): Set<string> {
   if (manifest !== null) return manifest;
@@ -33,7 +35,8 @@ function loadManifest(): Set<string> {
   try {
     const parsed = JSON.parse(fs.readFileSync(MANIFEST_PATH, 'utf-8'));
     const files: string[] = Array.isArray(parsed) ? parsed : parsed.files ?? [];
-    files.forEach((f) => manifest!.add(normalize(f)));
+    manifestFiles = files.map(normalize);
+    manifestFiles.forEach((f) => manifest!.add(f));
   } catch {
     // sem manifesto: só o cache local responde
   }
@@ -127,4 +130,158 @@ export async function readMediaFile(rel: string): Promise<Buffer> {
 /** Quantos arquivos o manifesto conhece (0 = manifesto ausente). */
 export function manifestSize(): number {
   return loadManifest().size;
+}
+
+// ---------------------------------------------------------------------------
+// Pacotes da release do GitHub (primeira inicialização)
+
+const DEFAULT_RELEASE = 'https://github.com/RiqueBitt/ProjectClub/releases/download/waddle-media';
+const COMPLETE_MARK = '.complete.json';
+
+export type MediaState = {
+  state: 'checking' | 'ready' | 'downloading' | 'extracting' | 'error' | 'partial';
+  /** 0..1 enquanto baixa */
+  progress?: number;
+  /** pacote atual */
+  current?: string;
+  missing?: number;
+  error?: string;
+};
+
+let mediaState: MediaState = { state: 'checking' };
+let preparing: Promise<MediaState> | null = null;
+
+export function getMediaState(): MediaState {
+  return mediaState;
+}
+
+function releaseBase(): string | null {
+  const v = process.env.WADDLE_MEDIA_RELEASE;
+  if (v === undefined) return DEFAULT_RELEASE;
+  return v.trim() === '' ? null : v.replace(/\/+$/, '');
+}
+
+/** Quantos arquivos do manifesto não estão no disco (amostra completa). */
+function countMissing(): number {
+  loadManifest();
+  let missing = 0;
+  for (const f of manifestFiles) {
+    try {
+      if (!fs.existsSync(localPath(f))) missing++;
+    } catch {
+      missing++;
+    }
+  }
+  return missing;
+}
+
+function topFolders(): string[] {
+  loadManifest();
+  return [...new Set(manifestFiles.map((f) => f.split('/')[0]))].sort();
+}
+
+async function downloadToFile(url: string, dest: string, onProgress: (p: number) => void): Promise<void> {
+  const res = await fetch(url, { redirect: 'follow' });
+  if (!res.ok || res.body === null) {
+    throw new Error(`HTTP ${res.status} ao baixar ${url}`);
+  }
+  const total = Number(res.headers.get('content-length') || 0);
+  let done = 0;
+  await fs.promises.mkdir(path.dirname(dest), { recursive: true });
+  const out = fs.createWriteStream(dest);
+  const reader = res.body.getReader();
+  try {
+    for (;;) {
+      const { value, done: finished } = await reader.read();
+      if (finished) break;
+      if (!out.write(value)) await new Promise<void>((r) => out.once('drain', r));
+      done += value.length;
+      if (total > 0) onProgress(done / total);
+    }
+  } finally {
+    await new Promise<void>((resolve, reject) => { out.end(); out.on('finish', () => resolve()); out.on('error', reject); });
+  }
+}
+
+function extractTar(file: string, into: string): Promise<void> {
+  return new Promise((resolve, reject) => {
+    const child = spawn('tar', ['xf', file, '-C', into], { stdio: ['ignore', 'ignore', 'pipe'] });
+    let err = '';
+    child.stderr.on('data', (d) => { err += d.toString(); });
+    child.on('error', reject);
+    child.on('close', (code) => (code === 0 ? resolve() : reject(new Error(`tar saiu com ${code}: ${err.slice(0, 300)}`))));
+  });
+}
+
+/**
+ * Garante a mídia no disco. Se já estiver completa (marca + contagem), volta
+ * na hora; senão baixa da release os pacotes das pastas que faltam. Nunca
+ * rejeita: devolve o estado (ready | partial | error) pra quem chamou decidir.
+ */
+export function ensureMedia(log: (msg: string) => void = () => {}): Promise<MediaState> {
+  if (preparing) return preparing;
+  preparing = (async () => {
+    loadManifest();
+    const total = manifestFiles.length;
+    if (total === 0) {
+      mediaState = { state: 'error', error: 'manifesto da mídia ausente' };
+      return mediaState;
+    }
+    await fs.promises.mkdir(MEDIA_DIRECTORY, { recursive: true });
+    const mark = path.join(MEDIA_DIRECTORY, COMPLETE_MARK);
+    let missing = countMissing();
+    if (missing === 0) {
+      mediaState = { state: 'ready' };
+      try { await fs.promises.writeFile(mark, JSON.stringify({ count: total, at: new Date().toISOString() })); } catch { /* ignora */ }
+      return mediaState;
+    }
+    const base = releaseBase();
+    if (base === null) {
+      mediaState = { state: 'partial', missing };
+      log(`mídia incompleta (${missing} arquivos faltando) e WADDLE_MEDIA_RELEASE vazio: não vou baixar nada`);
+      return mediaState;
+    }
+    // baixa só as pastas com arquivo faltando
+    const folders = topFolders().filter((d) => manifestFiles.some((f) => {
+      if (!f.startsWith(`${d}/`)) return false;
+      try { return !fs.existsSync(localPath(f)); } catch { return true; }
+    }));
+    const tmpDir = path.join(MEDIA_DIRECTORY, '.tmp');
+    await fs.promises.mkdir(tmpDir, { recursive: true });
+    try {
+      for (const folder of folders) {
+        const name = `media-${folder}.tar`;
+        const url = `${base}/${name}`;
+        const tmp = path.join(tmpDir, name);
+        log(`baixando ${name} (${missing} arquivos faltando)`);
+        mediaState = { state: 'downloading', current: folder, progress: 0, missing };
+        let lastShown = 0;
+        await downloadToFile(url, tmp, (p) => {
+          mediaState = { state: 'downloading', current: folder, progress: p, missing };
+          if (p - lastShown >= 0.25) { lastShown = p; log(`${name}: ${Math.round(p * 100)}%`); }
+        });
+        mediaState = { state: 'extracting', current: folder, missing };
+        log(`extraindo ${name}`);
+        await extractTar(tmp, MEDIA_DIRECTORY);
+        await fs.promises.unlink(tmp).catch(() => undefined);
+        missing = countMissing();
+      }
+    } catch (err: any) {
+      mediaState = { state: missing === total ? 'error' : 'partial', missing, error: err?.message || String(err) };
+      log(`falha ao preparar a mídia: ${mediaState.error}`);
+      return mediaState;
+    } finally {
+      await fs.promises.rm(tmpDir, { recursive: true, force: true }).catch(() => undefined);
+    }
+    if (missing === 0) {
+      mediaState = { state: 'ready' };
+      try { await fs.promises.writeFile(mark, JSON.stringify({ count: total, at: new Date().toISOString() })); } catch { /* ignora */ }
+      log(`mídia completa: ${total} arquivos em ${MEDIA_DIRECTORY}`);
+    } else {
+      mediaState = { state: 'partial', missing };
+      log(`mídia ainda incompleta: faltam ${missing} arquivos`);
+    }
+    return mediaState;
+  })();
+  return preparing;
 }

@@ -51,6 +51,7 @@ const dataDir = fs.mkdtempSync(path.join(os.tmpdir(), 'wf-data-'));
 process.env.WADDLE_MEDIA_DIR = mediaDir;
 process.env.WADDLE_DATA_DIR = dataDir;
 delete process.env.WADDLE_MEDIA_URL;
+process.env.WADDLE_MEDIA_RELEASE = ''; // sem rede nos testes
 const realMedia = process.env.WADDLE_TEST_REAL_MEDIA; // opcional: cópia completa da mídia
 const put = (rel, content) => { const f = path.join(mediaDir, rel); fs.mkdirSync(path.dirname(f), { recursive: true }); fs.writeFileSync(f, content); };
 if (!realMedia) {
