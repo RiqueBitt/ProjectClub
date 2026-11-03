@@ -703,7 +703,10 @@ class MediasoupEngine(private val context: Context, private val events: Events) 
         teardownSession()
         events.onReconnecting(attempt + 1)
         reconnectJob = scope.launch {
-            delay(RECONNECT_DELAYS_MS[attempt])
+            // ±30% de jitter (igual ao site): quando o servidor de mídia
+            // reinicia a sala todo mundo cai junto — assim não voltam todos
+            // no mesmo milissegundo.
+            delay(jitteredDelay(RECONNECT_DELAYS_MS[attempt]))
             if (g != gen || closed) return@launch
             reconnectAttempt = attempt + 1
             try {
@@ -1136,6 +1139,13 @@ class MediasoupEngine(private val context: Context, private val events: Events) 
         private const val SPEAKING_DB = -50.0
         private const val SPEAKING_HOLD_MS = 300L
         @Volatile private var initialized = false
+
+        /** Espera com ±30% de jitter (`r` em 0..1; padrão aleatório). */
+        fun jitteredDelay(baseMs: Long, r: Double = Math.random()): Long {
+            if (baseMs <= 0L) return 0L
+            val k = r.coerceIn(0.0, 1.0)
+            return Math.round(baseMs * (0.7 + 0.6 * k))
+        }
 
         /** Nível (dBFS) de PCM 16 bits little-endian. Silêncio = -100. */
         fun pcm16Db(data: ByteArray): Double {
