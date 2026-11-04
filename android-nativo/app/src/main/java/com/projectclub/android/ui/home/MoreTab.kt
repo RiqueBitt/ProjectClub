@@ -92,6 +92,7 @@ fun MoreTab(repo: Repository, actions: HomeActions, nav: com.projectclub.android
     var confirmLogout by remember { mutableStateOf(false) }
 
     val grid = listOf(
+        Entry(Icons.Outlined.SportsEsports, "Club Penguin", Color(0xFF3B7BFF), "/praca"),
         Entry(Icons.Outlined.LocalMall, "Loja", PC.Store, "/loja"),
         Entry(Icons.Outlined.MonetizationOn, "Economia", PC.Purple, "/economia"),
         Entry(Icons.Outlined.TaskAlt, "Missões", PC.Pink, "/missoes"),

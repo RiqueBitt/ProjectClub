@@ -114,6 +114,11 @@ router.post('/qr/scan', requireAuth, qrPhoneLimiter, qrCtrl.scan);
 router.post('/qr/approve', requireAuth, qrPhoneLimiter, qrCtrl.approve);
 router.post('/qr/deny', requireAuth, qrPhoneLimiter, qrCtrl.deny);
 
+// App nativo: abre páginas do site (o jogo da Praça) num WebView já logado.
+const handoffCtrl = require('../controllers/appHandoffController');
+router.post('/app-handoff', requireAuth, qrPhoneLimiter, handoffCtrl.create);
+router.get('/app-handoff/:code', qrExchangeLimiter, handoffCtrl.consume);
+
 router.get('/sessions', requireAuth, ctrl.listSessions);
 router.delete('/sessions/other', requireAuth, ctrl.revokeOtherSessions);
 router.delete('/sessions/:id', requireAuth, ctrl.revokeSession);

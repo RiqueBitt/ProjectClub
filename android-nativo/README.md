@@ -19,6 +19,8 @@ pra fazer o que o app antigo (WebView) não conseguia:
 - DMs: lista, nova conversa com amigo, ligar.
 - Voz: entrar/sair, mutar, ensurdecer, alto-falante, ver quem fala, **compartilhar a tela**, assistir a tela de outros.
 - Avisos: lista, marcar como lido.
+- **Club Penguin (Praça)**: o jogo abre em tela cheia, deitado (WebView só do jogo, logado pela própria
+  sessão do app via `/api/auth/app-handoff`); o jogo completo fica guardado no aparelho depois do primeiro download.
 - O resto (loja, fórum, eventos, perfil, admin…) abre o site dentro do app, já logado.
 
 Próximas fases trazem essas telas pro nativo, uma por vez.

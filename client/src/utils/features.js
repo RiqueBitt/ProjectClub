@@ -12,6 +12,9 @@ export const FEATURES = Object.freeze({
   cardsWar: false,
   // Praça: Club Penguin completo (Waddle Forever embutido no servidor).
   plaza: true,
+  // Cartão do servidor de Minecraft no Início. DESLIGADO (pedido do dono, nov/2026);
+  // a integração continua no painel (Integrações) e no Pingu.
+  minecraftHome: false,
 });
 
 export const isFeatureEnabled = (key) => FEATURES[key] === true;

@@ -85,6 +85,7 @@ class AppNavigator(
     override fun search() = go("search")
     override fun games(userId: String) = go("games/$userId")
     override fun trades() = go("trades")
+    override fun praca() = com.projectclub.android.ui.praca.PracaActivity.start(context)
 
     // ---- links bonitos (/canal/<nome>, /dm/<@>, /perfil/<@>, /evento/<nome>, /forum/<nome>) ----
     // O ref pode ser o nome do link OU o id antigo. Primeiro procura no que
@@ -154,6 +155,7 @@ class AppNavigator(
             "anuncios" -> announcements()
             "inbox", "caixa-de-entrada" -> inbox(if (tab == "favoritos") 1 else 0)
             "clans" -> clubs()
+            "praca" -> praca()
             "tickets" -> tickets()
             "atividade" -> activity()
             "search" -> search()

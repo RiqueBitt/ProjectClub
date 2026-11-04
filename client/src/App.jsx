@@ -37,6 +37,7 @@ const PrivacyPage = lazy(() => import('./pages/PrivacyPage.jsx'));
 const BlogPage = lazy(() => import('./pages/BlogPage.jsx'));
 const StatusPage = lazy(() => import('./pages/StatusPage.jsx'));
 const InterfaceEditorPage = lazy(() => import('./pages/InterfaceEditorPage.jsx'));
+const PracaPage = lazy(() => import('./pages/PracaPage.jsx'));
 
 // "Em reforma" (see adminController.setMaintenanceMode) only gates the
 // actual protected app — /login, /register etc stay reachable regardless,
@@ -350,6 +351,8 @@ export default function App() {
           <Route path="/termos" element={<PrivacyPage />} />
           <Route path="/blog" element={<BlogPage />} />
           <Route path="/status" element={<StatusPage />} />
+          {/* App Android nativo: só o jogo, sem o resto do site (WebView) */}
+          <Route path="/praca/app" element={<ProtectedRoute><PracaPage embedded /></ProtectedRoute>} />
           <Route
             path="/admin/interface-editor"
             element={

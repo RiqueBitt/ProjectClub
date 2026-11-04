@@ -142,3 +142,11 @@
 .praca-overlay.is-ask > span { max-width: 420px; line-height: 1.45; }
 .praca-dl-icon { display: inline-flex; width: 72px; height: 72px; align-items: center; justify-content: center; border-radius: 50%; margin-bottom: 4px; color: #fff; background: linear-gradient(135deg, #3b7bff, #1f3a93); box-shadow: 0 10px 30px -10px rgba(59,123,255,.8); }
 .praca-dl-btn { font-weight: 800; padding-inline: 22px; }
+
+/* App Android nativo (WebView): só o jogo, ocupando a tela inteira */
+.praca-page.is-embedded { position: fixed; inset: 0; height: 100dvh; z-index: 10; }
+.praca-page.is-embedded .praca-bar { padding-block: 6px; }
+.praca-page.is-embedded .praca-hint { display: none; }
+@media (orientation: landscape) and (max-height: 500px) {
+  .praca-page.is-embedded .praca-bar { display: none; }
+}

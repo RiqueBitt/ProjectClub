@@ -41,6 +41,8 @@ interface AppNav {
     fun search()
     fun games(userId: String = "me")
     fun trades()
+    /** Club Penguin (a Praça): abre o jogo em tela cheia. */
+    fun praca()
 
     /** Endereço do site ("/loja", "/u/123", "/posts/abc"...): abre a tela nativa certa ou o Chrome. */
     fun link(pathOrUrl: String)

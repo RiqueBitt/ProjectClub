@@ -290,7 +290,7 @@ export default function InicioPage() {
 
       {isFeatureEnabled('cardsWar') && (!disabledSystems.includes('cartas') || user?.platformRole === 'ADMIN') && <ArenaPromo />}
 
-      <MinecraftStatusCard />
+      {isFeatureEnabled('minecraftHome') && <MinecraftStatusCard />}
 
       <div className="home-grid">
         <div className="home-main">

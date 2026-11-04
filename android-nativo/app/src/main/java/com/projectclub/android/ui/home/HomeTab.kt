@@ -22,6 +22,8 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.outlined.KeyboardArrowRight
+import androidx.compose.material.icons.outlined.SportsEsports
 import androidx.compose.material.icons.automirrored.outlined.Article
 import androidx.compose.material.icons.automirrored.outlined.VolumeUp
 import androidx.compose.material.icons.outlined.CalendarMonth
@@ -114,6 +116,19 @@ fun HomeTab(repo: Repository, actions: HomeActions, nav: com.projectclub.android
                         Stat("membros", if (loaded) "%,d".format(members.size).replace(',', '.') else null, Modifier.weight(1f))
                         Stat("online agora", if (loaded) online.toString() else null, Modifier.weight(1f))
                     }
+                }
+            }
+
+            // Club Penguin (a Praça): jogo em tela cheia
+            PcCard(onClick = { nav.praca() }, padding = PaddingValues(14.dp)) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    IconTile(Icons.Outlined.SportsEsports, Color(0xFF3B7BFF), 44.dp, 24.dp)
+                    Spacer(Modifier.width(12.dp))
+                    Column(Modifier.weight(1f)) {
+                        Text("Club Penguin", style = MaterialTheme.typography.titleSmall, color = PC.Header, maxLines = 1)
+                        Text("Entre na ilha com seu pinguim — deitado, em tela cheia", color = PC.Muted, style = MaterialTheme.typography.bodySmall, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                    }
+                    Icon(Icons.AutoMirrored.Outlined.KeyboardArrowRight, null, tint = PC.Faint)
                 }
             }
 
