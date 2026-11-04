@@ -26,6 +26,8 @@ function unequipPuffle(p: WorldPenguin): void {
   }
 }
 
+const STARTER_DECK_ID = 821;
+
 function isEPFAgent(p: WorldPenguin): boolean {
   return p.inventory.has(8009);
 }
@@ -165,6 +167,16 @@ export const handleJoinServer: PenguinHandler<[]> = async (ctx) => {
   const { world, penguin, data, msg } = ctx;
   // penguins don't keep the puffle from previous session
   unequipPuffle(penguin);
+  // Project Club: todo mundo tem o Baralho Inicial do Card-Jitsu. Sem ele, o
+  // Pátio do Dojo (dojoext.swf, 2008+) desliga a interface do jogo e não
+  // liga mais — o pinguim fica travado (não anda, não abre o mapa, não entra
+  // no Dojo).
+  if (!data.isPreCpip() && !penguin.inventory.has(STARTER_DECK_ID)) {
+    penguin.inventory.add(STARTER_DECK_ID);
+    const deck = STARTER_DECKS[STARTER_DECK_ID];
+    if (deck !== undefined) addStarterDeck(ctx, deck);
+    ctx.prst(penguin);
+  }
   /*
   TODO: find what second number is
   Figure out how moderators will be handled
@@ -241,8 +253,16 @@ export const leaveRoom: RoomHandler<[]> = async (ctx) => {
   await msg.send(room.players, 'rp', penguin.id, ...room.playerStates.map(([p, s]) => getPenguinString(data, p, s)));
 }
 
+// Pátio do Dojo "solo" (dojoextsolo, 2013): o cliente manda pra lá quem sai do
+// Dojo sem ter o amuleto + os 4 baralhos. Essa sala abre o módulo AS3 do
+// Sensei (courtyard_sensei) que não existe nesta época e deixa a interface
+// desligada — o pinguim travava. Vai pro Pátio normal.
+const DOJO_EXT_SOLO = 324;
+const DOJO_EXT = 321;
+
 export const joinRoom: PenguinHandler<[number, number, number]> = (ctx, id: number, x: number, y: number) => {
   const { world, penguin, msg, data } = ctx;
+  if (id === DOJO_EXT_SOLO) id = DOJO_EXT;
   if ('room' in ctx) {
     leaveRoom(ctx);
   } else if ('game' in ctx) {

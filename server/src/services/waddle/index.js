@@ -394,6 +394,8 @@ async function getBundles(w) {
   const seen = new Set();
   const add = async (route, query) => {
     if (seen.has(route) || !w.http.getFileServer().knowsRoute(route)) return;
+    // o jornal é traduzido aos poucos (news/): sempre vem do servidor, não do pacote
+    if (news.isNewsRoute(route)) return;
     seen.add(route);
     files.push({ url: `/${route}${query}`, size: await sizeOf(w, route) });
   };

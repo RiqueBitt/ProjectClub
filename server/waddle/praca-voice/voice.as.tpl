@@ -276,6 +276,37 @@ if(!pcvSetup())
    };
 }
 
+// Tirar a roupa clicando no item de novo: na interface de 2012 o único jeito
+// de tirar um item é clicar NELE no pinguim do cartão — clicar no item no
+// inventário (o que todo mundo tenta) não fazia nada. Agora clicar num item
+// que já está vestido tira ele.
+var pcvOrigClickItem = clickPlayerWidgetItem;
+clickPlayerWidgetItem = function(itemID)
+{
+   var slot = undefined;
+   if(itemID != SPY_PHONE_ICON_ID && itemID != CARD_DECK_ICON_ID && isItemOnPlayer(itemID))
+   {
+      var t = getInventoryObjectById(itemID).type;
+      if(t == getShellConstant("INVENTORY_TYPE_HEAD")) slot = "head";
+      else if(t == getShellConstant("INVENTORY_TYPE_FACE")) slot = "face";
+      else if(t == getShellConstant("INVENTORY_TYPE_NECK")) slot = "neck";
+      else if(t == getShellConstant("INVENTORY_TYPE_BODY")) slot = "body";
+      else if(t == getShellConstant("INVENTORY_TYPE_HAND")) slot = "hand";
+      else if(t == getShellConstant("INVENTORY_TYPE_FEET")) slot = "feet";
+      else if(t == getShellConstant("INVENTORY_TYPE_FLAG")) slot = "flag_id";
+      else if(t == getShellConstant("INVENTORY_TYPE_PHOTO")) slot = "photo_id";
+   }
+   if(slot != undefined)
+   {
+      clickPlayerWidgetRemoveItem(slot);
+   }
+   else
+   {
+      pcvOrigClickItem(itemID);
+   }
+};
+
+
 // ===== Project Club: compra de iglus, pisos e locais no catálogo =====
 // O catálogo (pigfarm_catalog.swf, AS3) manda MSG_PURCHASE_ITEM com
 // itemType 3 (iglu), 5 (piso) e 6 (local), mas a interface de 2012 ignora

@@ -67,7 +67,54 @@ function installSwfAddressShim() {
     popup: noop, href: noop, onInit: noop, onChange: noop,
   };
 }
+// Arquivos do jogo que o servidor conserta ou traduz (interface com os botões
+// de voz, jornal em português) têm a MESMA URL do original. Uma visita antiga
+// pode ter guardado a versão velha no cache do navegador (30 dias) — aí o
+// jogo abria sem os botões e com o jornal em inglês. O Ruffle baixa tudo com
+// fetch(): para esses arquivos, sempre confere com o servidor.
+const FRESH_GAME_FILES = [/\/play\/v2\/content\/global\/content\/interface\.swf(\?|$)/, /\/play\/v2\/content\/local\/[a-z]{2}\/news\//];
+function installFreshFetch() {
+  if (window.__pcFreshFetch) return;
+  const orig = window.fetch.bind(window);
+  window.__pcFreshFetch = true;
+  window.fetch = (input, init) => {
+    try {
+      const url = typeof input === 'string' ? input : (input instanceof URL ? input.href : input?.url);
+      if (url && FRESH_GAME_FILES.some((re) => re.test(url))) {
+        if (input instanceof Request) return orig(new Request(input, { cache: 'no-cache' }));
+        return orig(input, { ...(init || {}), cache: 'no-cache' });
+      }
+    } catch { /* segue normal */ }
+    return orig(input, init);
+  };
+}
+
+// Conexão do mundo (WebSocket /waddle/ws/world): quando o SERVIDOR derruba
+// (deploy, queda de rede, outra aba), o jogo de 2012 só mostra "erro de
+// conexão" e fica parado. Aqui a página fica sabendo e reconecta sozinha.
+function installWorldSocketWatch() {
+  if (window.__pcWsWatch || typeof window.WebSocket !== 'function') return;
+  window.__pcWsWatch = true;
+  const Orig = window.WebSocket;
+  class WatchedWebSocket extends Orig {
+    constructor(url, protocols) {
+      if (protocols === undefined) super(url); else super(url, protocols);
+      if (!/\/waddle\/ws\/world/.test(String(url))) return;
+      const opened = Date.now();
+      this.addEventListener('close', (ev) => {
+        if (this.__pcByClient) return; // o próprio jogo fechou (troca de servidor, sair)
+        window.dispatchEvent(new CustomEvent('praca:world-closed', { detail: { code: ev.code, openFor: Date.now() - opened } }));
+      });
+    }
+
+    close(...args) { this.__pcByClient = true; return super.close(...args); }
+  }
+  window.WebSocket = WatchedWebSocket;
+}
+
 function loadRuffle() {
+  installFreshFetch();
+  installWorldSocketWatch();
   if (window.RufflePlayer?.newest) return Promise.resolve(window.RufflePlayer);
   if (!rufflePromise) {
     rufflePromise = new Promise((resolve, reject) => {
@@ -113,6 +160,7 @@ export default function PracaPage({ embedded = false }) {
   const stageRef = useRef(null);
   const autoAbort = useRef(null);
   const playerRef = useRef(null);
+  const drops = useRef([]); // quando a conexão caiu (evita reconectar em loop)
   // botões Falar/Ouvir DENTRO da barra do jogo (interface.swf ↔ página)
   useInGameVoiceButtons(playerRef, pracaVoice);
   const touch = useMemo(() => isTouchDevice(), []);
@@ -317,8 +365,32 @@ export default function PracaPage({ embedded = false }) {
       setError(err.message);
       setPhase('error');
     });
+    // Conexão caiu: reconecta (config nova = ticket novo) assim que a ilha voltar
+    const onWorldClosed = (ev) => {
+      if (!alive) return;
+      alive = false; // este player acabou
+      const code = ev.detail?.code;
+      if (code === 4001) { setError('A Praça foi aberta em outra aba ou aparelho. Feche a outra para jogar aqui.'); setPhase('elsewhere'); return; }
+      const now = Date.now();
+      drops.current = drops.current.filter((t) => now - t < 120_000).concat(now);
+      if (drops.current.length > 3) { setError('A conexão com a ilha está caindo várias vezes. Confira a internet e tente de novo.'); setPhase('error'); return; }
+      setPhase('reconnect');
+      (async () => {
+        for (let i = 0; i < 60; i++) {
+          await wait(i === 0 ? 1500 : 3000);
+          try {
+            const { data } = await api.get('/plaza/config');
+            if (data?.entry && data?.ticket && !data.preparing) { setOnline(data.online || 0); setReady(data); return; }
+          } catch { /* servidor ainda voltando */ }
+        }
+        setError('Não deu pra reconectar à ilha agora. Tente de novo em instantes.');
+        setPhase('error');
+      })();
+    };
+    window.addEventListener('praca:world-closed', onWorldClosed);
     return () => {
       alive = false;
+      window.removeEventListener('praca:world-closed', onWorldClosed);
       try { autoAbort.current?.abort(); } catch { /* ignora */ }
       try { playerRef.current?.remove(); } catch { /* ignora */ }
       playerRef.current = null;
@@ -533,6 +605,20 @@ export default function PracaPage({ embedded = false }) {
                 {media?.state === 'extracting' && <span>Extraindo…</span>}
               </>
             )}
+          </div>
+        )}
+        {phase === 'reconnect' && (
+          <div className="praca-overlay" role="status">
+            <div className="praca-loader" aria-hidden="true" />
+            <strong>Reconectando à ilha…</strong>
+            <span>A conexão caiu (o servidor pode ter acabado de atualizar). Você volta pro jogo sozinho em instantes.</span>
+          </div>
+        )}
+        {phase === 'elsewhere' && (
+          <div className="praca-overlay is-error" role="alert">
+            <strong>Praça aberta em outro lugar</strong>
+            <span>{error}</span>
+            <button type="button" className="pet-btn primary" onClick={retry}>Jogar aqui</button>
           </div>
         )}
         {phase === 'error' && (
