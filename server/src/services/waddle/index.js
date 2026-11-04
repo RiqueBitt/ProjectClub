@@ -500,4 +500,6 @@ async function getStatus() {
   return { ready: media.state === 'ready' || media.state === 'partial', online: instance.world.getAllPlayersInfo().length, version: instance.settings.settings.version, party: instance.gameData.getPartyName ? instance.gameData.getPartyName() : null, partyLabel: partyLabel(instance.gameData.getPartyName ? instance.gameData.getPartyName() : null), media };
 }
 
-module.exports = { getWaddle, mountHttp, attachUpgrade, getConfig, getStatus, ensurePenguin, cachedRouter, streamPack };
+const getStore = () => store;
+
+module.exports = { getWaddle, mountHttp, attachUpgrade, getConfig, getStatus, ensurePenguin, cachedRouter, streamPack, getStore };

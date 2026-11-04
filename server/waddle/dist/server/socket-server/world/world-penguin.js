@@ -51,6 +51,10 @@ class Membership {
     swap() {
         this._member = !this._member;
     }
+    /** Painel da equipe: define a assinatura diretamente. */
+    set(member) {
+        this._member = member;
+    }
     get isMember() {
         return this._member;
     }
@@ -63,6 +67,12 @@ class PSA {
     }
     get isAgent() {
         return this._isAgent;
+    }
+    /** Painel da equipe: define se é agente. */
+    set(agent) {
+        this._isAgent = agent;
+        if (!agent)
+            this._pending = false;
     }
     setAgent() {
         this._isAgent = true;
@@ -130,6 +140,14 @@ class Inventory {
     add(id) {
         this._items.add(id);
     }
+    /** Painel da equipe: tira um item (e desequipa se estava vestido). */
+    remove(id) {
+        this._items.delete(id);
+        for (const slot of Object.keys(this._equipped)) {
+            if (slot !== 'color' && this._equipped[slot] === id)
+                this._equipped[slot] = 0;
+        }
+    }
 }
 class Currency {
     _coins;
@@ -145,6 +163,11 @@ class Currency {
     }
     add(coins) {
         this._coins += coins;
+        return this._coins;
+    }
+    /** Painel da equipe: define o saldo. */
+    set(coins) {
+        this._coins = Math.max(0, Math.floor(coins));
         return this._coins;
     }
 }
@@ -242,6 +265,13 @@ class Stampbook {
     has(stamp) {
         return this._stamps.has(stamp);
     }
+    /** Painel da equipe: tira um carimbo (também da capa). */
+    remove(stamp) {
+        this._stamps.delete(stamp);
+        this._sessionStamps.delete(stamp);
+        this._cover.recent_stamps = this._cover.recent_stamps.filter((s) => s !== stamp);
+        this._cover.stamps = this._cover.stamps.filter((s) => s.stamp !== stamp);
+    }
     get recentStamps() {
         return [...this._cover.recent_stamps];
     }
@@ -331,6 +361,13 @@ class PuffleInventory {
     }
     getPuffle(id) {
         return this._puffles.get(id);
+    }
+    /** Painel da equipe: remove um puffle. */
+    removePuffle(id) {
+        this._puffles.delete(id);
+        this._backyard.delete(id);
+        if (this._walking === id)
+            this._walking = null;
     }
 }
 class DigData {
@@ -480,6 +517,27 @@ class IglooInventory {
     }
     addFlooring(flooringId) {
         this._floorings.add(flooringId);
+    }
+    /** Painel da equipe: define a quantidade de um móvel (0 remove). */
+    setFurnitureAmount(furnitureId, amount) {
+        if (amount <= 0)
+            this._furniture.delete(furnitureId);
+        else
+            this._furniture.set(furnitureId, Math.min(99, Math.floor(amount)));
+    }
+    removeIglooType(iglooType) {
+        if (this._types.size > 1)
+            this._types.delete(iglooType);
+    }
+    removeFlooring(flooringId) {
+        this._floorings.delete(flooringId);
+    }
+    addLocation(location) {
+        this._locations.add(location);
+    }
+    removeLocation(location) {
+        if (this._locations.size > 1)
+            this._locations.delete(location);
     }
     updateIgloo(features) {
         const igloo = this.activeIgloo;

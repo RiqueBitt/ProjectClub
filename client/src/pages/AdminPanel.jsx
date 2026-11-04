@@ -76,6 +76,7 @@ import { StaffHealthTab, StaffUserSearchTab } from '../components/admin/StaffToo
 import StaffOpsPanel from '../components/admin/StaffOpsPanel.jsx';
 import VoiceServerAdmin from '../components/admin/VoiceServerAdmin.jsx';
 import PinguAdmin from '../components/admin/PinguAdmin.jsx';
+import GameAdmin from '../components/admin/GameAdmin.jsx';
 import IntegrationsAdmin from '../components/admin/IntegrationsAdmin.jsx';
 import AppealsAdmin from '../components/admin/AppealsAdmin.jsx';
 import CreatorShopAdmin from '../components/admin/CreatorShopAdmin.jsx';
@@ -108,6 +109,7 @@ const ICON_PATHS = {
   back: 'M5 12h14M5 12l6 6M5 12l6-6',
   arrow: 'M9 6l6 6-6 6',
   cards: 'M7 3h11a2 2 0 0 1 2 2v13M4 7h11a2 2 0 0 1 2 2v11H6a2 2 0 0 1-2-2z',
+  penguin: 'M12 3c-3.3 0-5.5 2.6-5.5 6.2 0 2 .4 3.6 1.1 5.1L6 17.5l3 .6c.9 1.1 1.9 1.9 3 1.9s2.1-.8 3-1.9l3-.6-1.6-3.2c.7-1.5 1.1-3.1 1.1-5.1C17.5 5.6 15.3 3 12 3zM10.5 10.5c1 .9 2 .9 3 0',
 };
 function StaffIcon({ name, size = 18 }) {
   return (
@@ -155,6 +157,7 @@ const TABS = {
   apoio: { label: 'Gerenciamento de Apoio', desc: 'Conceda ou remova Assinante e Super Assinante, com motivo e histórico de quem mudou.' },
   casas: { label: 'Casas e móveis', desc: 'Casas, mapas, grupos e catálogo de móveis.' },
   album: { label: 'Álbum de figurinhas', desc: 'Páginas e espaços do álbum de figurinhas colecionáveis.' },
+  jogo: { label: 'Jogo', desc: 'Club Penguin: ache qualquer pinguim e edite moedas, assinatura, itens, móveis, iglus, puffles e carimbos — dando ou tirando, mesmo com o jogador online.' },
   modGames: { label: 'Jogos (mod.io)', desc: 'Jogos ligados ao mod.io.' },
   workshopGames: { label: 'Steam Workshop', desc: 'Jogos ligados ao Steam Workshop.' },
   gamebananaGames: { label: 'GameBanana', desc: 'Jogos ligados ao GameBanana.' },
@@ -194,6 +197,7 @@ const TAB_PENDING_KEY = {
 const HIDDEN_TABS = new Set([
   ...(isFeatureEnabled('houses') ? [] : ['casas', 'moderacao']),
   ...(isFeatureEnabled('stickers') ? [] : ['album']),
+  ...(isFeatureEnabled('plaza') ? [] : ['jogo']),
   ...(isFeatureEnabled('cardsWar') ? [] : ['cartasEstatisticas', 'cartasCartas', 'cartasPacotes', 'cartasCampanha', 'cartasTorneios', 'cartasFundos', 'cartasRegras', 'cartasJogadores', 'cartasTrocas', 'cartasPartidas']),
 ]);
 
@@ -203,6 +207,7 @@ const TAB_GROUPS = [
   { label: 'Comunidade', icon: 'community', tabs: ['channels', 'pingu', 'emojis', 'stickers', 'clubs', 'clanIcons', 'achievements', 'metasComunidade', 'interesses', 'gifMove'] },
   { label: 'Conteúdo', icon: 'content', tabs: ['feeds', 'updates', 'events', 'announcements', 'appCatalog'] },
   { label: 'Economia', icon: 'economy', tabs: ['economia', 'decoracoes', 'cupons', 'criadores', 'apoio', 'metaDoacao', 'casas', 'album'] },
+  { label: 'Club Penguin', icon: 'penguin', tabs: ['jogo'] },
   { label: 'Guerra das Cartas', icon: 'cards', tabs: ['cartasEstatisticas', 'cartasCartas', 'cartasPacotes', 'cartasCampanha', 'cartasTorneios', 'cartasFundos', 'cartasRegras', 'cartasJogadores', 'cartasTrocas', 'cartasPartidas'] },
   { label: 'Mods', icon: 'mods', tabs: ['modGames', 'workshopGames', 'gamebananaGames'] },
   { label: 'Sistema', icon: 'system', tabs: ['numeros', 'painelSaude', 'saude', 'servidorVoz', 'integracoes', 'sistema', 'maintenance', 'reload'] },
@@ -382,6 +387,7 @@ export default function AdminPanel() {
           {tab === 'painelSaude' && <StaffOpsPanel />}
           {tab === 'servidorVoz' && <VoiceServerAdmin />}
           {tab === 'pingu' && <PinguAdmin />}
+          {tab === 'jogo' && <GameAdmin />}
           {tab === 'integracoes' && <IntegrationsAdmin />}
           {tab === 'criadores' && <CreatorShopAdmin />}
           {tab === 'pinguAlertas' && <PinguAlertsAdmin />}

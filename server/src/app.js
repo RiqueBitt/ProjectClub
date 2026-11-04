@@ -473,6 +473,8 @@ function createApp() {
   // Primeiros passos (checklist com moedas + tour) e painel de saúde/backup da staff.
   app.use('/api/onboarding', require('./routes/onboarding'));
   app.use('/api/staff-ops', require('./routes/staffOps'));
+  // Painel da equipe → Jogo (Club Penguin): pinguins, moedas, itens, iglus.
+  app.use('/api/staff-game', require('./routes/staffGame'));
   // Fase 5: revisão de banimento/suspensão (pessoa punida + fila da equipe).
   app.use('/api/appeals', require('./routes/appeals'));
 

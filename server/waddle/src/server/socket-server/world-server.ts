@@ -12,6 +12,7 @@ import { ClientSocket, MessageHandler, setupSocketServer } from "./socket-server
 import { PenguinMessenger } from "@server/socket-server/messenger";
 
 import { World } from "./world/world";
+import { WorldPenguin } from "./world/world-penguin";
 
 import { addBakeryListener } from "./handlers/party";
 import { addMatchmakerListeners } from "./handlers/ninja";
@@ -49,6 +50,30 @@ export class WorldServer implements MessageHandler {
     this._xmlHandler = createLoginXmlHandler();
 
     this.init();
+  }
+
+  // ---- Painel da equipe (Project Club) ----
+  /** Pinguim conectado agora (undefined se offline). */
+  public getOnline(penguinId: number): WorldPenguin | undefined {
+    return this._world.getById(penguinId);
+  }
+
+  /** Grava o pinguim online no banco (depois de mexer nele pelo painel). */
+  public persist(penguin: WorldPenguin) {
+    this._persister(penguin, true);
+  }
+
+  /** Manda um pacote xt pro cliente (ex.: 'ai' item adicionado). */
+  public notify(penguin: WorldPenguin, message: string, ...args: Array<string | number>) {
+    this._msg.send(penguin, message, ...args);
+  }
+
+  /** Derruba a conexão do pinguim (ele entra de novo pela página). */
+  public kick(penguinId: number): boolean {
+    const penguin = this._world.getById(penguinId);
+    if (penguin === undefined) return false;
+    try { this._msg.getClient(penguin).end(); } catch { return false; }
+    return true;
   }
 
   public runCommand(penguinId: number, name: string, args: string[]) {

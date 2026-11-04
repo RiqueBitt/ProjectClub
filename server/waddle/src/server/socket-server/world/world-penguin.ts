@@ -74,6 +74,11 @@ class Membership {
     this._member = !this._member;
   }
 
+  /** Painel da equipe: define a assinatura diretamente. */
+  public set(member: boolean) {
+    this._member = member;
+  }
+
   get isMember() {
     return this._member;
   }
@@ -89,6 +94,12 @@ class PSA {
 
   public get isAgent() {
     return this._isAgent;
+  }
+
+  /** Painel da equipe: define se é agente. */
+  public set(agent: boolean) {
+    this._isAgent = agent;
+    if (!agent) this._pending = false;
   }
 
   public setAgent() {
@@ -175,6 +186,14 @@ class Inventory {
   public add(id: number): void {
     this._items.add(id);
   }
+
+  /** Painel da equipe: tira um item (e desequipa se estava vestido). */
+  public remove(id: number): void {
+    this._items.delete(id);
+    for (const slot of Object.keys(this._equipped) as Array<keyof PenguinEquipped>) {
+      if (slot !== 'color' && this._equipped[slot] === id) this._equipped[slot] = 0;
+    }
+  }
 }
 
 class Currency {
@@ -195,6 +214,12 @@ class Currency {
 
   public add(coins: number) {
     this._coins += coins;
+    return this._coins;
+  }
+
+  /** Painel da equipe: define o saldo. */
+  public set(coins: number) {
+    this._coins = Math.max(0, Math.floor(coins));
     return this._coins;
   }
 }
@@ -323,6 +348,14 @@ class Stampbook {
     return this._stamps.has(stamp);
   }
 
+  /** Painel da equipe: tira um carimbo (também da capa). */
+  public remove(stamp: number) {
+    this._stamps.delete(stamp);
+    this._sessionStamps.delete(stamp);
+    this._cover.recent_stamps = this._cover.recent_stamps.filter((s) => s !== stamp);
+    this._cover.stamps = this._cover.stamps.filter((s) => s.stamp !== stamp);
+  }
+
   public get recentStamps() {
     return [...this._cover.recent_stamps];
   }
@@ -433,6 +466,13 @@ class PuffleInventory {
 
   public getPuffle(id: number) {
     return this._puffles.get(id);
+  }
+
+  /** Painel da equipe: remove um puffle. */
+  public removePuffle(id: number) {
+    this._puffles.delete(id);
+    this._backyard.delete(id);
+    if (this._walking === id) this._walking = null;
   }
 }
 
@@ -619,6 +659,28 @@ class IglooInventory {
 
   public addFlooring(flooringId: number) {
     this._floorings.add(flooringId);
+  }
+
+  /** Painel da equipe: define a quantidade de um móvel (0 remove). */
+  public setFurnitureAmount(furnitureId: number, amount: number) {
+    if (amount <= 0) this._furniture.delete(furnitureId);
+    else this._furniture.set(furnitureId, Math.min(99, Math.floor(amount)));
+  }
+
+  public removeIglooType(iglooType: number) {
+    if (this._types.size > 1) this._types.delete(iglooType);
+  }
+
+  public removeFlooring(flooringId: number) {
+    this._floorings.delete(flooringId);
+  }
+
+  public addLocation(location: number) {
+    this._locations.add(location);
+  }
+
+  public removeLocation(location: number) {
+    if (this._locations.size > 1) this._locations.delete(location);
   }
 
   public updateIgloo(features: Partial<Igloo>): void {

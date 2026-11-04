@@ -39,6 +39,32 @@ class WorldServer {
         this._xmlHandler = (0, login_handlers_1.createLoginXmlHandler)();
         this.init();
     }
+    // ---- Painel da equipe (Project Club) ----
+    /** Pinguim conectado agora (undefined se offline). */
+    getOnline(penguinId) {
+        return this._world.getById(penguinId);
+    }
+    /** Grava o pinguim online no banco (depois de mexer nele pelo painel). */
+    persist(penguin) {
+        this._persister(penguin, true);
+    }
+    /** Manda um pacote xt pro cliente (ex.: 'ai' item adicionado). */
+    notify(penguin, message, ...args) {
+        this._msg.send(penguin, message, ...args);
+    }
+    /** Derruba a conexão do pinguim (ele entra de novo pela página). */
+    kick(penguinId) {
+        const penguin = this._world.getById(penguinId);
+        if (penguin === undefined)
+            return false;
+        try {
+            this._msg.getClient(penguin).end();
+        }
+        catch {
+            return false;
+        }
+        return true;
+    }
     runCommand(penguinId, name, args) {
         const penguin = this._world.getById(penguinId);
         if (penguin !== undefined) {
