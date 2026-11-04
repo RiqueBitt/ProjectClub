@@ -161,9 +161,22 @@ export default function PracaPage() {
     if (!b || !b.base?.files?.length) { setReady(cfg); return undefined; }
     const ac = new AbortController();
     let alive = true;
+    // Vigia: se a instalação parar de andar por 90 s (rede ruim, navegador
+    // sem suporte), abre o jogo mesmo assim — ele baixa o que faltar por demanda.
+    let lastTick = Date.now();
+    const tick = () => { lastTick = Date.now(); };
+    const watchdog = window.setInterval(() => {
+      if (Date.now() - lastTick > 90_000) {
+        window.clearInterval(watchdog);
+        console.warn('[praca] instalação travada; abrindo o jogo sem ela');
+        ac.abort();
+        if (alive) setReady(cfg);
+      }
+    }, 5000);
     (async () => {
       try {
         const useCache = await gameCacheReady();
+        tick();
         if (!alive) return;
         useCacheRef.current = useCache;
         const installed = readLS(BASE_KEY);
@@ -171,8 +184,8 @@ export default function PracaPage() {
           setPhase('install');
           setInstall({ kind: 'base', name: 'Club Penguin 2012', ratio: 0, total: b.base.bytes, update: !!installed });
           if (useCache) await clearGameCache(); // versão nova: zera a antiga
-          await installBundle(b.base, useCache, { signal: ac.signal, onProgress: (p) => { if (alive) setInstall((i) => ({ ...i, ...p })); } });
-          if (!alive) return;
+          await installBundle(b.base, useCache, { signal: ac.signal, onProgress: (p) => { tick(); if (alive) setInstall((i) => ({ ...i, ...p })); } });
+          if (!alive || ac.signal.aborted) return;
           writeLS(BASE_KEY, b.version);
         }
         if (b.event && readLS(EVENT_KEY + b.event.key) !== '1') {
@@ -180,14 +193,16 @@ export default function PracaPage() {
           setInstall({ kind: 'event', name: b.event.name, ratio: 0, total: b.event.bytes, ask: true });
           return; // a pessoa escolhe "Baixar" ou "Depois"
         }
+        window.clearInterval(watchdog);
         setReady(cfg);
       } catch (err) {
+        window.clearInterval(watchdog);
         if (!alive || err?.name === 'AbortError') return;
         setError(`A instalação do jogo falhou (${err?.message || err}). Confira a conexão e tente de novo.`);
         setPhase('error');
       }
     })();
-    return () => { alive = false; ac.abort(); };
+    return () => { alive = false; ac.abort(); window.clearInterval(watchdog); };
   }, [cfg]);
 
   const downloadEvent = useCallback(async () => {

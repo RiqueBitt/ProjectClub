@@ -21,6 +21,11 @@ const CONCURRENCY = 6;
 /** Cache Storage + service worker controlando a página? (pede registro se preciso) */
 export async function gameCacheReady() {
   if (typeof window === 'undefined' || !('caches' in window) || !('serviceWorker' in navigator)) return false;
+  // nunca segura a página: se o worker não assumir em alguns segundos, modo simples
+  return Promise.race([gameCacheReadyInner(), new Promise((r) => setTimeout(() => r(false), 8000))]);
+}
+
+async function gameCacheReadyInner() {
   try {
     const reg = await ensureServiceWorker();
     if (!reg) return false;
@@ -33,7 +38,10 @@ export async function gameCacheReady() {
       });
     }
     if (!navigator.serviceWorker.controller) return false;
-    try { await navigator.storage?.persist?.(); } catch { /* ok */ }
+    // Armazenamento persistente: no Firefox isso abre um PEDIDO de permissão
+    // e a promessa só resolve quando a pessoa responde — por isso não se
+    // espera por ela (o cache funciona do mesmo jeito sem a permissão).
+    try { navigator.storage?.persist?.().catch(() => {}); } catch { /* ok */ }
     return true;
   } catch {
     return false;
