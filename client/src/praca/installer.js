@@ -12,7 +12,6 @@
 // Sem Cache Storage/service worker (app nativo, navegador antigo), cai no
 // modo simples: baixa a lista de arquivos um a um, que ficam no cache HTTP.
 
-import { ensureServiceWorker } from '../utils/webPush';
 import { getAccessToken, refreshAccessToken } from '../api/client.js';
 
 export const GAME_CACHE = 'pc-praca';
@@ -25,9 +24,24 @@ export async function gameCacheReady() {
   return Promise.race([gameCacheReadyInner(), new Promise((r) => setTimeout(() => r(false), 8000))]);
 }
 
+// Registra o service worker do site também no app de desktop (Electron) e no
+// Android: lá o push é nativo (utils/webPush não registra), mas o cache do
+// jogo precisa do worker do mesmo jeito.
+async function ensureGameServiceWorker() {
+  try {
+    const regs = await navigator.serviceWorker.getRegistrations();
+    const mine = regs.find((r) => (r.active?.scriptURL || r.installing?.scriptURL || r.waiting?.scriptURL || '').endsWith('/sw.js'));
+    if (mine) return mine;
+    return await navigator.serviceWorker.register('/sw.js', { scope: '/', updateViaCache: 'none' });
+  } catch (err) {
+    console.warn('[praca] service worker indisponível:', err?.message || err);
+    return null;
+  }
+}
+
 async function gameCacheReadyInner() {
   try {
-    const reg = await ensureServiceWorker();
+    const reg = await ensureGameServiceWorker();
     if (!reg) return false;
     await navigator.serviceWorker.ready;
     if (!navigator.serviceWorker.controller) {

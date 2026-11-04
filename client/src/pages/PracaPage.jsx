@@ -89,7 +89,7 @@ function readMuted() {
 export default function PracaPage() {
   const { user } = useAuth();
   const [cfg, setCfg] = useState(null);
-  const [phase, setPhase] = useState('config'); // config | media | install | event | loading | playing | error
+  const [phase, setPhase] = useState('config'); // config | media | download | install | event | loading | playing | error
   const [media, setMedia] = useState(null); // estado da mídia no servidor (primeira inicialização)
   const [error, setError] = useState('');
   const [muted, setMuted] = useState(readMuted);
@@ -151,69 +151,68 @@ export default function PracaPage() {
     return () => { alive = false; };
   }, []);
 
-  // 1b) instalação: o jogo COMPLETO (2012) é baixado UMA vez (uma
-  // "atualização") e fica no navegador; o conteúdo de evento só quando há
-  // festa, e a pessoa decide. Depois disso o jogo roda inteiro do navegador.
+  // 1b) instalação. Jogo instalado neste navegador → abre direto, sem tela
+  // nenhuma. Senão, mostra o botão "Baixar o jogo completo" (a pessoa decide
+  // quando baixar os ~340 MB) ou "Jogar sem baixar" (vem tudo por demanda).
+  // Durante festa, o pacote do evento é oferecido do mesmo jeito, uma vez.
   const useCacheRef = useRef(false);
+  const installAbort = useRef(null);
   useEffect(() => {
     if (!cfg) return undefined;
     const b = cfg.bundles;
     if (!b || !b.base?.files?.length) { setReady(cfg); return undefined; }
-    const ac = new AbortController();
     let alive = true;
-    // Vigia: se a instalação parar de andar por 90 s (rede ruim, navegador
-    // sem suporte), abre o jogo mesmo assim — ele baixa o que faltar por demanda.
-    let lastTick = Date.now();
-    const tick = () => { lastTick = Date.now(); };
-    const watchdog = window.setInterval(() => {
-      if (Date.now() - lastTick > 90_000) {
-        window.clearInterval(watchdog);
-        console.warn('[praca] instalação travada; abrindo o jogo sem ela');
-        ac.abort();
-        if (alive) setReady(cfg);
-      }
-    }, 5000);
     (async () => {
-      try {
-        const useCache = await gameCacheReady();
-        tick();
-        if (!alive) return;
-        useCacheRef.current = useCache;
-        const installed = readLS(BASE_KEY);
-        if (installed !== b.version) {
-          setPhase('install');
-          setInstall({ kind: 'base', name: 'Club Penguin 2012', ratio: 0, total: b.base.bytes, update: !!installed });
-          if (useCache) await clearGameCache(); // versão nova: zera a antiga
-          await installBundle(b.base, useCache, { signal: ac.signal, onProgress: (p) => { tick(); if (alive) setInstall((i) => ({ ...i, ...p })); } });
-          if (!alive || ac.signal.aborted) return;
-          writeLS(BASE_KEY, b.version);
-        }
-        if (b.event && readLS(EVENT_KEY + b.event.key) !== '1') {
-          setPhase('event');
-          setInstall({ kind: 'event', name: b.event.name, ratio: 0, total: b.event.bytes, ask: true });
-          return; // a pessoa escolhe "Baixar" ou "Depois"
-        }
-        window.clearInterval(watchdog);
-        setReady(cfg);
-      } catch (err) {
-        window.clearInterval(watchdog);
-        if (!alive || err?.name === 'AbortError') return;
-        setError(`A instalação do jogo falhou (${err?.message || err}). Confira a conexão e tente de novo.`);
-        setPhase('error');
+      const useCache = await gameCacheReady();
+      if (!alive) return;
+      useCacheRef.current = useCache;
+      const installed = readLS(BASE_KEY);
+      if (installed !== b.version) {
+        setPhase('download');
+        setInstall({ kind: 'base', name: 'Club Penguin 2012', ratio: 0, total: b.base.bytes, update: !!installed, ask: true });
+        return;
       }
+      if (b.event && readLS(EVENT_KEY + b.event.key) !== '1') {
+        setPhase('event');
+        setInstall({ kind: 'event', name: b.event.name, ratio: 0, total: b.event.bytes, ask: true });
+        return;
+      }
+      setReady(cfg);
     })();
-    return () => { alive = false; ac.abort(); window.clearInterval(watchdog); };
+    return () => { alive = false; installAbort.current?.abort(); };
   }, [cfg]);
 
-  const downloadEvent = useCallback(async () => {
-    const b = cfg?.bundles; if (!b?.event) return;
-    setInstall((i) => ({ ...i, ask: false, ratio: 0 }));
+  /** Baixa um pacote (base ou evento) com progresso; depois libera o jogo. */
+  const runInstall = useCallback(async (bundle, kind) => {
+    const b = cfg?.bundles; if (!b) return;
+    const ac = new AbortController(); installAbort.current = ac;
+    setPhase(kind === 'base' ? 'install' : 'event');
+    setInstall((i) => ({ ...i, ask: false, ratio: 0, bytes: 0, retry: 0 }));
+    // Vigia: 90 s sem progresso → abre o jogo assim mesmo (baixa por demanda)
+    let lastTick = Date.now();
+    const watchdog = window.setInterval(() => {
+      if (Date.now() - lastTick > 90_000) { window.clearInterval(watchdog); console.warn('[praca] download travado; abrindo o jogo'); ac.abort(); setReady(cfg); }
+    }, 5000);
     try {
-      await installBundle(b.event, useCacheRef.current, { onProgress: (p) => setInstall((i) => ({ ...i, ...p })) });
-      writeLS(EVENT_KEY + b.event.key, '1');
-    } catch { /* sem o pacote o jogo abre do mesmo jeito (baixa por demanda) */ }
-    setReady(cfg);
+      if (kind === 'base' && useCacheRef.current) await clearGameCache(); // versão nova: zera a antiga
+      await installBundle(bundle, useCacheRef.current, { signal: ac.signal, onProgress: (p) => { lastTick = Date.now(); setInstall((i) => ({ ...i, ...p })); } });
+      if (ac.signal.aborted) return;
+      writeLS(kind === 'base' ? BASE_KEY : EVENT_KEY + b.event.key, kind === 'base' ? b.version : '1');
+      if (kind === 'base' && b.event && readLS(EVENT_KEY + b.event.key) !== '1') {
+        setPhase('event');
+        setInstall({ kind: 'event', name: b.event.name, ratio: 0, total: b.event.bytes, ask: true });
+        return;
+      }
+      setReady(cfg);
+    } catch (err) {
+      if (err?.name === 'AbortError') return;
+      setError(`O download do jogo falhou (${err?.message || err}). Confira a conexão e tente de novo.`);
+      setPhase('error');
+    } finally { window.clearInterval(watchdog); }
   }, [cfg]);
+  const downloadBase = useCallback(() => runInstall(cfg?.bundles?.base, 'base'), [cfg, runInstall]);
+  const downloadEvent = useCallback(() => runInstall(cfg?.bundles?.event, 'event'), [cfg, runInstall]);
+  const skipDownload = useCallback(() => { setReady(cfg); }, [cfg]);
   const skipEvent = useCallback(() => { setReady(cfg); }, [cfg]);
 
   // 2) sobe o Ruffle com o jogo
@@ -425,42 +424,56 @@ export default function PracaPage() {
           ref={stageRef}
           style={{ width: Math.round(STAGE.w * scale), height: Math.round(STAGE.h * scale) }}
         />
-        {phase !== 'playing' && phase !== 'error' && (
-          <div className={`praca-overlay${phase === 'event' && install?.ask ? ' is-ask' : ''}`}>
-            {!(phase === 'event' && install?.ask) && <div className="praca-loader" aria-hidden="true" />}
-            <strong>
-              {phase === 'config' ? 'Preparando seu pinguim…'
-                : phase === 'media' ? 'Preparando a ilha no servidor…'
-                  : phase === 'install' ? `Instalando ${install?.name || 'o jogo'}…`
-                    : phase === 'event' ? (install?.ask ? `Evento: ${install.name}` : `Baixando ${install?.name}…`)
-                      : 'Carregando a ilha…'}
-            </strong>
-            {phase === 'install' || (phase === 'event' && !install?.ask) ? (
+        {/* Sem telas de carregamento: o jogo aparece direto. Só há overlay pra
+            decisão (baixar o jogo / evento), download em andamento, servidor
+            preparando a mídia na primeira vez e erro. */}
+        {(phase === 'download' || phase === 'event' || phase === 'install' || phase === 'media') && (
+          <div className={`praca-overlay${install?.ask ? ' is-ask' : ''}`}>
+            {!install?.ask && <div className="praca-loader" aria-hidden="true" />}
+            {phase === 'download' && (
               <>
-                <span>
-                  {phase === 'install' ? (install?.update ? 'Atualização do jogo: a versão nova está sendo guardada no seu navegador.' : 'Atualização única: o jogo completo fica guardado no seu navegador e as próximas vezes abrem na hora, sem baixar nada.') : 'O conteúdo do evento está sendo baixado.'}{install?.retry ? ` (tentando de novo, ${install.retry}/3)` : ''}
+                <span className="praca-dl-icon" aria-hidden="true">
+                  <svg viewBox="0 0 24 24" width="40" height="40"><path fill="currentColor" d="M12 3a1 1 0 0 1 1 1v9.6l2.3-2.3a1 1 0 1 1 1.4 1.4l-4 4a1 1 0 0 1-1.4 0l-4-4a1 1 0 1 1 1.4-1.4L11 13.6V4a1 1 0 0 1 1-1zM5 17a1 1 0 0 1 1 1v1h12v-1a1 1 0 1 1 2 0v2a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1v-2a1 1 0 0 1 1-1z" /></svg>
                 </span>
-                <div className="praca-progress" role="progressbar" aria-valuenow={Math.round((install?.ratio || 0) * 100)} aria-valuemin={0} aria-valuemax={100}><span style={{ width: `${Math.round((install?.ratio || 0) * 100)}%` }} /></div>
-                <small className="praca-progress-label">{install?.total ? `${fmtMB(install.bytes || 0)} de ${fmtMB(install.total)}` : `${install?.doneFiles || 0} de ${install?.files || 0} arquivos`} · {Math.round((install?.ratio || 0) * 100)}%</small>
+                <strong>{install?.update ? 'Atualização do Club Penguin' : 'Baixar o Club Penguin'}</strong>
+                <span>
+                  {install?.update ? 'Saiu uma versão nova do jogo. ' : ''}
+                  Baixe o jogo completo de 2012 uma vez ({fmtMB(install?.total || 0)}): ele fica guardado aqui e, daí em diante, abrir o Club Penguin é só conectar — sem carregamento.
+                </span>
+                <div className="praca-overlay-actions">
+                  <button type="button" className="pet-btn primary praca-dl-btn" onClick={downloadBase}>{install?.update ? 'Atualizar' : 'Baixar o jogo'} · {fmtMB(install?.total || 0)}</button>
+                  <button type="button" className="pet-btn" onClick={skipDownload}>Jogar sem baixar</button>
+                </div>
+                <small className="praca-progress-label">Sem baixar, o jogo busca cada sala e item na hora — funciona, só demora mais.</small>
               </>
-            ) : phase === 'event' ? (
+            )}
+            {phase === 'event' && install?.ask && (
               <>
-                <span>A ilha está em festa! Baixe o conteúdo do evento <strong>{install?.name}</strong> ({fmtMB(install?.total || 0)}) para ver a decoração, os itens e as salas especiais.</span>
+                <strong>Evento: {install.name}</strong>
+                <span>A ilha está em festa! Baixe o conteúdo do evento ({fmtMB(install?.total || 0)}) para ver a decoração, os itens e as salas especiais.</span>
                 <div className="praca-overlay-actions">
                   <button type="button" className="pet-btn primary" onClick={downloadEvent}>Baixar evento</button>
                   <button type="button" className="pet-btn" onClick={skipEvent}>Depois</button>
                 </div>
               </>
-            ) : phase === 'media' ? (
+            )}
+            {(phase === 'install' || (phase === 'event' && !install?.ask)) && (
               <>
+                <strong>{phase === 'install' ? 'Baixando o Club Penguin…' : `Baixando ${install?.name}…`}</strong>
+                <span>{phase === 'install' ? 'Uma vez só: depois disso o jogo abre na hora, direto daqui.' : 'O conteúdo do evento está sendo baixado.'}{install?.retry ? ` (tentando de novo, ${install.retry}/3)` : ''}</span>
+                <div className="praca-progress" role="progressbar" aria-valuenow={Math.round((install?.ratio || 0) * 100)} aria-valuemin={0} aria-valuemax={100}><span style={{ width: `${Math.round((install?.ratio || 0) * 100)}%` }} /></div>
+                <small className="praca-progress-label">{install?.total ? `${fmtMB(install.bytes || 0)} de ${fmtMB(install.total)}` : `${install?.doneFiles || 0} de ${install?.files || 0} arquivos`} · {Math.round((install?.ratio || 0) * 100)}%</small>
+              </>
+            )}
+            {phase === 'media' && (
+              <>
+                <strong>Preparando a ilha no servidor…</strong>
                 <span>Isso só acontece na primeira vez: o servidor está baixando e extraindo os arquivos do jogo{media?.current ? ` (${media.current})` : ''}.</span>
                 {media?.state === 'downloading' && typeof media.progress === 'number' && (
                   <div className="praca-progress" role="progressbar" aria-valuenow={Math.round(media.progress * 100)} aria-valuemin={0} aria-valuemax={100}><span style={{ width: `${Math.round(media.progress * 100)}%` }} /></div>
                 )}
                 {media?.state === 'extracting' && <span>Extraindo…</span>}
               </>
-            ) : (
-              <span>Abrindo o jogo a partir do seu navegador.</span>
             )}
           </div>
         )}
@@ -469,13 +482,6 @@ export default function PracaPage() {
             <strong>A Praça não abriu</strong>
             <span>{error}</span>
             <button type="button" className="pet-btn primary" onClick={retry}>Tentar de novo</button>
-          </div>
-        )}
-        {phase === 'playing' && entering && entering !== 'manual' && (
-          <div className={`praca-overlay is-entering${entering === 'world' ? ' is-done' : ''}`} aria-live="polite">
-            <div className="praca-loader" aria-hidden="true" />
-            <strong>{entering === 'world' ? 'Bem-vindo à ilha!' : `Entrando como ${cfg?.penguin.name}…`}</strong>
-            <span>{entering === 'start' ? 'Abrindo o jogo' : entering === 'form' ? 'Identificando seu pinguim' : entering === 'server' ? 'Conectando ao servidor' : ''}</span>
           </div>
         )}
         {phase === 'playing' && needsTap && (

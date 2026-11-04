@@ -140,3 +140,5 @@
 .praca-overlay-actions { display: flex; gap: 10px; margin-top: 10px; flex-wrap: wrap; justify-content: center; }
 .praca-overlay.is-ask strong { font-size: 1.25rem; }
 .praca-overlay.is-ask > span { max-width: 420px; line-height: 1.45; }
+.praca-dl-icon { display: inline-flex; width: 72px; height: 72px; align-items: center; justify-content: center; border-radius: 50%; margin-bottom: 4px; color: #fff; background: linear-gradient(135deg, #3b7bff, #1f3a93); box-shadow: 0 10px 30px -10px rgba(59,123,255,.8); }
+.praca-dl-btn { font-weight: 800; padding-inline: 22px; }
