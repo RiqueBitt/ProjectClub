@@ -59,6 +59,7 @@ import com.projectclub.android.data.Updater
 import kotlinx.coroutines.launch
 import com.projectclub.android.ui.common.Avatar
 import com.projectclub.android.ui.common.Bone
+import com.projectclub.android.ui.common.GhostButton
 import com.projectclub.android.ui.common.HeroBox
 import com.projectclub.android.ui.common.IconTile
 import com.projectclub.android.ui.common.PcCard
@@ -270,6 +271,9 @@ private fun UpdateCard(st: com.projectclub.android.data.UpdateState) {
             st.needsPermission -> Quad("Atualização ${st.release.versionName} pronta",
                 "Libere uma vez \"instalar apps\" pro Project Club e as próximas atualizações instalam sozinhas.",
                 "Liberar atualizações automáticas", { Updater.openPermissionSettings() })
+            Updater.autoBlockerSeen() -> Quad("Atualização ${st.release.versionName} pronta",
+                "Seu Samsung está com o \"Bloqueador automático\" ligado: desligue por um instante, toque em Instalar e ligue de novo.",
+                "Instalar agora", { Updater.install(userAsked = true) })
             Updater.canInstallSilently() -> Quad("Atualização ${st.release.versionName} pronta",
                 "Ela instala sozinha quando você sair do app. Ou instale agora (o app fecha e reabre na versão nova).",
                 "Instalar agora", { Updater.install(userAsked = true) })
@@ -278,7 +282,9 @@ private fun UpdateCard(st: com.projectclub.android.data.UpdateState) {
         is com.projectclub.android.data.UpdateState.Installing -> Quad(
             if (st.percent != null) "Preparando ${st.release.versionName}… ${st.percent}%" else "Instalando ${st.release.versionName}…",
             "O app vai fechar e já volta na versão nova.", null, null)
-        is com.projectclub.android.data.UpdateState.Failed -> if (st.manual)
+        is com.projectclub.android.data.UpdateState.Failed -> if (st.autoBlocker)
+            Quad("Bloqueado pelo Bloqueador automático", st.message, "Abrir Bloqueador automático", { Updater.openAutoBlockerSettings() })
+        else if (st.manual)
             Quad("Não deu pra atualizar", st.message, "Instalar pelo Android", { Updater.installManually() })
         else Quad("Não deu pra atualizar", st.message, "Tentar de novo", { Updater.retry(); scope.launch { Updater.check(force = true) } })
         else -> return
@@ -296,6 +302,19 @@ private fun UpdateCard(st: com.projectclub.android.data.UpdateState) {
         if (button != null && action != null) {
             Spacer(Modifier.height(10.dp))
             PillButton(button, action, Modifier.fillMaxWidth())
+        }
+        val blocked = (st as? com.projectclub.android.data.UpdateState.Failed)?.autoBlocker == true
+        val seen = st is com.projectclub.android.data.UpdateState.Ready && Updater.autoBlockerSeen()
+        if (blocked || seen) {
+            Spacer(Modifier.height(8.dp))
+            Text("Configurações → Segurança e privacidade → Bloqueador automático", color = PC.Faint, style = MaterialTheme.typography.bodySmall)
+            if (blocked) {
+                Spacer(Modifier.height(8.dp))
+                GhostButton("Já desliguei — atualizar", { Updater.retryInstall() }, Modifier.fillMaxWidth())
+            } else {
+                Spacer(Modifier.height(8.dp))
+                GhostButton("Abrir Bloqueador automático", { Updater.openAutoBlockerSettings() }, Modifier.fillMaxWidth())
+            }
         }
     }
 }

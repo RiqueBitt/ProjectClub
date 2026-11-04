@@ -50,7 +50,7 @@ sealed interface UpdateState {
     data class Ready(val release: AppRelease, val needsPermission: Boolean) : UpdateState
     data class Installing(val release: AppRelease, val percent: Int? = null) : UpdateState
     /** [manual] = dá pra tentar pelo instalador clássico do Android (abre o .apk). */
-    data class Failed(val release: AppRelease, val message: String, val manual: Boolean = false) : UpdateState
+    data class Failed(val release: AppRelease, val message: String, val manual: Boolean = false, val autoBlocker: Boolean = false) : UpdateState
 }
 
 /**
@@ -67,6 +67,7 @@ sealed interface UpdateState {
  *  Cliente HTTP separado: o login do Project Club nunca vai pra outro site.
  */
 object Updater {
+    const val AUTO_BLOCKER_MSG = "O \"Bloqueador automático\" do Samsung barrou a atualização (ele só deixa a Play Store instalar apps). Desligue-o por um instante, toque em Atualizar e ligue de novo depois."
     private const val INFO_URL = "https://github.com/RiqueBitt/ProjectClub/releases/download/android-nativo/android-nativo.json"
     private const val ACTION_RESULT = "com.projectclub.android.UPDATE_RESULT"
     private val http = OkHttpClient.Builder().connectTimeout(15, TimeUnit.SECONDS).readTimeout(60, TimeUnit.SECONDS).build()
@@ -92,6 +93,34 @@ object Updater {
     val dismissed: StateFlow<Boolean> = _dismissed
 
     fun init(context: Context) { app = context.applicationContext }
+
+    // ---- Samsung: "Bloqueador automático" (Auto Blocker, One UI 6+) ----
+    // Proteção do próprio celular: com ela ligada, só Play Store/Galaxy Store
+    // podem instalar ou atualizar apps. Nenhum app consegue desligar ou
+    // contornar isso (é de propósito). O que dá pra fazer: reconhecer o
+    // bloqueio, explicar e abrir a tela certa das Configurações; e lembrar
+    // disso nas próximas atualizações pra avisar ANTES de tentar.
+    fun isSamsung() = Build.MANUFACTURER.equals("samsung", ignoreCase = true)
+    private fun prefs() = app.getSharedPreferences("pc_updater", Context.MODE_PRIVATE)
+    /** Já vimos o Bloqueador automático barrar uma atualização neste aparelho. */
+    fun autoBlockerSeen(): Boolean = isSamsung() && prefs().getBoolean("auto_blocker", false)
+    private fun markAutoBlocker(on: Boolean) { prefs().edit().putBoolean("auto_blocker", on).apply() }
+    private fun looksBlocked(msg: String?) = msg != null && Regex("(?i)block|bloque|auto.?blocker|restrict|não permitid|not allowed").containsMatchIn(msg)
+
+    /** Abre as configurações onde fica o Bloqueador automático (Samsung). */
+    fun openAutoBlockerSettings() {
+        val tries = listOf(
+            // One UI 6/7: Segurança e privacidade → Bloqueador automático
+            Intent().setClassName("com.android.settings", "com.android.settings.Settings\$AutoBlockerSettingsActivity"),
+            Intent("com.samsung.android.settings.AUTO_BLOCKER_SETTINGS"),
+            Intent().setClassName("com.android.settings", "com.android.settings.Settings\$SecurityDashboardActivity"),
+            Intent(Settings.ACTION_SECURITY_SETTINGS),
+            Intent(Settings.ACTION_SETTINGS),
+        )
+        for (i in tries) {
+            if (runCatching { app.startActivity(i.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)); true }.getOrDefault(false)) return
+        }
+    }
 
     private fun dir() = File(app.cacheDir, "updates").apply { mkdirs() }
     private fun apkFile(r: AppRelease) = File(dir(), "ProjectClub-${r.versionCode}.apk")
@@ -248,7 +277,8 @@ object Updater {
             delay(120_000)
             val st = _state.value
             if (st is UpdateState.Installing && st.release.versionCode == r.versionCode) {
-                _state.value = UpdateState.Failed(r, "A instalação não terminou. Toque em \"Instalar pelo Android\".", manual = apkFile(r).exists())
+                _state.value = if (isSamsung()) UpdateState.Failed(r, AUTO_BLOCKER_MSG, manual = apkFile(r).exists(), autoBlocker = true)
+                else UpdateState.Failed(r, "A instalação não terminou. Toque em \"Instalar pelo Android\".", manual = apkFile(r).exists())
             }
         }
     }
@@ -287,6 +317,13 @@ object Updater {
 
     fun retry() { lastCheck = 0; _dismissed.value = false }
 
+    /** "Já desliguei o bloqueador": instala de novo o .apk que já foi baixado. */
+    fun retryInstall() {
+        val st = _state.value as? UpdateState.Failed ?: return
+        if (apkFile(st.release).exists()) { _state.value = UpdateState.Ready(st.release, needsPermission = !canInstall()); install(userAsked = true) }
+        else { retry(); scope.launch { check(force = true) } }
+    }
+
     fun dismiss() { _dismissed.value = true }
 
     internal fun onResult(intent: Intent) {
@@ -309,7 +346,16 @@ object Updater {
                     _state.value = UpdateState.Ready(r, needsPermission = false)
                 }
             }
-            PackageInstaller.STATUS_SUCCESS -> { watchdog?.cancel(); _state.value = UpdateState.None }
+            PackageInstaller.STATUS_SUCCESS -> { watchdog?.cancel(); markAutoBlocker(false); _state.value = UpdateState.None }
+            PackageInstaller.STATUS_FAILURE_BLOCKED -> {
+                watchdog?.cancel()
+                if (isSamsung()) {
+                    markAutoBlocker(true)
+                    _state.value = UpdateState.Failed(r, AUTO_BLOCKER_MSG, manual = false, autoBlocker = true)
+                } else {
+                    _state.value = UpdateState.Failed(r, "O Android bloqueou a instalação (proteção do aparelho ou do Play Protect).", manual = apkFile(r).exists())
+                }
+            }
             PackageInstaller.STATUS_FAILURE_ABORTED -> { watchdog?.cancel(); _state.value = UpdateState.Ready(r, needsPermission = !canInstall()) }
             PackageInstaller.STATUS_FAILURE_CONFLICT, PackageInstaller.STATUS_FAILURE_INCOMPATIBLE -> {
                 watchdog?.cancel()
@@ -322,7 +368,12 @@ object Updater {
                 val msg = intent.getStringExtra(PackageInstaller.EXTRA_STATUS_MESSAGE) ?: "o Android recusou a instalação"
                 val ok = runCatching { verify(apkFile(r), r) }.getOrDefault(false)
                 if (!ok) apkFile(r).delete() // arquivo ruim: baixa de novo na próxima
-                _state.value = UpdateState.Failed(r, "$msg. Toque em \"Instalar pelo Android\".", manual = ok)
+                if (isSamsung() && looksBlocked(msg)) {
+                    markAutoBlocker(true)
+                    _state.value = UpdateState.Failed(r, AUTO_BLOCKER_MSG, manual = false, autoBlocker = true)
+                } else {
+                    _state.value = UpdateState.Failed(r, "$msg. Toque em \"Instalar pelo Android\".", manual = ok)
+                }
             }
         }
     }
