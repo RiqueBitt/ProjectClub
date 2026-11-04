@@ -204,60 +204,74 @@
 @media (max-width: 720px) and (orientation: portrait) {
   .praca-page:not(.is-full) .praca-stage-overlay { top: 12px; transform: translate(-50%, 0); }
 }
-/* Painel de voz no estilo dos menus do Club Penguin: o mesmo azul da barra
-   do jogo (#0280cd), contorno marinho (#003366) e filete ciano (#00ccff). */
+/* Botões de voz como um PEDAÇO A MAIS da barra de baixo do jogo, colado na
+   ponta direita dela. Tudo em pixels do palco (760x480) × escala (--p), com
+   as cores lidas do próprio quadro do jogo:
+   borda #003366 · aros #00a6d9/#00ccff/#01b9f3 · corpo #0280cd. */
 .pvb {
-  --u: max(0.7, var(--s)); /* escala: 1 = "pixel do jogo" */
-  position: absolute; right: 1.2%; bottom: 13%;
-  display: flex; flex-direction: column; align-items: center; gap: calc(5px * var(--u));
-  padding: calc(7px * var(--u)) calc(6px * var(--u)) calc(6px * var(--u));
-  border-radius: calc(16px * var(--u));
-  background: linear-gradient(180deg, #0293da 0%, #0280cd 45%, #0169b4 100%);
-  border: calc(2.5px * var(--u)) solid #003366;
-  box-shadow:
-    inset 0 0 0 calc(1.5px * var(--u)) #00ccff,
-    inset 0 calc(3px * var(--u)) 0 calc(1.5px * var(--u)) rgba(255,255,255,.18),
-    0 calc(3px * var(--u)) calc(6px * var(--u)) rgba(0, 20, 50, .45);
-  pointer-events: auto; user-select: none;
+  --p: calc(1px * var(--s));
+  position: absolute; left: calc(647 * var(--p)); top: calc(439.5 * var(--p));
+  width: calc(70 * var(--p)); height: calc(36.5 * var(--p));
+  box-sizing: border-box; pointer-events: auto; user-select: none; -webkit-user-select: none;
+  border-top: calc(1 * var(--p)) solid #003366;
+  border-right: calc(2 * var(--p)) solid #003366;
+  border-top-right-radius: calc(14 * var(--p));
+  background: linear-gradient(180deg,
+    #00a6d9 0, #00a6d9 calc(1 * var(--p)),
+    #00ccff calc(1 * var(--p)), #00ccff calc(2 * var(--p)),
+    #01b9f3 calc(2 * var(--p)), #01b9f3 calc(3 * var(--p)),
+    #0280cd calc(3 * var(--p)), #0280cd calc(100% - 2.5 * var(--p)),
+    #00ccff calc(100% - 2.5 * var(--p)), #00ccff 100%);
+  /* sombra por dentro da borda direita, igual à ponta da barra */
+  box-shadow: inset calc(-1 * var(--p)) 0 0 #00529b, inset calc(-2 * var(--p)) 0 0 #015ea8;
 }
-.pvb-slot { display: flex; flex-direction: column; align-items: center; gap: calc(2px * var(--u)); }
-/* botão redondo igual aos da barra do jogo: anel marinho, aro ciano, miolo azul */
+/* botão redondo igual aos da barra: anel marinho, aro ciano embaixo/direita,
+   sombra escura em cima/esquerda e brilho ciano por dentro em cima */
 .pvb-btn {
-  position: relative; display: grid; place-items: center; cursor: pointer; padding: 0; margin: 0;
-  width: max(36px, calc(40px * var(--u))); height: max(36px, calc(40px * var(--u)));
-  border-radius: 50%; border: calc(2px * var(--u)) solid #003366;
-  background:
-    radial-gradient(circle at 36% 30%, #0293da 0 38%, transparent 62%),
-    radial-gradient(circle at 62% 70%, #0169b4 0 30%, transparent 60%),
-    #0280cd;
-  box-shadow: 0 0 0 calc(2px * var(--u)) #00ccff, 0 0 0 calc(3.5px * var(--u)) #003366;
+  position: absolute; top: calc(7 * var(--p)); width: calc(26 * var(--p)); height: calc(26 * var(--p));
+  display: grid; place-items: center; padding: 0; margin: 0; cursor: pointer;
+  box-sizing: border-box; border-radius: 50%; border: calc(2 * var(--p)) solid #003366;
+  background: #0280cd;
+  box-shadow:
+    inset 0 calc(2.2 * var(--p)) 0 calc(-0.4 * var(--p)) #01b9f3,
+    calc(0.9 * var(--p)) calc(0.9 * var(--p)) 0 calc(0.6 * var(--p)) #00ccff,
+    calc(-0.7 * var(--p)) calc(-0.7 * var(--p)) 0 calc(0.6 * var(--p)) #00529b;
   touch-action: manipulation; -webkit-tap-highlight-color: transparent;
-  transition: transform .08s ease, filter .15s ease, box-shadow .2s ease;
+  transition: filter .12s ease, transform .08s ease;
 }
-.pvb-btn:hover { filter: brightness(1.12); }
+.pvb-btn:nth-child(1) { left: calc(0.5 * var(--p)); }
+.pvb-btn:nth-child(2) { left: calc(30.5 * var(--p)); }
+/* área de toque um pouco maior (pra cima e pros lados de dentro do pedaço) */
+.pvb-btn::before { content: ''; position: absolute; inset: calc(-4 * var(--p)) calc(-1.5 * var(--p)) calc(-3 * var(--p)); border-radius: 40%; }
+.pvb-btn:hover { filter: brightness(1.15); }
 .pvb-btn:active { transform: scale(.92); }
-.pvb-btn:focus-visible { outline: none; box-shadow: 0 0 0 calc(2px * var(--u)) #fff, 0 0 0 calc(3.5px * var(--u)) #003366; }
+.pvb-btn:focus-visible { outline: calc(1.5 * var(--p)) solid #fff; outline-offset: calc(1 * var(--p)); }
 .pvb-icon {
-  width: 74%; height: 74%; object-fit: contain; pointer-events: none;
-  filter: drop-shadow(0 calc(1px * var(--u)) 0 rgba(0, 30, 70, .45));
+  width: 76%; height: 76%; object-fit: contain; pointer-events: none;
+  filter: drop-shadow(0 calc(0.6 * var(--p)) 0 rgba(0, 30, 70, .45));
 }
-.pvb-btn.is-off .pvb-icon { filter: grayscale(.25) brightness(.92); }
+.pvb-btn.is-off .pvb-icon { filter: grayscale(.2) brightness(.9); }
 /* risco vermelho de "desligado" por cima do ícone */
-.pvb-ban { position: absolute; inset: 6%; width: 88%; height: 88%; pointer-events: none; }
+.pvb-ban { position: absolute; inset: 4%; width: 92%; height: 92%; pointer-events: none; }
 /* ligado e com som (você falando / alguém perto falando): aro amarelo pulsando */
 .pvb-btn.is-active { animation: pvb-pulse 1s ease-in-out infinite; }
 @keyframes pvb-pulse {
-  0%, 100% { box-shadow: 0 0 0 calc(2px * var(--u)) #ffe240, 0 0 0 calc(3.5px * var(--u)) #003366, 0 0 0 calc(3.5px * var(--u)) rgba(255, 226, 64, .8); }
-  50% { box-shadow: 0 0 0 calc(2px * var(--u)) #ffe240, 0 0 0 calc(3.5px * var(--u)) #003366, 0 0 0 calc(10px * var(--u)) rgba(255, 226, 64, 0); }
+  0%, 100% { box-shadow: inset 0 calc(2.2 * var(--p)) 0 calc(-0.4 * var(--p)) #01b9f3, 0 0 0 calc(1.4 * var(--p)) #ffe240, 0 0 0 calc(1.4 * var(--p)) rgba(255, 226, 64, .8); }
+  50% { box-shadow: inset 0 calc(2.2 * var(--p)) 0 calc(-0.4 * var(--p)) #01b9f3, 0 0 0 calc(1.4 * var(--p)) #ffe240, 0 0 0 calc(5 * var(--p)) rgba(255, 226, 64, 0); }
 }
 .pvb-btn.is-busy::after {
-  content: ''; position: absolute; inset: calc(-5px * var(--u)); border-radius: 50%;
-  border: calc(2px * var(--u)) solid transparent; border-top-color: #fff; animation: praca-spin .8s linear infinite;
+  content: ''; position: absolute; inset: calc(-3.5 * var(--p)); border-radius: 50%;
+  border: calc(1.5 * var(--p)) solid transparent; border-top-color: #fff; animation: praca-spin .8s linear infinite;
 }
-/* nome embaixo, branco com contorno marinho, como os textos do jogo */
-.pvb-label {
-  font: 800 max(9px, calc(10px * var(--u)))/1.15 "Burbank Small", "Arial Rounded MT Bold", "Arial Black", system-ui, sans-serif;
-  color: #fff; letter-spacing: .02em; white-space: nowrap; pointer-events: none;
-  text-shadow: 0 1px 0 #003366, 1px 0 0 #003366, -1px 0 0 #003366, 0 -1px 0 #003366, 1px 1px 0 #003366, -1px 1px 0 #003366;
+/* dica ao passar o mouse, igual às da barra do jogo: retângulo amarelo-claro
+   (#ffef80), borda dourada, texto preto, encostado em cima da barra */
+.pvb-hint {
+  position: absolute; bottom: calc(100% + 7.5 * var(--p)); left: 50%; transform: translateX(-50%);
+  padding: calc(1.5 * var(--p)) calc(6 * var(--p)) calc(2 * var(--p));
+  background: #ffef80; border: calc(1 * var(--p)) solid #956800; border-right-color: #a07e30; border-bottom-color: #a07e30; color: #000;
+  font: 400 max(10px, calc(11.5 * var(--p)))/1.2 Arial, Helvetica, system-ui, sans-serif;
+  white-space: nowrap; pointer-events: none; opacity: 0; transition: opacity .1s ease;
 }
-@media (prefers-reduced-motion: reduce) { .pvb-btn.is-active { animation: none; box-shadow: 0 0 0 calc(2px * var(--u)) #ffe240, 0 0 0 calc(3.5px * var(--u)) #003366; } }
+@media (hover: hover) { .pvb-btn:hover .pvb-hint { opacity: 1; } }
+.pvb-btn:focus-visible .pvb-hint { opacity: 1; }
+@media (prefers-reduced-motion: reduce) { .pvb-btn.is-active { animation: none; box-shadow: inset 0 calc(2.2 * var(--p)) 0 calc(-0.4 * var(--p)) #01b9f3, 0 0 0 calc(1.6 * var(--p)) #ffe240; } }

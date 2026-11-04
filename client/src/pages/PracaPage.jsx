@@ -5,7 +5,7 @@ import { enterGameMode, exitGameMode } from '../minijogos/orientation.js';
 import { isTouchDevice } from '../minijogos/touch/detect.js';
 import { autoLogin, watchEntry } from '../praca/autoLogin.js';
 import { gameCacheReady, clearGameCache, installPack, installFiles } from '../praca/installer.js';
-import { usePracaVoice, PracaVoiceButtons } from '../praca/PracaSocial.jsx';
+import { usePracaVoice, PracaVoiceButtons, useGameDockVisible } from '../praca/PracaSocial.jsx';
 import { RemoteAudioSinks } from '../components/CallBar.jsx';
 import '../styles/praca.css';
 
@@ -67,7 +67,22 @@ function installSwfAddressShim() {
     popup: noop, href: noop, onInit: noop, onChange: noop,
   };
 }
+// Os botões de voz só aparecem quando a barra do jogo está na tela (some em
+// minigame, editando o iglu, etc.). Pra saber disso a página lê alguns pixels
+// do quadro do jogo — e o WebGL só deixa ler o quadro já desenhado com
+// preserveDrawingBuffer. Instalado antes de o Ruffle criar o contexto.
+let readableGl = false;
+function makeGameCanvasReadable() {
+  if (readableGl || typeof HTMLCanvasElement === 'undefined') return;
+  readableGl = true;
+  const orig = HTMLCanvasElement.prototype.getContext;
+  HTMLCanvasElement.prototype.getContext = function getContext(type, opts) {
+    if (typeof type === 'string' && type.includes('webgl')) opts = { ...(opts || {}), preserveDrawingBuffer: true };
+    return orig.call(this, type, opts);
+  };
+}
 function loadRuffle() {
+  makeGameCanvasReadable();
   if (window.RufflePlayer?.newest) return Promise.resolve(window.RufflePlayer);
   if (!rufflePromise) {
     rufflePromise = new Promise((resolve, reject) => {
@@ -113,6 +128,8 @@ export default function PracaPage({ embedded = false }) {
   const stageRef = useRef(null);
   const autoAbort = useRef(null);
   const playerRef = useRef(null);
+  // barra do jogo na tela? (fora de minigame, edição do iglu, telas cheias…)
+  const dockVisible = useGameDockVisible(playerRef, phase === 'playing');
   const touch = useMemo(() => isTouchDevice(), []);
   const overlayRef = useRef(null);
 
@@ -274,6 +291,8 @@ export default function PracaPage({ embedded = false }) {
         // Nitidez: o Ruffle desenha os vetores na resolução real da tela
         // (devicePixelRatio) e com o melhor anti-aliasing.
         quality: 'best',
+        // WebGL (não WebGPU): dá pra ler os pixels do quadro (ver makeGameCanvasReadable)
+        preferredRenderer: 'wgpu-webgl',
         backgroundColor: '#0b2a4a',
         warnOnUnsupportedContent: false,
         showSwfDownload: false,
@@ -549,7 +568,7 @@ export default function PracaPage({ embedded = false }) {
         {/* Voz por proximidade: botões por cima do jogo, no mesmo tamanho/posição do palco */}
         {phase === 'playing' && (
           <div className="praca-stage-overlay" ref={overlayRef} style={{ width: Math.round(STAGE.w * scale), height: Math.round(STAGE.h * scale), '--s': scale }}>
-            <PracaVoiceButtons v={pracaVoice} />
+            {dockVisible && <PracaVoiceButtons v={pracaVoice} />}
           </div>
         )}
       </div>

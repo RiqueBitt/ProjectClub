@@ -130,10 +130,79 @@ export function usePracaVoice({ myUserId, active }) {
 }
 
 // ---------------------------------------------------------------------------
-// Botões no estilo da barra do Club Penguin (mesmas cores e anéis dos botões
-// redondos do jogo), num painelzinho de menu do jogo por cima do palco.
-// Ícones desenhados no traço do jogo: microfone (falar) e headset (ouvir).
-// Desligado = risco vermelho de "proibido" por cima do ícone.
+// A barra de baixo do jogo está na tela?
+//
+// O cliente do Club Penguin esconde a barra em minigame, editando o iglu, em
+// salas "solo", na abertura… Não há evento disso pra página, então a cada
+// ~0,4 s lemos duas faixas finas do quadro do jogo exatamente onde fica a
+// borda de cima da barra (palco 760x480): o aro ciano (y≈441–443) e o azul do
+// corpo (y≈444–445.5), de x=110 a x=640. As duas faixas só batem quando a
+// barra está lá. Se não der pra ler o quadro (renderizador sem leitura), os
+// botões ficam visíveis como antes.
+const DOCK_STRIP = { x: 110, w: 530 };
+const DOCK_RIM = { y: 441, h: 2.5, rgb: [0, 185, 242], tol: 70 };
+const DOCK_BODY = { y: 444, h: 1.5, rgb: [2, 128, 205], tol: 55 };
+const PROBE_W = 48;
+
+function bandMatches(data, row, ref) {
+  let ok = 0;
+  for (let i = 0; i < PROBE_W; i += 1) {
+    const o = (row * PROBE_W + i) * 4;
+    const d = Math.abs(data[o] - ref.rgb[0]) + Math.abs(data[o + 1] - ref.rgb[1]) + Math.abs(data[o + 2] - ref.rgb[2]);
+    if (data[o + 3] > 200 && d <= ref.tol) ok += 1;
+  }
+  return ok / PROBE_W;
+}
+
+export function useGameDockVisible(playerRef, enabled) {
+  const [visible, setVisible] = useState(true);
+  useEffect(() => {
+    if (!enabled) { setVisible(true); return undefined; }
+    const probe = document.createElement('canvas');
+    probe.width = PROBE_W; probe.height = 2;
+    const ctx = probe.getContext('2d', { willReadFrequently: true });
+    if (!ctx) return undefined;
+    let current = true; let pending = null; let streak = 0;
+    const tick = () => {
+      const c = playerRef.current?.shadowRoot?.querySelector('canvas');
+      if (!c || !c.width || !c.height) return;
+      const kx = c.width / 760; const ky = c.height / 480;
+      let data;
+      try {
+        ctx.clearRect(0, 0, PROBE_W, 2);
+        ctx.drawImage(c, DOCK_STRIP.x * kx, DOCK_RIM.y * ky, DOCK_STRIP.w * kx, DOCK_RIM.h * ky, 0, 0, PROBE_W, 1);
+        ctx.drawImage(c, DOCK_STRIP.x * kx, DOCK_BODY.y * ky, DOCK_STRIP.w * kx, DOCK_BODY.h * ky, 0, 1, PROBE_W, 1);
+        data = ctx.getImageData(0, 0, PROBE_W, 2).data;
+      } catch { return; }
+      // quadro ilegível (tudo transparente): não dá pra saber → mostra
+      let opaque = 0;
+      for (let i = 3; i < data.length; i += 4) if (data[i] > 0) opaque += 1;
+      const next = opaque === 0 ? true : (bandMatches(data, 0, DOCK_RIM) >= 0.8 && bandMatches(data, 1, DOCK_BODY) >= 0.8);
+      // troca só depois de 2 leituras iguais (sem piscar nas transições)
+      if (next === current) { pending = null; streak = 0; return; }
+      if (pending === next) streak += 1; else { pending = next; streak = 1; }
+      if (streak >= 2) { current = next; pending = null; streak = 0; setVisible(next); }
+    };
+    const id = setInterval(tick, 400);
+    tick();
+    return () => clearInterval(id);
+  }, [enabled, playerRef]);
+  return visible;
+}
+
+// ---------------------------------------------------------------------------
+// Botões FAZENDO PARTE da barra de baixo do jogo: um pedaço a mais da barra,
+// colado na ponta direita dela (depois do botão de configurações), com os
+// mesmos aros, cores e botões redondos. Posições em pixels do palco 760x480,
+// medidas no próprio quadro do jogo:
+//   barra: x 99–661, borda de cima y≈439.5, fundo y≈476
+//   botões: Ø≈26, centro y≈459.5, um a cada ~30 px (configurações em x≈630.5)
+// O pedaço novo começa em x=647 (cobre só a ponta arredondada da barra, sem
+// encostar no botão de configurações) e vai até x≈717 — ali o jogo não tem
+// botão nenhum (os do iglu ficam acima, y<410, e o de salvar só aparece com
+// a barra escondida, quando estes botões também somem).
+// Ícones no traço do jogo: microfone (falar) e headset (ouvir). Desligado =
+// risco vermelho de "proibido" por cima do ícone.
 
 function BanLine() {
   return (
@@ -145,19 +214,17 @@ function BanLine() {
   );
 }
 
-function VoiceBtn({ on, icon, label, title, onClick, glow, busy }) {
+function VoiceBtn({ on, icon, hint, label, onClick, glow, busy }) {
   return (
-    <div className="pvb-slot">
-      <button
-        type="button" onClick={onClick}
-        className={`pvb-btn${on ? ' is-on' : ' is-off'}${glow ? ' is-active' : ''}${busy ? ' is-busy' : ''}`}
-        aria-pressed={on} aria-label={`${label}: ${on ? 'ligado' : 'desligado'}`} title={title}
-      >
-        <img className="pvb-icon" src={icon} alt="" draggable="false" />
-        {!on && <BanLine />}
-      </button>
-      <span className="pvb-label" aria-hidden="true">{label}</span>
-    </div>
+    <button
+      type="button" onClick={onClick}
+      className={`pvb-btn${on ? ' is-on' : ' is-off'}${glow ? ' is-active' : ''}${busy ? ' is-busy' : ''}`}
+      aria-pressed={on} aria-label={`${label}: ${on ? 'ligado' : 'desligado'}`}
+    >
+      <img className="pvb-icon" src={icon} alt="" draggable="false" />
+      {!on && <BanLine />}
+      <span className="pvb-hint" aria-hidden="true">{hint}</span>
+    </button>
   );
 }
 
@@ -169,12 +236,12 @@ export function PracaVoiceButtons({ v }) {
       <VoiceBtn
         on={v.talk} icon={micIcon} label="Falar" onClick={v.toggleTalk}
         glow={v.speaking} busy={busy && v.talk}
-        title={v.talk ? 'Microfone ligado — clique pra desligar' : 'Microfone desligado — clique pra falar com quem está perto'}
+        hint={v.talk ? 'Microfone ligado' : 'Microfone desligado'}
       />
       <VoiceBtn
         on={v.listen} icon={headsetIcon} label="Ouvir" onClick={v.toggleListen}
         glow={v.someoneNearTalking} busy={busy && v.listen}
-        title={v.listen ? 'Ouvindo quem está perto — clique pra parar de ouvir' : 'Sem ouvir ninguém — clique pra ouvir quem está perto'}
+        hint={v.listen ? 'Ouvindo quem está perto' : 'Sem ouvir ninguém'}
       />
     </div>
   );
