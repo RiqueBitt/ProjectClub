@@ -94,6 +94,10 @@ export default function PracaPage({ embedded = false }) {
   const [error, setError] = useState('');
   const [muted, setMuted] = useState(readMuted);
   const [full, setFull] = useState(false);
+  // Celular: "Preencher a tela" estica o palco pra cobrir a tela inteira (sem
+  // bordas); "Ajustar" mantém a proporção. Fica salvo.
+  const [fill, setFill] = useState(() => { try { return localStorage.getItem('pc.praca.fill') === '1'; } catch { return false; } });
+  const toggleFill = useCallback(() => setFill((f) => { try { localStorage.setItem('pc.praca.fill', f ? '0' : '1'); } catch { /* ok */ } return !f; }), []);
   const [online, setOnline] = useState(0);
   const [scale, setScale] = useState(1);
   const [needsTap, setNeedsTap] = useState(false);
@@ -330,8 +334,12 @@ export default function PracaPage({ embedded = false }) {
       // ficam nítidos em qualquer tela.
       const stage = stageRef.current;
       if (stage) {
-        stage.style.width = `${Math.round(STAGE.w * s)}px`;
-        stage.style.height = `${Math.round(STAGE.h * s)}px`;
+        const w = Math.round(STAGE.w * s); const h = Math.round(STAGE.h * s);
+        stage.style.width = `${w}px`;
+        stage.style.height = `${h}px`;
+        // modo jogo no celular + "preencher": estica (CSS) até as bordas da tela
+        const gameMode = full || embedded;
+        stage.style.transform = gameMode && fill && w && h ? `translate(-50%, -50%) scale(${(r.width / w).toFixed(4)}, ${(r.height / h).toFixed(4)})` : '';
       }
     };
     update();
@@ -339,7 +347,7 @@ export default function PracaPage({ embedded = false }) {
     ro.observe(page);
     window.addEventListener('orientationchange', update);
     return () => { ro.disconnect(); window.removeEventListener('orientationchange', update); };
-  }, [full, phase]);
+  }, [full, phase, fill, embedded]);
 
   // mudo
   useEffect(() => {
@@ -394,13 +402,45 @@ export default function PracaPage({ embedded = false }) {
     try { playerRef.current?.resume?.(); } catch { /* ignora */ }
   };
 
+  // Sair do jogo: no app Android o WebView avisa o app (PracaApp.exit); no
+  // site, sai da tela cheia / volta pra página anterior.
+  const exitGame = useCallback(() => {
+    if (embedded) {
+      try { if (window.PracaApp?.exit) { window.PracaApp.exit(); return; } } catch { /* ok */ }
+      if (window.history.length > 1) window.history.back(); else window.location.assign('/inicio');
+      return;
+    }
+    if (full) toggleFull();
+  }, [embedded, full, toggleFull]);
+
   const dismissHint = () => { setHint(false); try { localStorage.setItem('pc.praca.hint', '1'); } catch { /* ignora */ } };
 
   const retry = () => { setError(''); setCfg(null); setReady(null); setPhase('config'); api.get('/plaza/config').then(({ data }) => { setCfg(data); setOnline(data.online || 0); }).catch((err) => { setError(err?.response?.data?.error || 'A Praça está indisponível agora.'); setPhase('error'); }); };
 
   return (
-    <div className={`praca-page${full ? ' is-full' : ''}${touch ? ' is-touch' : ''}${showBar ? ' show-bar' : ''}${embedded ? ' is-embedded' : ''}`} ref={pageRef}>
-      {full && <button type="button" className="praca-peek" onClick={peekBar} aria-label="Mostrar controles" />}
+    <div className={`praca-page${full ? ' is-full' : ''}${touch ? ' is-touch' : ''}${showBar ? ' show-bar' : ''}${embedded ? ' is-embedded' : ''}${(full || embedded) ? ' is-game' : ''}${fill ? ' is-fill' : ''}`} ref={pageRef}>
+      {full && !touch && <button type="button" className="praca-peek" onClick={peekBar} aria-label="Mostrar controles" />}
+      {(full || embedded) && touch && (
+        <div className="praca-hud" role="toolbar" aria-label="Controles do jogo">
+          <button type="button" className="praca-hud-btn" onClick={() => setMuted((m) => !m)} aria-pressed={muted} aria-label={muted ? 'Ligar o som' : 'Silenciar'}>
+            {muted ? (
+              <svg viewBox="0 0 24 24" width="20" height="20"><path fill="currentColor" d="M3 9v6h4l5 5V4L7 9H3zm13.5 3a4.5 4.5 0 0 0-2.5-4v8a4.5 4.5 0 0 0 2.5-4zM19 3.3 20.7 5 5 20.7 3.3 19 19 3.3z" /></svg>
+            ) : (
+              <svg viewBox="0 0 24 24" width="20" height="20"><path fill="currentColor" d="M3 9v6h4l5 5V4L7 9H3zm13.5 3a4.5 4.5 0 0 0-2.5-4v8a4.5 4.5 0 0 0 2.5-4zM14 3.2v2.1a7 7 0 0 1 0 13.4v2.1a9 9 0 0 0 0-17.6z" /></svg>
+            )}
+          </button>
+          <button type="button" className="praca-hud-btn" onClick={toggleFill} aria-pressed={fill} aria-label={fill ? 'Ajustar à tela (manter proporção)' : 'Preencher a tela'}>
+            {fill ? (
+              <svg viewBox="0 0 24 24" width="20" height="20"><path fill="currentColor" d="M5 16h3v3h2v-5H5v2zm3-8H5v2h5V5H8v3zm6 11h2v-3h3v-2h-5v5zm2-11V5h-2v5h5V8h-3z" /></svg>
+            ) : (
+              <svg viewBox="0 0 24 24" width="20" height="20"><path fill="currentColor" d="M7 14H5v5h5v-2H7v-3zm-2-4h2V7h3V5H5v5zm12 7h-3v2h5v-5h-2v3zM14 5v2h3v3h2V5h-5z" /></svg>
+            )}
+          </button>
+          <button type="button" className="praca-hud-btn praca-hud-exit" onClick={exitGame} aria-label="Sair do jogo">
+            <svg viewBox="0 0 24 24" width="20" height="20"><path fill="currentColor" d="M18.3 5.7 12 12l6.3 6.3-1.4 1.4L10.6 13.4 4.3 19.7 2.9 18.3 9.2 12 2.9 5.7l1.4-1.4 6.3 6.3 6.3-6.3z" /></svg>
+          </button>
+        </div>
+      )}
       <header className="praca-bar">
         <div className="praca-title">
           <span className="praca-logo" aria-hidden="true">

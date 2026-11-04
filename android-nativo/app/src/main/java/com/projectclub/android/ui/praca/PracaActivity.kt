@@ -11,6 +11,7 @@ import android.view.View
 import android.view.ViewGroup
 import android.view.WindowManager
 import android.webkit.ConsoleMessage
+import android.webkit.JavascriptInterface
 import android.webkit.CookieManager
 import android.webkit.PermissionRequest
 import android.webkit.WebChromeClient
@@ -91,6 +92,8 @@ class PracaActivity : ComponentActivity() {
             // aparelho e não dispara aviso de "login em aparelho novo".
             userAgentString = Config.userAgent
         }
+        // Botão "Sair" da HUD do jogo (página) → fecha esta tela.
+        web.addJavascriptInterface(Bridge(), "PracaApp")
         CookieManager.getInstance().apply {
             setAcceptCookie(true)
             setAcceptThirdPartyCookies(web, false)
@@ -183,6 +186,11 @@ class PracaActivity : ComponentActivity() {
     override fun onResume() { super.onResume(); web.onResume(); web.resumeTimers() }
     override fun onPause() { web.pauseTimers(); web.onPause(); super.onPause() }
     override fun onDestroy() { web.loadUrl("about:blank"); web.destroy(); super.onDestroy() }
+
+    /** window.PracaApp na página do jogo. */
+    inner class Bridge {
+        @JavascriptInterface fun exit() { runOnUiThread { finish() } }
+    }
 
     companion object {
         const val GAME_PATH = "/praca/app"

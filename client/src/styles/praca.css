@@ -150,3 +150,36 @@
 @media (orientation: landscape) and (max-height: 500px) {
   .praca-page.is-embedded .praca-bar { display: none; }
 }
+
+/* ---- modo jogo no celular (tela cheia ou app): o jogo ocupa a tela toda ---- */
+.praca-page.is-game.is-touch { background: #061a30; }
+.praca-page.is-game.is-touch .praca-bar { display: none; }
+.praca-page.is-game.is-touch .praca-arena { position: absolute; inset: 0; min-height: 0; background: #061a30; }
+.praca-page.is-game.is-touch .praca-stage { border-radius: 0; box-shadow: none; transform-origin: center; }
+.praca-page.is-game.is-touch .praca-hint { display: none; }
+/* Esticado ("preencher"): o Ruffle desenha no tamanho real e o CSS estica até as bordas */
+.praca-page.is-fill .praca-stage { image-rendering: auto; }
+
+/* HUD flutuante do celular: som, preencher/ajustar e sair — sempre visível,
+   fora do caminho (canto superior direito, respeitando o recorte da tela) */
+.praca-hud {
+  position: absolute; z-index: 6; display: flex; gap: 6px; padding: 4px;
+  top: max(8px, env(safe-area-inset-top)); right: max(8px, env(safe-area-inset-right));
+  border-radius: 999px; background: rgba(6, 26, 48, .55); backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px);
+  box-shadow: 0 4px 18px rgba(0, 0, 0, .35), inset 0 0 0 1px rgba(255, 255, 255, .12);
+  opacity: .85; transition: opacity .2s;
+}
+.praca-hud:hover, .praca-hud:focus-within { opacity: 1; }
+.praca-hud-btn {
+  display: grid; place-items: center; width: 40px; height: 40px; border-radius: 50%; border: 0; cursor: pointer;
+  background: rgba(255, 255, 255, .12); color: #fff; touch-action: manipulation; -webkit-tap-highlight-color: transparent;
+}
+.praca-hud-btn:active { transform: scale(.92); background: rgba(255, 255, 255, .22); }
+.praca-hud-btn[aria-pressed="true"] { background: var(--brand, #3b7bff); }
+.praca-hud-exit { background: rgba(237, 66, 69, .55); }
+@media (orientation: portrait) {
+  /* em pé: o jogo é deitado — HUD embaixo pra não cobrir o palco no topo */
+  .praca-page.is-game.is-touch .praca-stage { top: 0; transform: translate(-50%, 0); }
+  .praca-page.is-game.is-touch.is-fill .praca-stage { top: 50%; }
+  .praca-hud { top: auto; bottom: max(12px, env(safe-area-inset-bottom)); right: 50%; transform: translateX(50%); }
+}
