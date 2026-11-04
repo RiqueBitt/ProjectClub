@@ -362,7 +362,9 @@ export default function PracaPage({ embedded = false }) {
         stage.style.width = `${w}px`;
         stage.style.height = `${h}px`;
         const ov = overlayRef.current;
-        if (ov) { ov.style.width = `${w}px`; ov.style.height = `${h}px`; ov.style.setProperty('--s', String(s)); }
+        // escala REAL do palco (depois do arredondamento): o que fica por cima
+        // do jogo (botões na barra) cai no pixel certo
+        if (ov) { ov.style.width = `${w}px`; ov.style.height = `${h}px`; ov.style.setProperty('--s', String(Math.min(w / STAGE.w, h / STAGE.h))); }
       }
     };
     update();
@@ -567,7 +569,7 @@ export default function PracaPage({ embedded = false }) {
         )}
         {/* Voz por proximidade: botões por cima do jogo, no mesmo tamanho/posição do palco */}
         {phase === 'playing' && (
-          <div className="praca-stage-overlay" ref={overlayRef} style={{ width: Math.round(STAGE.w * scale), height: Math.round(STAGE.h * scale), '--s': scale }}>
+          <div className="praca-stage-overlay" ref={overlayRef} style={{ width: Math.round(STAGE.w * scale), height: Math.round(STAGE.h * scale), '--s': Math.min(Math.round(STAGE.w * scale) / STAGE.w, Math.round(STAGE.h * scale) / STAGE.h) }}>
             {dockVisible && <PracaVoiceButtons v={pracaVoice} />}
           </div>
         )}

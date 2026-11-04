@@ -20,6 +20,8 @@ import { useSocket } from '../context/SocketContext.jsx';
 import { useVoice } from '../context/VoiceContext.jsx';
 import micIcon from './assets/mic.png';
 import headsetIcon from './assets/headset.png';
+import dockBarSvg from './assets/dock-bar.svg?raw';
+import dockButtonArt from './assets/dock-button.png';
 
 export const PRACA_VOICE_ID = 'praca:ilha';
 const NEAR = 110; // até aqui: volume cheio (px do palco 760x480)
@@ -191,18 +193,19 @@ export function useGameDockVisible(playerRef, enabled) {
 }
 
 // ---------------------------------------------------------------------------
-// Botões FAZENDO PARTE da barra de baixo do jogo: um pedaço a mais da barra,
-// colado na ponta direita dela (depois do botão de configurações), com os
-// mesmos aros, cores e botões redondos. Posições em pixels do palco 760x480,
-// medidas no próprio quadro do jogo:
-//   barra: x 99–661, borda de cima y≈439.5, fundo y≈476
-//   botões: Ø≈26, centro y≈459.5, um a cada ~30 px (configurações em x≈630.5)
-// O pedaço novo começa em x=647 (cobre só a ponta arredondada da barra, sem
-// encostar no botão de configurações) e vai até x≈717 — ali o jogo não tem
-// botão nenhum (os do iglu ficam acima, y<410, e o de salvar só aparece com
-// a barra escondida, quando estes botões também somem).
-// Ícones no traço do jogo: microfone (falar) e headset (ouvir). Desligado =
-// risco vermelho de "proibido" por cima do ícone.
+// Botões FAZENDO PARTE da barra de baixo do jogo, com a arte do PRÓPRIO jogo
+// (tirada do interface.swf): o desenho vetorial da barra (assets/dock-bar.svg)
+// e o botão redondo da barra já com os efeitos dele (assets/dock-button.png).
+// O pedaço novo é um trecho reto da barra + a ponta direita original, colado
+// depois do botão de configurações, com os dois botões no mesmo espaçamento
+// dos outros (30 px). Posições em pixels do palco 760x480, medidas no quadro
+// do jogo:
+//   barra: y 435 (contorno) → 476.25 (moldura branca do jogo cobre o resto)
+//   botões: 27,875 px, canto em y 447,31; configurações em x 619,23
+// Dali pra direita o jogo não tem botão nenhum (os do iglu ficam acima,
+// y<410, e o de salvar só aparece com a barra escondida — quando estes botões
+// também somem). Ícones: microfone (falar) e headset (ouvir); desligado =
+// risco vermelho de "proibido" por cima.
 
 function BanLine() {
   return (
@@ -228,11 +231,38 @@ function VoiceBtn({ on, icon, hint, label, onClick, glow, busy }) {
   );
 }
 
+// Caminhos vetoriais da barra (já em coordenadas do palco: x 94–666, y 435–480).
+const DOCK_PATHS = (dockBarSvg.match(/<path[^>]*\/>/g) || []).join('');
+
+// (máscara em vez de clipPath: a máscara recorta o grupo já pintado, sem
+// deixar fio claro nas emendas entre as camadas da barra)
+// O pedaço de barra é desenhado num SVG do tamanho do palco inteiro, nas
+// coordenadas do próprio jogo — assim cai no mesmo subpixel que o Ruffle usa
+// pra barra original (sem degrau na emenda).
+//   trecho reto: a barra de x=400 em diante, deslocada pra começar em 647,1
+//   (em cima, desde 643: cobre o começo da curva da ponta original, acima
+//   do botão de configurações)
+//   ponta: a ponta original (x 646–668) deslocada 60 px pra direita
+function DockExtensionArt() {
+  return (
+    <svg className="pvb-art" viewBox="0 0 760 480" preserveAspectRatio="none" aria-hidden="true" focusable="false">
+      <defs>
+        <mask id="pvb-clip-mid" maskUnits="userSpaceOnUse" x="0" y="0" width="760" height="480"><rect x="647.1" y="430" width="59.4" height="46.25" fill="#fff" /><rect x="643" y="430" width="5" height="17" fill="#fff" /></mask>
+        <mask id="pvb-clip-end" maskUnits="userSpaceOnUse" x="0" y="0" width="760" height="480"><rect x="706" y="430" width="30" height="46.25" fill="#fff" /></mask>
+      </defs>
+      <g mask="url(#pvb-clip-mid)"><g transform="translate(247.1 0)" dangerouslySetInnerHTML={{ __html: DOCK_PATHS }} /></g>
+      <g mask="url(#pvb-clip-end)"><g transform="translate(60 0)" dangerouslySetInnerHTML={{ __html: DOCK_PATHS }} /></g>
+    </svg>
+  );
+}
+
 export function PracaVoiceButtons({ v }) {
   if (!v.available) return null;
   const busy = v.joining && !v.inVoice;
   return (
-    <div className="pvb" role="toolbar" aria-label="Voz por proximidade">
+    <>
+    <DockExtensionArt />
+    <div className="pvb" role="toolbar" aria-label="Voz por proximidade" style={{ '--pvb-btn': `url("${dockButtonArt}")` }}>
       <VoiceBtn
         on={v.talk} icon={micIcon} label="Falar" onClick={v.toggleTalk}
         glow={v.speaking} busy={busy && v.talk}
@@ -244,5 +274,6 @@ export function PracaVoiceButtons({ v }) {
         hint={v.listen ? 'Ouvindo quem está perto' : 'Sem ouvir ninguém'}
       />
     </div>
+    </>
   );
 }
