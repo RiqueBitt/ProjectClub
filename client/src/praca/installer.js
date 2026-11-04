@@ -31,7 +31,7 @@ async function ensureGameServiceWorker() {
   try {
     const regs = await navigator.serviceWorker.getRegistrations();
     const mine = regs.find((r) => (r.active?.scriptURL || r.installing?.scriptURL || r.waiting?.scriptURL || '').endsWith('/sw.js'));
-    if (mine) return mine;
+    if (mine) { mine.update().catch(() => {}); return mine; } // pega versão nova do worker
     return await navigator.serviceWorker.register('/sw.js', { scope: '/', updateViaCache: 'none' });
   } catch (err) {
     console.warn('[praca] service worker indisponível:', err?.message || err);

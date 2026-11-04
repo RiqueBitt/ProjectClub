@@ -8,8 +8,10 @@
  * (pc-praca) e aqui eles são servidos de lá — o jogo roda inteiro do
  * navegador, sem baixar nada de novo. Esses arquivos têm versão na URL, e o
  * que não estiver no cache vai pra rede e entra no cache ao passar. */
-const VERSION = 'pc-sw-3';
+const VERSION = 'pc-sw-4';
 const GAME_CACHE = 'pc-praca';
+// Consertados no servidor (ver server/waddle/.../swf-patches.ts)
+const FRESH = [/\/play\/v2\/content\/global\/content\/interface\.swf$/];
 const isGameUrl = (url) => url.origin === self.location.origin && (url.pathname.startsWith('/play/') || url.pathname.startsWith('/playstart/'));
 
 self.addEventListener('fetch', (event) => {
@@ -20,6 +22,17 @@ self.addEventListener('fetch', (event) => {
   if (!isGameUrl(url)) return; // todo o resto: navegador normal
   event.respondWith((async () => {
     const cache = await caches.open(GAME_CACHE);
+    // Arquivos que o servidor CONSERTA (mesma URL, conteúdo novo): sempre da
+    // rede (o guardado pode ser o antigo); sem internet, usa o guardado.
+    if (FRESH.some((re) => re.test(url.pathname))) {
+      try {
+        const res = await fetch(req, { cache: 'no-cache' });
+        if (res.ok) { cache.put(req.url, res.clone()).catch(() => {}); return res; }
+      } catch { /* sem rede */ }
+      const old = await cache.match(req.url);
+      if (old) return old;
+      return fetch(req);
+    }
     const hit = await cache.match(req.url);
     if (hit) return hit;
     const res = await fetch(req);

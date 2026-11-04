@@ -9,6 +9,7 @@ import { translateJsonText } from '@server/i18n';
 import { SettingsManager } from '@server/settings';
 import { FileOverrider, OVERRIDERS, REGEX_OVERRIDERS } from './overriders';
 import { getYellowString, logverbose } from '@server/logger';
+import { patchSwf, isPatchedRoute } from './swf-patches';
 
 /** Server that serves files to the game webpage and files in the game */
 export class FileServer {
@@ -55,7 +56,7 @@ export class FileServer {
         mediaPath = mediaPath(this.settings);
       }
       logverbose(`req ${route} -> send ${mediaPath}`);
-      return await readMediaFile(mediaPath);
+      return patchSwf(route, await readMediaFile(mediaPath));
     }
 
     const generator = this.dynamicFiles.get(route);
@@ -99,7 +100,7 @@ export class FileServer {
           // mídia de verdade (não gerada) pode ficar em cache no navegador
           const isMedia = this.gameData.lookupFile(route) !== undefined && !this.modFiles.has(route);
           // mídia: 30 dias (as URLs mudam de versão quando o conteúdo muda); gerados: revalidam por ETag
-          res.set('Cache-Control', isMedia ? 'public, max-age=2592000, immutable' : 'no-cache');
+          res.set('Cache-Control', isMedia && !isPatchedRoute(route) ? 'public, max-age=2592000, immutable' : 'no-cache');
           const split = route.split('.');
           // if less than 1, then there was no file extension
           // route with no file extension -> a GET request for an HTML file

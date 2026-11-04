@@ -13,6 +13,7 @@ const media_store_1 = require("../../common/media-store.js");
 const i18n_1 = require("../i18n/index.js");
 const overriders_1 = require("./overriders");
 const logger_1 = require("../logger.js");
+const swf_patches_1 = require("./swf-patches");
 /** Server that serves files to the game webpage and files in the game */
 class FileServer {
     gameData;
@@ -53,7 +54,7 @@ class FileServer {
                 mediaPath = mediaPath(this.settings);
             }
             (0, logger_1.logverbose)(`req ${route} -> send ${mediaPath}`);
-            return await (0, media_store_1.readMediaFile)(mediaPath);
+            return (0, swf_patches_1.patchSwf)(route, await (0, media_store_1.readMediaFile)(mediaPath));
         }
         const generator = this.dynamicFiles.get(route);
         if (generator !== undefined) {
@@ -92,7 +93,7 @@ class FileServer {
                     // mídia de verdade (não gerada) pode ficar em cache no navegador
                     const isMedia = this.gameData.lookupFile(route) !== undefined && !this.modFiles.has(route);
                     // mídia: 30 dias (as URLs mudam de versão quando o conteúdo muda); gerados: revalidam por ETag
-                    res.set('Cache-Control', isMedia ? 'public, max-age=2592000, immutable' : 'no-cache');
+                    res.set('Cache-Control', isMedia && !(0, swf_patches_1.isPatchedRoute)(route) ? 'public, max-age=2592000, immutable' : 'no-cache');
                     const split = route.split('.');
                     // if less than 1, then there was no file extension
                     // route with no file extension -> a GET request for an HTML file

@@ -5,7 +5,7 @@ import { enterGameMode, exitGameMode } from '../minijogos/orientation.js';
 import { isTouchDevice } from '../minijogos/touch/detect.js';
 import { autoLogin, watchEntry } from '../praca/autoLogin.js';
 import { gameCacheReady, clearGameCache, installPack, installFiles } from '../praca/installer.js';
-import { usePracaSocial, PracaSocialPanel, PracaSocialFloating } from '../praca/PracaSocial.jsx';
+import { usePracaVoice, PracaVoiceButtons } from '../praca/PracaSocial.jsx';
 import { RemoteAudioSinks } from '../components/CallBar.jsx';
 import '../styles/praca.css';
 
@@ -90,12 +90,10 @@ function readMuted() {
 
 export default function PracaPage({ embedded = false }) {
   const { user } = useAuth();
-  // Chat de texto da sala + voz por proximidade (ver praca/PracaSocial.jsx)
-  const social = usePracaSocial({ myUserId: user?.id });
-  const [panelOpen, setPanelOpen] = useState(() => { try { return localStorage.getItem('pc.praca.panel') !== '0'; } catch { return true; } });
-  const togglePanel = () => setPanelOpen((o) => { try { localStorage.setItem('pc.praca.panel', o ? '0' : '1'); } catch { /* ok */ } return !o; });
   const [cfg, setCfg] = useState(null);
   const [phase, setPhase] = useState('config'); // config | media | download | install | event | loading | playing | error
+  // Voz por proximidade (botões Falar/Ouvir dentro do jogo — ver praca/PracaSocial.jsx)
+  const pracaVoice = usePracaVoice({ myUserId: user?.id, active: phase === 'playing' });
   const [media, setMedia] = useState(null); // estado da mídia no servidor (primeira inicialização)
   const [error, setError] = useState('');
   const [muted, setMuted] = useState(readMuted);
@@ -116,6 +114,7 @@ export default function PracaPage({ embedded = false }) {
   const autoAbort = useRef(null);
   const playerRef = useRef(null);
   const touch = useMemo(() => isTouchDevice(), []);
+  const overlayRef = useRef(null);
 
   // 0) O Ruffle executa o ExternalInterface do jogo com `new Function` — a
   // CSP do site só libera isso no documento /praca. Se esta página foi
@@ -343,6 +342,8 @@ export default function PracaPage({ embedded = false }) {
         const w = Math.round(STAGE.w * s); const h = Math.round(STAGE.h * s);
         stage.style.width = `${w}px`;
         stage.style.height = `${h}px`;
+        const ov = overlayRef.current;
+        if (ov) { ov.style.width = `${w}px`; ov.style.height = `${h}px`; ov.style.setProperty('--s', String(s)); }
       }
     };
     update();
@@ -458,12 +459,6 @@ export default function PracaPage({ embedded = false }) {
           {cfg?.version && <span className="praca-chip praca-year" title="Época do jogo">{cfg.version.slice(0, 4)}</span>}
         </div>
         <div className="praca-actions">
-          {!touch && (
-            <button type="button" className="praca-icon-btn praca-social-toggle" onClick={togglePanel} aria-pressed={panelOpen} title={panelOpen ? 'Esconder chat e voz' : 'Chat e voz da sala'}>
-              <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 12a8 8 0 0 1-11.8 7L4 20l1.1-4.6A8 8 0 1 1 21 12Z" /></svg>
-              {!panelOpen && social.unread > 0 && <em className="praca-badge">{social.unread > 9 ? '9+' : social.unread}</em>}
-            </button>
-          )}
           <button type="button" className="praca-icon-btn" onClick={() => setMuted((m) => !m)} aria-pressed={muted} title={muted ? 'Ligar o som' : 'Silenciar'}>
             {muted ? (
               <svg viewBox="0 0 24 24" width="20" height="20"><path fill="currentColor" d="M3 9v6h4l5 5V4L7 9H3zm13.5 3a4.5 4.5 0 0 0-2.5-4v8a4.5 4.5 0 0 0 2.5-4zM19 3.3 20.7 5 5 20.7 3.3 19 19 3.3z" /></svg>
@@ -551,9 +546,13 @@ export default function PracaPage({ embedded = false }) {
         {phase === 'playing' && needsTap && (
           <button type="button" className="praca-tap" onClick={resumeAudio}>Toque para ligar o som</button>
         )}
-        {phase === 'playing' && (touch || full) && <PracaSocialFloating s={social} myUserId={user?.id} />}
+        {/* Voz por proximidade: botões por cima do jogo, no mesmo tamanho/posição do palco */}
+        {phase === 'playing' && (
+          <div className="praca-stage-overlay" ref={overlayRef} style={{ width: Math.round(STAGE.w * scale), height: Math.round(STAGE.h * scale), '--s': scale }}>
+            <PracaVoiceButtons v={pracaVoice} />
+          </div>
+        )}
       </div>
-      {phase === 'playing' && !touch && !full && panelOpen && <PracaSocialPanel s={social} myUserId={user?.id} onClose={togglePanel} />}
       </div>
       {/* App Android (rota /praca/app): fora do app do site não tem a barra de call — o áudio da voz toca daqui */}
       {embedded && <RemoteAudioSinks />}

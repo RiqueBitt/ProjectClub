@@ -37,6 +37,8 @@ if (!process.env.WADDLE_DATA_DIR) {
 
 const WS_PREFIX = '/waddle/ws/';
 // Prefixos que NUNCA são do jogo (evita até a consulta ao mapa de arquivos).
+// Caminhos que são só do jogo: arquivo inexistente aqui é 404, nunca a página do site.
+const GAME_PREFIXES = ['/play/', '/playstart/', '/artwork/', '/games/', '/web_service/', '/mobile/'];
 const SKIP_PREFIXES = ['/api/', '/socket.io/', '/uploads/', '/media/', '/assets/', '/waddle/', '/ruffle/', '/minigames/'];
 // IP/portas "de fachada": só rotulam o socketProxy do Ruffle (host:porta →
 // wss do site). Nenhuma porta é aberta de verdade.
@@ -188,8 +190,6 @@ function makeTransform(user, penguinName, penguinId) {
       const parts = packet.split('%');
       const text = parts[6] || '';
       if (!(await moderateSpeech(user.id, text))) return null;
-      // painel de chat do site: a mesma fala aparece pra quem está na sala
-      setImmediate(() => notifyChat(user.id, penguinId, text));
     }
     return packet;
   };
@@ -252,7 +252,17 @@ function mountHttp(app) {
     getWaddle().then((w) => {
       const route = req.path.replace(/^\/+/, '');
       // só entra no router do WF se a rota for do jogo (evita custo nos 404 do site)
-      if (req.method === 'GET' && !w.http.getFileServer().knowsRoute(route)) return next();
+      if (req.method === 'GET' && !w.http.getFileServer().knowsRoute(route)) {
+        // Arquivo do JOGO que não existe: 404 de verdade. Antes caía na página
+        // do site (HTML com 200) — o cliente 2012 tentava abrir aquilo como
+        // Flash e travava (ex.: intro_to_cp.swf, carregado a cada login antes
+        // de mostrar a barra do jogo: sem ele a barra de chat nunca aparecia).
+        if (GAME_PREFIXES.some((pre) => req.path.startsWith(pre))) {
+          res.status(404).set('Cache-Control', 'no-store').type('text').send('Arquivo do jogo não encontrado.');
+          return undefined;
+        }
+        return next();
+      }
       cachedRouter(w)(req, res, next);
     }).catch(() => next());
   });
@@ -472,6 +482,11 @@ async function getConfig(user) {
     entry.flashvars = entry.flashvars.replace(/(^|&)nau=[^&]*/, `$1nau=${encodeURIComponent(json.name)}`).replace(/(^|&)nal=[^&]*/, '$1nal=projectclub').replace(/(^|&)nad=[^&]*/, '$1nad=');
     autoEntry = 'flashvars';
   }
+  // Chat livre: com "phrasechat" preenchido o cliente 2012 consulta o serviço
+  // de frases da Disney (/social/autocomplete) antes de mandar cada fala — e
+  // sem ele a mensagem some. Vazio = chat normal do jogo (a fala passa pelo
+  // automod do Project Club no servidor, ver makeTransform).
+  entry.flashvars = entry.flashvars.replace(/(^|&)phrasechat=[^&]*/, '$1phrasechat=');
   return {
     entry,
     autoEntry,
@@ -507,14 +522,13 @@ async function getStatus() {
 const getStore = () => store;
 
 // ---------------------------------------------------------------------------
-// Chat de texto e voz por proximidade (página da Praça).
+// Voz por proximidade (página da Praça).
 //
 // O jogo já sabe quem está em qual sala e onde (x,y no palco 760x480). A
 // cada ~300 ms cada jogador recebe, pelo Socket.IO do site, a lista de quem
 // está NA MESMA SALA com as posições ('praca:presence') — a página usa isso
 // pra baixar/subir o volume de cada pessoa na voz da ilha conforme a
-// distância entre os pinguins. Falas (do jogo ou do painel) vão pra quem
-// está na mesma sala ('praca:chat').
+// distância entre os pinguins. O chat de texto é o do próprio jogo.
 
 let io = null;
 let presenceTimer = null;
@@ -561,34 +575,4 @@ function tickPresence() {
   }
 }
 
-let chatSeq = 0;
-function notifyChat(userId, penguinId, text) {
-  if (!io || !text) return;
-  const rooms = presenceByRoom();
-  for (const [room, players] of rooms) {
-    const speaker = players.find((p) => p.penguinId === penguinId);
-    if (!speaker) continue;
-    const msg = { id: `${Date.now().toString(36)}-${(chatSeq += 1)}`, room, penguinId, userId, name: speaker.name, text: String(text).slice(0, 64), at: Date.now() };
-    for (const p of players) if (p.userId) io.to(`user:${p.userId}`).emit('praca:chat', msg);
-    return;
-  }
-}
-
-const lastSay = new Map(); // userId -> ms
-/** Fala pelo painel de chat do site: vira balão no jogo e aparece pra sala. */
-async function say(user, rawText) {
-  const text = String(rawText || '').replace(/[%\r\n\0]/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 64);
-  if (!text) return { ok: false, status: 400, error: 'Escreva alguma coisa.' };
-  const now = Date.now();
-  if (now - (lastSay.get(user.id) || 0) < 700) return { ok: false, status: 429, error: 'Calma, uma mensagem por vez.' };
-  lastSay.set(user.id, now);
-  const w = await getWaddle();
-  const { id: penguinId } = await ensurePenguin(user);
-  if (!w.world.getOnline || !w.world.getOnline(penguinId)) return { ok: false, status: 409, error: 'Entre na ilha pra falar.' };
-  if (!(await moderateSpeech(user.id, text))) return { ok: false, status: 422, error: 'Essa mensagem foi bloqueada pelo filtro.' };
-  if (!w.world.say(penguinId, text)) return { ok: false, status: 409, error: 'Entre numa sala pra falar.' };
-  notifyChat(user.id, penguinId, text);
-  return { ok: true };
-}
-
-module.exports = { getWaddle, mountHttp, attachUpgrade, getConfig, getStatus, ensurePenguin, cachedRouter, streamPack, getStore, setIo, say };
+module.exports = { getWaddle, mountHttp, attachUpgrade, getConfig, getStatus, ensurePenguin, cachedRouter, streamPack, getStore, setIo };

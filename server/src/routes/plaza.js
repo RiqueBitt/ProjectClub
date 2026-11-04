@@ -21,15 +21,6 @@ router.get('/pack/:kind(base|event)', requireAuth, async (req, res, next) => {
   try { await waddle.streamPack(req.params.kind, res); } catch (err) { next(err); }
 });
 
-// Chat de texto da Praça: fala como o pinguim (balão no jogo + painel da sala).
-router.post('/say', requireAuth, async (req, res, next) => {
-  try {
-    const out = await waddle.say(req.user, req.body?.text);
-    if (!out.ok) return res.status(out.status || 400).json({ error: out.error });
-    return res.json({ ok: true });
-  } catch (err) { return next(err); }
-});
-
 // Sem login: quantos pinguins estão na ilha (pra badge da barra lateral).
 router.get('/status', async (req, res, next) => {
   try { res.json(await waddle.getStatus()); } catch (err) { next(err); }
