@@ -56,6 +56,13 @@
             android:configChanges="orientation|screenSize|screenLayout|smallestScreenSize|keyboardHidden|uiMode">
         </activity>
 
+        <!-- Páginas do site dentro do app, já logado (Painel da Equipe e o que não tem tela nativa). -->
+        <activity
+            android:name=".ui.praca.SiteActivity"
+            android:exported="false"
+            android:windowSoftInputMode="adjustResize"
+            android:configChanges="orientation|screenSize|screenLayout|smallestScreenSize|keyboardHidden|uiMode" />
+
         <!-- Club Penguin (Praça): WebView em tela cheia, deitado. Ver ui/praca/PracaActivity. -->
         <activity
             android:name=".ui.praca.PracaActivity"

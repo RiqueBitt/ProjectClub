@@ -50,3 +50,21 @@
 .stg-qty b { min-width: 24px; text-align: center; font-variant-numeric: tabular-nums; }
 .stg-toast { position: fixed; left: 50%; bottom: 28px; transform: translateX(-50%); z-index: 1300; max-width: min(640px, 92vw); padding: 10px 16px; border-radius: 12px; font-size: 13.5px; font-weight: 600; color: #fff; background: #1f8f4a; box-shadow: 0 12px 40px rgba(0,0,0,.4); animation: stu-fade .18s ease-out; }
 .stg-toast.bad { background: var(--st-bad); }
+
+/* Celular: uma coisa por vez — lista OU ficha do pinguim */
+.stg-back { display: none; align-self: flex-start; height: 34px; padding: 0 12px; border-radius: 10px; border: 1px solid var(--st-border); background: var(--bg-secondary); color: var(--header-primary); font-weight: 700; cursor: pointer; }
+@media (max-width: 900px) {
+  .stg-list { position: static; }
+  .stg-list .stu-results { max-height: none; }
+  .stg.has-selected .stg-list { display: none; }
+  .stg:not(.has-selected) .stg-editor { display: none; }
+  .stg-back { display: inline-flex; align-items: center; }
+  .stg-head { flex-wrap: wrap; }
+  .stg-head-actions { width: 100%; }
+  .stg-head-actions .sth-btn { flex: 1; }
+  .stg-tabs { flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none; }
+  .stg-tab { flex-shrink: 0; }
+  .stg-grid { grid-template-columns: 1fr; }
+  .stg-inline input, .stg-inline select { min-width: 0; }
+  .stg-toast { bottom: calc(80px + env(safe-area-inset-bottom)); }
+}

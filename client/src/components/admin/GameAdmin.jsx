@@ -32,6 +32,7 @@ export default function GameAdmin() {
   const [toast, setToast] = useState(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
+  const editorRef = useRef(null);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -42,6 +43,8 @@ export default function GameAdmin() {
 
   const open = useCallback(async (id) => {
     setSelected(id); setPenguin(null); setSection('resumo');
+    // celular: lista e ficha ficam empilhadas — leva a pessoa até a ficha
+    window.requestAnimationFrame(() => editorRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }));
     try { const { data } = await api.get(`/staff-game/penguins/${id}`); setPenguin(data); } catch (err) { setError(err?.response?.data?.error || 'Não deu pra abrir o pinguim.'); }
   }, []);
 
@@ -64,7 +67,7 @@ export default function GameAdmin() {
   }, [selected, open]);
 
   return (
-    <div className="stu stg">
+    <div className={`stu stg${selected ? ' has-selected' : ''}`}>
       <div className="stg-layout">
         <aside className="stg-list">
           <label className="stu-search">
@@ -91,7 +94,8 @@ export default function GameAdmin() {
           </ul>
         </aside>
 
-        <section className="stg-editor">
+        <section className="stg-editor" ref={editorRef}>
+          {selected && <button type="button" className="stg-back" onClick={() => { setSelected(null); setPenguin(null); }}>← Voltar à lista</button>}
           {!selected && (
             <div className="sth-empty stg-empty-big">
               <span className="sth-empty-icon"><PenguinGlyph /></span>

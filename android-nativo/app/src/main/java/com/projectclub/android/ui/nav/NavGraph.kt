@@ -86,6 +86,7 @@ class AppNavigator(
     override fun games(userId: String) = go("games/$userId")
     override fun trades() = go("trades")
     override fun praca() = com.projectclub.android.ui.praca.PracaActivity.start(context)
+    override fun site(path: String) = com.projectclub.android.ui.praca.SiteActivity.open(context, path)
 
     // ---- links bonitos (/canal/<nome>, /dm/<@>, /perfil/<@>, /evento/<nome>, /forum/<nome>) ----
     // O ref pode ser o nome do link OU o id antigo. Primeiro procura no que
@@ -156,16 +157,18 @@ class AppNavigator(
             "inbox", "caixa-de-entrada" -> inbox(if (tab == "favoritos") 1 else 0)
             "clans" -> clubs()
             "praca" -> praca()
+            "admin" -> site(uri.path.orEmpty().ifBlank { "/admin" } + (uri.query?.let { "?$it" } ?: ""))
             "tickets" -> tickets()
             "atividade" -> activity()
             "search" -> search()
             "jogos" -> if (seg.getOrNull(1) == "biblioteca") {
                 val ref = seg.getOrNull(2)
                 if (ref == null) games("me") else openUserRef(ref) { games(it) }
-            } else external(uri.toString())
+            } else site(uri.path.orEmpty() + (uri.query?.let { "?$it" } ?: ""))
             "profile" -> repo.me.value?.id?.let(::fullProfile) ?: onHome(4)
             "perfil", "u" -> seg.getOrNull(1)?.let { ref -> openUserRef(ref) { fullProfile(it) } }
-            else -> external(uri.toString())
+            // o resto do site abre dentro do app, já logado
+            else -> site(uri.path.orEmpty() + (uri.query?.let { "?$it" } ?: ""))
         }
     }
 

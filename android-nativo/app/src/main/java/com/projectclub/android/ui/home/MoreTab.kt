@@ -134,6 +134,21 @@ fun MoreTab(repo: Repository, actions: HomeActions, nav: com.projectclub.android
                 }
             }
 
+            // Equipe: o Painel da Equipe inteiro, dentro do app e já logado
+            if (me?.platformRole == "ADMIN" || me?.platformRole == "MODERATOR") {
+                PcCard(onClick = { nav.site("/admin") }, padding = PaddingValues(14.dp)) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        IconTile(Icons.Outlined.AdminPanelSettings, PC.Yellow, 44.dp, 24.dp)
+                        Spacer(Modifier.width(12.dp))
+                        Column(Modifier.weight(1f)) {
+                            Text("Painel da Equipe", style = MaterialTheme.typography.titleSmall, color = PC.Header, maxLines = 1)
+                            Text("Usuários, denúncias, economia, Club Penguin e tudo mais", color = PC.Muted, style = MaterialTheme.typography.bodySmall, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                        }
+                        Icon(Icons.AutoMirrored.Outlined.KeyboardArrowRight, null, tint = PC.Faint)
+                    }
+                }
+            }
+
             // Grade de atalhos
             grid.chunked(3).forEach { row ->
                 Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
@@ -160,7 +175,7 @@ fun MoreTab(repo: Repository, actions: HomeActions, nav: com.projectclub.android
                 Line(Icons.Outlined.Campaign, "Novidades", PC.Announce) { nav.announcements() }
                 Line(Icons.Outlined.PhotoLibrary, "Galeria", Color(0xFFF472B6)) { nav.gallery() }
                 Line(Icons.Outlined.SupportAgent, "Suporte", PC.Green) { actions.openWeb("/tickets") }
-                if (me?.platformRole == "ADMIN" || me?.platformRole == "MODERATOR") Line(Icons.Outlined.AdminPanelSettings, "Painel da equipe", PC.Yellow) { actions.openWeb("/admin") }
+                if (me?.platformRole == "ADMIN" || me?.platformRole == "MODERATOR") Line(Icons.Outlined.AdminPanelSettings, "Painel da equipe", PC.Yellow) { nav.site("/admin") }
                 Line(Icons.Outlined.NotificationsActive, "Notificações do celular", PC.Pink) {
                     ctx.startActivity(Intent(android.provider.Settings.ACTION_APP_NOTIFICATION_SETTINGS).putExtra(android.provider.Settings.EXTRA_APP_PACKAGE, ctx.packageName))
                 }
