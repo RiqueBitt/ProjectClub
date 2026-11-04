@@ -20,14 +20,41 @@ exports.isPatchedRoute = isPatchedRoute;
  * `autoLogXn` (mesmo tamanho). Todas as checagens de "novato" da interface
  * leem undefined → comportamento de jogador normal. O shell (que faz o
  * login automático de verdade) continua igual.
+ *
+ * Também no interface.swf: um DoAction a mais no 1º quadro (depois do script
+ * principal) põe os botões de voz Falar/Ouvir DENTRO da barra do jogo — ver
+ * praca-voice-action.ts (gerado de server/waddle/praca-voice/).
  */
 const zlib_1 = __importDefault(require("zlib"));
+const praca_voice_action_1 = require("./praca-voice-action");
 const PATCHES = [
     {
         test: (route) => /(^|\/)play\/v2\/content\/global\/content\/interface\.swf$/.test(route),
         patches: [{ from: 'autoLogin\0', to: 'autoLogXn\0' }],
+        frame1Tags: [praca_voice_action_1.PRACA_VOICE_DOACTION],
     },
 ];
+/** Insere `tags` no fim do 1º quadro da linha do tempo principal (antes do 1º ShowFrame). */
+function insertIntoFrame1(body, tags) {
+    const nbits = body[0] >> 3;
+    let off = Math.ceil((5 + 4 * nbits) / 8) + 4; // RECT + frameRate + frameCount
+    while (off + 2 <= body.length) {
+        const h = body.readUInt16LE(off);
+        const code = h >> 6;
+        let len = h & 63;
+        let hl = 2;
+        if (len === 63) {
+            len = body.readUInt32LE(off + 2);
+            hl = 6;
+        }
+        if (code === 1)
+            return Buffer.concat([body.subarray(0, off), ...tags, body.subarray(off)]);
+        if (code === 0)
+            break;
+        off += hl + len;
+    }
+    return body; // sem ShowFrame: deixa como está
+}
 const cache = new Map(); // route+tamanho → resultado
 function replaceAll(buf, from, to) {
     let out = buf;
@@ -58,6 +85,8 @@ function patchSwf(route, data) {
             continue; // só troca do mesmo tamanho (não mexe em offsets)
         body = replaceAll(body, from, to);
     }
+    if (rule.frame1Tags?.length)
+        body = insertIntoFrame1(body, rule.frame1Tags);
     const header = Buffer.from(data.subarray(0, 8));
     header.writeUInt32LE(body.length + 8, 4); // tamanho descomprimido (igual ao original)
     const out = sig === 'CWS' ? Buffer.concat([header, zlib_1.default.deflateSync(body, { level: 9 })]) : Buffer.concat([header, body]);

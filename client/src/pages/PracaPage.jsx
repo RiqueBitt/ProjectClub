@@ -5,7 +5,7 @@ import { enterGameMode, exitGameMode } from '../minijogos/orientation.js';
 import { isTouchDevice } from '../minijogos/touch/detect.js';
 import { autoLogin, watchEntry } from '../praca/autoLogin.js';
 import { gameCacheReady, clearGameCache, installPack, installFiles } from '../praca/installer.js';
-import { usePracaVoice, PracaVoiceButtons, useGameDockVisible } from '../praca/PracaSocial.jsx';
+import { usePracaVoice, useInGameVoiceButtons } from '../praca/PracaSocial.jsx';
 import { RemoteAudioSinks } from '../components/CallBar.jsx';
 import '../styles/praca.css';
 
@@ -67,22 +67,7 @@ function installSwfAddressShim() {
     popup: noop, href: noop, onInit: noop, onChange: noop,
   };
 }
-// Os botões de voz só aparecem quando a barra do jogo está na tela (some em
-// minigame, editando o iglu, etc.). Pra saber disso a página lê alguns pixels
-// do quadro do jogo — e o WebGL só deixa ler o quadro já desenhado com
-// preserveDrawingBuffer. Instalado antes de o Ruffle criar o contexto.
-let readableGl = false;
-function makeGameCanvasReadable() {
-  if (readableGl || typeof HTMLCanvasElement === 'undefined') return;
-  readableGl = true;
-  const orig = HTMLCanvasElement.prototype.getContext;
-  HTMLCanvasElement.prototype.getContext = function getContext(type, opts) {
-    if (typeof type === 'string' && type.includes('webgl')) opts = { ...(opts || {}), preserveDrawingBuffer: true };
-    return orig.call(this, type, opts);
-  };
-}
 function loadRuffle() {
-  makeGameCanvasReadable();
   if (window.RufflePlayer?.newest) return Promise.resolve(window.RufflePlayer);
   if (!rufflePromise) {
     rufflePromise = new Promise((resolve, reject) => {
@@ -128,10 +113,9 @@ export default function PracaPage({ embedded = false }) {
   const stageRef = useRef(null);
   const autoAbort = useRef(null);
   const playerRef = useRef(null);
-  // barra do jogo na tela? (fora de minigame, edição do iglu, telas cheias…)
-  const dockVisible = useGameDockVisible(playerRef, phase === 'playing');
+  // botões Falar/Ouvir DENTRO da barra do jogo (interface.swf ↔ página)
+  useInGameVoiceButtons(playerRef, pracaVoice);
   const touch = useMemo(() => isTouchDevice(), []);
-  const overlayRef = useRef(null);
 
   // 0) O Ruffle executa o ExternalInterface do jogo com `new Function` — a
   // CSP do site só libera isso no documento /praca. Se esta página foi
@@ -291,8 +275,6 @@ export default function PracaPage({ embedded = false }) {
         // Nitidez: o Ruffle desenha os vetores na resolução real da tela
         // (devicePixelRatio) e com o melhor anti-aliasing.
         quality: 'best',
-        // WebGL (não WebGPU): dá pra ler os pixels do quadro (ver makeGameCanvasReadable)
-        preferredRenderer: 'wgpu-webgl',
         backgroundColor: '#0b2a4a',
         warnOnUnsupportedContent: false,
         showSwfDownload: false,
@@ -361,10 +343,6 @@ export default function PracaPage({ embedded = false }) {
         const w = Math.round(STAGE.w * s); const h = Math.round(STAGE.h * s);
         stage.style.width = `${w}px`;
         stage.style.height = `${h}px`;
-        const ov = overlayRef.current;
-        // escala REAL do palco (depois do arredondamento): o que fica por cima
-        // do jogo (botões na barra) cai no pixel certo
-        if (ov) { ov.style.width = `${w}px`; ov.style.height = `${h}px`; ov.style.setProperty('--s', String(Math.min(w / STAGE.w, h / STAGE.h))); }
       }
     };
     update();
@@ -566,12 +544,6 @@ export default function PracaPage({ embedded = false }) {
         )}
         {phase === 'playing' && needsTap && (
           <button type="button" className="praca-tap" onClick={resumeAudio}>Toque para ligar o som</button>
-        )}
-        {/* Voz por proximidade: botões por cima do jogo, no mesmo tamanho/posição do palco */}
-        {phase === 'playing' && (
-          <div className="praca-stage-overlay" ref={overlayRef} style={{ width: Math.round(STAGE.w * scale), height: Math.round(STAGE.h * scale), '--s': Math.min(Math.round(STAGE.w * scale) / STAGE.w, Math.round(STAGE.h * scale) / STAGE.h) }}>
-            {dockVisible && <PracaVoiceButtons v={pracaVoice} />}
-          </div>
         )}
       </div>
       </div>

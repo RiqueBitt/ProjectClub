@@ -45,7 +45,9 @@ function getModernIglooString(igloo, index) {
         igloo.locked ? 1 : 0,
         igloo.music,
         igloo.flooring,
-        igloo.location,
+        // local 0 não existe: o cliente 2012 trava a fila de carregamento ao não
+        // achar o local e os móveis não aparecem ao entrar no iglu → "Padrão" (1)
+        igloo.location || 1,
         igloo.type,
         likeCount,
         getFurnitureString(igloo.furniture)
@@ -165,7 +167,7 @@ const handleUpdateIglooNew = (ctx, layoutId, type, flooring, location, music, fu
     if (furniture.length >= 99) {
         addFullHouseStamp(ctx);
     }
-    penguin.igloo.updateIgloo({ type, music, flooring, location, furniture });
+    penguin.igloo.updateIgloo({ type, music, flooring, location: location || 1, furniture });
     prst(penguin);
 };
 exports.handleUpdateIglooNew = handleUpdateIglooNew;

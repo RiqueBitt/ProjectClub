@@ -243,7 +243,8 @@ export const createWorldXtHandler = (): XtHandler => {
     p.xt('s', 'p#revealgoldpuffle', [], handleRevealGoldPuffle),
 
     p.xt('s', 'g#gm', ['number'], handleGetIglooCpip),
-    p.xt('s', 'g#gii', [], handleGetIglooItems),
+    // o cliente 2012 manda o id do dono do iglu (g#gii 1000): aceita qualquer argumento
+    p.xt('s', 'g#gii', 'string', handleGetIglooItems as any),
     p.xt('s', 'g#af', ['number'], handleAddFurniture),
     p.xt('s', 'g#au', ['number'], handleAddIgloo),
     p.xt('s', 'g#ag', ['number'], handleAddFlooring),
@@ -255,8 +256,8 @@ export const createWorldXtHandler = (): XtHandler => {
     p.xt('s', 'g#cr', ['number'], handleCloseIgloo),
     p.xt('s', 'g#gr', [], handleGetOpenIgloos),
     p.xt('s', 'g#um', ['number'], handleUpdateMusic),
-    p.xt('s', 'g#gili', [], handleGetIglooLikes),
-    p.xt('s', 'g#ggd', [], handleGetDj3kTracks),
+    p.xt('s', 'g#gili', 'string', handleGetIglooLikes as any),
+    p.xt('s', 'g#ggd', 'string', handleGetDj3kTracks as any),
     p.xt('s', 'g#gail', ['number'], handleGetAllIglooLayouts),
     p.xt('s', 'g#uic', ['number', 'number', 'number', 'number', 'number', 'string'], handleUpdateIglooNew),
     p.xt('s', 'g#al', [], handleAddIglooLayout),
