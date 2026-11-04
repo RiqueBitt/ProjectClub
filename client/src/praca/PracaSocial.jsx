@@ -18,6 +18,8 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useSocket } from '../context/SocketContext.jsx';
 import { useVoice } from '../context/VoiceContext.jsx';
+import micIcon from './assets/mic.png';
+import headsetIcon from './assets/headset.png';
 
 export const PRACA_VOICE_ID = 'praca:ilha';
 const NEAR = 110; // até aqui: volume cheio (px do palco 760x480)
@@ -56,12 +58,26 @@ export function usePracaVoice({ myUserId, active }) {
   const joining = voice?.joiningChannelId === PRACA_VOICE_ID;
   const wantVoice = active && (want.talk || want.listen);
 
-  // Entra/sai da voz da ilha conforme os botões.
+  // Entra/sai da voz da ilha conforme os botões. Uma tentativa por clique:
+  // se a entrada falhar, os botões voltam a "desligado" (sem ficar tentando
+  // de novo em loop e enchendo a tela de avisos).
+  const triedRef = useRef(false);
+  const wasJoiningRef = useRef(false);
   useEffect(() => {
     if (!voice) return;
-    if (wantVoice && !inVoice && !joining) voice.joinChannel(null, PRACA_VOICE_ID, 'Club Penguin · voz da ilha', 'VOICE');
-    else if (!wantVoice && inVoice) voice.leaveChannel();
+    if (wasJoiningRef.current && !joining && !inVoice && triedRef.current) {
+      triedRef.current = false;
+      setWant({ talk: false, listen: false });
+    }
+    wasJoiningRef.current = joining;
+    if (inVoice) triedRef.current = false;
+    if (wantVoice && !inVoice && !joining && !triedRef.current) {
+      triedRef.current = true;
+      voice.joinChannel(null, PRACA_VOICE_ID, 'Club Penguin · voz da ilha', 'VOICE');
+    } else if (!wantVoice && inVoice) voice.leaveChannel();
   }, [wantVoice, inVoice, joining]); // eslint-disable-line react-hooks/exhaustive-deps
+  // novo clique depois de uma falha libera outra tentativa
+  useEffect(() => { if (!wantVoice) triedRef.current = false; }, [wantVoice]);
 
   // Microfone acompanha o botão FALAR.
   const muted = !!voice?.muted;
@@ -114,25 +130,34 @@ export function usePracaVoice({ myUserId, active }) {
 }
 
 // ---------------------------------------------------------------------------
-// Botões no estilo do Club Penguin, por cima do palco do jogo (escalam junto).
+// Botões no estilo da barra do Club Penguin (mesmas cores e anéis dos botões
+// redondos do jogo), num painelzinho de menu do jogo por cima do palco.
+// Ícones desenhados no traço do jogo: microfone (falar) e headset (ouvir).
+// Desligado = risco vermelho de "proibido" por cima do ícone.
 
-function MicIcon({ off }) {
+function BanLine() {
   return (
-    <svg viewBox="0 0 24 24" aria-hidden="true">
-      <path d="M12 3.2a3.2 3.2 0 0 0-3.2 3.2v5.4a3.2 3.2 0 0 0 6.4 0V6.4A3.2 3.2 0 0 0 12 3.2Z" fill="currentColor" />
-      <path d="M5.6 11.2a6.4 6.4 0 0 0 12.8 0M12 17.6v3.2M8.8 20.8h6.4" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" />
-      {off && <path d="M4 4l16 16" stroke="#ff4b4b" strokeWidth="3" strokeLinecap="round" />}
+    <svg className="pvb-ban" viewBox="0 0 100 100" aria-hidden="true">
+      <line x1="20" y1="20" x2="80" y2="80" stroke="#000" strokeWidth="19" strokeLinecap="round" />
+      <line x1="20" y1="20" x2="80" y2="80" stroke="#e8141b" strokeWidth="11" strokeLinecap="round" />
+      <line x1="23" y1="21" x2="47" y2="45" stroke="#ff7a7a" strokeWidth="3" strokeLinecap="round" opacity=".8" />
     </svg>
   );
 }
-function EarIcon({ off }) {
+
+function VoiceBtn({ on, icon, label, title, onClick, glow, busy }) {
   return (
-    <svg viewBox="0 0 24 24" aria-hidden="true">
-      <path d="M4 14v-2a8 8 0 0 1 16 0v2" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" />
-      <rect x="3" y="13" width="5" height="7.5" rx="2.2" fill="currentColor" />
-      <rect x="16" y="13" width="5" height="7.5" rx="2.2" fill="currentColor" />
-      {off && <path d="M4 4l16 16" stroke="#ff4b4b" strokeWidth="3" strokeLinecap="round" />}
-    </svg>
+    <div className="pvb-slot">
+      <button
+        type="button" onClick={onClick}
+        className={`pvb-btn${on ? ' is-on' : ' is-off'}${glow ? ' is-active' : ''}${busy ? ' is-busy' : ''}`}
+        aria-pressed={on} aria-label={`${label}: ${on ? 'ligado' : 'desligado'}`} title={title}
+      >
+        <img className="pvb-icon" src={icon} alt="" draggable="false" />
+        {!on && <BanLine />}
+      </button>
+      <span className="pvb-label" aria-hidden="true">{label}</span>
+    </div>
   );
 }
 
@@ -141,22 +166,16 @@ export function PracaVoiceButtons({ v }) {
   const busy = v.joining && !v.inVoice;
   return (
     <div className="pvb" role="toolbar" aria-label="Voz por proximidade">
-      <button
-        type="button" onClick={v.toggleTalk}
-        className={`pvb-btn${v.talk ? ' is-on' : ' is-off'}${v.speaking ? ' is-speaking' : ''}${busy && v.talk ? ' is-busy' : ''}`}
-        aria-pressed={v.talk} title={v.talk ? 'Falar: ligado (toque pra desligar o microfone)' : 'Falar: desligado (toque pra ligar o microfone)'}
-      >
-        <MicIcon off={!v.talk} />
-        <span className="pvb-label">Falar</span>
-      </button>
-      <button
-        type="button" onClick={v.toggleListen}
-        className={`pvb-btn${v.listen ? ' is-on' : ' is-off'}${v.someoneNearTalking ? ' is-hearing' : ''}${busy && v.listen ? ' is-busy' : ''}`}
-        aria-pressed={v.listen} title={v.listen ? 'Ouvir: ligado (você ouve quem está perto)' : 'Ouvir: desligado'}
-      >
-        <EarIcon off={!v.listen} />
-        <span className="pvb-label">Ouvir</span>
-      </button>
+      <VoiceBtn
+        on={v.talk} icon={micIcon} label="Falar" onClick={v.toggleTalk}
+        glow={v.speaking} busy={busy && v.talk}
+        title={v.talk ? 'Microfone ligado — clique pra desligar' : 'Microfone desligado — clique pra falar com quem está perto'}
+      />
+      <VoiceBtn
+        on={v.listen} icon={headsetIcon} label="Ouvir" onClick={v.toggleListen}
+        glow={v.someoneNearTalking} busy={busy && v.listen}
+        title={v.listen ? 'Ouvindo quem está perto — clique pra parar de ouvir' : 'Sem ouvir ninguém — clique pra ouvir quem está perto'}
+      />
     </div>
   );
 }
