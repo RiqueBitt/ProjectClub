@@ -157,8 +157,13 @@
 .praca-page.is-game.is-touch .praca-arena { position: absolute; inset: 0; min-height: 0; background: #061a30; }
 .praca-page.is-game.is-touch .praca-stage { border-radius: 0; box-shadow: none; transform-origin: center; }
 .praca-page.is-game.is-touch .praca-hint { display: none; }
-/* Esticado ("preencher"): o Ruffle desenha no tamanho real e o CSS estica até as bordas */
-.praca-page.is-fill .praca-stage { image-rendering: auto; }
+/* As faixas laterais (celular mais largo que o palco) seguem o céu do jogo:
+   o palco "continua" até as bordas, sem esticar a imagem */
+.praca-page.is-game.is-touch .praca-arena {
+  background:
+    radial-gradient(ellipse at 50% 30%, rgba(90, 170, 255, .25), transparent 60%),
+    linear-gradient(180deg, #1d6fb8 0%, #0b3f7a 55%, #061a30 100%);
+}
 
 /* HUD flutuante do celular: som, preencher/ajustar e sair — sempre visível,
    fora do caminho (canto superior direito, respeitando o recorte da tela) */
@@ -180,6 +185,5 @@
 @media (orientation: portrait) {
   /* em pé: o jogo é deitado — HUD embaixo pra não cobrir o palco no topo */
   .praca-page.is-game.is-touch .praca-stage { top: 0; transform: translate(-50%, 0); }
-  .praca-page.is-game.is-touch.is-fill .praca-stage { top: 50%; }
   .praca-hud { top: auto; bottom: max(12px, env(safe-area-inset-bottom)); right: 50%; transform: translateX(50%); }
 }
