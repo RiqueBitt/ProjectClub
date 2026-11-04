@@ -52,10 +52,17 @@ const GET_GENERATORS: Record<string, FileGenerator> = {
   'play/en/web_service/game_configs/penguin_action_frames.json': getPenguinActionFramesJson,
   'version.txt': getVersionTxt,
   'play/web_service/environment_data.xml': getEnvironmentDataXml,
-  'play/v2/content/global/en/igloo_music.xml': getIglooMusicXml
+  'play/v2/content/global/en/igloo_music.xml': getIglooMusicXml,
+  // Cliente 2012 (AS3): ao abrir, pede a "lista de serviços" da Disney
+  // (/services). Ninguém usa a resposta, mas sem um JSON válido o shell
+  // mostra a caixa laranja "shell.DEFAULT_ERROR" antes do jogo carregar.
+  'services': () => '{"services":[]}',
+  'play/services': () => '{"services":[]}'
 };
 
 const POST_GENERATORS: Record<string, FileGenerator> = {
+  // telemetria da Playdom (cliente 2012): aceita e descarta
+  'datatech/serverlog/v1/json': () => '{}',
   'setup.txt': getSetupTxt,
   'news.txt': getNewsTxt
 };
