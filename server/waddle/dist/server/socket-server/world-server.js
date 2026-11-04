@@ -65,6 +65,47 @@ class WorldServer {
         }
         return true;
     }
+    /**
+     * Quem está em qual sala e onde (pro chat de texto e a voz por
+     * proximidade do Project Club). Pinguim em minijogo/sem sala fica de fora.
+     */
+    getPresence() {
+        const out = [];
+        for (const p of this._world.players) {
+            const room = this._world.getPenguinRoom(p);
+            if (room === undefined)
+                continue;
+            let st;
+            try {
+                st = room.getState(p);
+            }
+            catch {
+                st = undefined;
+            }
+            if (st === undefined)
+                continue;
+            out.push({ id: p.id, name: p.name, room: room.id, x: st.x, y: st.y });
+        }
+        return out;
+    }
+    /** Fala como o pinguim (balão no jogo pra sala toda), igual ao chat do próprio jogo. */
+    say(penguinId, text) {
+        const penguin = this._world.getById(penguinId);
+        if (penguin === undefined)
+            return false;
+        let client;
+        try {
+            client = this._msg.getClient(penguin);
+        }
+        catch {
+            return false;
+        }
+        const clean = String(text).replace(/[%\r\n\0]/g, ' ').trim().slice(0, 64);
+        if (!clean)
+            return false;
+        this.handle(client, `%xt%s%m#sm%-1%${penguinId}%${clean}%`);
+        return true;
+    }
     runCommand(penguinId, name, args) {
         const penguin = this._world.getById(penguinId);
         if (penguin !== undefined) {

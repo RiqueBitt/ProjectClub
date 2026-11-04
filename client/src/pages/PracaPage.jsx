@@ -5,6 +5,8 @@ import { enterGameMode, exitGameMode } from '../minijogos/orientation.js';
 import { isTouchDevice } from '../minijogos/touch/detect.js';
 import { autoLogin, watchEntry } from '../praca/autoLogin.js';
 import { gameCacheReady, clearGameCache, installPack, installFiles } from '../praca/installer.js';
+import { usePracaSocial, PracaSocialPanel, PracaSocialFloating } from '../praca/PracaSocial.jsx';
+import { RemoteAudioSinks } from '../components/CallBar.jsx';
 import '../styles/praca.css';
 
 // Praça = Club Penguin completo, rodando em cima do Waddle Forever embutido no
@@ -88,6 +90,10 @@ function readMuted() {
 
 export default function PracaPage({ embedded = false }) {
   const { user } = useAuth();
+  // Chat de texto da sala + voz por proximidade (ver praca/PracaSocial.jsx)
+  const social = usePracaSocial({ myUserId: user?.id });
+  const [panelOpen, setPanelOpen] = useState(() => { try { return localStorage.getItem('pc.praca.panel') !== '0'; } catch { return true; } });
+  const togglePanel = () => setPanelOpen((o) => { try { localStorage.setItem('pc.praca.panel', o ? '0' : '1'); } catch { /* ok */ } return !o; });
   const [cfg, setCfg] = useState(null);
   const [phase, setPhase] = useState('config'); // config | media | download | install | event | loading | playing | error
   const [media, setMedia] = useState(null); // estado da mídia no servidor (primeira inicialização)
@@ -342,6 +348,9 @@ export default function PracaPage({ embedded = false }) {
     update();
     const ro = new ResizeObserver(update);
     ro.observe(page);
+    // o painel de chat/voz abre e fecha ao lado: a arena muda sem a página mudar
+    const arena = page.querySelector('.praca-arena');
+    if (arena) ro.observe(arena);
     window.addEventListener('orientationchange', update);
     return () => { ro.disconnect(); window.removeEventListener('orientationchange', update); };
   }, [full, phase, embedded]);
@@ -449,6 +458,12 @@ export default function PracaPage({ embedded = false }) {
           {cfg?.version && <span className="praca-chip praca-year" title="Época do jogo">{cfg.version.slice(0, 4)}</span>}
         </div>
         <div className="praca-actions">
+          {!touch && (
+            <button type="button" className="praca-icon-btn praca-social-toggle" onClick={togglePanel} aria-pressed={panelOpen} title={panelOpen ? 'Esconder chat e voz' : 'Chat e voz da sala'}>
+              <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 12a8 8 0 0 1-11.8 7L4 20l1.1-4.6A8 8 0 1 1 21 12Z" /></svg>
+              {!panelOpen && social.unread > 0 && <em className="praca-badge">{social.unread > 9 ? '9+' : social.unread}</em>}
+            </button>
+          )}
           <button type="button" className="praca-icon-btn" onClick={() => setMuted((m) => !m)} aria-pressed={muted} title={muted ? 'Ligar o som' : 'Silenciar'}>
             {muted ? (
               <svg viewBox="0 0 24 24" width="20" height="20"><path fill="currentColor" d="M3 9v6h4l5 5V4L7 9H3zm13.5 3a4.5 4.5 0 0 0-2.5-4v8a4.5 4.5 0 0 0 2.5-4zM19 3.3 20.7 5 5 20.7 3.3 19 19 3.3z" /></svg>
@@ -466,6 +481,7 @@ export default function PracaPage({ embedded = false }) {
         </div>
       </header>
 
+      <div className="praca-main">
       <div className="praca-arena">
         <div
           className="praca-stage"
@@ -535,7 +551,12 @@ export default function PracaPage({ embedded = false }) {
         {phase === 'playing' && needsTap && (
           <button type="button" className="praca-tap" onClick={resumeAudio}>Toque para ligar o som</button>
         )}
+        {phase === 'playing' && (touch || full) && <PracaSocialFloating s={social} myUserId={user?.id} />}
       </div>
+      {phase === 'playing' && !touch && !full && panelOpen && <PracaSocialPanel s={social} myUserId={user?.id} onClose={togglePanel} />}
+      </div>
+      {/* App Android (rota /praca/app): fora do app do site não tem a barra de call — o áudio da voz toca daqui */}
+      {embedded && <RemoteAudioSinks />}
 
       {hint && phase === 'playing' && (
         <div className="praca-hint" role="note">

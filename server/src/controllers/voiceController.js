@@ -18,7 +18,10 @@ async function assertRoomAccess(req, channelName) {
   if (!clean) { const e = new Error('Informe o canal.'); e.status = 400; throw e; }
   if (clean.length > 128) { const e = new Error('Canal inválido.'); e.status = 400; throw e; }
 
-  if (clean.startsWith('clan:')) {
+  if (clean.startsWith('praca:')) {
+    // Voz por proximidade do Club Penguin: qualquer conta logada (o jogo decide quem ouve quem)
+    if (!require('../config/features').isFeatureEnabled('plaza') || clean !== 'praca:ilha') { const e = new Error('Sala de voz inválida.'); e.status = 404; throw e; }
+  } else if (clean.startsWith('clan:')) {
     const clanId = clean.slice('clan:'.length);
     if (req.user.clanId !== clanId) { const e = new Error('Você não é membro deste clã.'); e.status = 403; throw e; }
   } else if (clean.startsWith('dm:')) {

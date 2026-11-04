@@ -43,6 +43,7 @@ function cleanName(user) {
 async function roomVisible(channelId, { viewerId, viewerClanId, canViewChannel }) {
   if (typeof channelId !== 'string' || !channelId) return false;
   if (channelId.startsWith('dm:')) return false;
+  if (channelId.startsWith('praca:')) return false;
   if (channelId.startsWith('clan:')) return !!viewerClanId && channelId === `clan:${viewerClanId}`;
   return canViewChannel(viewerId, channelId);
 }

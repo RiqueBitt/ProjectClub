@@ -723,7 +723,16 @@ function initSockets(httpServer) {
         // Acesso: só membros do clã (mesma regra do /api/voice/join).
         let channel;
         let perms = null;
-        if (typeof channelId === 'string' && channelId.startsWith('clan:')) {
+        if (typeof channelId === 'string' && channelId.startsWith('praca:')) {
+          // Voz por proximidade do Club Penguin (sala única da ilha; o volume
+          // de cada pessoa sai da distância entre os pinguins, no cliente).
+          if (channelId !== 'praca:ilha' || !require('../config/features').isFeatureEnabled('plaza')) {
+            socket.emit('voice:join-denied', { channelId, reason: 'Sala de voz inválida.' });
+            return;
+          }
+          socket.join('praca:voice');
+          channel = { id: channelId, type: 'VOICE', userLimit: null };
+        } else if (typeof channelId === 'string' && channelId.startsWith('clan:')) {
           const me = await prisma.user.findUnique({ where: { id: userId }, select: { clanId: true } });
           if (!me?.clanId || me.clanId !== channelId.slice(5)) {
             socket.emit('voice:join-denied', { channelId, reason: 'Você não é membro deste clã.' });
@@ -834,7 +843,7 @@ function initSockets(httpServer) {
         // Mudo/ensurdecer DA MODERAÇÃO valem em qualquer canal da comunidade
         // até alguém tirar (ver voice:server-mute) — o servidor de mídia
         // também recebe isso nas claims do token.
-        const mod = channelId.startsWith('clan:') ? { serverMuted: false, serverDeafened: false } : await voiceStore.getModState(userId);
+        const mod = (channelId.startsWith('clan:') || channelId.startsWith('praca:')) ? { serverMuted: false, serverDeafened: false } : await voiceStore.getModState(userId);
         // Canal AFK (services/voiceAfk.js): entra e fica mudo (o token de
         // mídia também sai com canSpeak:false).
         const inAfk = await voiceAfk.isAfkChannel(channelId).catch(() => false);
@@ -939,7 +948,7 @@ function initSockets(httpServer) {
         const me = await prisma.user.findUnique({ where: { id: userId }, select: { clanId: true } });
         const out = {};
         for (const channelId of await voiceStore.getActiveRoomIds()) {
-          if (channelId.startsWith('dm:')) continue; // chamadas de DM são privadas
+          if (channelId.startsWith('dm:') || channelId.startsWith('praca:')) continue; // privadas / voz do jogo
           if (channelId.startsWith('clan:') && channelId !== `clan:${me?.clanId}`) continue;
           // Canal que a pessoa não pode VER: não revela quem está nele.
           if (!channelId.startsWith('clan:')) {
@@ -1242,7 +1251,7 @@ function initSockets(httpServer) {
       // na ordem em que chegaram (cada await resolve na fila, em ordem).
       let pr = speakingPublicRoster.get(channelId);
       if (!pr) {
-        pr = (channelId.startsWith('dm:') || channelId.startsWith('clan:'))
+        pr = (channelId.startsWith('dm:') || channelId.startsWith('clan:') || channelId.startsWith('praca:'))
           ? Promise.resolve(true)
           : isRestrictedChannel(channelId).then((r) => !r, () => false);
         if (speakingPublicRoster.size > 8) speakingPublicRoster.clear();
@@ -1286,6 +1295,7 @@ function initSockets(httpServer) {
       try {
         const sb = require('../services/soundboard');
         if (!channelId || !(await voiceStore.hasParticipant(channelId, userId))) return reply({ ok: false, reason: 'Entre na call para tocar sons.' });
+        if (String(channelId).startsWith('praca:')) return reply({ ok: false, reason: 'Sem soundboard na voz da ilha.' });
         if (!String(channelId).startsWith('dm:') && !String(channelId).startsWith('clan:')) {
           const perms = await getEffectivePermissions(userId, channelId);
           if (!has(perms, 'USE_SOUNDBOARD')) return reply({ ok: false, reason: 'Você não tem permissão para usar o soundboard aqui.' });
@@ -1553,6 +1563,7 @@ function initSockets(httpServer) {
   function rosterRoomFor(channelId) {
     if (channelId.startsWith('dm:')) return `conversation:${channelId.slice(3)}`;
     if (channelId.startsWith('clan:')) return `clan:${channelId.slice(5)}`;
+    if (channelId.startsWith('praca:')) return 'praca:voice';
     return 'community';
   }
 

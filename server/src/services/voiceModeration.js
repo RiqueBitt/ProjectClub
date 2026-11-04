@@ -37,7 +37,7 @@ async function authorize({ actorId, channelId, targetId, action, toChannelId = n
   const { prisma, getEffectivePermissions, getRoleCeiling, voiceStore } = deps;
   if (typeof channelId !== 'string' || !channelId || typeof targetId !== 'string' || !targetId) return { ok: false, error: 'Dados inválidos.' };
   // DM e clã não têm moderação de servidor.
-  if (channelId.startsWith('dm:') || channelId.startsWith('clan:')) return { ok: false, error: 'Não disponível nesta chamada.' };
+  if (channelId.startsWith('dm:') || channelId.startsWith('clan:') || channelId.startsWith('praca:')) return { ok: false, error: 'Não disponível nesta chamada.' };
   const channel = await prisma.channel.findUnique({ where: { id: channelId } });
   if (!channel) return { ok: false, error: 'Canal não encontrado.' };
   const target = await voiceStore.getParticipant(channelId, targetId);
@@ -53,7 +53,7 @@ async function authorize({ actorId, channelId, targetId, action, toChannelId = n
   let toChannel = null;
   if (action === 'move') {
     if (typeof toChannelId !== 'string' || !toChannelId || toChannelId === channelId) return { ok: false, error: 'Escolha outro canal de voz.' };
-    if (toChannelId.startsWith('dm:') || toChannelId.startsWith('clan:')) return { ok: false, error: 'Só dá pra mover para canais de voz da comunidade.' };
+    if (toChannelId.startsWith('dm:') || toChannelId.startsWith('clan:') || toChannelId.startsWith('praca:')) return { ok: false, error: 'Só dá pra mover para canais de voz da comunidade.' };
     toChannel = await prisma.channel.findUnique({ where: { id: toChannelId } });
     if (!toChannel || !VOICE_TYPES.has(toChannel.type)) return { ok: false, error: 'Canal de destino inválido.' };
     // Quem move precisa poder ver e entrar no destino (igual ao Discord).

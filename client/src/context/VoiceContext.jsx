@@ -263,6 +263,9 @@ export function VoiceProvider({ children }) {
   // de socket se perdeu.
   const [mediaUids, setMediaUids] = useState({});
   const [volumes, setVolumes] = useState(loadSavedVolumes);
+  // Voz por proximidade (Club Penguin): multiplicador 0–1 por pessoa vindo da
+  // distância entre os pinguins. Não é salvo (o volume escolhido continua o mesmo).
+  const [spatialGains, setSpatialGains] = useState(null);
   const [streamVolumes, setStreamVolumes] = useState(loadSavedStreamVolumes);
   const [roster, setRoster] = useState({});
   const [rosterStartedAt, setRosterStartedAt] = useState({});
@@ -1723,6 +1726,7 @@ export function VoiceProvider({ children }) {
       localCameraStream: engineLocalCameraStream,
       localScreenStream: engineLocalScreenStream,
       joinChannel, leaveChannel, toggleMute, toggleDeafen, toggleCamera, toggleScreenShare, setParticipantVolume,
+      spatialGains, setSpatialGains,
       raiseHand, setParticipantRole, stepDownFromStage,
       incomingCall, answerIncomingCall, declineIncomingCall,
       switchMicrophone,

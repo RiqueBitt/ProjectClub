@@ -30,7 +30,7 @@ function normalizeTimeout(v) {
 }
 
 function isCommunityVoiceRoom(channelId) {
-  return typeof channelId === 'string' && !!channelId && !channelId.startsWith('dm:') && !channelId.startsWith('clan:');
+  return typeof channelId === 'string' && !!channelId && !channelId.startsWith('dm:') && !channelId.startsWith('clan:') && !channelId.startsWith('praca:');
 }
 
 function lastActivity(p) {

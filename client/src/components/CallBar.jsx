@@ -46,6 +46,7 @@ function callViewPath(call) {
   const id = String(call.channelId);
   if (id.startsWith('dm:')) return conversationPath(id.slice(3));
   if (id.startsWith('clan:')) return '/clans/mine';
+  if (id.startsWith('praca:')) return '/praca';
   return channelPath(id);
 }
 
@@ -351,7 +352,7 @@ export default function CallBar() {
 // faixa remota como caminho principal; Web Audio só pra >100% / auto nivelar
 // com o AudioContext rodando; auto-cura e nova tentativa no próximo gesto.
 // Volume por pessoa, ensurdecer e saída escolhida continuam valendo.
-function RemoteAudioSinks() {
+export function RemoteAudioSinks() {
   const voice = useVoice();
   const { remoteAudioStreams, deafened, volumes } = voice;
   const remoteScreenAudioStreams = voice.remoteScreenAudioStreams || {};
@@ -397,7 +398,7 @@ function RemoteAudioSinks() {
       {Object.entries(remoteAudioStreams).map(([userId, stream]) => (
         <AudioSink
           key={userId} userId={userId} stream={stream}
-          volume={deafened || voice.serverDeafened ? 0 : (volumes[userId] ?? 1)} autoLevel={autoLevel} sinkId={sinkId}
+          volume={deafened || voice.serverDeafened ? 0 : (volumes[userId] ?? 1) * (voice.spatialGains ? (voice.spatialGains[userId] ?? 0) : 1)} autoLevel={autoLevel} sinkId={sinkId}
           getInboundBytes={voice.getInboundAudioBytes}
         />
       ))}

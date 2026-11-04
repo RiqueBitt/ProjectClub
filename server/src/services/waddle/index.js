@@ -50,6 +50,7 @@ let instancePromise = null;
 let instance = null;
 let store = null;
 const sessions = new Map(); // userId -> { ws, done }
+const penguinUser = new Map(); // penguinId (online) -> userId da conta
 let lastError = null;
 
 function loadWaddle() {
@@ -187,6 +188,8 @@ function makeTransform(user, penguinName, penguinId) {
       const parts = packet.split('%');
       const text = parts[6] || '';
       if (!(await moderateSpeech(user.id, text))) return null;
+      // painel de chat do site: a mesma fala aparece pra quem está na sala
+      setImmediate(() => notifyChat(user.id, penguinId, text));
     }
     return packet;
   };
@@ -219,12 +222,13 @@ function attachUpgrade(httpServer) {
       if (kind === 'world') await replaceSession(user.id);
       wss.handleUpgrade(req, socket, head, (ws) => {
         if (kind === 'world') {
+          penguinUser.set(penguinId, user.id);
           let finish;
           const done = new Promise((r) => { finish = r; });
           const entry = { ws, done };
           sessions.set(user.id, entry);
           ws.on('close', () => {
-            if (sessions.get(user.id) === entry) sessions.delete(user.id);
+            if (sessions.get(user.id) === entry) { sessions.delete(user.id); penguinUser.delete(penguinId); }
             // dá tempo do WF tirar o pinguim do mundo antes de outra entrada
             setTimeout(finish, 150);
           });
@@ -502,4 +506,89 @@ async function getStatus() {
 
 const getStore = () => store;
 
-module.exports = { getWaddle, mountHttp, attachUpgrade, getConfig, getStatus, ensurePenguin, cachedRouter, streamPack, getStore };
+// ---------------------------------------------------------------------------
+// Chat de texto e voz por proximidade (página da Praça).
+//
+// O jogo já sabe quem está em qual sala e onde (x,y no palco 760x480). A
+// cada ~300 ms cada jogador recebe, pelo Socket.IO do site, a lista de quem
+// está NA MESMA SALA com as posições ('praca:presence') — a página usa isso
+// pra baixar/subir o volume de cada pessoa na voz da ilha conforme a
+// distância entre os pinguins. Falas (do jogo ou do painel) vão pra quem
+// está na mesma sala ('praca:chat').
+
+let io = null;
+let presenceTimer = null;
+const lastPresence = new Map(); // userId -> json enviado por último
+
+function setIo(socketIo) {
+  io = socketIo;
+  if (presenceTimer) return;
+  presenceTimer = setInterval(() => { try { tickPresence(); } catch (err) { console.error('[praça] presença:', err?.message || err); } }, 300);
+  presenceTimer.unref?.();
+}
+
+function presenceByRoom() {
+  if (!instance || !instance.world.getPresence) return new Map();
+  const rooms = new Map();
+  for (const p of instance.world.getPresence()) {
+    const userId = penguinUser.get(p.id) || null;
+    const entry = { penguinId: p.id, userId, name: p.name, x: Math.round(p.x), y: Math.round(p.y) };
+    if (!rooms.has(p.room)) rooms.set(p.room, []);
+    rooms.get(p.room).push(entry);
+  }
+  return rooms;
+}
+
+function tickPresence() {
+  if (!io) return;
+  const rooms = presenceByRoom();
+  const seen = new Set();
+  for (const [room, players] of rooms) {
+    for (const me of players) {
+      if (!me.userId) continue;
+      seen.add(me.userId);
+      const payload = { room, me: me.penguinId, players };
+      const json = JSON.stringify(payload);
+      if (lastPresence.get(me.userId) === json) continue;
+      lastPresence.set(me.userId, json);
+      io.to(`user:${me.userId}`).emit('praca:presence', payload);
+    }
+  }
+  for (const userId of [...lastPresence.keys()]) {
+    if (seen.has(userId)) continue;
+    lastPresence.delete(userId);
+    io.to(`user:${userId}`).emit('praca:presence', { room: null, me: null, players: [] });
+  }
+}
+
+let chatSeq = 0;
+function notifyChat(userId, penguinId, text) {
+  if (!io || !text) return;
+  const rooms = presenceByRoom();
+  for (const [room, players] of rooms) {
+    const speaker = players.find((p) => p.penguinId === penguinId);
+    if (!speaker) continue;
+    const msg = { id: `${Date.now().toString(36)}-${(chatSeq += 1)}`, room, penguinId, userId, name: speaker.name, text: String(text).slice(0, 64), at: Date.now() };
+    for (const p of players) if (p.userId) io.to(`user:${p.userId}`).emit('praca:chat', msg);
+    return;
+  }
+}
+
+const lastSay = new Map(); // userId -> ms
+/** Fala pelo painel de chat do site: vira balão no jogo e aparece pra sala. */
+async function say(user, rawText) {
+  const text = String(rawText || '').replace(/[%\r\n\0]/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 64);
+  if (!text) return { ok: false, status: 400, error: 'Escreva alguma coisa.' };
+  const now = Date.now();
+  if (now - (lastSay.get(user.id) || 0) < 700) return { ok: false, status: 429, error: 'Calma, uma mensagem por vez.' };
+  lastSay.set(user.id, now);
+  const w = await getWaddle();
+  const { id: penguinId } = await ensurePenguin(user);
+  if (!w.world.getOnline || !w.world.getOnline(penguinId)) return { ok: false, status: 409, error: 'Entre na ilha pra falar.' };
+  if (!(await moderateSpeech(user.id, text))) return { ok: false, status: 422, error: 'Essa mensagem foi bloqueada pelo filtro.' };
+  if (!w.world.say(penguinId, text)) return { ok: false, status: 409, error: 'Entre numa sala pra falar.' };
+  notifyChat(user.id, penguinId, text);
+  return { ok: true };
+}
+
+module.exports = { getWaddle, mountHttp, attachUpgrade, getConfig, getStatus, ensurePenguin, cachedRouter, streamPack, getStore, setIo, say };

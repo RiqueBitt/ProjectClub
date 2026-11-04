@@ -82,7 +82,7 @@ async function voiceSnapshot({ prisma, voiceStore }) {
     if (!entries.length) continue;
     rooms.push({
       id,
-      kind: id.startsWith('dm:') ? 'dm' : id.startsWith('clan:') ? 'clan' : 'channel',
+      kind: id.startsWith('dm:') ? 'dm' : id.startsWith('clan:') ? 'clan' : id.startsWith('praca:') ? 'praca' : 'channel',
       startedAt: startedAt ? new Date(Number(startedAt)).toISOString() : null,
       participants: entries.map(([userId, p]) => ({
         userId, muted: !!p.muted, deafened: !!p.deafened, video: !!p.video, screenSharing: !!p.screenSharing,

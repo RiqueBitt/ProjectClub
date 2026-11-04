@@ -352,7 +352,7 @@ export default function App() {
           <Route path="/blog" element={<BlogPage />} />
           <Route path="/status" element={<StatusPage />} />
           {/* App Android nativo: só o jogo, sem o resto do site (WebView) */}
-          <Route path="/praca/app" element={<ProtectedRoute><PracaPage embedded /></ProtectedRoute>} />
+          <Route path="/praca/app" element={<ProtectedRoute><SocketProvider><VoiceProvider><PracaPage embedded /></VoiceProvider></SocketProvider></ProtectedRoute>} />
           <Route
             path="/admin/interface-editor"
             element={

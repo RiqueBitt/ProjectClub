@@ -53,7 +53,7 @@ const FULL_ERROR = Object.freeze({ status: 403, code: 'channel-full', message: '
 async function evaluate(user, channelName, deps = {}) {
   const name = String(channelName || '');
   // DM e clã: sem moderação de servidor nem limite.
-  if (!name || name.startsWith('dm:') || name.startsWith('clan:')) return { claims: { ...ALL_ALLOWED } };
+  if (!name || name.startsWith('dm:') || name.startsWith('clan:') || name.startsWith('praca:')) return { claims: { ...ALL_ALLOWED } };
   const prisma = deps.prisma || require('../config/prisma');
   const getEffectivePermissions = deps.getEffectivePermissions || require('./authz').getEffectivePermissions;
   const voiceStore = deps.voiceStore || require('./voiceRoomStore');
