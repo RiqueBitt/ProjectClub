@@ -28,6 +28,7 @@ const env = require('../../config/env');
 const prisma = require('../../config/prisma');
 const jwt = require('jsonwebtoken');
 const { PrismaPenguinStore } = require('./penguinStore');
+const news = require('./news');
 
 // Mídia (SWFs): fica no disco do servidor; na primeira inicialização é
 // baixada da release "waddle-media" do repositório (ver media-store.ts).
@@ -263,7 +264,15 @@ function mountHttp(app) {
         }
         return next();
       }
+      // Jornal: em português (news/), o resto vai pro servidor do jogo
+      if (req.method === 'GET' && news.isNewsRoute(route)) {
+        news.handle(w, route, req, res)
+          .then((done) => { if (!done) cachedRouter(w)(req, res, next); })
+          .catch((err) => { console.warn('[jornal] erro:', err?.message || err); cachedRouter(w)(req, res, next); });
+        return undefined;
+      }
       cachedRouter(w)(req, res, next);
+      return undefined;
     }).catch(() => next());
   });
 }

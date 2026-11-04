@@ -4635,6 +4635,16 @@ model PinguModAlert {
 // estado (inventário, iglu, puffles, carimbos...) fica no JSON `data`, no
 // formato do Waddle Forever. Os mascotes (Rockhopper etc.) têm ids fixos
 // (1..21) e userId nulo; os dos membros começam em 1000.
+// Jornal do Club Penguin em português (services/waddle/news): tradução de
+// cada parágrafo, pela chave sha1 do texto em inglês (feita pela IA do Pingu).
+model WaddleNewsText {
+  key       String   @id @db.VarChar(40)
+  en        String   @db.Text
+  pt        String   @db.Text
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
 model WaddlePenguin {
   id        Int      @id
   userId    String?  @unique
