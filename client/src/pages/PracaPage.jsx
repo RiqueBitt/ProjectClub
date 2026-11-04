@@ -110,8 +110,26 @@ export default function PracaPage({ embedded = false }) {
   const playerRef = useRef(null);
   const touch = useMemo(() => isTouchDevice(), []);
 
+  // 0) O Ruffle executa o ExternalInterface do jogo com `new Function` — a
+  // CSP do site só libera isso no documento /praca. Se esta página foi
+  // aberta por navegação interna (documento de outra rota), recarrega uma
+  // vez pra receber o cabeçalho certo; senão o jogo trava ao abrir.
+  const [cspOk] = useState(() => {
+    try { new Function('return 1')(); return true; } catch { return false; } // eslint-disable-line no-new-func
+  });
+  useEffect(() => {
+    const key = 'pc.praca.csp-reload';
+    if (cspOk) { try { sessionStorage.removeItem(key); } catch { /* ok */ } return; }
+    let tried = false;
+    try { tried = sessionStorage.getItem(key) === '1'; } catch { /* ok */ }
+    if (tried) return;
+    try { sessionStorage.setItem(key, '1'); } catch { /* ok */ }
+    window.location.replace(embedded ? '/praca/app' : '/praca');
+  }, [cspOk, embedded]);
+
   // 1) configuração da sessão (SWF de entrada + ticket + pinguim)
   useEffect(() => {
+    if (!cspOk) return undefined;
     let alive = true;
     setPhase('config');
     api.get('/plaza/config').then(({ data }) => {

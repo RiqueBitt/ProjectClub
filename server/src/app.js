@@ -188,6 +188,19 @@ function createApp() {
     },
   }));
 
+  // Praça (Club Penguin): o cliente Flash de 2012 usa ExternalInterface, e o
+  // Ruffle executa essas chamadas com `new Function(...)` — bloqueado pela CSP
+  // acima (sem 'unsafe-eval' o jogo trava logo ao abrir). Só o DOCUMENTO do
+  // jogo (/praca e /praca/app) recebe 'unsafe-eval'; a página do jogo força
+  // um carregamento próprio pra pegar este cabeçalho (ver PracaPage.jsx).
+  app.use((req, res, next) => {
+    if (req.path === '/praca' || req.path.startsWith('/praca/')) {
+      const csp = res.getHeader('Content-Security-Policy');
+      if (csp) res.setHeader('Content-Security-Policy', String(csp).replace("script-src 'self'", "script-src 'self' 'unsafe-eval'"));
+    }
+    next();
+  });
+
   app.use(cors({ origin: env.CLIENT_ORIGIN, credentials: true }));
   // Item pedido: otimização/velocidade — o pacote "compression" já
   // estava instalado no projeto (server/package.json) mas nunca tinha
