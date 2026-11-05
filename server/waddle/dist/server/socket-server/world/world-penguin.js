@@ -1,6 +1,7 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.WorldEntity = exports.OfflinePenguin = exports.WorldPenguin = void 0;
+exports.realAgeDays = realAgeDays;
 const database_1 = require("../../database/database.js");
 const mascots_1 = require("../../game-data/mascots.js");
 const ninja_progress_1 = require("../../game-logic/ninja-progress.js");
@@ -15,6 +16,13 @@ function getVirtualDate(date, offset) {
     // date generates this time thinking in the same timezone as the user
     // an arbitrary offset may be applied depending on how each client behaves
     return new Date(year, month - 1, day, hour + offset, minute, second);
+}
+/** Dias inteiros desde `registeredAt` (ms), nunca negativo. */
+function realAgeDays(registeredAt, now = Date.now()) {
+    if (!Number.isFinite(registeredAt) || registeredAt <= 0) {
+        return 0;
+    }
+    return Math.max(0, Math.floor((now - registeredAt) / 86400000));
 }
 class Profile {
     _id;
@@ -185,10 +193,12 @@ class Time {
     _previousPlaytime;
     _sessionStart = Date.now();
     _virtualRegistrationTimestamp;
+    _registrationDate;
     constructor(data, _virtualDay) {
         this._virtualDay = _virtualDay;
         this._previousPlaytime = data.minutes_played;
         this._virtualRegistrationTimestamp = data.virtualRegistrationTimestamp;
+        this._registrationDate = data.registration_date;
     }
     get minutesPlayed() {
         return this._previousPlaytime + (Date.now() - this._sessionStart) / (1000 * 60);
@@ -197,8 +207,15 @@ class Time {
         return this._virtualRegistrationTimestamp;
     }
     get age() {
-        // converted into days
-        return Math.floor((getVirtualDate(this._virtualDay, 0).getTime() - this._virtualRegistrationTimestamp) / 1000 / 86400);
+        // Idade de verdade: dias desde que o pinguim foi criado (relógio real).
+        // A conta antiga usava a data "virtual" de 2012 menos o registro virtual,
+        // o que dava números sem sentido (ex.: 742 dias num pinguim de semanas).
+        // Mascotes (Rockhopper, Gary…) vêm registrados na abertura do CP (2005):
+        // mantêm a idade "lendária" calculada na data do jogo.
+        if (this._virtualRegistrationTimestamp > 0 && this._virtualRegistrationTimestamp < Date.UTC(2006, 0, 1)) {
+            return Math.max(0, Math.floor((getVirtualDate(this._virtualDay, 0).getTime() - this._virtualRegistrationTimestamp) / 1000 / 86400));
+        }
+        return realAgeDays(this._registrationDate);
     }
     getDate() {
         return getVirtualDate(this._virtualDay, 0).getTime();

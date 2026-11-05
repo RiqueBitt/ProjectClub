@@ -31,6 +31,14 @@ function getVirtualDate(date: [number, number, number], offset: number) {
   return new Date(year, month - 1, day, hour + offset, minute, second);
 }
 
+/** Dias inteiros desde `registeredAt` (ms), nunca negativo. */
+export function realAgeDays(registeredAt: number, now = Date.now()): number {
+  if (!Number.isFinite(registeredAt) || registeredAt <= 0) {
+    return 0;
+  }
+  return Math.max(0, Math.floor((now - registeredAt) / 86400000));
+}
+
 class Profile {
   private _name: string;
   private _displayName: string;
@@ -240,10 +248,12 @@ class Time {
   private _previousPlaytime: number;
   private _sessionStart: number = Date.now();
   private _virtualRegistrationTimestamp: number;
+  private _registrationDate: number;
 
   constructor(data: PenguinJson, private _virtualDay: [number, number, number]) {
     this._previousPlaytime = data.minutes_played;
     this._virtualRegistrationTimestamp = data.virtualRegistrationTimestamp;
+    this._registrationDate = data.registration_date;
   }
 
   public get minutesPlayed() {
@@ -255,8 +265,15 @@ class Time {
   }
 
   public get age() {
-    // converted into days
-    return Math.floor((getVirtualDate(this._virtualDay, 0).getTime() - this._virtualRegistrationTimestamp) / 1000 / 86400);
+    // Idade de verdade: dias desde que o pinguim foi criado (relógio real).
+    // A conta antiga usava a data "virtual" de 2012 menos o registro virtual,
+    // o que dava números sem sentido (ex.: 742 dias num pinguim de semanas).
+    // Mascotes (Rockhopper, Gary…) vêm registrados na abertura do CP (2005):
+    // mantêm a idade "lendária" calculada na data do jogo.
+    if (this._virtualRegistrationTimestamp > 0 && this._virtualRegistrationTimestamp < Date.UTC(2006, 0, 1)) {
+      return Math.max(0, Math.floor((getVirtualDate(this._virtualDay, 0).getTime() - this._virtualRegistrationTimestamp) / 1000 / 86400));
+    }
+    return realAgeDays(this._registrationDate);
   }
 
   public getDate() {

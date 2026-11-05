@@ -54,6 +54,7 @@ import { lastRememberedPath, lastRememberedChannelId } from '../utils/appearance
 import { isFeatureEnabled } from '../utils/features';
 import { ChannelRoute, DmRoute, PostRoute, LibraryRoute } from '../components/PrettyRoutes.jsx';
 import { channelPath, isChannelPath, roomFromCurrentPath, useRouteRoom } from '../utils/prettyLinks';
+import PracaKeepAlive from '../praca/PracaKeepAlive.jsx';
 
 // BUG CORRIGIDO ("web mais rápido e otimizado"): todas essas páginas de
 // seção (Amigos, Perfil, Notificações, Busca, Painel da staff, Economia,
@@ -142,7 +143,6 @@ const SorteioPage = lazy(() => import('./SorteioPage.jsx'));
 const RetrospectivaPage = lazy(() => import('./RetrospectivaPage.jsx'));
 // Fase 8: mascote pinguim e Loja dos criadores. A Praça é o Club Penguin (Waddle Forever).
 const MeuPinguimPage = lazy(() => import('./MeuPinguimPage.jsx'));
-const PracaPage = lazy(() => import('./PracaPage.jsx'));
 const LojaCriadoresPage = lazy(() => import('./LojaCriadoresPage.jsx'));
 
 // Interface com UMA barra lateral principal só (MainSidebar.jsx —
@@ -551,7 +551,9 @@ export default function MainApp() {
                 <Route path="/loja/colecao/:colecao" element={<LojaPage />} />
                 <Route path="/loja/criadores" element={<LojaCriadoresPage />} />
                 <Route path="/meu-pinguim" element={<MeuPinguimPage />} />
-                <Route path="/praca" element={<PracaPage />} />
+                {/* O jogo fica montado fora das rotas (PracaKeepAlive, logo
+                    abaixo): continua rodando em segundo plano ao sair daqui. */}
+                <Route path="/praca" element={null} />
                 {/* Anúncios e Eventos: canal unificado (ver AnunciosEventosPage.jsx). */}
                 <Route path="/anuncios" element={<AnunciosEventosPage tab="anuncios" />} />
                 <Route path="/anuncios-e-eventos" element={<Navigate to="/anuncios" replace />} />
@@ -584,6 +586,10 @@ export default function MainApp() {
               </Routes>
             </ErrorBoundary>
           </Suspense>
+          {/* Club Penguin: aparece em /praca e segue conectado (sem desenhar) fora dela. */}
+          <ErrorBoundary compact>
+            <PracaKeepAlive fallback={<RouteLoadingFallback />} />
+          </ErrorBoundary>
           {/* Navegador ao lado do chat (painel redimensionável). */}
           {BROWSER_ON && <Suspense fallback={null}><BrowserDock /></Suspense>}
         </div>

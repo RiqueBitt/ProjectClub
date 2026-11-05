@@ -174,8 +174,8 @@ const POST_LISTENERS: Record<string, PostCallback> = {
       k1: 'a',
       c: penguinData.coins,
       s: penguinData.safeChat ? 1 : 0,
-      // jd uses non virtual date, there simulating age delta it with real time
-      jd: getDateString(Date.now() - (settings.getVirtualDate(0).getTime() - penguinData.virtualRegistrationTimestamp)),
+      // data real em que o pinguim foi criado (a idade do cartão usa a mesma)
+      jd: getDateString(Number.isFinite(penguinData.registration_date) && penguinData.registration_date > 0 ? penguinData.registration_date : Date.now()),
       ed: '10000-1-1', // EXPIRACY DATE TODO what is it for?
       h: '', // TODO what is?
       w: '100|0', // TODO what is?

@@ -192,3 +192,42 @@
 .praca-main { position: relative; flex: 1; min-height: 0; display: flex; }
 .praca-main > .praca-arena { flex: 1; min-width: 0; }
 .praca-page.is-game.is-touch .praca-main { position: absolute; inset: 0; }
+
+/* ---- segundo plano: o jogo segue conectado, sem desenhar nada ---- */
+.praca-page.is-background {
+  position: fixed; left: 0; top: 0; width: 1px; height: 1px; min-height: 0;
+  overflow: hidden; opacity: 0; pointer-events: none; z-index: -1; contain: strict;
+}
+.praca-bg-pill {
+  position: fixed; right: 16px; bottom: 16px; z-index: 900;
+  display: flex; align-items: center; gap: 4px; padding: 4px;
+  border-radius: 999px; background: var(--bg-secondary); color: var(--text-normal);
+  border: 1px solid var(--border); box-shadow: var(--shadow-pop, 0 6px 24px rgba(0, 0, 0, .25));
+  animation: praca-bg-in .2s ease-out;
+}
+.praca-bg-open {
+  display: flex; align-items: center; gap: 8px; padding: 4px 10px 4px 4px;
+  border: 0; border-radius: 999px; background: transparent; color: inherit; cursor: pointer; text-align: left;
+}
+.praca-bg-open:hover { background: var(--bg-modifier-hover); }
+.praca-bg-logo {
+  display: grid; place-items: center; width: 32px; height: 32px; border-radius: 50%;
+  background: #1c67b5; color: #0b2a4a; position: relative;
+}
+.praca-bg-logo::after {
+  content: ""; position: absolute; right: -1px; bottom: -1px; width: 10px; height: 10px; border-radius: 50%;
+  background: #3ba55d; border: 2px solid var(--bg-secondary);
+}
+.praca-bg-text { display: flex; flex-direction: column; line-height: 1.2; min-width: 0; }
+.praca-bg-text strong { font-size: 13px; }
+.praca-bg-text small { font-size: 11.5px; color: var(--text-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 260px; }
+.praca-bg-close {
+  display: grid; place-items: center; width: 30px; height: 30px; border: 0; border-radius: 50%;
+  background: transparent; color: var(--text-muted); cursor: pointer;
+}
+.praca-bg-close:hover { background: var(--bg-modifier-hover); color: var(--text-normal); }
+@keyframes praca-bg-in { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
+@media (max-width: 768px) {
+  .praca-bg-pill { right: 12px; bottom: calc(76px + env(safe-area-inset-bottom, 0px)); }
+}
+@media (prefers-reduced-motion: reduce) { .praca-bg-pill { animation: none; } }

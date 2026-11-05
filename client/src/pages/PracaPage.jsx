@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext.jsx';
 import { api } from '../api/client.js';
@@ -147,7 +148,7 @@ function readMuted() {
   try { return localStorage.getItem(MUTE_KEY) === '1'; } catch { return false; }
 }
 
-export default function PracaPage({ embedded = false }) {
+export default function PracaPage({ embedded = false, background = false, onClose }) {
   const { user } = useAuth();
   const [cfg, setCfg] = useState(null);
   const [phase, setPhase] = useState('config'); // config | media | download | install | event | loading | playing | error
@@ -412,7 +413,7 @@ export default function PracaPage({ embedded = false }) {
     try { return findMinijogo(new URLSearchParams(location.search).get('jogo'))?.cp || null; } catch { return null; }
   }, [location.search]);
   useEffect(() => {
-    if (!inWorld || !wantedGame) return undefined;
+    if (!inWorld || !wantedGame || background) return undefined;
     let alive = true;
     let tries = 0;
     const clearParam = () => {
@@ -435,13 +436,18 @@ export default function PracaPage({ embedded = false }) {
     };
     const t = window.setTimeout(attempt, 1800); // a sala acabou de carregar
     return () => { alive = false; window.clearTimeout(t); };
-  }, [inWorld, wantedGame]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [inWorld, wantedGame, background]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // 3) escala do palco: cabe na área disponível mantendo 760x480
   useEffect(() => {
     const page = pageRef.current;
     if (!page) return undefined;
     const update = () => {
+      if (background) {
+        const stage = stageRef.current;
+        if (stage) { stage.style.width = '1px'; stage.style.height = '1px'; }
+        return;
+      }
       const area = page.querySelector('.praca-arena');
       if (!area) return;
       const r = area.getBoundingClientRect();
@@ -465,13 +471,42 @@ export default function PracaPage({ embedded = false }) {
     if (arena) ro.observe(arena);
     window.addEventListener('orientationchange', update);
     return () => { ro.disconnect(); window.removeEventListener('orientationchange', update); };
-  }, [full, phase, embedded]);
+  }, [full, phase, embedded, background]);
 
   // mudo
   useEffect(() => {
     try { localStorage.setItem(MUTE_KEY, muted ? '1' : '0'); } catch { /* ignora */ }
-    try { if (playerRef.current) playerRef.current.volume = muted ? 0 : 1; } catch { /* ignora */ }
-  }, [muted, phase]);
+    try { if (playerRef.current) playerRef.current.volume = (muted || background) ? 0 : 1; } catch { /* ignora */ }
+  }, [muted, phase, background]);
+
+  // Segundo plano: qualidade baixa (sem anti-aliasing, quase nada de memória
+  // de vídeo) e sem foco do teclado; ao voltar, qualidade máxima de novo. O
+  // pedido vai pro próprio jogo (interface.swf → _quality); tenta de novo até
+  // a interface ter carregado.
+  useEffect(() => {
+    if (phase !== 'playing') return undefined;
+    const want = background ? 'low' : 'best';
+    let tries = 0;
+    let t = 0;
+    const apply = () => {
+      let ok = false;
+      try { ok = playerRef.current?.pracaQuality?.(want) === true; } catch { ok = false; }
+      tries += 1;
+      if (!ok && tries < 30) t = window.setTimeout(apply, 2000);
+    };
+    apply();
+    if (background) { try { playerRef.current?.blur?.(); } catch { /* ok */ } }
+    return () => window.clearTimeout(t);
+  }, [background, phase, inWorld]);
+
+  // Saiu da página: tela cheia não faz sentido; e se o jogo nem chegou a
+  // abrir (escolha de download, erro), não tem o que manter rodando.
+  useEffect(() => {
+    if (!background) return;
+    if (full) { setFull(false); exitGameMode(pageRef.current); }
+    const idle = phase === 'download' || phase === 'error' || phase === 'elsewhere' || phase === 'config' || (phase === 'event' && install?.ask);
+    if (idle) onClose?.();
+  }, [background, phase, install?.ask]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // quem está online (a cada 30 s)
   useEffect(() => {
@@ -536,7 +571,7 @@ export default function PracaPage({ embedded = false }) {
   const retry = () => { setError(''); setCfg(null); setReady(null); setPhase('config'); api.get('/plaza/config').then(({ data }) => { setCfg(data); setOnline(data.online || 0); }).catch((err) => { setError(err?.response?.data?.error || 'A Praça está indisponível agora.'); setPhase('error'); }); };
 
   return (
-    <div className={`praca-page${full ? ' is-full' : ''}${touch ? ' is-touch' : ''}${showBar ? ' show-bar' : ''}${embedded ? ' is-embedded' : ''}${(full || embedded) ? ' is-game' : ''}`} ref={pageRef}>
+    <div className={`praca-page${full ? ' is-full' : ''}${touch ? ' is-touch' : ''}${showBar ? ' show-bar' : ''}${embedded ? ' is-embedded' : ''}${(full || embedded) ? ' is-game' : ''}${background ? ' is-background' : ''}`} ref={pageRef} aria-hidden={background || undefined} inert={background ? '' : undefined}>
       {full && !touch && <button type="button" className="praca-peek" onClick={peekBar} aria-label="Mostrar controles" />}
       {(full || embedded) && touch && (
         <div className="praca-hud" role="toolbar" aria-label="Controles do jogo">
@@ -592,7 +627,7 @@ export default function PracaPage({ embedded = false }) {
         <div
           className="praca-stage"
           ref={stageRef}
-          style={{ width: Math.round(STAGE.w * scale), height: Math.round(STAGE.h * scale) }}
+          style={background ? { width: 1, height: 1 } : { width: Math.round(STAGE.w * scale), height: Math.round(STAGE.h * scale) }}
         />
         {/* Sem telas de carregamento: o jogo aparece direto. Só há overlay pra
             decisão (baixar o jogo / evento), download em andamento, servidor
@@ -676,7 +711,12 @@ export default function PracaPage({ embedded = false }) {
       {/* App Android (rota /praca/app): fora do app do site não tem a barra de call — o áudio da voz toca daqui */}
       {embedded && <RemoteAudioSinks />}
 
-      {hint && phase === 'playing' && (
+      {background && (phase === 'playing' || phase === 'reconnect' || phase === 'loading' || phase === 'install' || phase === 'event' || phase === 'media') && createPortal(
+        <PracaBackgroundPill phase={phase} name={cfg?.penguin?.name} onOpen={() => navigate('/praca')} onClose={onClose} />,
+        document.body,
+      )}
+
+      {hint && phase === 'playing' && !background && (
         <div className="praca-hint" role="note">
           <span>
             Você entra automaticamente como <strong>{cfg?.penguin.name}</strong>.
@@ -685,6 +725,30 @@ export default function PracaPage({ embedded = false }) {
           <button type="button" className="praca-hint-close" onClick={dismissHint} aria-label="Entendi">✕</button>
         </div>
       )}
+    </div>
+  );
+}
+
+// Aviso no canto enquanto o jogo roda em segundo plano.
+function PracaBackgroundPill({ phase, name, onOpen, onClose }) {
+  const label = phase === 'playing' ? (name ? `${name} está na ilha` : 'Na ilha')
+    : phase === 'reconnect' ? 'Reconectando à ilha…'
+      : (phase === 'install' || phase === 'event') ? 'Baixando o jogo…'
+        : 'Abrindo o jogo…';
+  return (
+    <div className="praca-bg-pill" role="status">
+      <button type="button" className="praca-bg-open" onClick={onOpen} title="Voltar pro Club Penguin">
+        <span className="praca-bg-logo" aria-hidden="true">
+          <svg viewBox="0 0 64 64" width="20" height="20"><ellipse cx="32" cy="36" rx="20" ry="24" fill="currentColor" /><ellipse cx="32" cy="40" rx="12" ry="16" fill="#fff" /><circle cx="25" cy="24" r="4" fill="#fff" /><circle cx="39" cy="24" r="4" fill="#fff" /><circle cx="26" cy="25" r="2" fill="#1c1e21" /><circle cx="40" cy="25" r="2" fill="#1c1e21" /><path d="M27 30 Q32 37 37 30 Q32 33 27 30 Z" fill="#F5A623" /></svg>
+        </span>
+        <span className="praca-bg-text">
+          <strong>Club Penguin</strong>
+          <small>{label} · segundo plano</small>
+        </span>
+      </button>
+      <button type="button" className="praca-bg-close" onClick={onClose} aria-label="Fechar o Club Penguin" title="Fechar o jogo">
+        <svg viewBox="0 0 24 24" width="16" height="16"><path fill="currentColor" d="M18.3 5.7 12 12l6.3 6.3-1.4 1.4L10.6 13.4 4.3 19.7 2.9 18.3 9.2 12 2.9 5.7l1.4-1.4 6.3 6.3 6.3-6.3z" /></svg>
+      </button>
     </div>
   );
 }

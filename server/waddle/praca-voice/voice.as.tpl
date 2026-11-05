@@ -910,6 +910,19 @@ if(pcvEI.available)
       }
       return false;
    });
+   // Segundo plano (a pessoa saiu da página do jogo, mas ele continua
+   // conectado): a página baixa a qualidade ("low" = sem anti-aliasing, quase
+   // nada de memória de vídeo) e volta pra "best" quando a pessoa volta.
+   pcvEI.addCallback("pracaQuality", null, function(q)
+   {
+      var v = String(q).toUpperCase();
+      if(v != "LOW" && v != "MEDIUM" && v != "HIGH" && v != "BEST")
+      {
+         return false;
+      }
+      _quality = v;
+      return true;
+   });
    pcvEI.addCallback("pracaJoinRoom", null, function(key, x, y)
    {
       if(shell.getRoomCrumbsByName(String(key)) == undefined)
