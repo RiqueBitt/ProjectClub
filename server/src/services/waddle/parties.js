@@ -27,10 +27,11 @@ const ROTATION = [2012, 2013, 2014, 2015, 2016];
 const ROTATION_JAN_MAR = [2012, 2013, 2014, 2015, 2016, 2017];
 
 const mediaDir = () => process.env.WADDLE_MEDIA_DIR || path.join(process.env.WADDLE_DATA_DIR || path.join(__dirname, '..', '..', '..', 'data', 'waddle'), 'media');
-// pasta das festas na mídia. "v2": a primeira versão foi extraída com o dono
-// do GitHub Actions e não dá pra sobrescrever no servidor de produção.
+// pasta das festas na mídia (direto na raiz). A primeira versão foi
+// extraída em parties/ com o dono do GitHub Actions e, no servidor de
+// produção, nada mais consegue escrever ali — por isso a pasta nova.
 const SUBDIR = 'pcparties-v2';
-const filesDir = () => path.join(mediaDir(), 'parties', SUBDIR);
+const filesDir = () => path.join(mediaDir(), SUBDIR);
 const stateFile = () => path.join(process.env.WADDLE_DATA_DIR || path.join(__dirname, '..', '..', '..', 'data', 'waddle'), 'pc-party.json');
 
 const bySlug = new Map(DATA.parties.map((p) => [p.slug, p]));
@@ -122,13 +123,13 @@ function merged(slugs) {
   }
   // mapa da ilha decorado: o da festa principal (ou de outra que tenha)
   const withMap = parties.find((p) => p.map && onDisk(p.map));
-  if (withMap) out.routes[MAP_ROUTE] = `parties/${SUBDIR}/${withMap.map}`;
+  if (withMap) out.routes[MAP_ROUTE] = `${SUBDIR}/${withMap.map}`;
   return out;
 }
 
 function overlayRooms(party) {
   const out = {};
-  for (const [room, file] of Object.entries(party.rooms)) out[room] = `parties/${SUBDIR}/${file}`;
+  for (const [room, file] of Object.entries(party.rooms)) out[room] = `${SUBDIR}/${file}`;
   return out;
 }
 
@@ -136,7 +137,7 @@ function overlayRooms(party) {
 function overlayMusicFiles(party) {
   const out = {};
   for (const [id, file] of Object.entries(party.musicFiles || {})) {
-    try { if (fs.existsSync(path.join(filesDir(), file))) out[id] = `parties/${SUBDIR}/${file}`; } catch { /* ok */ }
+    try { if (fs.existsSync(path.join(filesDir(), file))) out[id] = `${SUBDIR}/${file}`; } catch { /* ok */ }
   }
   return out;
 }
