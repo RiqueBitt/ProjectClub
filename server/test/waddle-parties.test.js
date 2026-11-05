@@ -54,3 +54,14 @@ test('festas: Halloween e aniversário do mesmo ano entram juntos (principal = a
   const m = parties.merged(found.slugs);
   assert.ok(Object.keys(m.rooms).length >= Object.keys(parties._data.parties.find((p) => p.slug === found.slugs[0]).rooms).length);
 });
+
+test('festas: as telas da festa entram como rotas da camada', () => {
+  const p = parties._data.parties.find((x) => (x.ui && Object.keys(x.ui).length) || x.slug === 'Halloween_Party_2014');
+  const had = p.ui;
+  if (!had || !Object.keys(had).length) p.ui = { 'local/en/close_ups/quest_interface.swf': 'PTClose_upsQuest_interface-X.swf' };
+  const m = parties.merged([p.slug]);
+  for (const [route, file] of Object.entries(p.ui)) {
+    assert.strictEqual(m.routes[`play/v2/content/${route}`], `pcparties-ui/${file}`);
+  }
+  p.ui = had;
+});

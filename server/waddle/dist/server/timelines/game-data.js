@@ -826,6 +826,14 @@ class GameData {
     getExtraPaths() {
         return this._extraPaths;
     }
+    _extraStrings = new Map();
+    /** Textos do game_strings.json das festas de 2013-2017. */
+    setExtraStrings(strings) {
+        this._extraStrings = new Map(Object.entries(strings).filter(([k, v]) => typeof k === 'string' && typeof v === 'string'));
+    }
+    getExtraStrings() {
+        return this._extraStrings;
+    }
     hasSchool() {
         return this.state.school;
     }

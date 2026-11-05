@@ -14,7 +14,10 @@ Saída:
                          chaves dos paths.json originais + as que casam com as
                          telas de cada festa pelo nome.
 
-Uso: python3 build-ui.py parties-data.json parties-ui-index.json parties-paths-union.json party-keys.json parties-paths.json
+Uso: python3 build-ui.py parties-data.json parties-ui-index.json parties-paths-union.json party-keys.json parties-paths.json [parties-strings.json]
+
+Com parties-strings.json: telas de fala (character_dialogue_*) só entram se os
+textos dessa festa existem (sem eles o jogo mostraria a chave no balão).
 """
 import json
 import re
@@ -59,17 +62,28 @@ def best_file(key, ui_paths):
         if num and num in name:
             score += 0.5
         if score:
-            scored.append((score, -len(ntoks), route))
+            scored.append((score, -len(ntoks), -len(name), route))
     if not scored:
         return None
     scored.sort(reverse=True)
-    if len(scored) > 1 and scored[0][:2] == scored[1][:2]:
+    if len(scored) > 1 and scored[0][:3] == scored[1][:3]:
         return None  # empate: não chuta
-    return scored[0][2]
+    return scored[0][3]
+
+
+# casos que o nome não resolve (conferidos no código das salas)
+OVERRIDES = {
+    'w.p2014.halloween.ghost.1': 'local/en/close_ups/character_dialogue_ghost_intro.swf',
+    'w.p2014.halloween.ghost.2': 'local/en/close_ups/character_dialogue_ghost_defeated.swf',
+}
 
 
 def main():
     data_file, ui_index_file, union_file, keys_file, out_file = sys.argv[1:6]
+    strings = set()
+    if len(sys.argv) > 6:
+        st = json.load(open(sys.argv[6], encoding='utf-8'))
+        strings = set(st.get('pt', {})) | set(st.get('en', {}))
     data = json.load(open(data_file, encoding='utf-8'))
     ui_index = json.load(open(ui_index_file, encoding='utf-8'))
     union = json.load(open(union_file, encoding='utf-8'))
@@ -80,12 +94,17 @@ def main():
     for p in data['parties']:
         entries = ui_index.get(p['slug']) or []
         p['ui'] = {e['path']: e['name'] for e in entries}
-        for key in keys.get(p['slug'], []):
+        party_keys = keys.get(p['slug'], [])
+        text_keys = [k for k in party_keys if TEXT_KEY.search(k)]
+        has_text = bool(text_keys) and sum(1 for k in text_keys if k in strings) >= len(text_keys) / 2
+        for key in party_keys:
             if key in known or TEXT_KEY.search(key):
                 continue
-            route = best_file(key, p['ui'].keys())
+            route = OVERRIDES.get(key) if OVERRIDES.get(key) in p['ui'] else best_file(key, p['ui'].keys())
             if not route:
                 continue
+            if 'character_dialogue' in route and not has_text:
+                continue  # fala sem texto: melhor não abrir
             if route.startswith('local/en/'):
                 out['local'][key] = route[len('local/en/'):]
             elif route.startswith('global/'):

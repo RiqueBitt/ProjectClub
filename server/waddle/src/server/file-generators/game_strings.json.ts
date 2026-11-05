@@ -9914,5 +9914,14 @@ export function getGameStrings(d: GameData): string {
     ]
   }
 
+  // textos das festas de 2013-2017 (falas das telas), sem trocar os de 2012
+  const extra = d.getExtraStrings();
+  if (extra.size > 0) {
+    const have = new Set(json.lang.map((row) => row[0]));
+    for (const [key, text] of extra) {
+      if (!have.has(key)) json.lang.push([key, text]);
+    }
+  }
+
   return JSON.stringify(json);
 }

@@ -971,6 +971,17 @@ export class GameData {
     return this._extraPaths;
   }
 
+  private _extraStrings = new Map<string, string>();
+
+  /** Textos do game_strings.json das festas de 2013-2017. */
+  public setExtraStrings(strings: Record<string, string>) {
+    this._extraStrings = new Map(Object.entries(strings).filter(([k, v]) => typeof k === 'string' && typeof v === 'string'));
+  }
+
+  public getExtraStrings() {
+    return this._extraStrings;
+  }
+
   public hasSchool() {
     return this.state.school;
   }

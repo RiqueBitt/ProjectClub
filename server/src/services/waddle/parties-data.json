@@ -14,7 +14,8 @@
    "rooms": {},
    "music": {},
    "musicFiles": {},
-   "haveMusic": []
+   "haveMusic": [],
+   "ui": {}
   },
   {
    "slug": "Hollywood_Party",
@@ -33,7 +34,8 @@
    "musicFiles": {
     "360": "Music360.swf"
    },
-   "haveMusic": []
+   "haveMusic": [],
+   "ui": {}
   },
   {
    "slug": "Puffle_Party_2013",
@@ -68,7 +70,14 @@
    "musicFiles": {
     "3601": "Music3601.swf"
    },
-   "haveMusic": []
+   "haveMusic": [],
+   "ui": {
+    "local/en/close_ups/hotel_elevator.swf": "PTClose_upsHotel_elevator.swf",
+    "local/en/close_ups/party_map_note.swf": "PTClose_upsParty_map_note.swf",
+    "local/en/close_ups/puffle_choose.swf": "PTClose_upsPuffle_choose.swf",
+    "local/en/close_ups/rainbow_cannon_prompt.swf": "PTClose_upsRainbow_cannon_prompt.swf",
+    "local/en/close_ups/rainbow_puffle_quest.swf": "PTClose_upsRainbow_puffle_quest.swf"
+   }
   },
   {
    "slug": "Marvel_Super_Hero_Takeover_2013",
@@ -104,7 +113,13 @@
     "388": "Music388.swf",
     "391": "Music391.swf"
    },
-   "haveMusic": []
+   "haveMusic": [],
+   "ui": {
+    "global/membership/party1.swf": "PTMembershipParty1-Marvel2013.swf",
+    "global/membership/party2.swf": "PTMembershipParty2-Marvel2013.swf",
+    "global/membership/party3.swf": "PTMembershipParty3-Marvel2013.swf",
+    "local/en/catalogues/party.swf": "PTCataloguesParty-Marvel2013.swf"
+   }
   },
   {
    "slug": "Card-Jitsu_Party_2013",
@@ -165,7 +180,11 @@
     "416": "Music416.swf",
     "415": "Music415.swf"
    },
-   "haveMusic": []
+   "haveMusic": [],
+   "ui": {
+    "local/en/catalogues/party.swf": "PTCataloguesParty-CardJitsuParty2013.swf",
+    "local/en/close_ups/poster.swf": "PTClose_upsPoster-CardJitsuParty2013.swf"
+   }
   },
   {
    "slug": "Monsters_University_Takeover",
@@ -194,7 +213,11 @@
     "421": "Music421.swf",
     "419": "Music419.swf"
    },
-   "haveMusic": []
+   "haveMusic": [],
+   "ui": {
+    "local/en/close_ups/map.swf": "PTClose_upsMap-MUTakeover.swf",
+    "local/en/close_ups/member.swf": "PTClose_upsMember-MUTakeover.swf"
+   }
   },
   {
    "slug": "Star_Wars_Takeover",
@@ -213,7 +236,23 @@
    "musicFiles": {
     "383": "Music383.swf"
    },
-   "haveMusic": []
+   "haveMusic": [],
+   "ui": {
+    "global/avatar/sprites/jedi_black.swf": "AvatarSpritesJedi_Black.swf",
+    "global/avatar/sprites/jedi_brown.swf": "AvatarSpritesJedi_Brown.swf",
+    "global/avatar/sprites/vader.swf": "AvatarSpritesVader.swf",
+    "local/en/catalogues/party.swf": "PTCataloguesParty-StarWarsTakeover.swf",
+    "local/en/close_ups/character_dialogue_deathstar_congratulations.swf": "PTClose_upsCharacter_dialogue_deathstar_congratulations.swf",
+    "local/en/close_ups/character_dialogue_deathstar_welcome.swf": "PTClose_upsCharacter_dialogue_deathstar_welcome.swf",
+    "local/en/close_ups/character_dialogue_soloroom.swf": "PTClose_upsCharacter_dialogue_soloroom.swf",
+    "local/en/close_ups/character_dialogue_tatooine_congratulations.swf": "PTClose_upsCharacter_dialogue_tatooine_congratulations.swf",
+    "local/en/close_ups/character_dialogue_tatooine_welcome.swf": "PTClose_upsCharacter_dialogue_tatooine_welcome.swf",
+    "local/en/close_ups/character_dialogue_yavin_congratulations.swf": "PTClose_upsCharacter_dialogue_yavin_congratulations.swf",
+    "local/en/close_ups/character_dialogue_yavin_welcome.swf": "PTClose_upsCharacter_dialogue_yavin_welcome.swf",
+    "local/en/close_ups/deathstar_map.swf": "PTClose_upsDeathstar_map.swf",
+    "local/en/close_ups/tatooine_map.swf": "PTClose_upsTatooine_map.swf",
+    "local/en/close_ups/yavin_map.swf": "PTClose_upsYavin_map.swf"
+   }
   },
   {
    "slug": "Teen_Beach_Movie_Summer_Jam",
@@ -264,7 +303,10 @@
     "475": "Music475.swf",
     "476": "Music476.swf"
    },
-   "haveMusic": []
+   "haveMusic": [],
+   "ui": {
+    "local/en/catalogues/party.swf": "PTCataloguesParty-TBMSummerJam.swf"
+   }
   },
   {
    "slug": "Medieval_Party_2013",
@@ -316,7 +358,18 @@
     "490": "Music490.swf",
     "494": "Music494.swf"
    },
-   "haveMusic": []
+   "haveMusic": [],
+   "ui": {
+    "global/content/party_icon.swf": "ContentParty_icon-MedievalParty2013.swf",
+    "local/en/catalogues/party.swf": "PTCataloguesParty-MedievalParty2013.swf",
+    "local/en/close_ups/character_dialogue_final_ingredient.swf": "Close_upsCharacter_dialogue_final_ingredient-MedievalParty2013.swf",
+    "local/en/close_ups/character_dialogue_game_fail.swf": "Close_upsCharacter_dialogue_game_fail-MedievalParty2013.swf",
+    "local/en/close_ups/character_dialogue_game_success.swf": "Close_upsCharacter_dialogue_game_success-MedievalParty2013.swf",
+    "local/en/close_ups/character_dialogue_reminder.swf": "Close_upsCharacter_dialogue_reminder-MedievalParty2013.swf",
+    "local/en/close_ups/character_dialogue_soloroom.swf": "Close_upsCharacter_dialogue_soloroom-MedievalParty2013.swf",
+    "local/en/close_ups/party_map_note.swf": "PTClose_upsParty_map_note-MedievalParty2013.swf",
+    "local/en/close_ups/quest_book.swf": "PTClose_upsQuest_book-MedievalParty2013.swf"
+   }
   },
   {
    "slug": "Halloween_Party_2013",
@@ -389,7 +442,22 @@
    "haveMusic": [
     1,
     345
-   ]
+   ],
+   "ui": {
+    "global/avatar/sprites/vampirea.swf": "AvatarSpritesVampireA-HalloweenParty2013.swf",
+    "global/avatar/sprites/vampireb.swf": "AvatarSpritesVampireB-HalloweenParty2013.swf",
+    "global/avatar/sprites/vampirec.swf": "AvatarSpritesVampireC-HalloweenParty2013.swf",
+    "global/avatar/sprites/werewolfa.swf": "AvatarSpritesWerewolfA-HalloweenParty2013.swf",
+    "global/avatar/sprites/werewolfb.swf": "AvatarSpritesWerewolfB-HalloweenParty2013.swf",
+    "global/avatar/sprites/werewolfc.swf": "AvatarSpritesWerewolfC-HalloweenParty2013.swf",
+    "global/avatar/sprites/zombiea.swf": "AvatarSpritesZombieA-HalloweenParty2013.swf",
+    "global/avatar/sprites/zombieb.swf": "AvatarSpritesZombieB-HalloweenParty2013.swf",
+    "global/avatar/sprites/zombiec.swf": "AvatarSpritesZombieC-HalloweenParty2013.swf",
+    "local/en/close_ups/character_dialogue_login.swf": "Close_upsCharacter_dialogue_login-HalloweenParty2013.swf",
+    "local/en/close_ups/character_dialogue_specialcandy.swf": "Close_upsCharacter_dialogue_specialcandy-HalloweenParty2013.swf",
+    "local/en/close_ups/character_dialogue_transformcandy.swf": "Close_upsCharacter_dialogue_transformcandy-HalloweenParty2013.swf",
+    "local/en/close_ups/pumpkingame.swf": "PTClose_upsPumpkingame.swf"
+   }
   },
   {
    "slug": "8th_Anniversary_Party",
@@ -412,7 +480,8 @@
    },
    "haveMusic": [
     1
-   ]
+   ],
+   "ui": {}
   },
   {
    "slug": "Operation:_Puffle",
@@ -448,7 +517,16 @@
     6,
     34,
     264
-   ]
+   ],
+   "ui": {
+    "global/membership/party1.swf": "PTMembershipParty1.swf",
+    "local/en/close_ups/character_dialogue_gary_chipscollected.swf": "Close_upsCharacter_dialogue_gary_chipscollected-OperationPuffle.swf",
+    "local/en/close_ups/character_dialogue_herbert_1.swf": "Close_upsCharacter_dialogue_herbert_1-OperationPuffle.swf",
+    "local/en/close_ups/character_dialogue_herbert_2.swf": "Close_upsCharacter_dialogue_herbert_2-OperationPuffle.swf",
+    "local/en/close_ups/character_dialogue_herbert_3.swf": "Close_upsCharacter_dialogue_herbert_3-OperationPuffle.swf",
+    "local/en/close_ups/character_dialogue_herbert_4.swf": "Close_upsCharacter_dialogue_herbert_4-OperationPuffle.swf",
+    "local/en/close_ups/character_dialogue_herbert_5.swf": "Close_upsCharacter_dialogue_herbert_5-OperationPuffle.swf"
+   }
   },
   {
    "slug": "Holiday_Party_2013",
@@ -507,7 +585,14 @@
    },
    "haveMusic": [
     315
-   ]
+   ],
+   "ui": {
+    "local/en/catalogues/party.swf": "PTCataloguesParty-HolidayParty2013.swf",
+    "local/en/close_ups/donation_ui.swf": "PTClose_upsDonation_ui-HolidayParty2013.swf",
+    "local/en/close_ups/party_interface.swf": "PTClose_upsParty_interface-HolidayParty2013.swf",
+    "local/en/close_ups/train_catalogue.swf": "PTClose_upsTrain_catalogue-HolidayParty2013.swf",
+    "local/en/close_ups/trainstation_igloo_list.swf": "PTClose_upsTrainstation_igloo_list-HolidayParty2013.swf"
+   }
   },
   {
    "slug": "Prehistoric_Party_2014",
@@ -520,7 +605,8 @@
    "rooms": {},
    "music": {},
    "musicFiles": {},
-   "haveMusic": []
+   "haveMusic": [],
+   "ui": {}
   },
   {
    "slug": "The_Fair_2014",
@@ -539,7 +625,8 @@
    "musicFiles": {
     "610": "Music610.swf"
    },
-   "haveMusic": []
+   "haveMusic": [],
+   "ui": {}
   },
   {
    "slug": "Muppets_World_Tour",
@@ -558,7 +645,15 @@
    "musicFiles": {
     "636": "Music636.swf"
    },
-   "haveMusic": []
+   "haveMusic": [],
+   "ui": {
+    "global/content/party_icon.swf": "ContentParty_icon-MuppetsWorldTour.swf",
+    "local/en/close_ups/character_dialogue_constantine_museum.swf": "Close_upsCharacter_dialogue_constantine_museum-MuppetsWorldTour.swf",
+    "local/en/close_ups/character_dialogue_instruction.swf": "Close_upsCharacter_dialogue_instruction-MuppetsWorldTour.swf",
+    "local/en/close_ups/character_dialogue_kermit_finale.swf": "Close_upsCharacter_dialogue_kermit_finale-MuppetsWorldTour.swf",
+    "local/en/close_ups/character_dialogue_login.swf": "Close_upsCharacter_dialogue_login-MuppetsWorldTour.swf",
+    "local/en/close_ups/character_dialogue_rewards.swf": "Close_upsCharacter_dialogue_rewards-MuppetsWorldTour.swf"
+   }
   },
   {
    "slug": "Puffle_Party_2014",
@@ -612,7 +707,8 @@
     "661": "Music661.swf",
     "663": "Music663.swf"
    },
-   "haveMusic": []
+   "haveMusic": [],
+   "ui": {}
   },
   {
    "slug": "Future_Party",
@@ -664,7 +760,22 @@
     "693": "Music693.swf",
     "696": "Music696.swf"
    },
-   "haveMusic": []
+   "haveMusic": [],
+   "ui": {
+    "global/membership/party1.swf": "MembershipParty1-FutureParty.swf",
+    "global/membership/party2.swf": "MembershipParty2-FutureParty.swf",
+    "local/en/close_ups/blastoff_error.swf": "PTClose_upsBlastoff_error.swf",
+    "local/en/close_ups/character_dialogue_login.swf": "Close_upsCharacter_dialogue_login-FutureParty.swf",
+    "local/en/close_ups/character_dialogue_protobot.swf": "Close_upsCharacter_dialogue_protobot.swf",
+    "local/en/close_ups/character_dialogue_protobot_login.swf": "Close_upsCharacter_dialogue_protobot_login.swf",
+    "local/en/close_ups/character_dialogue_robot.swf": "Close_upsCharacter_dialogue_robot.swf",
+    "local/en/close_ups/party_igloo_list.swf": "PTClose_upsParty_igloo_list-FutureParty.swf",
+    "local/en/close_ups/party_map.swf": "PTClose_upsParty_map-FutureParty.swf",
+    "local/en/close_ups/party_map_note.swf": "PTClose_upsParty_map_note-FutureParty.swf",
+    "local/en/close_ups/protobot_rewards.swf": "PTClose_upsProtobot_rewards.swf",
+    "local/en/close_ups/quest_interface.swf": "PTClose_upsQuest_interface-FutureParty.swf",
+    "local/en/close_ups/robo_customize.swf": "PTClose_upsRobo_customize.swf"
+   }
   },
   {
    "slug": "Penguin_Cup",
@@ -707,7 +818,22 @@
     "714": "Music714.swf"
    },
    "haveMusic": [],
-   "map": "ContentMap-PenguinCup.swf"
+   "map": "ContentMap-PenguinCup.swf",
+   "ui": {
+    "global/avatar/sprites/ball_kick.swf": "AvatarSpritesBall_kick.swf",
+    "global/avatar/sprites/victory_1.swf": "AvatarSpritesVictory_1.swf",
+    "global/avatar/sprites/victory_2.swf": "AvatarSpritesVictory_2.swf",
+    "global/avatar/sprites/victory_3.swf": "AvatarSpritesVictory_3.swf",
+    "global/avatar/sprites/victory_4.swf": "AvatarSpritesVictory_4.swf",
+    "global/content/party_icon.swf": "ContentParty_icon-PenguinCup.swf",
+    "global/membership/party1.swf": "MembershipParty1-PenguinCup.swf",
+    "local/en/close_ups/character_dialogue_login.swf": "Close_upsCharacter_dialogue_login-PenguinCup.swf",
+    "local/en/close_ups/character_dialogue_update.swf": "Close_upsCharacter_dialogue_update-PenguinCup.swf",
+    "local/en/close_ups/end_game.swf": "Close_upsEnd_game-PenguinCup.swf",
+    "local/en/close_ups/party_igloo_list.swf": "PTClose_upsParty_igloo_list-PenguinCup.swf",
+    "local/en/close_ups/party_map_note.swf": "PTClose_upsParty_map_note-PenguinCup.swf",
+    "local/en/close_ups/quest_interface.swf": "PTClose_upsQuest_interface-PenguinCup.swf"
+   }
   },
   {
    "slug": "Music_Jam_2014",
@@ -748,7 +874,16 @@
     "723": "Music723.swf"
    },
    "haveMusic": [],
-   "map": "ContentMap-MusicJam2014.swf"
+   "map": "ContentMap-MusicJam2014.swf",
+   "ui": {
+    "global/content/party_icon.swf": "ContentParty_icon-MusicJam2014.swf",
+    "global/membership/party1.swf": "MembershipParty1-MusicJam2014.swf",
+    "local/en/close_ups/character_dialogue_login.swf": "Close_upsCharacter_dialogue_login-MusicJam2014.swf",
+    "local/en/close_ups/party_igloo_list.swf": "PTClose_upsParty_igloo_list-MusicJam2014.swf",
+    "local/en/close_ups/party_map.swf": "Close_upsParty_map-MusicJam2014.swf",
+    "local/en/close_ups/party_map_note.swf": "PTClose_upsParty_map_note-MusicJam2014.swf",
+    "local/en/close_ups/quest_interface.swf": "PTClose_upsQuest_interface-MusicJam2014.swf"
+   }
   },
   {
    "slug": "Frozen_Party",
@@ -787,7 +922,17 @@
     "743": "Music743.swf"
    },
    "haveMusic": [],
-   "map": "ContentMap-FrozenParty.swf"
+   "map": "ContentMap-FrozenParty.swf",
+   "ui": {
+    "global/avatar/sprites/marshmallow.swf": "AvatarSpritesMarshmallow.swf",
+    "global/avatar/sprites/olaf.swf": "AvatarSpritesOlaf.swf",
+    "global/content/party_icon.swf": "ContentParty_icon-FrozenParty.swf",
+    "global/membership/party1.swf": "MembershipParty1-FrozenParty.swf",
+    "local/en/close_ups/character_dialogue_elsa.swf": "Close_upsCharacter_dialogue_Elsa-FrozenParty.swf",
+    "local/en/close_ups/character_dialogue_login.swf": "Close_upsCharacter_dialogue_login-FrozenParty.swf",
+    "local/en/close_ups/ice_palace_locked.swf": "Close_upsIce_palace_locked-FrozenParty.swf",
+    "local/en/close_ups/quest_interface.swf": "PTClose_upsQuest_interface-FrozenParty.swf"
+   }
   },
   {
    "slug": "School_&_Skate_Party",
@@ -822,7 +967,14 @@
     "749": "Music749.swf"
    },
    "haveMusic": [],
-   "map": "ContentMap-School&SkateParty.swf"
+   "map": "ContentMap-School&SkateParty.swf",
+   "ui": {
+    "global/content/party_icon.swf": "ContentParty_icon-School&SkateParty.swf",
+    "global/membership/party1.swf": "MembershipParty1-School&SkateParty.swf",
+    "local/en/close_ups/character_dialogue_login.swf": "Close_upsCharacter_dialogue_login-School&SkateParty.swf",
+    "local/en/close_ups/character_dialogue_success.swf": "Close_upsCharacter_dialogue_success-School&SkateParty.swf",
+    "local/en/close_ups/quest_interface.swf": "PTClose_upsQuest_interface-School&SkateParty.swf"
+   }
   },
   {
    "slug": "9th_Anniversary_Party",
@@ -841,7 +993,8 @@
    "musicFiles": {
     "763": "Music763.swf"
    },
-   "haveMusic": []
+   "haveMusic": [],
+   "ui": {}
   },
   {
    "slug": "Halloween_Party_2014",
@@ -974,7 +1127,19 @@
     343,
     345
    ],
-   "map": "ContentMap-HalloweenParty2014.swf"
+   "map": "ContentMap-HalloweenParty2014.swf",
+   "ui": {
+    "global/membership/party1.swf": "MembershipParty1-HalloweenParty2014.swf",
+    "global/membership/party2.swf": "MembershipParty2-HalloweenParty2014.swf",
+    "local/en/close_ups/character_dialogue_bellhop.swf": "Close_upsCharacter_dialogue_bellhop-HalloweenParty2014.swf",
+    "local/en/close_ups/character_dialogue_gariwald.swf": "Close_upsCharacter_dialogue_gariwald-HalloweenParty2014.swf",
+    "local/en/close_ups/character_dialogue_ghost_defeated.swf": "Close_upsCharacter_dialogue_ghost_defeated-HalloweenParty2014.swf",
+    "local/en/close_ups/character_dialogue_ghost_intro.swf": "Close_upsCharacter_dialogue_ghost_intro-HalloweenParty2014.swf",
+    "local/en/close_ups/character_dialogue_login.swf": "Close_upsCharacter_dialogue_login-HalloweenParty2014.swf",
+    "local/en/close_ups/character_dialogue_login2.swf": "Close_upsCharacter_dialogue_login2-HalloweenParty2014.swf",
+    "local/en/close_ups/hotel_elevator.swf": "Close_upsHotel_elevator-pt-HalloweenParty2014.swf",
+    "local/en/close_ups/quest_interface.swf": "PTClose_upsQuest_interface-HalloweenParty2014.swf"
+   }
   },
   {
    "slug": "Pirate_Party_2014",
@@ -1012,7 +1177,29 @@
     "792": "Music792.swf"
    },
    "haveMusic": [],
-   "map": "ContentMap-PirateParty2014.swf"
+   "map": "ContentMap-PirateParty2014.swf",
+   "ui": {
+    "global/avatar/sprites/crabbandanaa.swf": "AvatarSpritesCrabBandanaA.swf",
+    "global/avatar/sprites/crabbandanab.swf": "AvatarSpritesCrabBandanaB.swf",
+    "global/avatar/sprites/crabbandanac.swf": "AvatarSpritesCrabBandanaC.swf",
+    "global/avatar/sprites/crabbandanad.swf": "AvatarSpritesCrabBandanaD.swf",
+    "global/avatar/sprites/crabeyepatchhooka.swf": "AvatarSpritesCrabEyePatchHookA.swf",
+    "global/avatar/sprites/crabeyepatchhookb.swf": "AvatarSpritesCrabEyePatchHookB.swf",
+    "global/avatar/sprites/crabeyepatchhookc.swf": "AvatarSpritesCrabEyePatchHookC.swf",
+    "global/avatar/sprites/crabeyepatchhookd.swf": "AvatarSpritesCrabEyePatchHookD.swf",
+    "global/avatar/sprites/crabhata.swf": "AvatarSpritesCrabHatA.swf",
+    "global/avatar/sprites/crabhatb.swf": "AvatarSpritesCrabHatB.swf",
+    "global/avatar/sprites/crabhatc.swf": "AvatarSpritesCrabHatC.swf",
+    "global/avatar/sprites/crabhatd.swf": "AvatarSpritesCrabHatD.swf",
+    "global/avatar/sprites/crabhate.swf": "AvatarSpritesCrabHatE.swf",
+    "global/membership/party1.swf": "MembershipParty1-PirateParty2014.swf",
+    "local/en/close_ups/character_dialogue_congratulations.swf": "Close_upsCharacter_dialogue_congratulations-PirateParty2014.swf",
+    "local/en/close_ups/character_dialogue_crabfight.swf": "Close_upsCharacter_dialogue_crabfight-PirateParty2014.swf",
+    "local/en/close_ups/character_dialogue_login.swf": "Close_upsCharacter_dialogue_login-PirateParty2014.swf",
+    "local/en/close_ups/character_dialogue_swordfight.swf": "Close_upsCharacter_dialogue_swordfight-PirateParty2014.swf",
+    "local/en/close_ups/finale_comic.swf": "Close_upsFinale_comic-PirateParty2014.swf",
+    "local/en/close_ups/quest_interface.swf": "PTClose_upsQuest_interface-PirateParty2014.swf"
+   }
   },
   {
    "slug": "Merry_Walrus_Party",
@@ -1055,7 +1242,15 @@
     "819": "Music819.swf",
     "820": "Music820.swf"
    },
-   "haveMusic": []
+   "haveMusic": [],
+   "ui": {
+    "global/content/party_icon.swf": "ContentParty_icon-MerryWalrusParty2014.swf",
+    "global/membership/party1.swf": "MembershipParty1-MerryWalrusParty2014.swf",
+    "local/en/close_ups/cfc_interface.swf": "PTClose_upsCfc_interface-MerryWalrusParty2014.swf",
+    "local/en/close_ups/character_dialogue_congratulations.swf": "Close_upsCharacter_dialogue_congratulations-MerryWalrusParty2014.swf",
+    "local/en/close_ups/character_dialogue_login.swf": "Close_upsCharacter_dialogue_login-MerryWalrusParty2014.swf",
+    "local/en/close_ups/quest_interface.swf": "PTClose_upsQuest_interface-MerryWalrusParty2014.swf"
+   }
   },
   {
    "slug": "Star_Wars_Rebels_Takeover",
@@ -1099,7 +1294,26 @@
     "840": "Music840.swf"
    },
    "haveMusic": [],
-   "map": "ContentMap-StarWarsRebelsTakeover.swf"
+   "map": "ContentMap-StarWarsRebelsTakeover.swf",
+   "ui": {
+    "global/avatar/sprites/inquisitor.swf": "AvatarSpritesInquisitor.swf",
+    "global/avatar/sprites/jedidual.swf": "AvatarSpritesJediDual.swf",
+    "global/avatar/sprites/jediinquisitor.swf": "AvatarSpritesJediInquisitor.swf",
+    "global/avatar/sprites/jedisingle.swf": "AvatarSpritesJediSingle.swf",
+    "global/content/party_icon.swf": "ContentParty_icon-StarWarsRebelsTakeover.swf",
+    "global/logo/logo.swf": "ContentLogo-StarWarsRebelsTakeover.swf",
+    "global/membership/party1.swf": "MembershipParty1-StarWarsRebelsTakeover.swf",
+    "local/en/close_ups/character_dialogue_instruction.swf": "Close_upsCharacter_dialogue_instruction-StarWarsRebelsTakeover.swf",
+    "local/en/close_ups/character_dialogue_login.swf": "Close_upsCharacter_dialogue_login-StarWarsRebelsTakeover.swf",
+    "local/en/close_ups/character_dialogue_task2complete.swf": "Close_upsCharacter_dialogue_task2complete-StarWarsRebelsTakeover.swf",
+    "local/en/close_ups/character_dialogue_task4complete.swf": "Close_upsCharacter_dialogue_task4complete-StarWarsRebelsTakeover.swf",
+    "local/en/close_ups/character_dialogue_task5.swf": "Close_upsCharacter_dialogue_task5-StarWarsRebelsTakeover.swf",
+    "local/en/close_ups/character_dialogue_task5_collect.swf": "Close_upsCharacter_dialogue_task5_collect-StarWarsRebelsTakeover.swf",
+    "local/en/close_ups/character_dialogue_task5complete.swf": "Close_upsCharacter_dialogue_task5complete-StarWarsRebelsTakeover.swf",
+    "local/en/close_ups/character_dialogue_task6.swf": "Close_upsCharacter_dialogue_task6-StarWarsRebelsTakeover.swf",
+    "local/en/close_ups/character_dialogue_task6a.swf": "Close_upsCharacter_dialogue_task6a-StarWarsRebelsTakeover.swf",
+    "local/en/close_ups/quest_interface.swf": "PTClose_upsQuest_interface-StarWarsRebelsTakeover.swf"
+   }
   },
   {
    "slug": "SoundStudio_Party",
@@ -1155,7 +1369,16 @@
     "356": "Music356.swf"
    },
    "haveMusic": [],
-   "map": "ContentMap-SoundStudioParty.swf"
+   "map": "ContentMap-SoundStudioParty.swf",
+   "ui": {
+    "global/logo/logo.swf": "ContentLogo-SoundStudioParty.swf",
+    "global/membership/party1.swf": "MembershipParty1-SoundStudioParty2015.swf",
+    "local/en/close_ups/character_dialogue_login.swf": "Close_upsCharacter_dialogue_login-SoundStudioParty.swf",
+    "local/en/close_ups/cpidol_choose_closeup.swf": "PTClose_upsCpidol_choose_closeup-SoundStudioParty2015.swf",
+    "local/en/close_ups/item_rewards.swf": "Close_upsItem_rewards-SoundStudioParty2015.swf",
+    "local/en/close_ups/quest_interface.swf": "ENClose_upsQuest_interface-SoundStudioParty.swf",
+    "local/en/close_ups/snowballrecords_choose_closeup.swf": "PTClose_upsSnowballrecords_choose_closeup-SoundStudioParty2015.swf"
+   }
   },
   {
    "slug": "Puffle_Party_2015",
@@ -1222,7 +1445,26 @@
     "895": "Music895.swf",
     "896": "Music896.swf"
    },
-   "haveMusic": []
+   "haveMusic": [],
+   "ui": {
+    "global/content/party_icon.swf": "ContentParty_icon-PuffleParty2015.swf",
+    "global/membership/party1.swf": "MembershipParty1-PuffleParty2015.swf",
+    "global/membership/pufflewildoops.swf": "MembershipPuffleWildOops-PuffleParty2015.swf",
+    "local/en/close_ups/character_dialogue_collect.swf": "Close_upsCharacter_dialogue_collect-PuffleParty2015.swf",
+    "local/en/close_ups/character_dialogue_gary_coffee.swf": "Close_upsCharacter_dialogue_gary_coffee-PuffleParty2015.swf",
+    "local/en/close_ups/character_dialogue_leadup.swf": "Close_upsCharacter_dialogue_leadup-PuffleParty2015.swf",
+    "local/en/close_ups/character_dialogue_login.swf": "Close_upsCharacter_dialogue_login-PuffleParty2015.swf",
+    "local/en/close_ups/character_dialogue_reaction.swf": "Close_upsCharacter_dialogue_reaction-PuffleParty2015.swf",
+    "local/en/close_ups/character_dialogue_reaction2.swf": "Close_upsCharacter_dialogue_reaction2-PuffleParty2015.swf",
+    "local/en/close_ups/character_dialogue_rockhopper_cheese.swf": "Close_upsCharacter_dialogue_rockhopper_cheese-PuffleParty2015.swf",
+    "local/en/close_ups/character_dialogue_rookie_sandwich.swf": "Close_upsCharacter_dialogue_rookie_sandwich-PuffleParty2015.swf",
+    "local/en/close_ups/character_dialogue_sasquash.swf": "Close_upsCharacter_dialogue_sasquash-PuffleParty2015.swf",
+    "local/en/close_ups/choose_puffle_color_deer.swf": "Close_upsChoose_puffle_color_deer-PuffleParty2015.swf",
+    "local/en/close_ups/choose_puffle_color_rabbit.swf": "Close_upsChoose_puffle_color_rabbit-PuffleParty2015.swf",
+    "local/en/close_ups/choose_puffle_color_raccoon.swf": "Close_upsChoose_puffle_color_raccoon-PuffleParty2015.swf",
+    "local/en/close_ups/item_rewards.swf": "Close_upsItem_rewards-PuffleParty2015.swf",
+    "local/en/close_ups/march_comic.swf": "Close_upsMarch_comic-PuffleParty2015.swf"
+   }
   },
   {
    "slug": "Frozen_Fever_Party_2015",
@@ -1263,7 +1505,14 @@
     "910": "Music910.swf"
    },
    "haveMusic": [],
-   "map": "ContentMap-FrozenFeverParty.swf"
+   "map": "ContentMap-FrozenFeverParty.swf",
+   "ui": {
+    "global/avatar/sprites/marshmallow.swf": "AvatarSpritesMarshmallow-FrozenFeverParty.swf",
+    "global/avatar/sprites/olaf.swf": "AvatarSpritesOlaf.swf",
+    "global/content/party_icon.swf": "ContentParty_icon-FrozenFeverParty.swf",
+    "global/membership/party1.swf": "MembershipParty1-FrozenFeverParty.swf",
+    "local/en/close_ups/character_dialogue_elsa.swf": "Close_upsCharacter_dialogue_elsa-FrozenFeverParty.swf"
+   }
   },
   {
    "slug": "The_Fair_2015",
@@ -1388,7 +1637,17 @@
    },
    "haveMusic": [
     345
-   ]
+   ],
+   "ui": {
+    "global/avatar/sprites/crab.swf": "AvatarSpritesCrab.swf",
+    "global/avatar/sprites/dragon.swf": "AvatarSpritesDragon.swf",
+    "global/avatar/sprites/robotcgrey.swf": "AvatarSpritesRobotCGrey.swf",
+    "global/avatar/sprites/werewolf.swf": "AvatarSpritesWerewolf.swf",
+    "global/content/party_icon.swf": "ContentParty_icon-TheFair2015.swf",
+    "global/logo/logo.swf": "ContentLogo-TheFair2015.swf",
+    "global/membership/party1.swf": "MembershipParty1-TheFair2015.swf",
+    "global/membership/party2.swf": "MembershipParty2-TheFair2015.swf"
+   }
   },
   {
    "slug": "Rainbow_Puffle_Party",
@@ -1401,7 +1660,8 @@
    "rooms": {},
    "music": {},
    "musicFiles": {},
-   "haveMusic": []
+   "haveMusic": [],
+   "ui": {}
   },
   {
    "slug": "Festival_of_Snow_2015",
@@ -1442,7 +1702,86 @@
     "924": "Music924.swf",
     "925": "Music925.swf"
    },
-   "haveMusic": []
+   "haveMusic": [],
+   "ui": {
+    "local/en/close_ups/morefanart_1.swf": "Close_upsMoreFanArt_1-FestivalofSnow2015.swf",
+    "local/en/close_ups/morefanart_10.swf": "Close_upsMoreFanArt_10-FestivalofSnow2015.swf",
+    "local/en/close_ups/morefanart_11.swf": "Close_upsMoreFanArt_11-FestivalofSnow2015.swf",
+    "local/en/close_ups/morefanart_12.swf": "Close_upsMoreFanArt_12-FestivalofSnow2015.swf",
+    "local/en/close_ups/morefanart_13.swf": "Close_upsMoreFanArt_13-FestivalofSnow2015.swf",
+    "local/en/close_ups/morefanart_14.swf": "Close_upsMoreFanArt_14-FestivalofSnow2015.swf",
+    "local/en/close_ups/morefanart_15.swf": "Close_upsMoreFanArt_15-FestivalofSnow2015.swf",
+    "local/en/close_ups/morefanart_16.swf": "Close_upsMoreFanArt_16-FestivalofSnow2015.swf",
+    "local/en/close_ups/morefanart_17.swf": "Close_upsMoreFanArt_17-FestivalofSnow2015.swf",
+    "local/en/close_ups/morefanart_18.swf": "Close_upsMoreFanArt_18-FestivalofSnow2015.swf",
+    "local/en/close_ups/morefanart_19.swf": "Close_upsMoreFanArt_19-FestivalofSnow2015.swf",
+    "local/en/close_ups/morefanart_2.swf": "Close_upsMoreFanArt_2-FestivalofSnow2015.swf",
+    "local/en/close_ups/morefanart_20.swf": "Close_upsMoreFanArt_20-FestivalofSnow2015.swf",
+    "local/en/close_ups/morefanart_21.swf": "Close_upsMoreFanArt_21-FestivalofSnow2015.swf",
+    "local/en/close_ups/morefanart_22.swf": "Close_upsMoreFanArt_22-FestivalofSnow2015.swf",
+    "local/en/close_ups/morefanart_23.swf": "Close_upsMoreFanArt_23-FestivalofSnow2015.swf",
+    "local/en/close_ups/morefanart_24.swf": "Close_upsMoreFanArt_24-FestivalofSnow2015.swf",
+    "local/en/close_ups/morefanart_25.swf": "Close_upsMoreFanArt_25-FestivalofSnow2015.swf",
+    "local/en/close_ups/morefanart_26.swf": "Close_upsMoreFanArt_26-FestivalofSnow2015.swf",
+    "local/en/close_ups/morefanart_27.swf": "Close_upsMoreFanArt_27-FestivalofSnow2015.swf",
+    "local/en/close_ups/morefanart_28.swf": "Close_upsMoreFanArt_28-FestivalofSnow2015.swf",
+    "local/en/close_ups/morefanart_29.swf": "Close_upsMoreFanArt_29-FestivalofSnow2015.swf",
+    "local/en/close_ups/morefanart_3.swf": "Close_upsMoreFanArt_3-FestivalofSnow2015.swf",
+    "local/en/close_ups/morefanart_30.swf": "Close_upsMoreFanArt_30-FestivalofSnow2015.swf",
+    "local/en/close_ups/morefanart_31.swf": "Close_upsMoreFanArt_31-FestivalofSnow2015.swf",
+    "local/en/close_ups/morefanart_32.swf": "Close_upsMoreFanArt_32-FestivalofSnow2015.swf",
+    "local/en/close_ups/morefanart_33.swf": "Close_upsMoreFanArt_33-FestivalofSnow2015.swf",
+    "local/en/close_ups/morefanart_34.swf": "Close_upsMoreFanArt_34-FestivalofSnow2015.swf",
+    "local/en/close_ups/morefanart_35.swf": "Close_upsMoreFanArt_35-FestivalofSnow2015.swf",
+    "local/en/close_ups/morefanart_36.swf": "Close_upsMoreFanArt_36-FestivalofSnow2015.swf",
+    "local/en/close_ups/morefanart_37.swf": "Close_upsMoreFanArt_37-FestivalofSnow2015.swf",
+    "local/en/close_ups/morefanart_38.swf": "Close_upsMoreFanArt_38-FestivalofSnow2015.swf",
+    "local/en/close_ups/morefanart_39.swf": "Close_upsMoreFanArt_39-FestivalofSnow2015.swf",
+    "local/en/close_ups/morefanart_4.swf": "Close_upsMoreFanArt_4-FestivalofSnow2015.swf",
+    "local/en/close_ups/morefanart_40.swf": "Close_upsMoreFanArt_40-FestivalofSnow2015.swf",
+    "local/en/close_ups/morefanart_41.swf": "Close_upsMoreFanArt_41-FestivalofSnow2015.swf",
+    "local/en/close_ups/morefanart_42.swf": "Close_upsMoreFanArt_42-FestivalofSnow2015.swf",
+    "local/en/close_ups/morefanart_43.swf": "Close_upsMoreFanArt_43-FestivalofSnow2015.swf",
+    "local/en/close_ups/morefanart_44.swf": "Close_upsMoreFanArt_44-FestivalofSnow2015.swf",
+    "local/en/close_ups/morefanart_45.swf": "Close_upsMoreFanArt_45-FestivalofSnow2015.swf",
+    "local/en/close_ups/morefanart_46.swf": "Close_upsMoreFanArt_46-FestivalofSnow2015.swf",
+    "local/en/close_ups/morefanart_47.swf": "Close_upsMoreFanArt_47-FestivalofSnow2015.swf",
+    "local/en/close_ups/morefanart_48.swf": "Close_upsMoreFanArt_48-FestivalofSnow2015.swf",
+    "local/en/close_ups/morefanart_5.swf": "Close_upsMoreFanArt_5-FestivalofSnow2015.swf",
+    "local/en/close_ups/morefanart_6.swf": "Close_upsMoreFanArt_6-FestivalofSnow2015.swf",
+    "local/en/close_ups/morefanart_7.swf": "Close_upsMoreFanArt_7-FestivalofSnow2015.swf",
+    "local/en/close_ups/morefanart_8.swf": "Close_upsMoreFanArt_8-FestivalofSnow2015.swf",
+    "local/en/close_ups/morefanart_9.swf": "Close_upsMoreFanArt_9-FestivalofSnow2015.swf",
+    "local/en/close_ups/pedestal_adewilsom.swf": "Close_upsPedestal_adewilsom-FestivalofSnow2015.swf",
+    "local/en/close_ups/pedestal_alexisfrio.swf": "Close_upsPedestal_alexisfrio-FestivalofSnow2015.swf",
+    "local/en/close_ups/pedestal_barby015.swf": "Close_upsPedestal_barby015-FestivalofSnow2015.swf",
+    "local/en/close_ups/pedestal_bridgey27.swf": "Close_upsPedestal_bridgey27-FestivalofSnow2015.swf",
+    "local/en/close_ups/pedestal_bristevo.swf": "Close_upsPedestal_bristevo-FestivalofSnow2015.swf",
+    "local/en/close_ups/pedestal_bubblz126.swf": "Close_upsPedestal_bubblz126-FestivalofSnow2015.swf",
+    "local/en/close_ups/pedestal_chilly0ne.swf": "Close_upsPedestal_chilly0ne-FestivalofSnow2015.swf",
+    "local/en/close_ups/pedestal_coco12277.swf": "Close_upsPedestal_coco12277-FestivalofSnow2015.swf",
+    "local/en/close_ups/pedestal_concordio100.swf": "Close_upsPedestal_concordio100-FestivalofSnow2015.swf",
+    "local/en/close_ups/pedestal_didipengy.swf": "Close_upsPedestal_didipengy-FestivalofSnow2015.swf",
+    "local/en/close_ups/pedestal_floresita248.swf": "Close_upsPedestal_floresita248-FestivalofSnow2015.swf",
+    "local/en/close_ups/pedestal_janeti86704.swf": "Close_upsPedestal_janeti86704-FestivalofSnow2015.swf",
+    "local/en/close_ups/pedestal_largepedestal_large.swf": "Close_upsPedestal_largePedestal_large-FestivalofSnow2015.swf",
+    "local/en/close_ups/pedestal_lili3390.swf": "Close_upsPedestal_lili3390-FestivalofSnow2015.swf",
+    "local/en/close_ups/pedestal_mepauset.swf": "Close_upsPedestal_mepauset-FestivalofSnow2015.swf",
+    "local/en/close_ups/pedestal_nellora.swf": "Close_upsPedestal_nellora-FestivalofSnow2015.swf",
+    "local/en/close_ups/pedestal_onelia1234.swf": "Close_upsPedestal_onelia1234-FestivalofSnow2015.swf",
+    "local/en/close_ups/pedestal_opal2004.swf": "Close_upsPedestal_opal2004-FestivalofSnow2015.swf",
+    "local/en/close_ups/pedestal_oscar4570.swf": "Close_upsPedestal_oscar4570-FestivalofSnow2015.swf",
+    "local/en/close_ups/pedestal_patraquim1.swf": "Close_upsPedestal_patraquim1-FestivalofSnow2015.swf",
+    "local/en/close_ups/pedestal_penny2415.swf": "Close_upsPedestal_penny2415-FestivalofSnow2015.swf",
+    "local/en/close_ups/pedestal_pinguinchen.swf": "Close_upsPedestal_pinguinchen-FestivalofSnow2015.swf",
+    "local/en/close_ups/pedestal_purble2553.swf": "Close_upsPedestal_purble2553-FestivalofSnow2015.swf",
+    "local/en/close_ups/pedestal_rightangle.swf": "Close_upsPedestal_rightangle-FestivalofSnow2015.swf",
+    "local/en/close_ups/pedestal_sahifira.swf": "Close_upsPedestal_sahifira-FestivalofSnow2015.swf",
+    "local/en/close_ups/pedestal_shivie.swf": "Close_upsPedestal_shivie-FestivalofSnow2015.swf",
+    "local/en/close_ups/pedestal_toon161.swf": "Close_upsPedestal_toon161-FestivalofSnow2015.swf",
+    "local/en/close_ups/pedestal_tsveten1.swf": "Close_upsPedestal_tsveten1-FestivalofSnow2015.swf",
+    "local/en/close_ups/pedestal_waddles5626.swf": "Close_upsPedestal_waddles5626-FestivalofSnow2015.swf"
+   }
   },
   {
    "slug": "Inside_Out_Party",
@@ -1479,7 +1818,38 @@
     "933": "Music933.swf",
     "934": "Music934.swf"
    },
-   "haveMusic": []
+   "haveMusic": [],
+   "ui": {
+    "global/content/party_icon.swf": "ContentParty_icon-InsideOutParty.swf",
+    "global/logo/logo.swf": "ContentLogo-InsideOutParty.swf",
+    "global/membership/party1.swf": "MembershipParty1-InsideOutParty.swf",
+    "local/en/close_ups/anger_dialogue_collect.swf": "Close_upsAnger_dialogue_collect-InsideOutParty.swf",
+    "local/en/close_ups/anger_dialogue_complete.swf": "Close_upsAnger_dialogue_complete-InsideOutParty.swf",
+    "local/en/close_ups/anger_dialogue_memory.swf": "Close_upsAnger_dialogue_memory-InsideOutParty.swf",
+    "local/en/close_ups/anger_dialogue_start.swf": "Close_upsAnger_dialogue_start-InsideOutParty.swf",
+    "local/en/close_ups/character_dialogue_leadup.swf": "Close_upsCharacter_dialogue_leadup-InsideOutPartyPre.swf",
+    "local/en/close_ups/character_dialogue_login.swf": "Close_upsCharacter_dialogue_login-InsideOutParty.swf",
+    "local/en/close_ups/character_dialogue_thanks_gary.swf": "Close_upsCharacter_dialogue_thanks_gary-InsideOutParty.swf",
+    "local/en/close_ups/character_dialogue_thanks_rh.swf": "Close_upsCharacter_dialogue_thanks_rh-InsideOutParty.swf",
+    "local/en/close_ups/character_dialogue_welcome.swf": "Close_upsCharacter_dialogue_welcome-InsideOutParty.swf",
+    "local/en/close_ups/disgust_dialogue_collect.swf": "Close_upsDisgust_dialogue_collect-InsideOutParty.swf",
+    "local/en/close_ups/disgust_dialogue_complete.swf": "Close_upsDisgust_dialogue_complete-InsideOutParty.swf",
+    "local/en/close_ups/disgust_dialogue_memory.swf": "Close_upsDisgust_dialogue_memory-InsideOutParty.swf",
+    "local/en/close_ups/disgust_dialogue_start.swf": "Close_upsDisgust_dialogue_start-InsideOutParty.swf",
+    "local/en/close_ups/fear_dialogue_collect.swf": "Close_upsFear_dialogue_collect-InsideOutParty.swf",
+    "local/en/close_ups/fear_dialogue_complete.swf": "Close_upsFear_dialogue_complete-InsideOutParty.swf",
+    "local/en/close_ups/fear_dialogue_memory.swf": "Close_upsFear_dialogue_memory-InsideOutParty.swf",
+    "local/en/close_ups/fear_dialogue_start.swf": "Close_upsFear_dialogue_start-InsideOutParty.swf",
+    "local/en/close_ups/joy_dialogue_collect.swf": "Close_upsJoy_dialogue_collect-InsideOutParty.swf",
+    "local/en/close_ups/joy_dialogue_complete.swf": "Close_upsJoy_dialogue_complete-InsideOutParty.swf",
+    "local/en/close_ups/joy_dialogue_memory.swf": "Close_upsJoy_dialogue_memory-InsideOutParty.swf",
+    "local/en/close_ups/joy_dialogue_start.swf": "Close_upsJoy_dialogue_start-InsideOutParty.swf",
+    "local/en/close_ups/joy_dialogue_thanks.swf": "Close_upsJoy_dialogue_thanks-InsideOutParty.swf",
+    "local/en/close_ups/sadness_dialogue_collect.swf": "Close_upsSadness_dialogue_collect-InsideOutParty.swf",
+    "local/en/close_ups/sadness_dialogue_complete.swf": "Close_upsSadness_dialogue_complete-InsideOutParty.swf",
+    "local/en/close_ups/sadness_dialogue_memory.swf": "Close_upsSadness_dialogue_memory-InsideOutParty.swf",
+    "local/en/close_ups/sadness_dialogue_start.swf": "Close_upsSadness_dialogue_start-InsideOutParty.swf"
+   }
   },
   {
    "slug": "Fashion_Festival",
@@ -1563,7 +1933,22 @@
     "589": "Music589.swf",
     "591": "Music591.swf"
    },
-   "haveMusic": []
+   "haveMusic": [],
+   "ui": {
+    "global/content/party_icon.swf": "ContentParty_icon-FashionFestival.swf",
+    "global/logo/logo.swf": "ContentLogo-FashionFestival.swf",
+    "local/en/close_ups/character_dialogue_login.swf": "Close_upsCharacter_dialogue_login-FashionFestivalPre.swf",
+    "local/en/close_ups/character_dialogue_login_winners.swf": "Close_upsCharacter_dialogue_login_winners-FashionFestival.swf",
+    "local/en/close_ups/character_dialogue_submit.swf": "Close_upsCharacter_dialogue_submit-FashionFestival.swf",
+    "local/en/close_ups/my_submissions_interface.swf": "Close_upsMy_submissions_interface-FashionFestival.swf",
+    "local/en/close_ups/quest_interface.swf": "Close_upsQuest_interface-FashionFestival.swf",
+    "local/en/close_ups/submit_contest.swf": "Close_upsSubmit_contest-FashionFestival.swf",
+    "local/en/close_ups/submitfail_duplicate.swf": "Close_upsSubmitfail_duplicate-FashionFestival.swf",
+    "local/en/close_ups/submitfail_error.swf": "Close_upsSubmitfail_error-FashionFestival.swf",
+    "local/en/close_ups/submitfail_noclothes.swf": "Close_upsSubmitfail_noclothes-FashionFestival.swf",
+    "local/en/close_ups/submitfail_notickets.swf": "Close_upsSubmitfail_notickets-FashionFestival.swf",
+    "local/en/close_ups/voting_interface.swf": "Close_upsVoting_interface-FashionFestival.swf"
+   }
   },
   {
    "slug": "Descendants_Party",
@@ -1585,7 +1970,12 @@
     "954": "Music954.swf",
     "955": "Music955.swf"
    },
-   "haveMusic": []
+   "haveMusic": [],
+   "ui": {
+    "global/content/party_icon.swf": "ContentParty_icon-DescendantsParty.swf",
+    "local/en/close_ups/catalog_interface.swf": "Close_upsCatalog_interface-DescendantsParty.swf",
+    "local/en/close_ups/character_dialogue_login.swf": "Close_upsCharacter_dialogue_login-DescendantsParty.swf"
+   }
   },
   {
    "slug": "10th_Anniversary_Party",
@@ -1604,7 +1994,24 @@
    "musicFiles": {
     "1030": "Music1030.swf"
    },
-   "haveMusic": []
+   "haveMusic": [],
+   "ui": {
+    "global/content/party_icon.swf": "ContentParty_icon-10thAnniversaryParty.swf",
+    "global/logo/logo.swf": "ContentLogo-10thAnniversaryParty.swf",
+    "global/membership/catalog_clothing.swf": "MembershipCatalog_clothing-10thAnniversaryParty.swf",
+    "local/en/close_ups/character_dialogue_auntarctic.swf": "Close_upsCharacter_dialogue_auntarctic-10thAnniversaryParty.swf",
+    "local/en/close_ups/character_dialogue_cadence.swf": "Close_upsCharacter_dialogue_cadence-10thAnniversaryParty.swf",
+    "local/en/close_ups/character_dialogue_dot.swf": "Close_upsCharacter_dialogue_dot-10thAnniversaryParty.swf",
+    "local/en/close_ups/character_dialogue_gary.swf": "Close_upsCharacter_dialogue_gary-10thAnniversaryParty.swf",
+    "local/en/close_ups/character_dialogue_login.swf": "Close_upsCharacter_dialogue_login-10thAnniversaryParty.swf",
+    "local/en/close_ups/character_dialogue_npc.swf": "Close_upsCharacter_dialogue_npc-10thAnniversaryParty.swf",
+    "local/en/close_ups/character_dialogue_ph.swf": "Close_upsCharacter_dialogue_ph-10thAnniversaryParty.swf",
+    "local/en/close_ups/character_dialogue_real_auntarctic.swf": "Close_upsCharacter_dialogue_real_auntarctic-10thAnniversaryParty.swf",
+    "local/en/close_ups/character_dialogue_rockhopper.swf": "Close_upsCharacter_dialogue_rockhopper-10thAnniversaryParty.swf",
+    "local/en/close_ups/character_dialogue_rookie.swf": "Close_upsCharacter_dialogue_rookie-10thAnniversaryParty.swf",
+    "local/en/close_ups/character_dialogue_sensei.swf": "Close_upsCharacter_dialogue_sensei-10thAnniversaryParty.swf",
+    "local/en/close_ups/item_calendar.swf": "Close_ups_item_calendar-10thAnniversaryParty.swf"
+   }
   },
   {
    "slug": "Halloween_Party_2015",
@@ -1623,7 +2030,24 @@
    "musicFiles": {
     "1052": "Music1052.swf"
    },
-   "haveMusic": []
+   "haveMusic": [],
+   "ui": {
+    "global/content/features.swf": "ContentFeatures-HalloweenParty2015.swf",
+    "global/content/party_icon.swf": "ContentParty_icon-HalloweenParty2015.swf",
+    "global/logo/logo.swf": "ContentLogo-HalloweenParty2015.swf",
+    "global/membership/party1.swf": "MembershipParty1-HalloweenParty2015.swf",
+    "global/membership/party2.swf": "MembershipParty2-HalloweenParty2015.swf",
+    "local/en/close_ups/quest_interface.swf": "Close_upsQuest_interface-HalloweenParty2015.swf",
+    "local/en/close_ups/tiles_minigame0.swf": "Close_upsTiles_minigame0-HalloweenParty2015.swf",
+    "local/en/close_ups/tiles_minigame1.swf": "Close_upsTiles_minigame1-HalloweenParty2015.swf",
+    "local/en/close_ups/tiles_minigame2.swf": "Close_upsTiles_minigame2-HalloweenParty2015.swf",
+    "local/en/close_ups/tiles_minigame3.swf": "Close_upsTiles_minigame3-HalloweenParty2015.swf",
+    "local/en/close_ups/tiles_minigame4.swf": "Close_upsTiles_minigame4-HalloweenParty2015.swf",
+    "local/en/close_ups/tiles_minigame5.swf": "Close_upsTiles_minigame5-HalloweenParty2015.swf",
+    "local/en/close_ups/tiles_minigame6.swf": "Close_upsTiles_minigame6-HalloweenParty2015.swf",
+    "local/en/close_ups/tiles_minigame7.swf": "Close_upsTiles_minigame7-HalloweenParty2015.swf",
+    "local/en/close_ups/tiles_minigame8.swf": "Close_upsTiles_minigame8-HalloweenParty2015.swf"
+   }
   },
   {
    "slug": "Operation:_Crustacean",
@@ -1666,7 +2090,30 @@
     "1064": "Music1064.swf",
     "1063": "Music1063.swf"
    },
-   "haveMusic": []
+   "haveMusic": [],
+   "ui": {
+    "global/content/features.swf": "ContentFeatures-OperationCrustacean.swf",
+    "global/content/party_icon.swf": "ContentParty_icon-OperationCrustacean.swf",
+    "global/logo/logo.swf": "ContentLogo-OperationCrustacean.swf",
+    "global/membership/party1.swf": "MembershipParty1-OperationCrustacean.swf",
+    "global/membership/party2.swf": "MembershipParty2-OperationCrustacean.swf",
+    "local/en/close_ups/character_dialogue_directions_jpg.swf": "Close_upsCharacter_dialogue_directions_JPG-OperationCrustacean.swf",
+    "local/en/close_ups/character_dialogue_director_final_congrats.swf": "Close_upsCharacter_dialogue_director_final_congrats-OperationCrustacean.swf",
+    "local/en/close_ups/character_dialogue_herbert_jpg_party1.swf": "Close_upsCharacter_dialogue_herbert_JPG_party1-OperationCrustacean.swf",
+    "local/en/close_ups/character_dialogue_jpg_congrats_maze1.swf": "Close_upsCharacter_dialogue_JPG_congrats_maze1-OperationCrustacean.swf",
+    "local/en/close_ups/character_dialogue_jpg_congrats_maze2.swf": "Close_upsCharacter_dialogue_JPG_congrats_maze2-OperationCrustacean.swf",
+    "local/en/close_ups/character_dialogue_jpg_congrats_maze3.swf": "Close_upsCharacter_dialogue_JPG_congrats_maze3-OperationCrustacean.swf",
+    "local/en/close_ups/character_dialogue_jpg_congrats_maze4.swf": "Close_upsCharacter_dialogue_JPG_congrats_maze4-OperationCrustacean.swf",
+    "local/en/close_ups/character_dialogue_jpg_maze_entrance.swf": "Close_upsCharacter_dialogue_JPG_maze_entrance-OperationCrustacean.swf",
+    "local/en/close_ups/character_dialogue_jpg_new_alert.swf": "Close_upsCharacter_dialogue_JPG_new_alert-OperationCrustacean.swf",
+    "local/en/close_ups/character_dialogue_november_login.swf": "Close_upsCharacter_dialogue_november_login-OperationCrustacean.swf",
+    "local/en/close_ups/character_dialogue_spacehub_herbert2.swf": "Close_upsCharacter_dialogue_spacehub_herbert2-OperationCrustacean.swf",
+    "local/en/close_ups/character_dialogue_spacehub_herbert3.swf": "Close_upsCharacter_dialogue_spacehub_herbert3-OperationCrustacean.swf",
+    "local/en/close_ups/character_dialogue_spacehub_herbert4.swf": "Close_upsCharacter_dialogue_spacehub_herbert4-OperationCrustacean.swf",
+    "local/en/close_ups/character_dialogue_spacehub_jpg2.swf": "Close_upsCharacter_dialogue_spacehub_JPG2-OperationCrustacean.swf",
+    "local/en/close_ups/choose_puffle_color_alien.swf": "Close_upsChoose_puffle_color_alien-OperationCrustacean.swf",
+    "local/en/close_ups/quest_interface.swf": "Close_upsQuest_interface-OperationCrustacean.swf"
+   }
   },
   {
    "slug": "Holiday_Party_2015",
@@ -1781,7 +2228,19 @@
     "1073": "Music1073.swf",
     "1084": "Music1084.swf"
    },
-   "haveMusic": []
+   "haveMusic": [],
+   "ui": {
+    "global/content/features.swf": "ContentFeatures-HolidayParty2015.swf",
+    "global/content/party_icon.swf": "ContentParty_icon-HolidayParty2015.swf",
+    "global/logo/logo.swf": "ContentLogo-HolidayParty2015.swf",
+    "global/membership/party2.swf": "MembershipParty2-HolidayParty2015.swf",
+    "global/membership/party3.swf": "MembershipParty3-HolidayParty2015.swf",
+    "local/en/close_ups/character_dialogue_december_congrats.swf": "Close_upsCharacter_dialogue_december_congrats-HolidayParty2015.swf",
+    "local/en/close_ups/character_dialogue_december_login.swf": "Close_upsCharacter_dialogue_december_login-HolidayParty2015.swf",
+    "local/en/close_ups/character_dialogue_walrus_collect.swf": "Close_upsCharacter_dialogue_walrus_collect-HolidayParty2015.swf",
+    "local/en/close_ups/item_calendar_web.swf": "Close_upsItem_calendar_web-HolidayParty2015.swf",
+    "local/en/close_ups/quest_interface.swf": "Close_upsQuest_interface-HolidayParty2015.swf"
+   }
   },
   {
    "slug": "Prehistoric_Party_2016",
@@ -1845,7 +2304,28 @@
     "1099": "Music1099.swf",
     "1097": "Music1097.swf"
    },
-   "haveMusic": []
+   "haveMusic": [],
+   "ui": {
+    "global/avatar/sprites/pteranodonblue.swf": "AvatarSpritesPteranodonBlue.swf",
+    "global/avatar/sprites/raptorblack.swf": "AvatarSpritesRaptorBlack.swf",
+    "global/avatar/sprites/stegosauruspurple.swf": "AvatarSpritesStegosaurusPurple.swf",
+    "global/avatar/sprites/trexbrown.swf": "AvatarSpritesTrexBrown.swf",
+    "global/avatar/sprites/triceratopsbrown.swf": "AvatarSpritesTriceratopsBrown.swf",
+    "global/content/features.swf": "ContentFeatures-PrehistoricParty2016.swf",
+    "global/content/party_icon.swf": "ContentParty_icon-PrehistoricParty2016.swf",
+    "global/logo/logo.swf": "ContentLogo-PrehistoricParty2016.swf",
+    "global/membership/party1.swf": "MembershipParty1-PrehistoricParty2016.swf",
+    "global/membership/party2.swf": "MembershipParty2-PrehistoricParty2016.swf",
+    "global/membership/party3.swf": "MembershipParty3-PrehistoricParty2016.swf",
+    "local/en/close_ups/160106_character_dialogue_catalog_login.swf": "Close_ups160106_character_dialogue_catalog_login.swf",
+    "local/en/close_ups/160113_character_dialogue_party_leadup.swf": "Close_ups160113_character_dialogue_party_leadup.swf",
+    "local/en/close_ups/160120_character_dialogue_party_login.swf": "Close_ups160120_character_dialogue_party_login-PrehistoricParty2016.swf",
+    "local/en/close_ups/160130_character_dialogue_login3.swf": "Close_ups160130_character_dialogue_login3-PrehistoricParty2016.swf",
+    "local/en/close_ups/160130_character_dialogue_login4.swf": "Close_ups160130_character_dialogue_login4-PrehistoricParty2016.swf",
+    "local/en/close_ups/party_map.swf": "PTClose_upsParty_map-PrehistoricParty2016.swf",
+    "local/en/close_ups/party_map_note.swf": "PTClose_upsParty_map_note-PrehistoricParty2016.swf",
+    "local/en/close_ups/quest_interface.swf": "Close_upsQuest_interface-PrehistoricParty2016.swf"
+   }
   },
   {
    "slug": "Operation:_Tri-umph",
@@ -1900,7 +2380,31 @@
     "1110": "Music1110.swf",
     "901": "Music901.swf"
    },
-   "haveMusic": []
+   "haveMusic": [],
+   "ui": {
+    "global/content/features.swf": "ContentFeatures-OperationDoom.swf",
+    "global/content/party_icon.swf": "ContentParty_icon-OperationDoom.swf",
+    "global/logo/logo.swf": "ContentLogo-OperationDoom.swf",
+    "global/membership/party1.swf": "MembershipParty1-OperationDoom.swf",
+    "local/en/close_ups/160210_character_dialogue_login_herbert.swf": "Close_ups160210_character_dialogue_login_herbert-OperationDoom.swf",
+    "local/en/close_ups/160210_character_dialogue_rookie.swf": "Close_ups160210_character_dialogue_rookie-OperationDoom.swf",
+    "local/en/close_ups/160210_items.swf": "Close_ups160210_items-OperationDoom.swf",
+    "local/en/close_ups/160217_character_dialogue_login_herbert.swf": "Close_ups160217_character_dialogue_login_herbert-OperationDoom.swf",
+    "local/en/close_ups/160217_character_dialogue_rookie.swf": "Close_ups160217_character_dialogue_rookie-OperationDoom.swf",
+    "local/en/close_ups/160217_items.swf": "Close_ups160217_items-OperationDoom.swf",
+    "local/en/close_ups/160224_character_dialogue_congrats1.swf": "Close_ups160224_character_dialogue_congrats1-OperationDoom.swf",
+    "local/en/close_ups/160224_character_dialogue_herbert_maze.swf": "Close_ups160224_character_dialogue_herbert_maze-OperationDoom.swf",
+    "local/en/close_ups/160224_character_dialogue_login_herbert.swf": "Close_ups160224_character_dialogue_login_herbert-OperationDoom.swf",
+    "local/en/close_ups/160224_character_dialogue_rookie.swf": "Close_ups160224_character_dialogue_rookie-OperationDoom.swf",
+    "local/en/close_ups/160224_congrats_items.swf": "Close_ups160224_congrats_items-OperationDoom.swf",
+    "local/en/close_ups/160224_items.swf": "Close_ups160224_items-OperationDoom.swf",
+    "local/en/close_ups/esmaze_map.swf": "Close_upsESMaze_Map-CaveMaze.swf",
+    "local/en/close_ups/frmaze_map.swf": "Close_upsFRMaze_Map-CaveMaze.swf",
+    "local/en/close_ups/maze_map.swf": "ENClose_upsMaze_map-OperationDoom.swf",
+    "local/en/close_ups/ptmaze_map.swf": "Close_upsPTMaze_Map-CaveMaze.swf",
+    "local/en/close_ups/quest_interface.swf": "Close_upsQuest_interface-OperationDoom.swf",
+    "local/en/close_ups/rumaze_map.swf": "Close_upsRUMaze_Map-CaveMaze.swf"
+   }
   },
   {
    "slug": "Puffle_Party_2016",
@@ -1955,7 +2459,46 @@
     "664": "Music664.swf",
     "892": "Music892.swf"
    },
-   "haveMusic": []
+   "haveMusic": [],
+   "ui": {
+    "global/avatar/sprites/puffleblack.swf": "AvatarSpritesPuffleBlack-PuffleParty2016.swf",
+    "global/avatar/sprites/puffleblue.swf": "AvatarSpritesPuffleBlue-PuffleParty2016.swf",
+    "global/avatar/sprites/pufflebrown.swf": "AvatarSpritesPuffleBrown-PuffleParty2016.swf",
+    "global/avatar/sprites/pufflecat.swf": "AvatarSpritesPuffleCat.swf",
+    "global/avatar/sprites/puffledog.swf": "AvatarSpritesPuffleDog.swf",
+    "global/avatar/sprites/pufflegold.swf": "AvatarSpritesPuffleGold.swf",
+    "global/avatar/sprites/pufflegreen.swf": "AvatarSpritesPuffleGreen-PuffleParty2016.swf",
+    "global/avatar/sprites/puffleorange.swf": "AvatarSpritesPuffleOrange-PuffleParty2016.swf",
+    "global/avatar/sprites/pufflepink.swf": "AvatarSpritesPufflePink-PuffleParty2016.swf",
+    "global/avatar/sprites/pufflepurple.swf": "AvatarSpritesPufflePurple-PuffleParty2016.swf",
+    "global/avatar/sprites/pufflerainbow.swf": "AvatarSpritesPuffleRainbow-PuffleParty2016.swf",
+    "global/avatar/sprites/pufflered.swf": "AvatarSpritesPuffleRed-PuffleParty2016.swf",
+    "global/avatar/sprites/pufflewhite.swf": "AvatarSpritesPuffleWhite-PuffleParty2016.swf",
+    "global/avatar/sprites/puffleyellow.swf": "AvatarSpritesPuffleYellow-PuffleParty2016.swf",
+    "global/content/features.swf": "ContentFeatures-PuffleParty2016.swf",
+    "global/content/party_icon.swf": "ContentParty_icon-PuffleParty2016.swf",
+    "global/content/prompts.swf": "ContentPrompts-PuffleParty2016.swf",
+    "global/logo/logo.swf": "ContentLogo-PuffleParty2016.swf",
+    "global/membership/party1.swf": "MembershipParty1-PuffleParty2016.swf",
+    "global/membership/party2.swf": "MembershipParty2-PuffleParty2016.swf",
+    "global/membership/party3.swf": "MembershipParty3-PuffleParty2016.swf",
+    "local/en/close_ups/0316_character_dialogue_black.swf": "Close_ups0316_Character_dialogue_black-PuffleParty2016.swf",
+    "local/en/close_ups/0316_character_dialogue_blue.swf": "Close_ups0316_Character_dialogue_blue-PuffleParty2016.swf",
+    "local/en/close_ups/0316_character_dialogue_brown.swf": "Close_ups0316_Character_dialogue_brown-PuffleParty2016.swf",
+    "local/en/close_ups/0316_character_dialogue_gold.swf": "Close_ups0316_Character_dialogue_gold-PuffleParty2016.swf",
+    "local/en/close_ups/0316_character_dialogue_green.swf": "Close_ups0316_Character_dialogue_green-PuffleParty2016.swf",
+    "local/en/close_ups/0316_character_dialogue_orange.swf": "Close_ups0316_Character_dialogue_orange-PuffleParty2016.swf",
+    "local/en/close_ups/0316_character_dialogue_pink.swf": "Close_ups0316_Character_dialogue_pink-PuffleParty2016.swf",
+    "local/en/close_ups/0316_character_dialogue_purple.swf": "Close_ups0316_Character_dialogue_purple-PuffleParty2016.swf",
+    "local/en/close_ups/0316_character_dialogue_rainbow.swf": "Close_ups0316_Character_dialogue_rainbow-PuffleParty2016.swf",
+    "local/en/close_ups/0316_character_dialogue_red.swf": "Close_ups0316_Character_dialogue_red-PuffleParty2016.swf",
+    "local/en/close_ups/0316_character_dialogue_white.swf": "Close_ups0316_Character_dialogue_white-PuffleParty2016.swf",
+    "local/en/close_ups/0316_character_dialogue_yellow.swf": "Close_ups0316_Character_dialogue_yellow-PuffleParty2016.swf",
+    "local/en/close_ups/160316_character_dialogue_login.swf": "Close_ups160316_Character_dialogue_login-PuffleParty2016.swf",
+    "local/en/close_ups/puffle_adoption_prompt.swf": "Close_upsPuffle_adoption_prompt-PuffleParty2016.swf",
+    "local/en/close_ups/quest_interface.swf": "Close_upsQuest_interface-PuffleParty2016.swf",
+    "local/en/close_ups/transformation_prompt.swf": "Close_upsTransformation_prompt-PuffleParty2016.swf"
+   }
   },
   {
    "slug": "Wilderness_Expedition_2016",
@@ -1996,7 +2539,28 @@
     "1112": "Music1112.swf",
     "1111": "Music1111.swf"
    },
-   "haveMusic": []
+   "haveMusic": [],
+   "ui": {
+    "global/content/features.swf": "ContentFeatures-WildernessExpedition2016.swf",
+    "global/content/party_icon.swf": "ContentParty_icon-WildernessExpedition2016.swf",
+    "global/content/prompts.swf": "ContentPrompts-WildernessExpedition2016.swf",
+    "global/logo/logo.swf": "ContentLogo-WildernessExpedition2016.swf",
+    "global/membership/party1.swf": "MembershipParty1-WildernessExpedition2016.swf",
+    "local/en/close_ups/160420_character_dialogue_camo_congrats.swf": "Close_ups160420_character_dialogue_camo_congrats-WildernessExpedition2016.swf",
+    "local/en/close_ups/160420_character_dialogue_camo_start.swf": "Close_ups160420_character_dialogue_camo_start-WildernessExpedition2016.swf",
+    "local/en/close_ups/160420_character_dialogue_final_congrats.swf": "Close_ups160420_character_dialogue_final_congrats-WildernessExpedition2016.swf",
+    "local/en/close_ups/160420_character_dialogue_fishing_congrats.swf": "Close_ups160420_character_dialogue_fishing_congrats-WildernessExpedition2016.swf",
+    "local/en/close_ups/160420_character_dialogue_fishing_start.swf": "Close_ups160420_character_dialogue_fishing_start-WildernessExpedition2016.swf",
+    "local/en/close_ups/160420_character_dialogue_login.swf": "Close_ups160420_character_dialogue_login-WildernessExpedition2016.swf",
+    "local/en/close_ups/160420_character_dialogue_music_congrats.swf": "Close_ups160420_character_dialogue_music_congrats-WildernessExpedition2016.swf",
+    "local/en/close_ups/160420_character_dialogue_music_start.swf": "Close_ups160420_character_dialogue_music_start-WildernessExpedition2016.swf",
+    "local/en/close_ups/160420_character_dialogue_tracking_congrats.swf": "Close_ups160420_character_dialogue_tracking_congrats-WildernessExpedition2016.swf",
+    "local/en/close_ups/160420_character_dialogue_village_congrats.swf": "Close_ups160420_character_dialogue_village_congrats-WildernessExpedition2016.swf",
+    "local/en/close_ups/160420_character_dialogue_wood_congrats.swf": "Close_ups160420_character_dialogue_wood_congrats-WildernessExpedition2016.swf",
+    "local/en/close_ups/160420_character_dialogue_wood_start.swf": "Close_ups160420_character_dialogue_wood_start-WildernessExpedition2016.swf",
+    "local/en/close_ups/160420_mazenote.swf": "Close_ups160420_mazenote-WildernessExpedition2016.swf",
+    "local/en/close_ups/quest_interface.swf": "Close_upsQuest_interface-WildernessExpedition2016.swf"
+   }
   },
   {
    "slug": "Zootopia_Party",
@@ -2036,7 +2600,19 @@
     "1118": "Music1118.swf",
     "1122": "Music1122.swf"
    },
-   "haveMusic": []
+   "haveMusic": [],
+   "ui": {
+    "global/content/features.swf": "ContentFeatures-ZootopiaParty.swf",
+    "global/content/party_icon.swf": "ContentParty_icon-ZootopiaParty.swf",
+    "global/content/prompts.swf": "ContentPrompts-ZootopiaParty.swf",
+    "global/logo/logo.swf": "ContentLogo-ZootopiaParty.swf",
+    "global/membership/party1.swf": "MembershipParty1-ZootopiaParty.swf",
+    "local/en/close_ups/160518_character_dialogue_login.swf": "Close_ups160518_character_dialogue_login-ZootopiaParty.swf",
+    "local/en/close_ups/160525_character_dialogue_login.swf": "Close_ups160525_character_dialogue_login-ZootopiaParty.swf",
+    "local/en/close_ups/160608_character_dialogue_login.swf": "Close_ups160608_character_dialogue_login-ZootopiaParty.swf",
+    "local/en/close_ups/160629_character_dialogue_login.swf": "Close_ups160629_character_dialogue_login-ZootopiaParty.swf",
+    "local/en/close_ups/quest_interface.swf": "Close_upsQuest_interface-ZootopiaParty.swf"
+   }
   },
   {
    "slug": "Finding_Dory_Party",
@@ -2070,7 +2646,33 @@
     "1127": "Music1127.swf",
     "1128": "Music1128.swf"
    },
-   "haveMusic": []
+   "haveMusic": [],
+   "ui": {
+    "global/content/features.swf": "ContentFeatures-FindingDoryParty.swf",
+    "global/content/party_icon.swf": "ContentParty_icon-FindingDoryParty.swf",
+    "global/content/prompts.swf": "ContentPrompts-FindingDoryParty.swf",
+    "global/logo/logo.swf": "ContentLogo-FindingDoryParty.swf",
+    "global/membership/party1.swf": "MembershipParty1-FindingDoryParty.swf",
+    "local/en/close_ups/160706_character_dialogue_final_congrats.swf": "Close_ups160706_character_dialogue_final_congrats.swf-FindingDoryParty.swf",
+    "local/en/close_ups/160706_character_dialogue_login.swf": "Close_ups160706_character_dialogue_login.swf-FindingDoryParty.swf",
+    "local/en/close_ups/160706_character_dialogue_task0_congrats.swf": "Close_ups160706_character_dialogue_task0_congrats-FindingDoryParty.swf",
+    "local/en/close_ups/160706_character_dialogue_task0_start.swf": "Close_ups160706_character_dialogue_task0_start-FindingDoryParty.swf",
+    "local/en/close_ups/160706_character_dialogue_task1_congrats.swf": "Close_ups160706_character_dialogue_task1_congrats-FindingDoryParty.swf",
+    "local/en/close_ups/160706_character_dialogue_task1_start.swf": "Close_ups160706_character_dialogue_task1_start-FindingDoryParty.swf",
+    "local/en/close_ups/160706_character_dialogue_task2_congrats.swf": "Close_ups160706_character_dialogue_task2_congrats-FindingDoryParty.swf",
+    "local/en/close_ups/160706_character_dialogue_task2_start.swf": "Close_ups160706_character_dialogue_task2_start-FindingDoryParty.swf",
+    "local/en/close_ups/160706_character_dialogue_task3_congrats.swf": "Close_ups160706_character_dialogue_task3_congrats-FindingDoryParty.swf",
+    "local/en/close_ups/160706_character_dialogue_task3_start.swf": "Close_ups160706_character_dialogue_task3_start-FindingDoryParty.swf",
+    "local/en/close_ups/160706_character_dialogue_task4_congrats.swf": "Close_ups160706_character_dialogue_task4_congrats-FindingDoryParty.swf",
+    "local/en/close_ups/160706_character_dialogue_task4_start.swf": "Close_ups160706_character_dialogue_task4_start-FindingDoryParty.swf",
+    "local/en/close_ups/160706_character_dialogue_task5_congrats.swf": "Close_ups160706_character_dialogue_task5_congrats-FindingDoryParty.swf",
+    "local/en/close_ups/160706_character_dialogue_task5_start.swf": "Close_ups160706_character_dialogue_task5_start-FindingDoryParty.swf",
+    "local/en/close_ups/160706_character_dialogue_task6_congrats.swf": "Close_ups160706_character_dialogue_task6_congrats-FindingDoryParty.swf",
+    "local/en/close_ups/160706_character_dialogue_task6_start.swf": "Close_ups160706_character_dialogue_task6_start-FindingDoryParty.swf",
+    "local/en/close_ups/160706_character_dialogue_task7_congrats.swf": "Close_ups160706_character_dialogue_task7_congrats-FindingDoryParty.swf",
+    "local/en/close_ups/160706_character_dialogue_task7_start.swf": "Close_ups160706_character_dialogue_task7_start-FindingDoryParty.swf",
+    "local/en/close_ups/quest_interface.swf": "Close_upsQuest_interface-FindingDoryParty.swf"
+   }
   },
   {
    "slug": "Frozen_Fever_Party_2016",
@@ -2112,7 +2714,18 @@
     "1132": "Music1132.swf"
    },
    "haveMusic": [],
-   "map": "ContentMap-FrozenFeverParty2016.swf"
+   "map": "ContentMap-FrozenFeverParty2016.swf",
+   "ui": {
+    "global/avatar/sprites/marshmallow.swf": "AvatarSpritesMarshmallow.swf",
+    "global/avatar/sprites/olaf.swf": "AvatarSpritesOlaf.swf",
+    "global/content/party_icon.swf": "ContentParty_icon-FrozenFeverParty.swf",
+    "global/logo/logo.swf": "ContentLogo-FrozenFeverParty.swf",
+    "global/membership/party1.swf": "MembershipParty1-FrozenFeverParty.swf",
+    "local/en/close_ups/character_dialogue_elsa.swf": "Close_upsCharacter_dialogue_elsa-FrozenFeverParty.swf",
+    "local/en/close_ups/character_dialogue_login.swf": "Close_upsCharacter_dialogue_login-FrozenFeverParty2016.swf",
+    "local/en/close_ups/ice_palace_locked.swf": "Close_upsIce_palace_locked-FrozenFeverParty2016.swf",
+    "local/en/close_ups/quest_interface.swf": "PTClose_upsQuest_interface-FrozenFeverParty2016.swf"
+   }
   },
   {
    "slug": "Halloween_Party_2016",
@@ -2178,7 +2791,56 @@
    "haveMusic": [
     345,
     532
-   ]
+   ],
+   "ui": {
+    "global/avatar/sprites/vampirea.swf": "AvatarSpritesVampireA-HalloweenParty2013.swf",
+    "global/avatar/sprites/vampireb.swf": "AvatarSpritesVampireB-HalloweenParty2013.swf",
+    "global/avatar/sprites/vampirec.swf": "AvatarSpritesVampireC-HalloweenParty2013.swf",
+    "global/avatar/sprites/werewolfa.swf": "AvatarSpritesWerewolfA-HalloweenParty2013.swf",
+    "global/avatar/sprites/werewolfb.swf": "AvatarSpritesWerewolfB-HalloweenParty2013.swf",
+    "global/avatar/sprites/werewolfc.swf": "AvatarSpritesWerewolfC-HalloweenParty2013.swf",
+    "global/avatar/sprites/zombiea.swf": "AvatarSpritesZombieA-HalloweenParty2013.swf",
+    "global/avatar/sprites/zombieb.swf": "AvatarSpritesZombieB-HalloweenParty2013.swf",
+    "global/avatar/sprites/zombiec.swf": "AvatarSpritesZombieC-HalloweenParty2013.swf",
+    "global/content/features.swf": "ContentFeatures-HalloweenParty2016.swf",
+    "global/content/party_icon.swf": "ContentParty_icon-HalloweenParty2016.swf",
+    "global/content/prompts.swf": "ContentPrompts-HalloweenParty2016.swf",
+    "global/logo/logo.swf": "ContentLogo-HalloweenParty2016.swf",
+    "global/membership/party1.swf": "MembershipParty1-HalloweenParty2016.swf",
+    "global/membership/party2.swf": "MembershipParty2-HalloweenParty2016.swf",
+    "global/membership/party3.swf": "MembershipParty3-HalloweenParty2016.swf",
+    "local/en/close_ups/160928_character_dialogue_login.swf": "Close_ups160928_character_dialogue_login-HalloweenParty2016.swf",
+    "local/en/close_ups/160928_character_dialogue_task0_congrats.swf": "Close_ups160928_character_dialogue_task0_congrats-HalloweenParty2016.swf",
+    "local/en/close_ups/160928_character_dialogue_task0_start.swf": "Close_ups160928_character_dialogue_task0_start-HalloweenParty2016.swf",
+    "local/en/close_ups/160928_character_dialogue_task11_congrats.swf": "Close_ups160928_character_dialogue_task11_congrats-HalloweenParty2016.swf",
+    "local/en/close_ups/160928_character_dialogue_task11_start.swf": "Close_ups160928_character_dialogue_task11_start-HalloweenParty2016.swf",
+    "local/en/close_ups/160928_character_dialogue_task12_congrats.swf": "Close_ups160928_character_dialogue_task12_congrats-HalloweenParty2016.swf",
+    "local/en/close_ups/160928_character_dialogue_task12_start.swf": "Close_ups160928_character_dialogue_task12_start-HalloweenParty2016.swf",
+    "local/en/close_ups/160928_character_dialogue_task13_congrats.swf": "Close_ups160928_character_dialogue_task13_congrats-HalloweenParty2016.swf",
+    "local/en/close_ups/160928_character_dialogue_task13_start.swf": "Close_ups160928_character_dialogue_task13_start-HalloweenParty2016.swf",
+    "local/en/close_ups/160928_character_dialogue_task14_congrats.swf": "Close_ups160928_character_dialogue_task14_congrats-HalloweenParty2016.swf",
+    "local/en/close_ups/160928_character_dialogue_task14_start.swf": "Close_ups160928_character_dialogue_task14_start-HalloweenParty2016.swf",
+    "local/en/close_ups/160928_character_dialogue_task1_congrats.swf": "Close_ups160928_character_dialogue_task1_congrats-HalloweenParty2016.swf",
+    "local/en/close_ups/160928_character_dialogue_task1_start.swf": "Close_ups160928_character_dialogue_task1_start-HalloweenParty2016.swf",
+    "local/en/close_ups/160928_character_dialogue_task2_congrats.swf": "Close_ups160928_character_dialogue_task2_congrats-HalloweenParty2016.swf",
+    "local/en/close_ups/160928_character_dialogue_task2_start.swf": "Close_ups160928_character_dialogue_task2_start-HalloweenParty2016.swf",
+    "local/en/close_ups/160928_character_dialogue_task3_congrats.swf": "Close_ups160928_character_dialogue_task3_congrats-HalloweenParty2016.swf",
+    "local/en/close_ups/160928_character_dialogue_task3_start.swf": "Close_ups160928_character_dialogue_task3_start-HalloweenParty2016.swf",
+    "local/en/close_ups/160928_character_dialogue_task4_congrats.swf": "Close_ups160928_character_dialogue_task4_congrats-HalloweenParty2016.swf",
+    "local/en/close_ups/160928_character_dialogue_task4_start.swf": "Close_ups160928_character_dialogue_task4_start-HalloweenParty2016.swf",
+    "local/en/close_ups/160928_character_dialogue_task5_congrats.swf": "Close_ups160928_character_dialogue_task5_congrats-HalloweenParty2016.swf",
+    "local/en/close_ups/160928_character_dialogue_task5_start.swf": "Close_ups160928_character_dialogue_task5_start-HalloweenParty2016.swf",
+    "local/en/close_ups/160928_character_dialogue_task6_congrats.swf": "Close_ups160928_character_dialogue_task6_congrats-HalloweenParty2016.swf",
+    "local/en/close_ups/160928_character_dialogue_task6_start.swf": "Close_ups160928_character_dialogue_task6_start-HalloweenParty2016.swf",
+    "local/en/close_ups/160928_character_dialogue_task7_congrats.swf": "Close_ups160928_character_dialogue_task7_congrats-HalloweenParty2016.swf",
+    "local/en/close_ups/160928_character_dialogue_task7_start.swf": "Close_ups160928_character_dialogue_task7_start-HalloweenParty2016.swf",
+    "local/en/close_ups/160928_character_dialogue_task8_congrats.swf": "Close_ups160928_character_dialogue_task8_congrats-HalloweenParty2016.swf",
+    "local/en/close_ups/160928_character_dialogue_task8_start.swf": "Close_ups160928_character_dialogue_task8_start-HalloweenParty2016.swf",
+    "local/en/close_ups/160928_character_dialogue_task9_congrats.swf": "Close_ups160928_character_dialogue_task9_congrats-HalloweenParty2016.swf",
+    "local/en/close_ups/160928_character_dialogue_task9_start.swf": "Close_ups160928_character_dialogue_task9_start-HalloweenParty2016.swf",
+    "local/en/close_ups/161019_character_dialogue_final_anniversary.swf": "Close_ups161019_character_dialogue_final_anniversary.swf-HalloweenParty2016.swf",
+    "local/en/close_ups/quest_interface.swf": "Close_upsQuest_interface-HalloweenParty2016.swf"
+   }
   },
   {
    "slug": "11th_Anniversary_Party",
@@ -2200,7 +2862,8 @@
     "763": "Music763.swf",
     "1035": "Music1035.swf"
    },
-   "haveMusic": []
+   "haveMusic": [],
+   "ui": {}
   },
   {
    "slug": "Music_Jam_2016",
@@ -2311,7 +2974,33 @@
    },
    "haveMusic": [
     345
-   ]
+   ],
+   "ui": {
+    "global/content/features.swf": "ContentFeatures-MusicJam2016.swf",
+    "global/content/party_icon.swf": "ContentParty_icon-MusicJam2016.swf",
+    "global/content/prompts.swf": "ContentPrompts-MusicJam2016.swf",
+    "global/logo/logo.swf": "ContentLogo-MusicJam2016.swf",
+    "global/membership/party1.swf": "MembershipParty1-MusicJam2016.swf",
+    "local/en/close_ups/161102_character_dialogue_final_congrats.swf": "Close_ups161102_character_dialogue_final_congrats.swf-MusicJam2016.swf",
+    "local/en/close_ups/161102_character_dialogue_login.swf": "Close_ups161102_character_dialogue_login-MusicJam2016.swf",
+    "local/en/close_ups/161102_character_dialogue_task1_congrats.swf": "Close_ups161102_character_dialogue_task1_congrats-MusicJam2016.swf",
+    "local/en/close_ups/161102_character_dialogue_task1_start.swf": "Close_ups161102_character_dialogue_task1_start-MusicJam2016.swf",
+    "local/en/close_ups/161102_character_dialogue_task2_congrats.swf": "Close_ups161102_character_dialogue_task2_congrats-MusicJam2016.swf",
+    "local/en/close_ups/161102_character_dialogue_task2_start.swf": "Close_ups161102_character_dialogue_task2_start-MusicJam2016.swf",
+    "local/en/close_ups/161102_character_dialogue_task3_congrats.swf": "Close_ups161102_character_dialogue_task3_congrats-MusicJam2016.swf",
+    "local/en/close_ups/161102_character_dialogue_task3_start.swf": "Close_ups161102_character_dialogue_task3_start-MusicJam2016.swf",
+    "local/en/close_ups/161102_character_dialogue_task4_congrats.swf": "Close_ups161102_character_dialogue_task4_congrats-MusicJam2016.swf",
+    "local/en/close_ups/161102_character_dialogue_task4_start.swf": "Close_ups161102_character_dialogue_task4_start-MusicJam2016.swf",
+    "local/en/close_ups/161102_character_dialogue_task5_congrats.swf": "Close_ups161102_character_dialogue_task5_congrats-MusicJam2016.swf",
+    "local/en/close_ups/161102_character_dialogue_task5_start.swf": "Close_ups161102_character_dialogue_task5_start-MusicJam2016.swf",
+    "local/en/close_ups/161102_character_dialogue_task6_congrats.swf": "Close_ups161102_character_dialogue_task6_congrats-MusicJam2016.swf",
+    "local/en/close_ups/161102_character_dialogue_task6_start.swf": "Close_ups161102_character_dialogue_task6_start-MusicJam2016.swf",
+    "local/en/close_ups/161102_character_dialogue_task7_congrats.swf": "Close_ups161102_character_dialogue_task7_congrats-MusicJam2016.swf",
+    "local/en/close_ups/161102_character_dialogue_task7_start.swf": "Close_ups161102_character_dialogue_task7_start-MusicJam2016.swf",
+    "local/en/close_ups/161102_character_dialogue_task8_congrats.swf": "Close_ups161102_character_dialogue_task8_congrats-MusicJam2016.swf",
+    "local/en/close_ups/161102_character_dialogue_task8_start.swf": "Close_ups161102_character_dialogue_task8_start-MusicJam2016.swf",
+    "local/en/close_ups/quest_interface.swf": "Close_upsQuest_interface-MusicJam2016.swf"
+   }
   },
   {
    "slug": "Holiday_Party_2016",
@@ -2423,7 +3112,22 @@
    },
    "haveMusic": [
     666
-   ]
+   ],
+   "ui": {
+    "global/content/features.swf": "ContentFeatures-HolidayParty2016.swf",
+    "global/content/party_icon.swf": "ContentParty_icon-HolidayParty2016.swf",
+    "global/content/prompts.swf": "ContentPrompts-HolidayParty2016.swf",
+    "global/logo/logo.swf": "ContentLogo-HolidayParty2016.swf",
+    "global/membership/party1.swf": "MembershipParty1-HolidayParty2016.swf",
+    "global/membership/party2.swf": "MembershipParty2-HolidayParty2016.swf",
+    "global/membership/party3.swf": "MembershipParty3-HolidayParty2016.swf",
+    "local/en/close_ups/161130_character_dialogue_login.swf": "Close_ups161130_character_dialogue_login-HolidayParty2016.swf",
+    "local/en/close_ups/161130_transform_info.swf": "Close_ups161130_transform_info-HolidayParty2016.swf",
+    "local/en/close_ups/161226_character_dialogue_congrats_final.swf": "Close_ups161226_character_dialogue_congrats_final-HolidayParty2016.swf",
+    "local/en/close_ups/cfc_interface.swf": "PTClose_upsCfc_interface-HolidayParty2016.swf",
+    "local/en/close_ups/item_calendar_web.swf": "Close_upsItem_calendar_web-HolidayParty2016.swf",
+    "local/en/close_ups/quest_interface.swf": "Close_upsQuest_interface-HolidayParty2016.swf"
+   }
   },
   {
    "slug": "Club_Penguin_Island_Party",
@@ -2460,7 +3164,30 @@
     "1158": "Music1158.swf",
     "1160": "Music1160.swf"
    },
-   "haveMusic": []
+   "haveMusic": [],
+   "ui": {
+    "global/content/features.swf": "ContentFeatures-ClubPenguinIslandParty.swf",
+    "global/content/party_icon.swf": "ContentParty_icon-ClubPenguinIslandParty.swf",
+    "global/content/prompts.swf": "ContentPrompts-ClubPenguinIslandParty.swf",
+    "global/logo/logo.swf": "ContentLogo-ClubPenguinIslandParty.swf",
+    "global/membership/party1.swf": "MembershipParty1-ClubPenguinIslandParty.swf",
+    "local/en/close_ups/170104_character_dialogue_login.swf": "Close_ups170104_character_dialogue_login-ClubPenguinIslandParty.swf",
+    "local/en/close_ups/170104_dialogue_activities.swf": "Close_ups170104_dialogue_activities-ClubPenguinIslandParty.swf",
+    "local/en/close_ups/170104_dialogue_adventures.swf": "Close_ups170104_dialogue_adventures-ClubPenguinIslandParty.swf",
+    "local/en/close_ups/170104_dialogue_entertainment.swf": "Close_ups170104_dialogue_entertainment-ClubPenguinIslandParty.swf",
+    "local/en/close_ups/170104_dialogue_fashion.swf": "Close_ups170104_dialogue_fashion-ClubPenguinIslandParty.swf",
+    "local/en/close_ups/170104_dialogue_food.swf": "Close_ups170104_dialogue_food-ClubPenguinIslandParty.swf",
+    "local/en/close_ups/170104_dialogue_friends.swf": "Close_ups170104_dialogue_friends-ClubPenguinIslandParty.swf",
+    "local/en/close_ups/170104_dialogue_goto_activities.swf": "Close_ups170104_dialogue_goto_activities-ClubPenguinIslandParty.swf",
+    "local/en/close_ups/170104_dialogue_goto_adventures.swf": "Close_ups170104_dialogue_goto_adventures-ClubPenguinIslandParty.swf",
+    "local/en/close_ups/170104_dialogue_goto_entertainment.swf": "Close_ups170104_dialogue_goto_entertainment-ClubPenguinIslandParty.swf",
+    "local/en/close_ups/170104_dialogue_goto_fashion.swf": "Close_ups170104_dialogue_goto_fashion-ClubPenguinIslandParty.swf",
+    "local/en/close_ups/170104_dialogue_goto_food.swf": "Close_ups170104_dialogue_goto_food-ClubPenguinIslandParty.swf",
+    "local/en/close_ups/170104_dialogue_goto_friends.swf": "Close_ups170104_dialogue_goto_friends-ClubPenguinIslandParty.swf",
+    "local/en/close_ups/170104_dialogue_town_jacket.swf": "Close_ups170104_dialogue_town_jacket-ClubPenguinIslandParty.swf",
+    "local/en/close_ups/170118_character_dialogue_final.swf": "Close_ups170118_character_dialogue_final-ClubPenguinIslandParty.swf",
+    "local/en/close_ups/quest_interface.swf": "Close_upsQuest_interface-ClubPenguinIslandParty.swf"
+   }
   },
   {
    "slug": "Waddle_On_Party",
@@ -2512,7 +3239,34 @@
     "1169": "Music1169.swf",
     "1160": "Music1160.swf"
    },
-   "haveMusic": []
+   "haveMusic": [],
+   "ui": {
+    "global/content/features.swf": "ContentFeatures-WaddleOnParty.swf",
+    "global/content/party_icon.swf": "ContentParty_icon-WaddleOnParty.swf",
+    "global/content/prompts.swf": "ContentPrompts-WaddleOnParty.swf",
+    "global/membership/party1.swf": "MembershipParty1-WaddleOnParty.swf",
+    "local/en/close_ups/170104_dialogue_town_jacket.swf": "Close_ups170104_dialogue_town_jacket-WaddleOnParty.swf",
+    "local/en/close_ups/170201_character_dialogue_login.swf": "Close_ups170201_character_dialogue_login-WaddleOnParty.swf",
+    "local/en/close_ups/170201_dialogue_alltasks_congrats.swf": "Close_ups170201_dialogue_alltasks_congrats-WaddleOnParty.swf",
+    "local/en/close_ups/170201_dialogue_iceberg_congrats.swf": "Close_ups170201_dialogue_iceberg_congrats-WaddleOnParty.swf",
+    "local/en/close_ups/170201_dialogue_iceberg_plaque.swf": "Close_ups170201_dialogue_iceberg_plaque-WaddleOnParty.swf",
+    "local/en/close_ups/170201_dialogue_task1_congrats.swf": "Close_ups170201_dialogue_task1_congrats-WaddleOnParty.swf",
+    "local/en/close_ups/170201_dialogue_task1_start.swf": "Close_ups170201_dialogue_task1_start-WaddleOnParty.swf",
+    "local/en/close_ups/170201_dialogue_task2_congrats.swf": "Close_ups170201_dialogue_task2_congrats-WaddleOnParty.swf",
+    "local/en/close_ups/170201_dialogue_task2_start.swf": "Close_ups170201_dialogue_task2_start-WaddleOnParty.swf",
+    "local/en/close_ups/170201_dialogue_task3_congrats.swf": "Close_ups170201_dialogue_task3_congrats-WaddleOnParty.swf",
+    "local/en/close_ups/170201_dialogue_task3_start.swf": "Close_ups170201_dialogue_task3_start-WaddleOnParty.swf",
+    "local/en/close_ups/170201_dialogue_task4_congrats.swf": "Close_ups170201_dialogue_task4_congrats-WaddleOnParty.swf",
+    "local/en/close_ups/170201_dialogue_task4_start.swf": "Close_ups170201_dialogue_task4_start-WaddleOnParty.swf",
+    "local/en/close_ups/170201_dialogue_task5_congrats.swf": "Close_ups170201_dialogue_task5_congrats-WaddleOnParty.swf",
+    "local/en/close_ups/170201_dialogue_task5_start.swf": "Close_ups170201_dialogue_task5_start-WaddleOnParty.swf",
+    "local/en/close_ups/170201_dialogue_task6_congrats.swf": "Close_ups170201_dialogue_task6_congrats-WaddleOnParty.swf",
+    "local/en/close_ups/170201_dialogue_task6_start.swf": "Close_ups170201_dialogue_task6_start-WaddleOnParty.swf",
+    "local/en/close_ups/170201_dialogue_task7_congrats.swf": "Close_ups170201_dialogue_task7_congrats-WaddleOnParty.swf",
+    "local/en/close_ups/170201_dialogue_task7_start.swf": "Close_ups170201_dialogue_task7_start-WaddleOnParty.swf",
+    "local/en/close_ups/170322_character_dialogue_login.swf": "Close_ups170322_character_dialogue_login-WaddleOnParty.swf",
+    "local/en/close_ups/quest_interface.swf": "Close_upsQuest_interface-WaddleOnParty.swf"
+   }
   }
  ]
 }

@@ -37,6 +37,9 @@ const UI_SUBDIR = 'pcparties-ui';
 const uiDir = () => path.join(mediaDir(), UI_SUBDIR);
 let PATHS = { global: {}, local: {} };
 try { PATHS = require('./parties-paths.json'); } catch { /* sem chaves extras */ }
+// falas das telas (game_strings originais): português quando existe
+let STRINGS = {};
+try { const s = require('./parties-strings.json'); STRINGS = { ...(s.en || {}), ...(s.pt || {}) }; } catch { /* sem textos */ }
 const stateFile = () => path.join(process.env.WADDLE_DATA_DIR || path.join(__dirname, '..', '..', '..', 'data', 'waddle'), 'pc-party.json');
 
 const bySlug = new Map(DATA.parties.map((p) => [p.slug, p]));
@@ -297,7 +300,10 @@ function attach(w) {
   instance = w;
   readState();
   w.settings.calendarAdjust = calendarAdjust;
-  try { w.gameData.setExtraPaths?.(PATHS.global || {}, PATHS.local || {}); } catch { /* WF antigo */ }
+  // sem os textos, as telas de fala mostrariam a chave no balão: ficam de fora
+  const noDialogue = (obj) => Object.fromEntries(Object.entries(obj || {}).filter(([, v]) => Object.keys(STRINGS).length || !String(v).includes('character_dialogue')));
+  try { w.gameData.setExtraPaths?.(noDialogue(PATHS.global), noDialogue(PATHS.local)); } catch { /* WF antigo */ }
+  if (Object.keys(STRINGS).length) { try { w.gameData.setExtraStrings?.(STRINGS); } catch { /* WF antigo */ } }
   apply();
   const download = () => ensureFiles().then(() => ensureUiFiles()).then(() => apply(true)).catch(() => {});
   download();
