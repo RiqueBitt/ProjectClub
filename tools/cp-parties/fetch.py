@@ -9,7 +9,8 @@ cada página em parties.json:
   - baixa cada arquivo uma vez para out/parties/pcparties/<arquivo>.
 No fim grava out/parties/pcparties/index.json com tudo (sha256 e tamanho).
 
-Só baixa salas (Rooms*.swf) e músicas (Music<id>.swf) — o resto da página
+Só baixa salas (Rooms*.swf), músicas (Music<id>.swf) e o mapa da ilha da
+festa (ContentMap-*.swf) — o resto da página
 (catálogos, cartões, telas) é enorme e não é usado. Músicas que o Waddle
 Forever já tem (have-music.txt) não são baixadas de novo.
 
@@ -119,7 +120,7 @@ def main():
     have_music = set()
     if len(sys.argv) > 3 and os.path.exists(sys.argv[3]):
         have_music = {l.strip() for l in open(sys.argv[3]) if l.strip()}
-    wanted = re.compile(r'^(Rooms[A-Za-z0-9]+[-_].*|Music\d+(_\d+)?)\.swf$', re.I)
+    wanted = re.compile(r'^(Rooms[A-Za-z0-9]+[-_].*|Music\d+(_\d+)?|ContentMap-.*)\.swf$', re.I)
     seen = {}
     parties = []
     for p in cfg['parties']:

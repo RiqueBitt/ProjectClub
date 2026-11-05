@@ -51,6 +51,13 @@ function writeState() {
 }
 
 let fileExists = (file) => fs.existsSync(file);
+const MAP_ROUTE = 'play/v2/content/global/content/map.swf';
+const onDisk = (file) => { try { return fileExists(path.join(filesDir(), file)); } catch { return false; } };
+
+/** Algum arquivo citado pelas festas (salas, mapa, músicas) ainda falta no disco? */
+function anyMissing() {
+  return DATA.parties.some((p) => [...Object.values(p.rooms || {}), ...(p.map ? [p.map] : []), ...Object.values(p.musicFiles || {})].some((f) => !onDisk(f)));
+}
 
 /** Os arquivos das salas desta festa estão no disco? */
 function filesReady(party) {
@@ -104,12 +111,15 @@ const key = (w) => (w ? `${w.source}:${w.slugs.join('+')}` : '');
 function merged(slugs) {
   const parties = slugs.map((s) => bySlug.get(s));
   const main = parties[0];
-  const out = { name: main.name, label: main.label, rooms: {}, music: {}, musicFiles: {} };
+  const out = { name: main.name, label: main.label, rooms: {}, music: {}, musicFiles: {}, routes: {} };
   for (const p of parties) {
     Object.assign(out.rooms, overlayRooms(p));
     Object.assign(out.music, overlayMusic(p));
     Object.assign(out.musicFiles, overlayMusicFiles(p));
   }
+  // mapa da ilha decorado: o da festa principal (ou de outra que tenha)
+  const withMap = parties.find((p) => p.map && onDisk(p.map));
+  if (withMap) out.routes[MAP_ROUTE] = `parties/pcparties/${withMap.map}`;
   return out;
 }
 
@@ -139,11 +149,12 @@ function overlayMusic(party) {
 }
 
 /** Aplica a festa certa na ilha. Devolve true se a festa mudou. */
-function apply() {
+function apply(force = false) {
   const w = instance;
   if (!w) return false;
   let next = wanted();
-  if (key(next) === key(active)) return false;
+  // force: arquivos novos chegaram (ex.: o mapa) — reaplica mesmo sem trocar de festa
+  if (!force && key(next) === key(active)) return false;
   const prev = active;
   if (next && !next.slugs.every((s) => filesReady(bySlug.get(s)))) {
     console.warn(`[festas] ${next.slugs.join(', ')}: arquivos ainda não estão no disco`);
@@ -152,7 +163,7 @@ function apply() {
   active = next;
   if (next) {
     const m = merged(next.slugs);
-    w.gameData.setPartyOverlay(m.name, m.rooms, m.music, m.musicFiles);
+    w.gameData.setPartyOverlay(m.name, m.rooms, m.music, m.musicFiles, m.routes);
     console.log(`[festas] na ilha: ${next.slugs.map((s) => bySlug.get(s).name).join(' + ')} (${next.source === 'staff' ? 'ligada pela staff' : 'rodízio'})`);
   } else {
     w.gameData.setPartyOverlay(null);
@@ -192,7 +203,8 @@ function extractTar(file, dest) {
 async function ensureFiles() {
   const index = path.join(filesDir(), 'index.json');
   const missing = DATA.parties.filter((p) => !filesReady(p)).length;
-  if (missing === 0) { downloadState = { state: 'ready' }; return; }
+  // pacote novo (ex.: mapas incluídos depois): baixa de novo se faltar algo
+  if (!anyMissing()) { downloadState = { state: 'ready' }; return; }
   if (!RELEASE) { downloadState = { state: 'missing', missing }; return; }
   downloadState = { state: 'downloading', missing };
   const tmp = path.join(mediaDir(), '.tmp-parties.tar');
@@ -219,8 +231,11 @@ function attach(w) {
   readState();
   w.settings.calendarAdjust = calendarAdjust;
   apply();
-  ensureFiles().then(() => apply()).catch(() => {});
+  const download = () => ensureFiles().then(() => apply(true)).catch(() => {});
+  download();
   setInterval(() => { try { apply(); } catch (err) { console.warn('[festas]', err?.message || err); } }, 60_000).unref?.();
+  // deu erro (rede, servidor ocupado)? tenta baixar de novo a cada 10 min
+  setInterval(() => { if (downloadState.state === 'error' || downloadState.state === 'partial') download(); }, 10 * 60_000).unref?.();
 }
 
 /** Derruba todo mundo da ilha: o jogo reconecta sozinho já com a festa nova. */

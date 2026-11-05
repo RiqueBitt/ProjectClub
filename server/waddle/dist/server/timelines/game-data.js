@@ -673,9 +673,10 @@ class GameData {
     /**
      * Liga (ou desliga, com null) a camada de festa.
      * `rooms`: sala → arquivo da mídia (caminho relativo); `music`: sala → id da
-     * música; `musicFiles`: id da música → arquivo (músicas que o WF não tem).
+     * música; `musicFiles`: id da música → arquivo (músicas que o WF não tem);
+     * `extraRoutes`: rota → arquivo (ex.: play/v2/content/global/content/map.swf).
      */
-    setPartyOverlay(name, rooms = {}, music = {}, musicFiles = {}) {
+    setPartyOverlay(name, rooms = {}, music = {}, musicFiles = {}, extraRoutes = {}) {
         if (name === null) {
             this.overlay = null;
         }
@@ -683,6 +684,10 @@ class GameData {
             const routes = new Map();
             for (const room in rooms) {
                 routes.set(`play/v2/content/global/rooms/${room}.swf`, rooms[room]);
+            }
+            // outras rotas (ex.: o mapa da ilha decorado da festa)
+            for (const route in extraRoutes) {
+                routes.set(route, extraRoutes[route]);
             }
             for (const id in musicFiles) {
                 routes.set(`play/v2/content/global/music/${id}.swf`, musicFiles[id]);

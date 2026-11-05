@@ -10,6 +10,7 @@ da release waddle-parties (arquivos de cada página, na ordem da tabela
   - music: sala → id da música (o link de música logo depois da sala).
   - musicFiles: músicas que o WF não tem e vieram junto (id → arquivo).
   - haveMusic: ids de música que o WF já tem.
+  - map: mapa da ilha decorado da festa (ContentMap-*.swf), quando existe.
 
 Uso: python3 build-data.py parties.json index.json have-music.txt saida.json
 """
@@ -73,10 +74,12 @@ def main():
             rooms.setdefault(room, name)
         if not rooms:
             print(f'-- {p["slug"]}: nenhuma sala', file=sys.stderr)
+        island_map = next((f['name'] for f in files if f['name'].lower().startswith('contentmap-')), None)
         out.append({
             'slug': p['slug'], 'name': p['name'], 'label': p['label'], 'year': p['year'],
             'start': p['start'], 'end': p['end'], 'licensed': bool(p.get('licensed')),
             'rooms': rooms, 'music': music, 'musicFiles': music_files, 'haveMusic': sorted(have_music),
+            **({'map': island_map} if island_map else {}),
         })
         print(f'{p["slug"]}: {len(rooms)} salas, {len(music)} músicas ({len(music_files)} novas)', file=sys.stderr)
     data = {
