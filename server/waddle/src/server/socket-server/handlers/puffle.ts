@@ -3,7 +3,8 @@ import { PenguinMessenger } from "../../socket-server/messenger";
 import { WorldPenguin } from "@server/socket-server/world/world-penguin";
 import { GameData } from "@server/timelines/game-data";
 import { PUFFLES } from "@server/game-logic/puffle";
-import { PlayerPuffle } from "@server/database/database";
+import { PenguinRepository, PlayerPuffle } from "@server/database/database";
+import { World } from "@server/socket-server/world/world";
 import { choose, randomInt } from "@common/utils";
 import { PUFFLE_ITEMS } from "@server/game-logic/puffle-item";
 import { PenguinHandler, PenguinGuard, RoomHandler } from "./handlers";
@@ -351,7 +352,8 @@ const sendPuffleDig: RoomHandler<[TreasureType, number]> = (ctx, treasureType, t
   msg.send(room.players, 'puffledig', penguin.id, penguin.puffle.walking ?? 0, treasureType, itemId, coins, penguin.dig.hasDug ? 0 : 1);
 }
 
-const sendGoldNuggets: PenguinHandler<[]> = ({ msg, penguin }) => {
+/** Também responde i#currencies (contador de pepitas da missão do puffle dourado). */
+export const sendGoldNuggets: PenguinHandler<[]> = ({ msg, penguin }) => {
   // TODO what is the first 1?
   msg.send(penguin, 'currencies', `1|${penguin.gold.nuggets}`);
 }
@@ -589,7 +591,7 @@ export const handleGetIglooPufflesOld: PenguinHandler<[number]> = (ctx, id) => {
   handleGetIglooPuffles(ctx, id, '');
 }
 
-export const handleGetIglooPuffles: PenguinHandler<[number, string]> = ({ data, penguin, msg }, id, iglooType) => {
+export const handleGetIglooPuffles: PenguinHandler<[number, string]> = async ({ data, penguin, msg, world, db }, id, iglooType) => {
   if (!data.isVanillaEngine()) {
     const puffles = penguin.puffle.puffles.map((puffle) => {
       return [
@@ -616,28 +618,75 @@ export const handleGetIglooPuffles: PenguinHandler<[number, string]> = ({ data, 
   
     msg.send(penguin, 'pg', ...puffles);
   } else {
+    // Puffles do DONO do iglu (antes vinham sempre os de quem estava
+    // visitando: na casa de um amigo apareciam os seus puffles).
     const isBackyard = iglooType === 'backyard';
-    const puffles = penguin.puffle.puffles.filter((puffle) => {
+    const owner = await getIglooPuffleOwner(world, db, penguin, id);
+    const puffles = owner.puffles.filter((puffle) => {
       // filtering for backyard or igloo puffles
-      return penguin.puffle.isInBackyard(puffle.id) === isBackyard;
+      return owner.backyard.has(puffle.id) === isBackyard;
     }).map((puffle) => {
       return [
         puffle.id,
         ...getClientPuffleIds(puffle.type),
         puffle.name,
-        Math.round(Date.now()), // TODO puffle adoption date in puffle
+        // o cliente lê a adoção em SEGUNDOS (antes ia em ms: data no futuro)
+        Math.floor(Date.now() / 1000), // TODO puffle adoption date in puffle
         puffle.food,
         100, // TODO puffle play
         puffle.rest,
         puffle.clean,
         0, // TODO puffle hat
         0, 0, // TODO what are these 0?
-        puffle.id === penguin.puffle.walking ? 1 : 0
+        puffle.id === owner.walking ? 1 : 0
       ].join('|')
     })
     msg.send(penguin, 'pg', puffles.length, ...puffles);
   }
 }
+
+type IglooPuffleOwner = { puffles: PlayerPuffle[], backyard: Set<number>, walking: number | undefined };
+
+/** Puffles de quem é o iglu: online (memória) ou offline (banco). */
+async function getIglooPuffleOwner(world: World, db: PenguinRepository, me: WorldPenguin, ownerId: number): Promise<IglooPuffleOwner> {
+  const fromLive = (p: WorldPenguin): IglooPuffleOwner => ({
+    puffles: p.puffle.puffles,
+    backyard: new Set(p.puffle.puffles.filter((pf) => p.puffle.isInBackyard(pf.id)).map((pf) => pf.id)),
+    walking: p.puffle.walking,
+  });
+  if (!Number.isFinite(ownerId) || ownerId === me.id) {
+    return fromLive(me);
+  }
+  const live = world.getById(ownerId);
+  if (live !== undefined) {
+    return fromLive(live);
+  }
+  try {
+    const json = await db.get(ownerId);
+    if (json !== null) {
+      return { puffles: json.puffles ?? [], backyard: new Set(json.backyard ?? []), walking: undefined };
+    }
+  } catch { /* sem dados: iglu sem puffles */ }
+  return { puffles: [], backyard: new Set(), walking: undefined };
+}
+
+// Puffle andando/mudando de pose no iglu com mais alguém na sala: o jogo manda
+// pro servidor e só mexe o puffle quando o servidor repassa pra sala inteira
+// (sozinho ele mexe direto). Sem isso os puffles congelavam com visita.
+export const handlePuffleMove: RoomHandler<[number, number, number]> = ({ msg, room }, puffleId, x, y) => {
+  if (![puffleId, x, y].every(Number.isFinite)) {
+    return;
+  }
+  msg.send(room.players, 'pm', [puffleId, Math.round(x), Math.round(y)].join('|'));
+}
+
+export const handlePuffleFrame: RoomHandler<[number, number]> = ({ msg, room }, puffleId, frame) => {
+  if (![puffleId, frame].every(Number.isFinite)) {
+    return;
+  }
+  msg.send(room.players, 'ps', puffleId, frame);
+}
+
 
 export const handleAdoptPuffleOld: PenguinHandler<[number, string]> = (ctx, type, name) => {
   handleAdoptPuffle(ctx, type, name, 0);

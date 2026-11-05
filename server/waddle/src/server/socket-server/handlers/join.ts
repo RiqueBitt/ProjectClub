@@ -515,6 +515,28 @@ export const handleFindBuddy: PenguinHandler<[number]> = ({ msg, penguin, world 
   }
 }
 
+/**
+ * "Procurar" no cartão de um amigo (u#bf, cliente 2012): o jogo mostra
+ * "aguarde" e espera sala + tipo + dono. Antes não havia resposta e o aviso
+ * ficava na tela pra sempre. Offline (ou num minijogo) → -1.
+ */
+export const handleFindPlayer: PenguinHandler<[number]> = ({ msg, penguin, world }, playerId) => {
+  const target = world.getById(playerId);
+  const room = target === undefined ? undefined : world.getPenguinRoom(target);
+  if (target === undefined || room === undefined) {
+    msg.send(penguin, 'bf', -1, 'invalid', -1);
+    return;
+  }
+  if (room.id >= 2000) {
+    // iglu: no WF a sala do iglu é dono + 2000; o cliente usa dono + 1000
+    msg.send(penguin, 'bf', room.id - 1000, 'igloo', room.id - 2000);
+  } else if (room.id === 1000) {
+    msg.send(penguin, 'bf', room.id, 'backyard', playerId);
+  } else {
+    msg.send(penguin, 'bf', room.id, 'invalid', -1);
+  }
+}
+
 export const handleDisconnect = async (ctx: WorldContext) => {
   if ('penguin' in ctx) {
     const { penguin, msg, prst, world } = ctx;

@@ -1,6 +1,6 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.handleEPFStamp = exports.handleSetPartyOp = exports.handleGetPartyOp = exports.handleGrantAwards = exports.handleBecomeAgent = exports.handleAddEpfItem = exports.handleGetEpfMedals = exports.handleGetFieldOps = exports.handleGetEpfStatus = exports.handleSetStampEarned = exports.handleSetStampbookCoverData = exports.handleGetRecentStamps = exports.handleGetStampbookCoverData = exports.handleGetMissionStamps = exports.handleGetPinInfo = exports.handleHeartbeat = exports.handleGetSpyDrillsReward = exports.handleGetSpyDrillsChallenge = exports.handleSetPuffleLaunchData = exports.handleGetPuffleLaunchData = exports.handleDisconnect = exports.handleFindBuddy = exports.handleGetPlayer = exports.handleBuddyMessage = exports.handleBuddyRemove = exports.handleBuddyDecline = exports.handleBuddyAccept = exports.handleBuddyRequest = exports.sendBuddyOnlineList = exports.sendGetBuddies = exports.handleReceiveInventory = exports.handleSpyRequest = exports.handleGetCoins = exports.handleSendCoins = exports.handleGetTotalCoins = exports.handlePBI = exports.handleGLR = exports.isBackyardGuard = exports.isPreBackyardGuard = exports.handleJoinPlayerModern = exports.handleJoinPlayerCpip = exports.handleJoinPlayerOld = exports.handleAddItem = exports.handleGetItems = exports.joinRoom = exports.leaveRoom = exports.handleJoinServer = exports.sendStamps = void 0;
+exports.handleEPFStamp = exports.handleSetPartyOp = exports.handleGetPartyOp = exports.handleGrantAwards = exports.handleBecomeAgent = exports.handleAddEpfItem = exports.handleGetEpfMedals = exports.handleGetFieldOps = exports.handleGetEpfStatus = exports.handleSetStampEarned = exports.handleSetStampbookCoverData = exports.handleGetRecentStamps = exports.handleGetStampbookCoverData = exports.handleGetMissionStamps = exports.handleGetPinInfo = exports.handleHeartbeat = exports.handleGetSpyDrillsReward = exports.handleGetSpyDrillsChallenge = exports.handleSetPuffleLaunchData = exports.handleGetPuffleLaunchData = exports.handleDisconnect = exports.handleFindPlayer = exports.handleFindBuddy = exports.handleGetPlayer = exports.handleBuddyMessage = exports.handleBuddyRemove = exports.handleBuddyDecline = exports.handleBuddyAccept = exports.handleBuddyRequest = exports.sendBuddyOnlineList = exports.sendGetBuddies = exports.handleReceiveInventory = exports.handleSpyRequest = exports.handleGetCoins = exports.handleSendCoins = exports.handleGetTotalCoins = exports.handlePBI = exports.handleGLR = exports.isBackyardGuard = exports.isPreBackyardGuard = exports.handleJoinPlayerModern = exports.handleJoinPlayerCpip = exports.handleJoinPlayerOld = exports.handleAddItem = exports.handleGetItems = exports.joinRoom = exports.leaveRoom = exports.handleJoinServer = exports.sendStamps = void 0;
 exports.formatBuddyEntry = formatBuddyEntry;
 exports.getPenguinString = getPenguinString;
 exports.filterItems = filterItems;
@@ -456,6 +456,30 @@ const handleFindBuddy = ({ msg, penguin, world }, buddyId) => {
     }
 };
 exports.handleFindBuddy = handleFindBuddy;
+/**
+ * "Procurar" no cartão de um amigo (u#bf, cliente 2012): o jogo mostra
+ * "aguarde" e espera sala + tipo + dono. Antes não havia resposta e o aviso
+ * ficava na tela pra sempre. Offline (ou num minijogo) → -1.
+ */
+const handleFindPlayer = ({ msg, penguin, world }, playerId) => {
+    const target = world.getById(playerId);
+    const room = target === undefined ? undefined : world.getPenguinRoom(target);
+    if (target === undefined || room === undefined) {
+        msg.send(penguin, 'bf', -1, 'invalid', -1);
+        return;
+    }
+    if (room.id >= 2000) {
+        // iglu: no WF a sala do iglu é dono + 2000; o cliente usa dono + 1000
+        msg.send(penguin, 'bf', room.id - 1000, 'igloo', room.id - 2000);
+    }
+    else if (room.id === 1000) {
+        msg.send(penguin, 'bf', room.id, 'backyard', playerId);
+    }
+    else {
+        msg.send(penguin, 'bf', room.id, 'invalid', -1);
+    }
+};
+exports.handleFindPlayer = handleFindPlayer;
 const handleDisconnect = async (ctx) => {
     if ('penguin' in ctx) {
         const { penguin, msg, prst, world } = ctx;

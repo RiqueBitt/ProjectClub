@@ -1,6 +1,6 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.handlePuffleDigOnCommand = exports.handlePuffleDigRandom = exports.isBeforePuffleCreatureGuard = exports.isAfterPuffleCreatureGuard = exports.handleAdoptPuffleOld = exports.handleGetIglooPuffles = exports.handleGetIglooPufflesOld = exports.handleRevealGoldPuffle = exports.handleEatPuffleItem = exports.handlePuffleBackyardSwap = exports.handlePuffleWalk = exports.handleGetPuffleInventory = exports.handleAdoptPuffle = exports.handleBuyPuffleCareItem = exports.sendPuffleCheck = exports.sendModernPuffleCheck = void 0;
+exports.handlePuffleDigOnCommand = exports.handlePuffleDigRandom = exports.isBeforePuffleCreatureGuard = exports.isAfterPuffleCreatureGuard = exports.handleAdoptPuffleOld = exports.handlePuffleFrame = exports.handlePuffleMove = exports.handleGetIglooPuffles = exports.handleGetIglooPufflesOld = exports.handleRevealGoldPuffle = exports.handleEatPuffleItem = exports.sendGoldNuggets = exports.handlePuffleBackyardSwap = exports.handlePuffleWalk = exports.handleGetPuffleInventory = exports.handleAdoptPuffle = exports.handleBuyPuffleCareItem = exports.sendPuffleCheck = exports.sendModernPuffleCheck = void 0;
 exports.getClientPuffleIds = getClientPuffleIds;
 exports.getStamp = getStamp;
 exports.getPuffleWalkArguments = getPuffleWalkArguments;
@@ -320,10 +320,12 @@ const sendPuffleDig = (ctx, treasureType, target) => {
         treasureType === TreasureType.Gold ? [target, 1] : [0, target];
     msg.send(room.players, 'puffledig', penguin.id, penguin.puffle.walking ?? 0, treasureType, itemId, coins, penguin.dig.hasDug ? 0 : 1);
 };
+/** Também responde i#currencies (contador de pepitas da missão do puffle dourado). */
 const sendGoldNuggets = ({ msg, penguin }) => {
     // TODO what is the first 1?
     msg.send(penguin, 'currencies', `1|${penguin.gold.nuggets}`);
 };
+exports.sendGoldNuggets = sendGoldNuggets;
 const puffleDig = (ctx, onCommand) => {
     const { msg, penguin, data, prst } = ctx;
     // PUFFLE DIG MECHANICS
@@ -394,7 +396,7 @@ const puffleDig = (ctx, onCommand) => {
     if (penguin.gold.goldNuggetState) {
         const nuggets = (0, utils_1.randomInt)(1, 3);
         penguin.gold.add(nuggets);
-        sendGoldNuggets(ctx);
+        (0, exports.sendGoldNuggets)(ctx);
         sendPuffleDig(ctx, TreasureType.Gold, nuggets);
         prst(penguin);
         return;
@@ -516,7 +518,7 @@ const handleEatPuffleItem = (ctx, playerPuffleId, itemId) => {
         penguin.currency.discount(goldBerry.cost);
         penguin.gold.setState();
         msg.send(penguin, 'oberry', penguin.id, puffle.id);
-        sendGoldNuggets(ctx);
+        (0, exports.sendGoldNuggets)(ctx);
     }
     prst(penguin);
 };
@@ -530,7 +532,7 @@ const handleGetIglooPufflesOld = (ctx, id) => {
     (0, exports.handleGetIglooPuffles)(ctx, id, '');
 };
 exports.handleGetIglooPufflesOld = handleGetIglooPufflesOld;
-const handleGetIglooPuffles = ({ data, penguin, msg }, id, iglooType) => {
+const handleGetIglooPuffles = async ({ data, penguin, msg, world, db }, id, iglooType) => {
     if (!data.isVanillaEngine()) {
         const puffles = penguin.puffle.puffles.map((puffle) => {
             return [
@@ -556,29 +558,73 @@ const handleGetIglooPuffles = ({ data, penguin, msg }, id, iglooType) => {
         msg.send(penguin, 'pg', ...puffles);
     }
     else {
+        // Puffles do DONO do iglu (antes vinham sempre os de quem estava
+        // visitando: na casa de um amigo apareciam os seus puffles).
         const isBackyard = iglooType === 'backyard';
-        const puffles = penguin.puffle.puffles.filter((puffle) => {
+        const owner = await getIglooPuffleOwner(world, db, penguin, id);
+        const puffles = owner.puffles.filter((puffle) => {
             // filtering for backyard or igloo puffles
-            return penguin.puffle.isInBackyard(puffle.id) === isBackyard;
+            return owner.backyard.has(puffle.id) === isBackyard;
         }).map((puffle) => {
             return [
                 puffle.id,
                 ...getClientPuffleIds(puffle.type),
                 puffle.name,
-                Math.round(Date.now()), // TODO puffle adoption date in puffle
+                // o cliente lê a adoção em SEGUNDOS (antes ia em ms: data no futuro)
+                Math.floor(Date.now() / 1000), // TODO puffle adoption date in puffle
                 puffle.food,
                 100, // TODO puffle play
                 puffle.rest,
                 puffle.clean,
                 0, // TODO puffle hat
                 0, 0, // TODO what are these 0?
-                puffle.id === penguin.puffle.walking ? 1 : 0
+                puffle.id === owner.walking ? 1 : 0
             ].join('|');
         });
         msg.send(penguin, 'pg', puffles.length, ...puffles);
     }
 };
 exports.handleGetIglooPuffles = handleGetIglooPuffles;
+/** Puffles de quem é o iglu: online (memória) ou offline (banco). */
+async function getIglooPuffleOwner(world, db, me, ownerId) {
+    const fromLive = (p) => ({
+        puffles: p.puffle.puffles,
+        backyard: new Set(p.puffle.puffles.filter((pf) => p.puffle.isInBackyard(pf.id)).map((pf) => pf.id)),
+        walking: p.puffle.walking,
+    });
+    if (!Number.isFinite(ownerId) || ownerId === me.id) {
+        return fromLive(me);
+    }
+    const live = world.getById(ownerId);
+    if (live !== undefined) {
+        return fromLive(live);
+    }
+    try {
+        const json = await db.get(ownerId);
+        if (json !== null) {
+            return { puffles: json.puffles ?? [], backyard: new Set(json.backyard ?? []), walking: undefined };
+        }
+    }
+    catch { /* sem dados: iglu sem puffles */ }
+    return { puffles: [], backyard: new Set(), walking: undefined };
+}
+// Puffle andando/mudando de pose no iglu com mais alguém na sala: o jogo manda
+// pro servidor e só mexe o puffle quando o servidor repassa pra sala inteira
+// (sozinho ele mexe direto). Sem isso os puffles congelavam com visita.
+const handlePuffleMove = ({ msg, room }, puffleId, x, y) => {
+    if (![puffleId, x, y].every(Number.isFinite)) {
+        return;
+    }
+    msg.send(room.players, 'pm', [puffleId, Math.round(x), Math.round(y)].join('|'));
+};
+exports.handlePuffleMove = handlePuffleMove;
+const handlePuffleFrame = ({ msg, room }, puffleId, frame) => {
+    if (![puffleId, frame].every(Number.isFinite)) {
+        return;
+    }
+    msg.send(room.players, 'ps', puffleId, frame);
+};
+exports.handlePuffleFrame = handlePuffleFrame;
 const handleAdoptPuffleOld = (ctx, type, name) => {
     (0, exports.handleAdoptPuffle)(ctx, type, name, 0);
 };

@@ -299,3 +299,20 @@ export const handleGetMusicTracks: PenguinHandler<[]> = ({ msg, penguin }) => {
   const playerTracks: string[] = []; // TODO player tracks
   msg.send(penguin, 'getmymusictracks', playerTracks.length, playerTracks.join(','));
 }
+/**
+ * "O iglu deste pinguim está aberto?" (g#pio) — o cartão do jogador só mostra
+ * o botão de visitar a casa com a resposta. Amigos sempre podem entrar; os
+ * outros, quando o iglu não está trancado.
+ */
+export const handlePlayerIglooOpen: PenguinHandler<[number]> = async ({ world, db, msg, penguin }, ownerId) => {
+  let open = true;
+  if (ownerId !== penguin.id && !penguin.buddy.isBuddy(ownerId)) {
+    try {
+      const igloo = await getIglooFromId(world, db, ownerId);
+      open = igloo === undefined ? true : !igloo.locked;
+    } catch {
+      open = true;
+    }
+  }
+  msg.send(penguin, 'pio', open ? 1 : 0);
+}

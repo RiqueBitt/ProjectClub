@@ -1,6 +1,6 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.handleGetMusicTracks = exports.handleAddIglooLocation = exports.handleUpdateIglooLayout = exports.handleAddIglooLayout = exports.handleGetAllIglooLayouts = exports.handleGetDj3kTracks = exports.handleGetIglooLikes = exports.handleGetIglooTypes = exports.handleUpdateMusic = exports.handleGetOpenIgloos = exports.handleCloseIgloo = exports.handleOpenIgloo = exports.handleGetFurnitureNew = exports.handleGetFurniture = exports.handleUpdateIglooOld = exports.handleUpdateIglooNew = exports.handleUpdateIgloo = exports.handleAddFlooring = exports.handleUpdateIglooType = exports.handleAddIgloo = exports.handleAddFurniture = exports.handleGetIglooItems = exports.handleGetIglooCpip = exports.getIglooOld = void 0;
+exports.handlePlayerIglooOpen = exports.handleGetMusicTracks = exports.handleAddIglooLocation = exports.handleUpdateIglooLayout = exports.handleAddIglooLayout = exports.handleGetAllIglooLayouts = exports.handleGetDj3kTracks = exports.handleGetIglooLikes = exports.handleGetIglooTypes = exports.handleUpdateMusic = exports.handleGetOpenIgloos = exports.handleCloseIgloo = exports.handleOpenIgloo = exports.handleGetFurnitureNew = exports.handleGetFurniture = exports.handleUpdateIglooOld = exports.handleUpdateIglooNew = exports.handleUpdateIgloo = exports.handleAddFlooring = exports.handleUpdateIglooType = exports.handleAddIgloo = exports.handleAddFurniture = exports.handleGetIglooItems = exports.handleGetIglooCpip = exports.getIglooOld = void 0;
 exports.getIglooFromId = getIglooFromId;
 exports.getFurnitureString = getFurnitureString;
 exports.processFurniture = processFurniture;
@@ -285,3 +285,22 @@ const handleGetMusicTracks = ({ msg, penguin }) => {
     msg.send(penguin, 'getmymusictracks', playerTracks.length, playerTracks.join(','));
 };
 exports.handleGetMusicTracks = handleGetMusicTracks;
+/**
+ * "O iglu deste pinguim está aberto?" (g#pio) — o cartão do jogador só mostra
+ * o botão de visitar a casa com a resposta. Amigos sempre podem entrar; os
+ * outros, quando o iglu não está trancado.
+ */
+const handlePlayerIglooOpen = async ({ world, db, msg, penguin }, ownerId) => {
+    let open = true;
+    if (ownerId !== penguin.id && !penguin.buddy.isBuddy(ownerId)) {
+        try {
+            const igloo = await getIglooFromId(world, db, ownerId);
+            open = igloo === undefined ? true : !igloo.locked;
+        }
+        catch {
+            open = true;
+        }
+    }
+    msg.send(penguin, 'pio', open ? 1 : 0);
+};
+exports.handlePlayerIglooOpen = handlePlayerIglooOpen;

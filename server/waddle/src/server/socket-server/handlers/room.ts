@@ -400,3 +400,26 @@ export const isHockeyGuard: RoomGuard = ({ room }) => {
 export const handleTeleport: RoomHandler<[number, number]> = ({ msg, room, penguin }, x, y) => {
   msg.send(room.players, 'tp', penguin.id, x, y);
 }
+// Mina (cavemine): cavar com o capacete de mineiro dá moedas (r#cdu). Antes o
+// servidor não respondia e a escavação não pagava nada. Um intervalo mínimo
+// entre escavações evita repetir o pedido sem parar (o limite diário de moedas
+// do Project Club continua valendo).
+const COIN_DIG_ROOM = 813;
+// o jogo pede a cada 2 s enquanto a pessoa dança na área com capacete/pá
+const COIN_DIG_COOLDOWN_MS = 1800;
+const COIN_DIG_TABLE = [1, 1, 1, 2, 2, 3, 5, 5, 10, 25];
+const lastCoinDig = new WeakMap<WorldPenguin, number>();
+
+export const handleCoinDig: RoomHandler<[]> = ({ penguin, room, msg, prst }) => {
+  const now = Date.now();
+  const last = lastCoinDig.get(penguin) ?? 0;
+  if (room.id !== COIN_DIG_ROOM || now - last < COIN_DIG_COOLDOWN_MS) {
+    msg.send(penguin, 'cdu', 0, penguin.currency.coins);
+    return;
+  }
+  lastCoinDig.set(penguin, now);
+  // 1 em 100: prêmio grande (o jogo tem animação própria pra 100+)
+  const coins = Math.random() < 0.01 ? 100 : COIN_DIG_TABLE[Math.floor(Math.random() * COIN_DIG_TABLE.length)];
+  msg.send(penguin, 'cdu', coins, penguin.currency.add(coins));
+  prst(penguin);
+}
