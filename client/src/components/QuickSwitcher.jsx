@@ -63,6 +63,7 @@ const PAGES = [
   ...(isFeatureEnabled('houses') ? [{ path: '/casas', label: 'Casas', keywords: 'casa' }] : []),
   ...(isFeatureEnabled('cardsWar') ? [{ path: '/cartas', label: 'Guerra das Cartas', keywords: 'cartas jogo de cartas pacotes baralho duelo figurinhas tcg' }] : []),
   { path: '/admin', label: 'Painel da staff', keywords: 'admin moderação', staff: true, adminOnly: true },
+  { path: '/dev', label: 'Project Club Dev', keywords: 'código editor github programar dev', staff: true, adminOnly: true },
 ];
 
 const SETTINGS_TABS = [

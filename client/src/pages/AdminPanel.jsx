@@ -322,6 +322,12 @@ export default function AdminPanel() {
           <span>Editor de Interface</span>
           <StaffIcon name="external" size={15} />
         </button>
+        {user?.platformRole === 'ADMIN' && (
+          <button type="button" className="staff-rail-link" onClick={() => navigate('/dev')}>
+            <span>Project Club Dev</span>
+            <StaffIcon name="external" size={15} />
+          </button>
+        )}
       </aside>
 
       <div className="staff-backdrop" onClick={() => setNavOpen(false)} />

@@ -38,6 +38,7 @@ const BlogPage = lazy(() => import('./pages/BlogPage.jsx'));
 const StatusPage = lazy(() => import('./pages/StatusPage.jsx'));
 const InterfaceEditorPage = lazy(() => import('./pages/InterfaceEditorPage.jsx'));
 const PracaPage = lazy(() => import('./pages/PracaPage.jsx'));
+const DevStudioPage = lazy(() => import('./pages/DevStudioPage.jsx'));
 
 // "Em reforma" (see adminController.setMaintenanceMode) only gates the
 // actual protected app — /login, /register etc stay reachable regardless,
@@ -361,6 +362,8 @@ export default function App() {
               </ProtectedRoute>
             }
           />
+          {/* Project Club Dev: editor do código do Project Club (só admins) */}
+          <Route path="/dev" element={<ProtectedRoute><DevStudioPage /></ProtectedRoute>} />
           <Route path="/*" element={<RootGate />} />
         </Routes>
         </Suspense>

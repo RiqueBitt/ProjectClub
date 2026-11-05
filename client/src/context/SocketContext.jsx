@@ -279,7 +279,16 @@ export function SocketProvider({ children }) {
       }
       updateUnreadBadge(userId);
     });
-    // Anúncio ou evento novo: notificação do PC/navegador (o push do celular
+    // Project Club Dev: atualização nova pros donos / resposta pro admin.
+    socket.on('dev:update', (p = {}) => {
+      playSound('message');
+      useStore.getState().pushNotice(`📬 ${p.text || 'Nova atualização no Project Club Dev'}`, { label: 'Ver', onClick: () => navigate('/dev?tab=updates') });
+    });
+    socket.on('dev:result', (p = {}) => {
+      playSound('message');
+      useStore.getState().pushNotice(`${p.ok ? '✅' : '❌'} ${p.text || 'Sua atualização foi analisada.'}`, { label: 'Ver', onClick: () => navigate('/dev?tab=updates') });
+    });
+        // Anúncio ou evento novo: notificação do PC/navegador (o push do celular
     // sai do servidor). Respeita a chave em Configurações → Notificações.
     socket.on('broadcast:notify', (p = {}) => {
       if (!p.kind || (p.authorId && p.authorId === user.id)) return;
