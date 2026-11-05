@@ -27,7 +27,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - name: Baixar as festas
-        run: python3 tools/cp-parties/fetch.py tools/cp-parties/parties.json out
+        run: python3 tools/cp-parties/fetch.py tools/cp-parties/parties.json out tools/cp-parties/have-music.txt
       - name: Empacotar
         run: |
           cd out

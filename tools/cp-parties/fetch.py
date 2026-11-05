@@ -9,7 +9,11 @@ cada página em parties.json:
   - baixa cada arquivo uma vez para out/parties/pcparties/<arquivo>.
 No fim grava out/parties/pcparties/index.json com tudo (sha256 e tamanho).
 
-Só biblioteca padrão do Python. Uso: python3 fetch.py parties.json out
+Só baixa salas (Rooms*.swf) e músicas (Music<id>.swf) — o resto da página
+(catálogos, cartões, telas) é enorme e não é usado. Músicas que o Waddle
+Forever já tem (have-music.txt) não são baixadas de novo.
+
+Só biblioteca padrão do Python. Uso: python3 fetch.py parties.json out [have-music.txt]
 """
 import hashlib
 import html
@@ -20,6 +24,7 @@ import sys
 import time
 import urllib.parse
 import urllib.request
+from concurrent.futures import ThreadPoolExecutor
 from html.parser import HTMLParser
 
 UA = 'ProjectClub-archiver/1.0 (+https://projectclub.shardweb.app)'
@@ -111,6 +116,10 @@ def main():
     os.makedirs(files_dir, exist_ok=True)
     os.makedirs(pages_dir, exist_ok=True)
     base = cfg['base']
+    have_music = set()
+    if len(sys.argv) > 3 and os.path.exists(sys.argv[3]):
+        have_music = {l.strip() for l in open(sys.argv[3]) if l.strip()}
+    wanted = re.compile(r'^(Rooms[A-Za-z0-9]+[-_].*|Music\d+(_\d+)?)\.swf$', re.I)
     seen = {}
     parties = []
     for p in cfg['parties']:
@@ -126,28 +135,44 @@ def main():
             f.write(raw)
         parser = PageParser()
         parser.feed(raw)
-        files = []
+        picked = []
         for link in parser.links:
             url = urllib.parse.urljoin(page_url, link['href'])
             name = urllib.parse.unquote(url.split('?')[0].rsplit('/', 1)[-1])
-            if not name.lower().endswith('.swf'):
+            if not name.lower().endswith('.swf') or not wanted.match(name):
                 continue
-            if url not in seen:
-                dest = os.path.join(files_dir, name)
-                try:
-                    data = get(url)
-                except Exception as e:  # noqa: BLE001
-                    print(f'   !! {name}: {e}')
-                    seen[url] = None
-                    continue
-                if data[:3] not in (b'FWS', b'CWS', b'ZWS'):
-                    print(f'   !! {name}: não é SWF')
-                    seen[url] = None
-                    continue
-                with open(dest, 'wb') as f:
-                    f.write(data)
-                seen[url] = {'name': name, 'size': len(data), 'sha256': hashlib.sha256(data).hexdigest()}
-                time.sleep(0.15)
+            picked.append((url, name, link))
+
+        def fetch_one(item):
+            url, name = item
+            try:
+                data = get(url)
+            except Exception as e:  # noqa: BLE001
+                print(f'   !! {name}: {e}')
+                return url, None
+            if data[:3] not in (b'FWS', b'CWS', b'ZWS'):
+                print(f'   !! {name}: não é SWF')
+                return url, None
+            with open(os.path.join(files_dir, name), 'wb') as f:
+                f.write(data)
+            return url, {'name': name, 'size': len(data), 'sha256': hashlib.sha256(data).hexdigest()}
+
+        todo = []
+        for url, name, link in picked:
+            mm = re.match(r'^Music(\d+)\.swf$', name, re.I)
+            if (mm and mm.group(1) in have_music) or url in seen or (url, name) in todo:
+                continue
+            todo.append((url, name))
+        with ThreadPoolExecutor(max_workers=8) as pool:
+            for url, info in pool.map(fetch_one, todo):
+                seen[url] = info
+
+        files = []
+        for url, name, link in picked:
+            mm = re.match(r'^Music(\d+)\.swf$', name, re.I)
+            if mm and mm.group(1) in have_music:
+                files.append({'name': name, 'have': True, 'url': url, 'text': link['text'], 'section': link['section']})
+                continue
             info = seen.get(url)
             if info:
                 files.append({**info, 'url': url, 'text': link['text'], 'section': link['section']})
