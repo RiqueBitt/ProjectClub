@@ -180,6 +180,9 @@ export interface PenguinJson {
 // IGLOO LIKES: layout -> quem curtiu -> [curtidas, última (ms)]
   iglooLikes?: Record<string, Record<string, [number, number]>>;
 
+// PROGRESSO DAS FESTAS 2013-2017 ("party cookie"): festa -> JSON
+  partyCookies?: Record<string, Record<string, unknown>>;
+
 // USER PREFERENCE
   noSave?: boolean;
   safeChat?: boolean;

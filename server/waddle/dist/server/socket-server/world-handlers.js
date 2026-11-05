@@ -12,6 +12,7 @@ const game_1 = require("./handlers/game");
 const igloo_1 = require("./handlers/igloo");
 const ninja_1 = require("./handlers/ninja");
 const party_1 = require("./handlers/party");
+const party_cookie_1 = require("./handlers/party-cookie");
 const extra_1 = require("./handlers/extra");
 const puffle_1 = require("./handlers/puffle");
 const rainbow_1 = require("./handlers/rainbow");
@@ -299,6 +300,7 @@ const createWorldXtHandler = () => {
         p.xt('s', 'ba#barsu', [], party_1.handleGetBakeryState),
         p.xt('s', 'ba#seh', ['string'], party_1.handleSendEnterHopper),
         p.xt('s', 'ba#ctc', [], party_1.handleGetCookieInventory),
+        ...(0, party_cookie_1.getPartyCookieHandlers)().map(([name, handler]) => p.xt('s', name, 'string', handler)),
         r.xt('m', 'sm', ['string', 'string'], room_1.handleSendMessage),
         r.xt('m', 'ss', ['string'], room_1.handleSafeMessage),
         z.xt('m', 'checkName', ['string'], create_1.handleCheckName)

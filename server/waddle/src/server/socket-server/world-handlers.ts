@@ -10,6 +10,7 @@ import { handleLeaveGame, handleRoomRefresh, isGameGuard } from "./handlers/game
 import { getIglooOld, handleCanLikeIgloo, handleLikeIgloo, handleGetNamesBySwid, handlePlayerIglooOpen, handleAddFlooring, handleAddFurniture, handleAddIgloo, handleAddIglooLayout, handleAddIglooLocation, handleCloseIgloo, handleGetAllIglooLayouts, handleGetDj3kTracks, handleGetFurniture, handleGetFurnitureNew, handleGetIglooCpip, handleGetIglooItems, handleGetIglooLikes, handleGetIglooTypes, handleGetMusicTracks, handleGetOpenIgloos, handleOpenIgloo, handleUpdateIgloo, handleUpdateIglooLayout, handleUpdateIglooNew, handleUpdateIglooOld, handleUpdateIglooType, handleUpdateMusic } from "./handlers/igloo";
 import { handleBuyNinjaCards, handleGetFireLevel, handleGetNinjaCards, handleGetNinjaLevel, handleGetNinjaRanks, handleGetWaterLevel, handleJoinFromMatchmake, handleJoinMatchmaking, handleJoinSensei, handleLeaveMatchmake } from "./handlers/ninja";
 import { handleDonateCoins, handleGetBakeryState, handleGetCookieInventory, handleRetrieveMedieval2012, handleSendEnterHopper, handleViewedMedieval2012 } from "./handlers/party";
+import { getPartyCookieHandlers } from "./handlers/party-cookie";
 import { handleGetComMessages, handleGetActionStatus, handleGetABTests, handleIgnore } from "./handlers/extra";
 import { handleAdoptPuffle, handlePuffleHat, handleReturnPuffle, handlePuffleHandlerStatus, handlePuffleTrick, handleGetDigCooldown, handleAdoptPuffleOld, handleBuyPuffleCareItem, handlePuffleMove, handlePuffleFrame, sendGoldNuggets, handleEatPuffleItem, handleGetIglooPuffles, handleGetIglooPufflesOld, handleGetPuffleInventory, handlePuffleBackyardSwap, handlePuffleDigOnCommand, handlePuffleDigRandom, handlePuffleWalk, handleRevealGoldPuffle, isAfterPuffleCreatureGuard, isBeforePuffleCreatureGuard, sendModernPuffleCheck, sendPuffleCheck } from "./handlers/puffle";
 import { handleGetRainbowQuestData, handleSendRainbowQuestBonusCoins, handleSendRainbowQuestCollectCoins, handleSendRainbowQuestItemCollect, handleSendRainbowTaskComplete } from "./handlers/rainbow";
@@ -352,6 +353,8 @@ export const createWorldXtHandler = (): XtHandler => {
     p.xt('s', 'ba#seh', ['string'], handleSendEnterHopper),
     p.xt('s', 'ba#ctc', [], handleGetCookieInventory),
     
+    ...getPartyCookieHandlers().map(([name, handler]) => p.xt('s', name, 'string', handler)),
+
     r.xt('m', 'sm', ['string', 'string'], handleSendMessage),
     r.xt('m', 'ss', ['string'], handleSafeMessage),
     z.xt('m', 'checkName', ['string'], handleCheckName)

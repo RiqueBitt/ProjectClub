@@ -1118,6 +1118,8 @@ export class WorldPenguin implements UserPenguin {
   private _avatar = new Avatar();
   /** curtidas recebidas nos iglus: layout -> quem curtiu -> [curtidas, última (ms)] */
   public iglooLikes: Record<string, Record<string, [number, number]>>;
+  /** progresso das festas 2013-2017 (um JSON por festa) */
+  public partyCookies: Record<string, Record<string, unknown>>;
 
   constructor(
     id: number,
@@ -1146,6 +1148,7 @@ export class WorldPenguin implements UserPenguin {
     this._medieval2012 = new Medieval2012Status(json);
     this._preference = new UserPreference(json);
     this.iglooLikes = json.iglooLikes ?? {};
+    this.partyCookies = json.partyCookies ?? {};
   }
 
   public get id() {
@@ -1328,6 +1331,7 @@ export class WorldPenguin implements UserPenguin {
       medieval2012Message: this._medieval2012.message,
 
       iglooLikes: this.iglooLikes,
+      partyCookies: this.partyCookies,
 
       noSave: !this._preference.canSave,
       safeChat: this._preference.isSafeChat

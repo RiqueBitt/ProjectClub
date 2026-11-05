@@ -897,6 +897,8 @@ class WorldPenguin {
     _avatar = new Avatar();
     /** curtidas recebidas nos iglus: layout -> quem curtiu -> [curtidas, última (ms)] */
     iglooLikes;
+    /** progresso das festas 2013-2017 (um JSON por festa) */
+    partyCookies;
     constructor(id, json, settings) {
         this._profile = new Profile(id, json);
         this._membership = new Membership(json);
@@ -920,6 +922,7 @@ class WorldPenguin {
         this._medieval2012 = new Medieval2012Status(json);
         this._preference = new UserPreference(json);
         this.iglooLikes = json.iglooLikes ?? {};
+        this.partyCookies = json.partyCookies ?? {};
     }
     get id() {
         return this._profile.id;
@@ -1055,6 +1058,7 @@ class WorldPenguin {
             battleOfDoom: this._battleOfDoom.completed,
             medieval2012Message: this._medieval2012.message,
             iglooLikes: this.iglooLikes,
+            partyCookies: this.partyCookies,
             noSave: !this._preference.canSave,
             safeChat: this._preference.isSafeChat
         };
