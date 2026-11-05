@@ -1,3 +1,4 @@
+import { sendError } from "./login";
 import { PenguinMessenger } from "../../socket-server/messenger";
 import { WorldPenguin } from "@server/socket-server/world/world-penguin";
 import { GameData } from "@server/timelines/game-data";
@@ -183,6 +184,33 @@ enum PuffleCategory {
 const sendBuyPuffleItem: PenguinHandler<[number, number, number]> = ({ msg, penguin }, itemId, cost, amount) => {
   const owned = penguin.puffle.addItem(itemId, amount);
   msg.send(penguin, 'papi', penguin.currency.discount(cost * amount), itemId, owned);
+}
+
+/**
+ * Comprar comida/brinquedo de puffle no catálogo (p#papi). Sem isso o jogo
+ * ficava carregando pra sempre esperando a resposta. Itens "pacote" (ex.: Maço
+ * de 5 Cenouras) entram no estoque do item-pai (Cenoura) na quantidade do
+ * pacote — igual ao servidor original.
+ */
+export const handleBuyPuffleCareItem: PenguinHandler<[number]> = (ctx, itemId) => {
+  const { penguin, msg, prst } = ctx;
+  const item = PUFFLE_ITEMS.get(itemId);
+  if (item === undefined || item === null) {
+    sendError(msg, penguin, 402); // item não existe
+    return;
+  }
+  if (item.member && !penguin.membership.isMember) {
+    sendError(msg, penguin, 999);
+    return;
+  }
+  if (penguin.currency.coins < item.cost) {
+    sendError(msg, penguin, 401); // moedas insuficientes
+    return;
+  }
+  const parent = PUFFLE_ITEMS.get(item.parentId) ?? item;
+  const owned = penguin.puffle.addItem(parent.id, Math.max(1, item.quantity));
+  msg.send(penguin, 'papi', penguin.currency.discount(item.cost), parent.id, owned);
+  prst(penguin);
 }
 
 export const handleAdoptPuffle: PenguinHandler<[number, string, number]> = (ctx, puffleType, puffleName, puffleSubtype) => {

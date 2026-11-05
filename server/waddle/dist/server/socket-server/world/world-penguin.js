@@ -369,7 +369,7 @@ class PuffleInventory {
         this._backyard.delete(id);
     }
     addItem(itemId, amount) {
-        const owned = this._items.get(itemId) ?? 0 + amount;
+        const owned = (this._items.get(itemId) ?? 0) + amount;
         this._items.set(itemId, owned);
         return owned;
     }

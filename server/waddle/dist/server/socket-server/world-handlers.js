@@ -197,6 +197,7 @@ const createWorldXtHandler = () => {
         p.xt('s', 'p#pn', ['number', 'string'], puffle_1.handleAdoptPuffleOld, { guard: puffle_1.isBeforePuffleCreatureGuard }),
         p.xt('s', 'p#pn', ['number', 'string', 'number'], puffle_1.handleAdoptPuffle, { guard: puffle_1.isAfterPuffleCreatureGuard, xt: { cooldown: 2000 } }),
         p.xt('s', 'p#pgpi', [], puffle_1.handleGetPuffleInventory),
+        p.xt('s', 'p#papi', ['number'], puffle_1.handleBuyPuffleCareItem),
         p.xt('s', 'p#checkpufflename', ['string'], puffle_1.sendModernPuffleCheck),
         p.xt('s', 'p#pcn', ['string'], puffle_1.sendPuffleCheck),
         p.xt('s', 'p#pw', ['number', 'number'], puffle_1.handlePuffleWalk),

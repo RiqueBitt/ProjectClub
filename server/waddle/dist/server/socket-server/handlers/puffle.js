@@ -1,9 +1,10 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.handlePuffleDigOnCommand = exports.handlePuffleDigRandom = exports.isBeforePuffleCreatureGuard = exports.isAfterPuffleCreatureGuard = exports.handleAdoptPuffleOld = exports.handleGetIglooPuffles = exports.handleGetIglooPufflesOld = exports.handleRevealGoldPuffle = exports.handleEatPuffleItem = exports.handlePuffleBackyardSwap = exports.handlePuffleWalk = exports.handleGetPuffleInventory = exports.handleAdoptPuffle = exports.sendPuffleCheck = exports.sendModernPuffleCheck = void 0;
+exports.handlePuffleDigOnCommand = exports.handlePuffleDigRandom = exports.isBeforePuffleCreatureGuard = exports.isAfterPuffleCreatureGuard = exports.handleAdoptPuffleOld = exports.handleGetIglooPuffles = exports.handleGetIglooPufflesOld = exports.handleRevealGoldPuffle = exports.handleEatPuffleItem = exports.handlePuffleBackyardSwap = exports.handlePuffleWalk = exports.handleGetPuffleInventory = exports.handleAdoptPuffle = exports.handleBuyPuffleCareItem = exports.sendPuffleCheck = exports.sendModernPuffleCheck = void 0;
 exports.getClientPuffleIds = getClientPuffleIds;
 exports.getStamp = getStamp;
 exports.getPuffleWalkArguments = getPuffleWalkArguments;
+const login_1 = require("./login");
 const puffle_1 = require("../../game-logic/puffle.js");
 const utils_1 = require("../../../common/utils.js");
 const puffle_item_1 = require("../../game-logic/puffle-item.js");
@@ -173,6 +174,33 @@ const sendBuyPuffleItem = ({ msg, penguin }, itemId, cost, amount) => {
     const owned = penguin.puffle.addItem(itemId, amount);
     msg.send(penguin, 'papi', penguin.currency.discount(cost * amount), itemId, owned);
 };
+/**
+ * Comprar comida/brinquedo de puffle no catálogo (p#papi). Sem isso o jogo
+ * ficava carregando pra sempre esperando a resposta. Itens "pacote" (ex.: Maço
+ * de 5 Cenouras) entram no estoque do item-pai (Cenoura) na quantidade do
+ * pacote — igual ao servidor original.
+ */
+const handleBuyPuffleCareItem = (ctx, itemId) => {
+    const { penguin, msg, prst } = ctx;
+    const item = puffle_item_1.PUFFLE_ITEMS.get(itemId);
+    if (item === undefined || item === null) {
+        (0, login_1.sendError)(msg, penguin, 402); // item não existe
+        return;
+    }
+    if (item.member && !penguin.membership.isMember) {
+        (0, login_1.sendError)(msg, penguin, 999);
+        return;
+    }
+    if (penguin.currency.coins < item.cost) {
+        (0, login_1.sendError)(msg, penguin, 401); // moedas insuficientes
+        return;
+    }
+    const parent = puffle_item_1.PUFFLE_ITEMS.get(item.parentId) ?? item;
+    const owned = penguin.puffle.addItem(parent.id, Math.max(1, item.quantity));
+    msg.send(penguin, 'papi', penguin.currency.discount(item.cost), parent.id, owned);
+    prst(penguin);
+};
+exports.handleBuyPuffleCareItem = handleBuyPuffleCareItem;
 const handleAdoptPuffle = (ctx, puffleType, puffleName, puffleSubtype) => {
     // without cooldown, this can be spammed in the modern client,
     // allowing a second puffle to be bought
