@@ -119,10 +119,23 @@ export function usePracaVoice({ myUserId, active }) {
   const parts = voice?.participants || {};
   const someoneNearTalking = inVoice && want.listen && Object.entries(gains).some(([uid, g]) => g > 0.05 && parts[uid]?.speaking);
 
+  const speaking = inVoice && want.talk && !!voice?.localSpeaking;
+  // Pinguins falando agora na sala (balão com o alto-falante em cima deles).
+  const speakingPenguins = useMemo(() => {
+    if (!inVoice) return '';
+    const ids = [];
+    if (speaking && presence.me) ids.push(presence.me);
+    for (const p of presence.players || []) {
+      if (p.userId && p.userId !== myUserId && parts[p.userId]?.speaking) ids.push(p.penguinId);
+    }
+    return ids.sort((a, b) => a - b).join(',');
+  }, [inVoice, speaking, presence, parts, myUserId]);
+
   return {
     available: !!voice,
     talk: want.talk, listen: want.listen, inVoice, joining,
-    speaking: inVoice && want.talk && !!voice?.localSpeaking,
+    speaking,
+    speakingPenguins,
     someoneNearTalking,
     toggleTalk, toggleListen,
   };
@@ -138,6 +151,7 @@ export function usePracaVoice({ myUserId, active }) {
 // A conversa com a página é pelo ExternalInterface do Ruffle:
 //   jogo → página: window.pracaVoiceToggle('talk' | 'listen'), window.pracaVoiceReady()
 //   página → jogo: player.pracaVoiceState(falar, ouvir, falando, ouvindoAlguém, conectando)
+//                  player.pracaSpeaking("1000,1003") — quem está falando (balão no pinguim)
 export function useInGameVoiceButtons(playerRef, v) {
   const vRef = useRef(v);
   vRef.current = v;
@@ -157,6 +171,10 @@ export function useInGameVoiceButtons(playerRef, v) {
     return () => { delete window.pracaVoiceToggle; delete window.pracaVoiceReady; };
   }, [push]);
   useEffect(() => { push(); }, [v.talk, v.listen, v.speaking, v.someoneNearTalking, v.joining, v.inVoice, push]);
+  // balões de "falando" em cima dos pinguins
+  useEffect(() => {
+    try { playerRef.current?.pracaSpeaking?.(v.speakingPenguins || ''); } catch { /* jogo carregando */ }
+  }, [v.speakingPenguins, playerRef]);
 }
 
 // Limite diário de moedas do Club Penguin (o saldo é o do Project Club): avisa

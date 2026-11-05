@@ -693,6 +693,161 @@ pcvBuddyWatch.onEnterFrame = function()
    }
 };
 
+// Balão de "falando" (voz da ilha): quem está falando no microfone ganha um
+// balão do jogo em cima do pinguim com o alto-falante (praca-ui/speaker-*.png),
+// as ondas pulsando enquanto a pessoa fala. A página manda quem está
+// falando: player.pracaSpeaking("1000,1003").
+var pcsSpeaking = {};
+var pcsLayer = undefined;
+var PCS_W = 50;
+var PCS_H = 36;
+var PCS_LIFT = 64; // do pé do pinguim até a ponta do balão
+
+function pcsBalloon(mc)
+{
+   // balão branco com borda, como os do chat, e o biquinho pra baixo
+   var w = PCS_W;
+   var h = PCS_H;
+   var r = 10;
+   var x = - w / 2;
+   var y = - h - 9;
+   mc.lineStyle(2, 0x5A5A5A, 100);
+   mc.beginFill(0xFFFFFF, 100);
+   mc.moveTo(x + r, y);
+   mc.lineTo(x + w - r, y);
+   mc.curveTo(x + w, y, x + w, y + r);
+   mc.lineTo(x + w, y + h - r);
+   mc.curveTo(x + w, y + h, x + w - r, y + h);
+   mc.lineTo(5, y + h);
+   mc.lineTo(0, 0);
+   mc.lineTo(-5, y + h);
+   mc.lineTo(x + r, y + h);
+   mc.curveTo(x, y + h, x, y + h - r);
+   mc.lineTo(x, y + r);
+   mc.curveTo(x, y, x + r, y);
+   mc.endFill();
+}
+function pcsLoad(holder, file)
+{
+   var l = new MovieClipLoader();
+   var o = {};
+   o.onLoadInit = function(m)
+   {
+      m.forceSmoothing = true;
+      m._width = 40;
+      m._height = 30;
+   };
+   l.addListener(o);
+   l.loadClip("/praca-ui/" + file, holder);
+}
+function pcsMake(id)
+{
+   var c = pcsLayer.createEmptyMovieClip("s" + id, pcsLayer.getNextHighestDepth());
+   pcsBalloon(c.createEmptyMovieClip("bg_mc", 1));
+   var icon = c.createEmptyMovieClip("icon_mc", 2);
+   icon._x = -20;
+   icon._y = - PCS_H - 9 + 3;
+   pcsLoad(icon.createEmptyMovieClip("cone_mc", 1), "speaker-cone.png");
+   pcsLoad(icon.createEmptyMovieClip("w1_mc", 2), "speaker-wave1.png");
+   pcsLoad(icon.createEmptyMovieClip("w2_mc", 3), "speaker-wave2.png");
+   c.pcsId = id;
+   c.pcsT = 0;
+   c._xscale = c._yscale = 10;
+   c.onEnterFrame = function()
+   {
+      var pm = ENGINE.getPlayerMovieClip(this.pcsId);
+      if(pm == undefined || pm._visible == false)
+      {
+         this._visible = false;
+         return undefined;
+      }
+      this._visible = true;
+      var inv = ENGINE.getRoomMovieClip().invertedPenguins;
+      this._x = pm._x;
+      this._y = inv ? pm._y + PCS_LIFT : pm._y - PCS_LIFT;
+      this.pcsT++;
+      var t = this.pcsT;
+      var leaving = this.pcsLeaving == true;
+      // entra "estourando", sai encolhendo
+      var target = leaving ? 0 : 100;
+      var sc = this._xscale + (target - this._xscale) * 0.35;
+      if(!leaving && t < 8)
+      {
+         sc = Math.min(112, sc + 8);
+      }
+      this._xscale = sc;
+      this._yscale = inv ? - sc : sc;
+      if(leaving && sc < 6)
+      {
+         this.removeMovieClip();
+         return undefined;
+      }
+      // ondas do som: a pequena e depois a grande, pulsando
+      var w1 = this.icon_mc.w1_mc;
+      var w2 = this.icon_mc.w2_mc;
+      var a = (t % 18) / 18;
+      w1._alpha = a < 0.5 ? 35 + 130 * a : 100 - 100 * (a - 0.5);
+      var b = ((t + 6) % 18) / 18;
+      w2._alpha = b < 0.5 ? 25 + 150 * b : 100 - 110 * (b - 0.5);
+      // o balão "puxa" de leve no ritmo da fala
+      this.bg_mc._yscale = 100 + Math.sin(t / 2.2) * 4;
+      this.icon_mc._xscale = this.icon_mc._yscale = 100 + Math.sin(t / 2.2) * 5;
+   };
+   return c;
+}
+function pcsUpdate(csv)
+{
+   if(BALLOONS == undefined || ENGINE == undefined)
+   {
+      return false;
+   }
+   if(pcsLayer == undefined || pcsLayer._name == undefined)
+   {
+      pcsLayer = BALLOONS.createEmptyMovieClip("pcsTalk_mc", 1000000);
+      pcsSpeaking = {};
+   }
+   var now = {};
+   var ids = String(csv == undefined ? "" : csv).split(",");
+   var i = 0;
+   while(i < ids.length)
+   {
+      var id = Number(ids[i]);
+      if(ids[i] != "" && !isNaN(id))
+      {
+         now[id] = true;
+         var c = pcsSpeaking[id];
+         if(c == undefined || c._name == undefined)
+         {
+            pcsSpeaking[id] = pcsMake(id);
+         }
+         else
+         {
+            c.pcsLeaving = false;
+         }
+      }
+      i++;
+   }
+   for(var k in pcsSpeaking)
+   {
+      if(now[k] != true)
+      {
+         if(pcsSpeaking[k]._name != undefined)
+         {
+            pcsSpeaking[k].pcsLeaving = true;
+         }
+         delete pcsSpeaking[k];
+      }
+   }
+   return true;
+}
+if(pcvEI.available)
+{
+   pcvEI.addCallback("pracaSpeaking", null, function(csv)
+   {
+      return pcsUpdate(csv);
+   });
+}
+
 // Moeda única: o saldo do jogo é o das moedas do Project Club — o cartão do
 // jogador mostra a moeda "PC" (client/public/praca-ui/coin.png) por cima da
 // moeda antiga, ao lado de "Suas Moedas".
