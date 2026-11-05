@@ -1,6 +1,6 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.XtHandler = void 0;
+exports.XtHandler = exports.unhandledXt = void 0;
 const arg_parser_1 = require("./arg-parser.js");
 const logger_1 = require("../logger.js");
 const parseXtMessage = (message) => {
@@ -44,6 +44,14 @@ class CallbackManager {
         this._callback(ctx, ...args);
     }
 }
+/** Comandos que o jogo mandou e o servidor não tratou (pra achar sistemas faltando). */
+exports.unhandledXt = new Map();
+function reportUnhandled(key) {
+    const n = (exports.unhandledXt.get(key) ?? 0) + 1;
+    exports.unhandledXt.set(key, n);
+    if (n === 1 && exports.unhandledXt.size <= 500)
+        console.log('[waddle] XT sem tratamento:', key);
+}
 class XtHandler {
     _disconnect;
     _callbacks;
@@ -60,12 +68,14 @@ class XtHandler {
         if (callbacks !== undefined) {
             const callbackInfo = callbacks.find(([[contextTester, guard]]) => contextTester(context) ? guard(context) : false);
             if (callbackInfo === undefined) {
+                reportUnhandled(name + ' (contexto)');
                 (0, logger_1.logverbose)((0, logger_1.getRedString)('unhandled XT for given context: ' + Object.keys(context).join(';')));
                 return;
             }
             const [_, signature, callback] = callbackInfo;
             const parsedArgs = (0, arg_parser_1.parseArgs)(args, signature);
             if (parsedArgs === null) {
+                reportUnhandled(name + ' (argumentos: ' + args.join('|').slice(0, 80) + ')');
                 (0, logger_1.logverbose)((0, logger_1.getRedString)('incorrect type signature: ' + name));
             }
             else {
@@ -73,6 +83,7 @@ class XtHandler {
             }
         }
         else {
+            reportUnhandled(name);
             (0, logger_1.logverbose)((0, logger_1.getRedString)('unhandled XT: ' + name));
         }
     }

@@ -766,3 +766,20 @@ export const handleEPFStamp: PenguinHandler<[number]> = ({ msg, penguin }, stamp
     msg.send(penguin, 'epfsf', 'nem', stamp); // giving the stamp
   }
 }
+
+/** i#qi: o jogador (eu ou outro) tem esse item? */
+export const handleCheckInventory: PenguinHandler<[number, number]> = async ({ msg, penguin, world, db }, itemId, playerId) => {
+  if (!Number.isFinite(itemId) || !Number.isFinite(playerId)) {
+    return;
+  }
+  let owned = false;
+  const live = playerId === penguin.id ? penguin : world.getById(playerId);
+  if (live !== undefined) {
+    owned = live.inventory.has(itemId);
+  } else {
+    try {
+      owned = ((await db.get(playerId))?.inventory ?? []).includes(itemId);
+    } catch { /* sem dados */ }
+  }
+  msg.send(penguin, 'qi', itemId, playerId, owned ? 1 : 0);
+}

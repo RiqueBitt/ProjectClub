@@ -69,6 +69,7 @@ export default function GameAdmin() {
   return (
     <div className={`stu stg${selected ? ' has-selected' : ''}`}>
       <PartiesPanel notify={notify} />
+      <EpfPanel notify={notify} />
       <div className="stg-layout">
         <aside className="stg-list">
           <label className="stu-search">
@@ -154,6 +155,76 @@ const fmtDay = (mmdd) => { const [m, d] = String(mmdd || '').split('-'); return 
 // Festas de 2013-2017 (server/src/services/waddle/parties.js): as do Club
 // Penguin entram sozinhas no rodízio de anos do calendário; as de outras
 // marcas da Disney só rodam quando alguém da equipe liga aqui.
+// Mensagens da EPF: aparecem no telefone espião de todo mundo (na hora pra
+// quem está online).
+function EpfPanel({ notify }) {
+  const [data, setData] = useState(null);
+  const [open, setOpen] = useState(false);
+  const [text, setText] = useState('');
+  const [mascot, setMascot] = useState(18);
+  const [busy, setBusy] = useState(false);
+  const load = useCallback(() => { api.get('/staff-game/epf').then(({ data: d }) => setData(d)).catch(() => {}); }, []);
+  useEffect(() => { load(); }, [load]);
+  if (!data) return null;
+  const nameOf = (id) => data.mascots.find((m) => m.id === id)?.name || `#${id}`;
+
+  const send = async (e) => {
+    e.preventDefault();
+    if (!text.trim()) return;
+    setBusy(true);
+    try {
+      const { data: d } = await api.post('/staff-game/epf', { message: text, mascot });
+      setData((old) => ({ ...old, messages: d.messages }));
+      setText('');
+      notify(`Mensagem enviada${d.sent ? ` · ${d.sent} agente(s) online receberam` : ''}`);
+    } catch (err) { notify(err?.response?.data?.error || 'Não deu pra enviar.', 'bad'); } finally { setBusy(false); }
+  };
+  const remove = async (m) => {
+    if (!window.confirm('Apagar esta mensagem do telefone?')) return;
+    try {
+      const { data: d } = await api.delete('/staff-game/epf', { data: { time: m.time, message: m.message } });
+      setData((old) => ({ ...old, messages: d.messages }));
+    } catch (err) { notify(err?.response?.data?.error || 'Não deu pra apagar.', 'bad'); }
+  };
+  const last = data.messages[0];
+  return (
+    <section className={`stg-parties stg-epf${open ? ' is-open' : ''}`} aria-label="Mensagens da EPF">
+      <button type="button" className="stg-parties-head" onClick={() => setOpen((o) => !o)} aria-expanded={open}>
+        <span className="stg-parties-icon" aria-hidden="true">📱</span>
+        <span className="stg-parties-title">
+          <strong>Mensagens da EPF</strong>
+          <span>{last ? <>Última: <b>{nameOf(last.mascot)}</b> — {last.message}</> : 'Nenhuma mensagem no telefone espião'}</span>
+        </span>
+        <span className="stg-parties-caret" aria-hidden="true">{open ? '▴' : '▾'}</span>
+      </button>
+      {open && (
+        <div className="stg-parties-body">
+          <p className="stg-note">Aparecem no telefone espião dos agentes (ícone de mensagens). As 10 mais novas ficam visíveis; quem está online recebe na hora.</p>
+          <form className="stg-epf-form" onSubmit={send}>
+            <select value={mascot} onChange={(e) => setMascot(Number(e.target.value))} aria-label="Quem assina">
+              {data.mascots.map((m) => <option key={m.id} value={m.id}>{m.name}</option>)}
+            </select>
+            <input value={text} onChange={(e) => setText(e.target.value)} maxLength={300} placeholder="Ex.: Agentes, atividade estranha na Mina. Investiguem!" aria-label="Mensagem" />
+            <button type="submit" className="sth-btn" disabled={busy || !text.trim()}>Enviar</button>
+          </form>
+          <ul className="stg-epf-list">
+            {data.messages.map((m) => (
+              <li key={`${m.time}-${m.message}`} className="stg-party">
+                <span className="stg-party-main">
+                  <span className="stg-party-name">{nameOf(m.mascot)}</span>
+                  <span className="stg-party-sub">{m.message}</span>
+                  <span className="stg-party-sub">{new Date(m.time * 1000).toLocaleString('pt-BR')}</span>
+                </span>
+                <button type="button" className="sth-btn danger" onClick={() => remove(m)}>Apagar</button>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+    </section>
+  );
+}
+
 function PartiesPanel({ notify }) {
   const [data, setData] = useState(null);
   const [open, setOpen] = useState(false);

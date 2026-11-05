@@ -25,6 +25,14 @@ export interface PlayerPuffle {
   clean: number
   food: number
   rest: number
+  /** brincadeira (0-100); antigo: sem campo = 100 */
+  play?: number
+  /** chapéu do puffle (item de cuidado do tipo 'head'); 0/sem = nenhum */
+  hat?: number
+  /** adoção (ms) */
+  adopted?: number
+  /** última vez que o desgaste dos status foi calculado (ms) */
+  careAt?: number
 }
 
 export type RainbowPuffleStage = '0' | '1' | '2' | '3' | 'bonus';
@@ -168,6 +176,9 @@ export interface PenguinJson {
 
 // MEDIEVAL PARTY 2012
   medieval2012Message?: number;
+
+// IGLOO LIKES: layout -> quem curtiu -> [curtidas, última (ms)]
+  iglooLikes?: Record<string, Record<string, [number, number]>>;
 
 // USER PREFERENCE
   noSave?: boolean;

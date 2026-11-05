@@ -932,6 +932,17 @@ if(pcvEI.available)
       shell.sendJoinRoom(String(key), Number(x), Number(y));
       return true;
    });
+   // Visitar o iglu de alguém a partir do site (perfil/lista de amigos).
+   pcvEI.addCallback("pracaJoinIgloo", null, function(playerId)
+   {
+      var id = Number(playerId);
+      if(isNaN(id) || id <= 0)
+      {
+         return false;
+      }
+      shell.sendJoinPlayerIgloo(id);
+      return true;
+   });
 }
 
 // Tirar a roupa clicando no item de novo: na interface de 2012 o único jeito

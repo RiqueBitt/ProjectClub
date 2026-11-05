@@ -1,16 +1,17 @@
-import { handleAddEpfItem, handleAddItem, handleBecomeAgent, handleBuddyAccept, handleBuddyDecline, handleBuddyMessage, handleBuddyRemove, handleBuddyRequest, handleDisconnect, handleEPFStamp, handleFindBuddy, handleFindPlayer, handleGetCoins, handleGetEpfMedals, handleGetEpfStatus, handleGetFieldOps, handleGetItems, handleGetMissionStamps, handleGetPartyOp, handleGetPinInfo, handleGetPlayer, handleGetPuffleLaunchData, handleGetRecentStamps, handleGetSpyDrillsChallenge, handleGetSpyDrillsReward, handleGetStampbookCoverData, handleGetTotalCoins, handleGLR, handleGrantAwards, handleHeartbeat, handleJoinPlayerCpip, handleJoinPlayerModern, handleJoinPlayerOld, handleJoinServer, handlePBI, handleReceiveInventory, handleSendCoins, handleSetPartyOp, handleSetPuffleLaunchData, handleSetStampbookCoverData, handleSetStampEarned, handleSpyRequest, isBackyardGuard, isPreBackyardGuard, joinRoom, sendBuddyOnlineList, sendGetBuddies, sendStamps } from "./handlers/join";
+import { handleAddEpfItem, handleAddItem, handleBecomeAgent, handleBuddyAccept, handleBuddyDecline, handleBuddyMessage, handleBuddyRemove, handleBuddyRequest, handleDisconnect, handleEPFStamp, handleFindBuddy, handleFindPlayer, handleCheckInventory, handleGetCoins, handleGetEpfMedals, handleGetEpfStatus, handleGetFieldOps, handleGetItems, handleGetMissionStamps, handleGetPartyOp, handleGetPinInfo, handleGetPlayer, handleGetPuffleLaunchData, handleGetRecentStamps, handleGetSpyDrillsChallenge, handleGetSpyDrillsReward, handleGetStampbookCoverData, handleGetTotalCoins, handleGLR, handleGrantAwards, handleHeartbeat, handleJoinPlayerCpip, handleJoinPlayerModern, handleJoinPlayerOld, handleJoinServer, handlePBI, handleReceiveInventory, handleSendCoins, handleSetPartyOp, handleSetPuffleLaunchData, handleSetStampbookCoverData, handleSetStampEarned, handleSpyRequest, isBackyardGuard, isPreBackyardGuard, joinRoom, sendBuddyOnlineList, sendGetBuddies, sendStamps } from "./handlers/join";
 import { XtCallbackInfo, XtHandler, XtParams } from "./xt-handler";
 import { ArgumentsIndicator, GetArgumentsType } from "@server/socket-server/arg-parser";
-import { handleCoinDig, handleAddToy, handleAddToyOld, handleCloseToy, handleGetHockeyGame, handleGetTableGame, handleGetTables, handleGetWaddle, handleJoinTable, handleJoinTableGame, handleJoinWaddle, handleLeaveTable, handleLeaveTableGame, handleLeaveWaddle, handleMoveHockeyPuck, handleMoveHockeyPuckOld, handlePlayerTransform, handleSafeMessage, handleSendEmote, handleSendJoke, handleSendLine, handleSendMessage, handleSendTableMove, handleSetAction, handleSetFrame, handleSetPosition, handleSetSnowball, handleTeleport, handleUpdateBackground, handleUpdateBody, handleUpdateColor, handleUpdateFace, handleUpdateFeet, handleUpdateHand, handleUpdateHead, handleUpdateHockeyGame, handleUpdateNeck, handleUpdatePenguinOld, handleUpdatePin, isHockeyGuard, isTableGuard, sendTeleportOld } from "./handlers/room";
+import { handleCoinDig, handleTourGuideMessage, handleMascotMessage, handleAddToy, handleAddToyOld, handleCloseToy, handleGetHockeyGame, handleGetTableGame, handleGetTables, handleGetWaddle, handleJoinTable, handleJoinTableGame, handleJoinWaddle, handleLeaveTable, handleLeaveTableGame, handleLeaveWaddle, handleMoveHockeyPuck, handleMoveHockeyPuckOld, handlePlayerTransform, handleSafeMessage, handleSendEmote, handleSendJoke, handleSendLine, handleSendMessage, handleSendTableMove, handleSetAction, handleSetFrame, handleSetPosition, handleSetSnowball, handleTeleport, handleUpdateBackground, handleUpdateBody, handleUpdateColor, handleUpdateFace, handleUpdateFeet, handleUpdateHand, handleUpdateHead, handleUpdateHockeyGame, handleUpdateNeck, handleUpdatePenguinOld, handleUpdatePin, isHockeyGuard, isTableGuard, sendTeleportOld } from "./handlers/room";
 import { doubleFilter } from "@common/utils";
 import { handleAbortCard, handleCardJitsuAction, handleEnterCardGame, handleQuitCard, handleSendCardJitsuStampInfo, handleUpdateCardSeats, isCardJitsuGuard } from "./handlers/card";
 import { handleDeleteMailFromPenguin, handleDeletePostcard, handleGetMail, handleMailTotal, handleSendCard, handleSendMail, handleSetMailCheck } from "./handlers/mail";
 import { handleCheckName } from "./handlers/create";
 import { handleLeaveGame, handleRoomRefresh, isGameGuard } from "./handlers/game";
-import { getIglooOld, handlePlayerIglooOpen, handleAddFlooring, handleAddFurniture, handleAddIgloo, handleAddIglooLayout, handleAddIglooLocation, handleCloseIgloo, handleGetAllIglooLayouts, handleGetDj3kTracks, handleGetFurniture, handleGetFurnitureNew, handleGetIglooCpip, handleGetIglooItems, handleGetIglooLikes, handleGetIglooTypes, handleGetMusicTracks, handleGetOpenIgloos, handleOpenIgloo, handleUpdateIgloo, handleUpdateIglooLayout, handleUpdateIglooNew, handleUpdateIglooOld, handleUpdateIglooType, handleUpdateMusic } from "./handlers/igloo";
+import { getIglooOld, handleCanLikeIgloo, handleLikeIgloo, handleGetNamesBySwid, handlePlayerIglooOpen, handleAddFlooring, handleAddFurniture, handleAddIgloo, handleAddIglooLayout, handleAddIglooLocation, handleCloseIgloo, handleGetAllIglooLayouts, handleGetDj3kTracks, handleGetFurniture, handleGetFurnitureNew, handleGetIglooCpip, handleGetIglooItems, handleGetIglooLikes, handleGetIglooTypes, handleGetMusicTracks, handleGetOpenIgloos, handleOpenIgloo, handleUpdateIgloo, handleUpdateIglooLayout, handleUpdateIglooNew, handleUpdateIglooOld, handleUpdateIglooType, handleUpdateMusic } from "./handlers/igloo";
 import { handleBuyNinjaCards, handleGetFireLevel, handleGetNinjaCards, handleGetNinjaLevel, handleGetNinjaRanks, handleGetWaterLevel, handleJoinFromMatchmake, handleJoinMatchmaking, handleJoinSensei, handleLeaveMatchmake } from "./handlers/ninja";
 import { handleDonateCoins, handleGetBakeryState, handleGetCookieInventory, handleRetrieveMedieval2012, handleSendEnterHopper, handleViewedMedieval2012 } from "./handlers/party";
-import { handleAdoptPuffle, handleAdoptPuffleOld, handleBuyPuffleCareItem, handlePuffleMove, handlePuffleFrame, sendGoldNuggets, handleEatPuffleItem, handleGetIglooPuffles, handleGetIglooPufflesOld, handleGetPuffleInventory, handlePuffleBackyardSwap, handlePuffleDigOnCommand, handlePuffleDigRandom, handlePuffleWalk, handleRevealGoldPuffle, isAfterPuffleCreatureGuard, isBeforePuffleCreatureGuard, sendModernPuffleCheck, sendPuffleCheck } from "./handlers/puffle";
+import { handleGetComMessages, handleGetActionStatus, handleGetABTests, handleIgnore } from "./handlers/extra";
+import { handleAdoptPuffle, handlePuffleHat, handleReturnPuffle, handlePuffleHandlerStatus, handlePuffleTrick, handleGetDigCooldown, handleAdoptPuffleOld, handleBuyPuffleCareItem, handlePuffleMove, handlePuffleFrame, sendGoldNuggets, handleEatPuffleItem, handleGetIglooPuffles, handleGetIglooPufflesOld, handleGetPuffleInventory, handlePuffleBackyardSwap, handlePuffleDigOnCommand, handlePuffleDigRandom, handlePuffleWalk, handleRevealGoldPuffle, isAfterPuffleCreatureGuard, isBeforePuffleCreatureGuard, sendModernPuffleCheck, sendPuffleCheck } from "./handlers/puffle";
 import { handleGetRainbowQuestData, handleSendRainbowQuestBonusCoins, handleSendRainbowQuestCollectCoins, handleSendRainbowQuestItemCollect, handleSendRainbowTaskComplete } from "./handlers/rainbow";
 import { handleEndSled, handleJoinSled, handleMoveSled, isSledGuard } from "./handlers/sled";
 import { BaseContext, GuardFunction, HandlerFunction, WorldContext } from "@server/socket-server/handlers/handlers";
@@ -189,11 +190,12 @@ export const createWorldXtHandler = (): XtHandler => {
     
     p.xt('s', 'i#gi', [], handleGetItems),
     p.xt('s', 'i#ai', ['number'], handleAddItem),
+    p.xt('s', 'i#qi', ['number', 'number'], handleCheckInventory),
     p.xt('s', 'i#qpp', ['number'], handleGetPinInfo),
     p.xt('s', 'i#qpa', ['number'], handleGetMissionStamps),
     
     p.xt('s', 'l#mst', [], handleMailTotal),
-    p.xt('s', 'l#mg', ['number'], handleGetMail),
+    p.xt('s', 'l#mg', 'string', handleGetMail as any),
     p.xt('s', 'l#mc', [], handleSetMailCheck),
     p.xt('s', 'l#ms', ['number', 'number'], handleSendMail),
     p.xt('s', 'l#mdp', ['number'], handleDeleteMailFromPenguin),
@@ -208,6 +210,8 @@ export const createWorldXtHandler = (): XtHandler => {
     r.xt('s', 'u#ss', ['string'], handleSafeMessage),
     r.xt('s', 'u#sl', ['string'], handleSendLine),
     r.xt('s', 'u#tp', ['number', 'number'], handleTeleport),
+    r.xt('s', 'u#sg', ['number'], handleTourGuideMessage),
+    r.xt('s', 'u#sma', ['number'], handleMascotMessage),
     p.xt('s', 'u#glr', [], handleGLR),
     p.xt('s', 'u#pbi', ['string'], handlePBI),
     p.xt('s', 'u#h', [], handleHeartbeat),
@@ -238,6 +242,11 @@ export const createWorldXtHandler = (): XtHandler => {
     r.xt('s', 'p#pm', ['number', 'number', 'number'], handlePuffleMove),
     r.xt('s', 'p#ps', ['number', 'number'], handlePuffleFrame),
     p.xt('s', 'p#papi', ['number'], handleBuyPuffleCareItem),
+    p.xt('s', 'p#puphi', ['number', 'number'], handlePuffleHat),
+    p.xt('s', 'p#prp', ['number'], handleReturnPuffle),
+    p.xt('s', 'p#phg', ['number'], handlePuffleHandlerStatus as any),
+    r.xt('s', 'p#puffletrick', ['number'], handlePuffleTrick),
+    p.xt('s', 'p#getdigcooldown', [], handleGetDigCooldown),
     p.xt('s', 'p#checkpufflename', ['string'], sendModernPuffleCheck),
     p.xt('s', 'p#pcn', ['string'], sendPuffleCheck),
     p.xt('s', 'p#pw', ['number', 'number'], handlePuffleWalk),
@@ -262,7 +271,10 @@ export const createWorldXtHandler = (): XtHandler => {
     p.xt('s', 'g#cr', ['number'], handleCloseIgloo),
     p.xt('s', 'g#gr', [], handleGetOpenIgloos),
     p.xt('s', 'g#um', ['number'], handleUpdateMusic),
-    p.xt('s', 'g#gili', 'string', handleGetIglooLikes as any),
+    p.xt('s', 'g#gili', ['number', 'number'], handleGetIglooLikes),
+    p.xt('s', 'g#cli', [], handleCanLikeIgloo),
+    p.xt('s', 'g#li', [], handleLikeIgloo),
+    p.xt('s', 'u#pbsu', ['string'], handleGetNamesBySwid),
     p.xt('s', 'g#ggd', 'string', handleGetDj3kTracks as any),
     p.xt('s', 'g#gail', ['number'], handleGetAllIglooLayouts),
     p.xt('s', 'g#uic', ['number', 'number', 'number', 'number', 'number', 'string'], handleUpdateIglooNew),
@@ -298,6 +310,15 @@ export const createWorldXtHandler = (): XtHandler => {
     p.xt('s', 'st#sse', ['number'], handleSetStampEarned),
     
     p.xt('s', 'f#epfga', [], handleGetEpfStatus),
+    p.xt('s', 'f#epfgm', 'string', handleGetComMessages as any),
+    p.xt('s', 'nx#gas', 'string', handleGetActionStatus as any),
+    p.xt('s', 'u#gabcms', 'string', handleGetABTests as any),
+    p.xt('s', 'nx#pcos', 'string', handleIgnore),
+    p.xt('s', 'nx#mcs', 'string', handleIgnore),
+    p.xt('s', 'nx#bimp', 'string', handleIgnore),
+    p.xt('s', 'nx#binx', 'string', handleIgnore),
+    p.xt('s', 'j#crl', 'string', handleIgnore),
+    p.xt('s', 'p#bipc', 'string', handleIgnore),
     p.xt('s', 'f#epfgf', [], handleGetFieldOps),
     p.xt('s', 'f#epfgr', [], handleGetEpfMedals),
     p.xt('s', 'f#epfai', ['number'], handleAddEpfItem),

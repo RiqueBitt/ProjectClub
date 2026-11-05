@@ -391,6 +391,25 @@ class Stampbook {
   }
 }
 
+const PUFFLE_DECAY_MS = 30 * 60 * 1000;
+const PUFFLE_MIN_STAT = 10;
+
+export function refreshPuffleStats(puffle: PlayerPuffle, now = Date.now()): PlayerPuffle {
+  if (puffle.adopted === undefined) puffle.adopted = now;
+  if (puffle.play === undefined) puffle.play = 100;
+  if (puffle.hat === undefined) puffle.hat = 0;
+  if (puffle.careAt === undefined) { puffle.careAt = now; return puffle; }
+  const steps = Math.floor((now - puffle.careAt) / PUFFLE_DECAY_MS);
+  if (steps <= 0) return puffle;
+  const dec = (v: number) => (v <= PUFFLE_MIN_STAT ? v : Math.max(PUFFLE_MIN_STAT, Math.round(v) - steps));
+  puffle.food = dec(puffle.food);
+  puffle.play = dec(puffle.play ?? 100);
+  puffle.rest = dec(puffle.rest);
+  puffle.clean = dec(puffle.clean);
+  puffle.careAt += steps * PUFFLE_DECAY_MS;
+  return puffle;
+}
+
 class PuffleInventory {
   private _seq: number;
   private _puffles: Map<number, PlayerPuffle>;
@@ -451,16 +470,49 @@ class PuffleInventory {
   public addPuffle(name: string, puffleType: number): PlayerPuffle {
     this._seq += 1;
     const id = this._seq;
-    const puffle = {
+    const now = Date.now();
+    const puffle: PlayerPuffle = {
       id,
       name,
       type: puffleType,
       clean: 100,
       rest: 100,
-      food: 100
+      food: 100,
+      play: 100,
+      hat: 0,
+      adopted: now,
+      careAt: now
     }
     this._puffles.set(id, puffle);
     return puffle;
+  }
+
+  /**
+   * Desgaste dos status com o tempo real (fome, brincadeira, sono, limpeza):
+   * 1 ponto a cada 30 min, sem passar de 10 (o puffle nunca foge). Calculado
+   * na hora em que alguém olha o puffle, então não precisa de relógio rodando.
+   */
+  public refresh(puffle: PlayerPuffle, now = Date.now()): PlayerPuffle {
+    return refreshPuffleStats(puffle, now);
+  }
+
+  /** Aplica o efeito de um item de cuidado (valores já limitados a 0-100). */
+  public care(puffle: PlayerPuffle, effect: { food: number, rest: number, play: number, clean: number }): PlayerPuffle {
+    this.refresh(puffle);
+    const clamp = (v: number) => Math.max(0, Math.min(100, Math.round(v)));
+    puffle.food = clamp(puffle.food + effect.food);
+    puffle.rest = clamp(puffle.rest + effect.rest);
+    puffle.play = clamp((puffle.play ?? 100) + effect.play);
+    puffle.clean = clamp(puffle.clean + effect.clean);
+    return puffle;
+  }
+
+  /** Gasta 1 unidade de um item comprado. false se não tem. */
+  public useItem(itemId: number): boolean {
+    const owned = this._items.get(itemId) ?? 0;
+    if (owned < 1) return false;
+    if (owned === 1) this._items.delete(itemId); else this._items.set(itemId, owned - 1);
+    return true;
   }
 
   public toBackyard(id: number): void {
@@ -1064,6 +1116,8 @@ export class WorldPenguin implements UserPenguin {
   private _medieval2012: Medieval2012Status;
   private _preference: UserPreference;
   private _avatar = new Avatar();
+  /** curtidas recebidas nos iglus: layout -> quem curtiu -> [curtidas, última (ms)] */
+  public iglooLikes: Record<string, Record<string, [number, number]>>;
 
   constructor(
     id: number,
@@ -1091,6 +1145,7 @@ export class WorldPenguin implements UserPenguin {
     this._battleOfDoom = new BattleOfDoomStatus(json);
     this._medieval2012 = new Medieval2012Status(json);
     this._preference = new UserPreference(json);
+    this.iglooLikes = json.iglooLikes ?? {};
   }
 
   public get id() {
@@ -1271,6 +1326,8 @@ export class WorldPenguin implements UserPenguin {
       battleOfDoom: this._battleOfDoom.completed,
 
       medieval2012Message: this._medieval2012.message,
+
+      iglooLikes: this.iglooLikes,
 
       noSave: !this._preference.canSave,
       safeChat: this._preference.isSafeChat

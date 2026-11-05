@@ -126,6 +126,8 @@ async function boot() {
   }, 4000).unref?.();
   // festas de 2013-2017 (rodízio de anos + festas ligadas pela staff)
   try { require('./parties').attach(w); } catch (err) { console.warn('[festas] não iniciou:', err?.message || err); }
+  // mensagens da EPF no telefone espião (escritas pela staff)
+  try { require('./epf').attach(w); } catch (err) { console.warn('[epf] não iniciou:', err?.message || err); }
   const media = require('../../../waddle/dist/common/media-store.js');
   console.log(`[praça] Club Penguin ${w.settings.settings.version} pronto — manifesto com ${media.manifestSize()} arquivos; conferindo a mídia no disco…`);
   // Não espera: o site sobe normal; a Praça mostra "preparando" até terminar.

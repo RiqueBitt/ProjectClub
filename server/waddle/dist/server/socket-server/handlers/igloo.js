@@ -1,9 +1,11 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.handlePlayerIglooOpen = exports.handleGetMusicTracks = exports.handleAddIglooLocation = exports.handleUpdateIglooLayout = exports.handleAddIglooLayout = exports.handleGetAllIglooLayouts = exports.handleGetDj3kTracks = exports.handleGetIglooLikes = exports.handleGetIglooTypes = exports.handleUpdateMusic = exports.handleGetOpenIgloos = exports.handleCloseIgloo = exports.handleOpenIgloo = exports.handleGetFurnitureNew = exports.handleGetFurniture = exports.handleUpdateIglooOld = exports.handleUpdateIglooNew = exports.handleUpdateIgloo = exports.handleAddFlooring = exports.handleUpdateIglooType = exports.handleAddIgloo = exports.handleAddFurniture = exports.handleGetIglooItems = exports.handleGetIglooCpip = exports.getIglooOld = void 0;
+exports.handlePlayerIglooOpen = exports.handleGetMusicTracks = exports.handleAddIglooLocation = exports.handleUpdateIglooLayout = exports.handleAddIglooLayout = exports.handleGetAllIglooLayouts = exports.handleGetDj3kTracks = exports.handleGetNamesBySwid = exports.handleGetIglooLikes = exports.handleLikeIgloo = exports.handleCanLikeIgloo = exports.handleGetIglooTypes = exports.handleUpdateMusic = exports.handleGetOpenIgloos = exports.handleCloseIgloo = exports.handleOpenIgloo = exports.handleGetFurnitureNew = exports.handleGetFurniture = exports.handleUpdateIglooOld = exports.handleUpdateIglooNew = exports.handleUpdateIgloo = exports.handleAddFlooring = exports.handleUpdateIglooType = exports.handleAddIgloo = exports.handleAddFurniture = exports.handleGetIglooItems = exports.handleGetIglooCpip = exports.getIglooOld = void 0;
 exports.getIglooFromId = getIglooFromId;
 exports.getFurnitureString = getFurnitureString;
 exports.processFurniture = processFurniture;
+exports.swidOf = swidOf;
+exports.idOfSwid = idOfSwid;
 const furniture_1 = require("../../game-logic/furniture.js");
 const iglooItems_1 = require("../../game-logic/iglooItems.js");
 const puffle_1 = require("./puffle");
@@ -36,8 +38,7 @@ const getIglooOld = async (ctx, ownerId) => {
     msg.send(penguin, 'gm', ownerId, igloo.type, igloo.music, igloo.flooring, getFurnitureString(igloo.furniture));
 };
 exports.getIglooOld = getIglooOld;
-function getModernIglooString(igloo, index) {
-    const likeCount = 0;
+function getModernIglooString(igloo, index, likeCount = 0) {
     return [
         igloo.id,
         index,
@@ -72,7 +73,12 @@ const handleGetIglooCpip = async ({ world, db, penguin, msg, data }, penguinId) 
         msg.send(penguin, 'gm', penguinId, igloo.type, igloo.music, igloo.flooring, getFurnitureString(igloo.furniture));
     }
     else {
-        msg.send(penguin, 'gm', penguinId, getModernIglooString(igloo, 1));
+        let likes = 0;
+        try {
+            likes = countLikes((await getOwnerLikes(world, db, penguinId)).likes, igloo.id);
+        }
+        catch { /* sem curtidas */ }
+        msg.send(penguin, 'gm', penguinId, getModernIglooString(igloo, 1, likes));
     }
 };
 exports.handleGetIglooCpip = handleGetIglooCpip;
@@ -230,22 +236,137 @@ const handleGetIglooTypes = ({ msg, penguin }) => {
     msg.send(penguin, 'go', penguin.igloo.types.join('|'));
 };
 exports.handleGetIglooTypes = handleGetIglooTypes;
-const handleGetIglooLikes = ({ msg, penguin }) => {
-    const id = 1; // TODO Unsure what this ID is
-    const likeCount = 0; // TODO like system
-    // TODO unsure what this 200 is
-    msg.send(penguin, 'gili', id, 200, JSON.stringify({
+// ---- Curtidas no iglu (botão de "curtir" do iglu dos amigos) ----
+// Cada pinguim guarda as curtidas que os iglus dele receberam:
+// iglooLikes[layout][quemCurtiu] = [curtidas, última curtida (ms)].
+// Dá pra curtir o mesmo iglu uma vez por dia (como no jogo original).
+const LIKE_PERIOD_MS = 24 * 60 * 60 * 1000;
+/** SWID falso (o cliente identifica quem curtiu pelo SWID): guarda o id do pinguim. */
+function swidOf(id) {
+    return `{00000000-0000-0000-0000-${String(id).padStart(12, '0')}}`;
+}
+function idOfSwid(swid) {
+    const m = /([0-9]{1,12})\}?\s*$/.exec(String(swid));
+    return m ? Number(m[1]) : null;
+}
+function countLikes(likes, layoutId) {
+    return Object.values(likes[String(layoutId)] ?? {}).reduce((sum, [count]) => sum + count, 0);
+}
+async function getOwnerLikes(world, db, ownerId) {
+    const live = world.getById(ownerId);
+    if (live !== undefined) {
+        return { live, likes: live.iglooLikes };
+    }
+    const json = await db.get(ownerId);
+    if (json === null) {
+        return { likes: {} };
+    }
+    json.iglooLikes = json.iglooLikes ?? {};
+    return { json, likes: json.iglooLikes };
+}
+/** Dono e layout do iglu onde o pinguim está agora (ou null se não está num iglu). */
+async function currentIgloo(world, db, penguin) {
+    const room = world.getPenguinRoom(penguin);
+    if (room === undefined || room.id < 2000) {
+        return null;
+    }
+    const ownerId = room.id - 2000;
+    const igloo = await getIglooFromId(world, db, ownerId).catch(() => undefined);
+    return { ownerId, layoutId: igloo?.id ?? 1 };
+}
+function canLikeInfo(likes, layoutId, likerId, ownerId, now = Date.now()) {
+    if (likerId === ownerId) {
+        return { canLike: false, nextLike_msecs: 0 };
+    }
+    const entry = likes[String(layoutId)]?.[String(likerId)];
+    const wait = entry === undefined ? 0 : entry[1] + LIKE_PERIOD_MS - now;
+    return { canLike: wait <= 0, nextLike_msecs: Math.max(0, Math.round(wait)) };
+}
+const handleCanLikeIgloo = async ({ msg, penguin, world, db }) => {
+    const where = await currentIgloo(world, db, penguin);
+    if (where === null) {
+        msg.send(penguin, 'cli', 0, 204, JSON.stringify({ canLike: false, periodicity: 'ScheduleDaily', nextLike_msecs: 0 }));
+        return;
+    }
+    const { likes } = await getOwnerLikes(world, db, where.ownerId);
+    const info = canLikeInfo(likes, where.layoutId, penguin.id, where.ownerId);
+    msg.send(penguin, 'cli', where.layoutId, 200, JSON.stringify({ ...info, periodicity: 'ScheduleDaily' }));
+};
+exports.handleCanLikeIgloo = handleCanLikeIgloo;
+const handleLikeIgloo = async ({ msg, penguin, world, db, prst }) => {
+    const where = await currentIgloo(world, db, penguin);
+    if (where === null) {
+        return;
+    }
+    const owner = await getOwnerLikes(world, db, where.ownerId);
+    const now = Date.now();
+    if (!canLikeInfo(owner.likes, where.layoutId, penguin.id, where.ownerId, now).canLike) {
+        msg.send(penguin, 'li', where.layoutId, 409, '{}');
+        return;
+    }
+    const layout = (owner.likes[String(where.layoutId)] ??= {});
+    const prev = layout[String(penguin.id)] ?? [0, 0];
+    layout[String(penguin.id)] = [prev[0] + 1, now];
+    if (owner.live !== undefined) {
+        prst(owner.live);
+    }
+    else if (owner.json !== undefined) {
+        await db.write(where.ownerId, owner.json);
+    }
+    const total = countLikes(owner.likes, where.layoutId);
+    msg.send(penguin, 'li', where.layoutId, 200, JSON.stringify({ count: total }));
+    const room = world.getPenguinRoom(penguin);
+    const others = (room?.players ?? []).filter((p) => p !== penguin);
+    if (others.length > 0) {
+        msg.send(others, 'lue', swidOf(penguin.id), total);
+    }
+};
+exports.handleLikeIgloo = handleLikeIgloo;
+const handleGetIglooLikes = async ({ msg, penguin, world, db }, start, size) => {
+    const where = await currentIgloo(world, db, penguin);
+    // fora de um iglu: o próprio iglu ativo (ex.: tela de edição)
+    const ownerId = where?.ownerId ?? penguin.id;
+    const layoutId = where?.layoutId ?? penguin.igloo.activeIgloo?.id ?? 1;
+    const { likes } = await getOwnerLikes(world, db, ownerId);
+    const entries = Object.entries(likes[String(layoutId)] ?? {})
+        .sort((a, b) => b[1][1] - a[1][1]);
+    const count = entries.reduce((sum, [, [c]]) => sum + c, 0);
+    const from = Number.isFinite(start) ? Math.max(0, start) : 0;
+    const len = Number.isFinite(size) && size > 0 ? Math.min(size, 100) : 20;
+    const IDs = entries.slice(from, from + len).map(([id, [c, t]]) => ({
+        id: swidOf(Number(id)),
+        count: c,
+        time: t,
+        isFriend: penguin.buddy.isBuddy(Number(id)),
+    }));
+    msg.send(penguin, 'gili', layoutId, 200, JSON.stringify({
         likedby: {
-            counts: {
-                count: likeCount,
-                maxCount: likeCount,
-                accumCount: likeCount
-            },
-            IDs: []
+            counts: { count, maxCount: count, accumCount: count },
+            IDs
         }
     }));
 };
 exports.handleGetIglooLikes = handleGetIglooLikes;
+/** u#pbsu: nomes a partir dos SWIDs (janela de curtidas). */
+const handleGetNamesBySwid = async ({ msg, penguin, world, db }, swids) => {
+    const list = String(swids ?? '').split(',').filter((s) => s.length > 0).slice(0, 100);
+    const names = await Promise.all(list.map(async (swid) => {
+        const id = idOfSwid(swid);
+        if (id === null)
+            return '';
+        const live = world.getById(id);
+        if (live !== undefined)
+            return live.name;
+        try {
+            return (await db.get(id))?.name ?? '';
+        }
+        catch {
+            return '';
+        }
+    }));
+    msg.send(penguin, 'pbsu', names.join(','));
+};
+exports.handleGetNamesBySwid = handleGetNamesBySwid;
 const handleGetDj3kTracks = ({ msg, penguin }) => {
     msg.send(penguin, 'ggd', '');
 };

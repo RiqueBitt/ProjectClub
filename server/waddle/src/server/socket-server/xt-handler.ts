@@ -76,6 +76,14 @@ class CallbackManager<Ctx extends WorldContext> {
   }
 }
 
+/** Comandos que o jogo mandou e o servidor não tratou (pra achar sistemas faltando). */
+export const unhandledXt = new Map<string, number>();
+function reportUnhandled(key: string) {
+  const n = (unhandledXt.get(key) ?? 0) + 1;
+  unhandledXt.set(key, n);
+  if (n === 1 && unhandledXt.size <= 500) console.log('[waddle] XT sem tratamento:', key);
+}
+
 export class XtHandler {
   private _callbacks: Map<string, XtCallbackInfoWrapped<any>[]>;
 
@@ -101,6 +109,7 @@ export class XtHandler {
     if (callbacks !== undefined) {
       const callbackInfo = callbacks.find(([[contextTester, guard]]) => contextTester(context) ? guard(context) : false);
       if (callbackInfo === undefined) {
+        reportUnhandled(name + ' (contexto)');
         logverbose(getRedString('unhandled XT for given context: ' + Object.keys(context).join(';')));
         return;
       }
@@ -108,11 +117,13 @@ export class XtHandler {
       const [_, signature, callback] = callbackInfo;
       const parsedArgs = parseArgs(args, signature);
       if (parsedArgs === null) {
+        reportUnhandled(name + ' (argumentos: ' + args.join('|').slice(0, 80) + ')');
         logverbose(getRedString('incorrect type signature: ' + name));
       } else {
         callback.call(client, context, ...parsedArgs);
       }
     } else {
+      reportUnhandled(name);
       logverbose(getRedString('unhandled XT: ' + name));
     }
   }

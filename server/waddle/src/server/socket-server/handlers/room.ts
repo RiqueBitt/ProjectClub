@@ -423,3 +423,19 @@ export const handleCoinDig: RoomHandler<[]> = ({ penguin, room, msg, prst }) => 
   msg.send(penguin, 'cdu', coins, penguin.currency.add(coins));
   prst(penguin);
 }
+
+/** u#sg: guia turístico apresentando a sala (balão com a descrição pra todos). */
+export const handleTourGuideMessage: RoomHandler<[number]> = ({ penguin, room, msg }, roomId) => {
+  if (!Number.isFinite(roomId)) {
+    return;
+  }
+  msg.send(room.players, 'sg', penguin.id, roomId);
+}
+
+/** u#sma: frases prontas dos mascotes (Rockhopper, Tia Ártica…). */
+export const handleMascotMessage: RoomHandler<[number]> = ({ penguin, room, msg }, lineId) => {
+  if (!Number.isFinite(lineId) || !penguin.mascot) {
+    return;
+  }
+  msg.send(room.players, 'sma', penguin.id, lineId);
+}

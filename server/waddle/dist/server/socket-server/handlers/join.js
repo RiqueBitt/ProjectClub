@@ -1,6 +1,6 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.handleEPFStamp = exports.handleSetPartyOp = exports.handleGetPartyOp = exports.handleGrantAwards = exports.handleBecomeAgent = exports.handleAddEpfItem = exports.handleGetEpfMedals = exports.handleGetFieldOps = exports.handleGetEpfStatus = exports.handleSetStampEarned = exports.handleSetStampbookCoverData = exports.handleGetRecentStamps = exports.handleGetStampbookCoverData = exports.handleGetMissionStamps = exports.handleGetPinInfo = exports.handleHeartbeat = exports.handleGetSpyDrillsReward = exports.handleGetSpyDrillsChallenge = exports.handleSetPuffleLaunchData = exports.handleGetPuffleLaunchData = exports.handleDisconnect = exports.handleFindPlayer = exports.handleFindBuddy = exports.handleGetPlayer = exports.handleBuddyMessage = exports.handleBuddyRemove = exports.handleBuddyDecline = exports.handleBuddyAccept = exports.handleBuddyRequest = exports.sendBuddyOnlineList = exports.sendGetBuddies = exports.handleReceiveInventory = exports.handleSpyRequest = exports.handleGetCoins = exports.handleSendCoins = exports.handleGetTotalCoins = exports.handlePBI = exports.handleGLR = exports.isBackyardGuard = exports.isPreBackyardGuard = exports.handleJoinPlayerModern = exports.handleJoinPlayerCpip = exports.handleJoinPlayerOld = exports.handleAddItem = exports.handleGetItems = exports.joinRoom = exports.leaveRoom = exports.handleJoinServer = exports.sendStamps = void 0;
+exports.handleCheckInventory = exports.handleEPFStamp = exports.handleSetPartyOp = exports.handleGetPartyOp = exports.handleGrantAwards = exports.handleBecomeAgent = exports.handleAddEpfItem = exports.handleGetEpfMedals = exports.handleGetFieldOps = exports.handleGetEpfStatus = exports.handleSetStampEarned = exports.handleSetStampbookCoverData = exports.handleGetRecentStamps = exports.handleGetStampbookCoverData = exports.handleGetMissionStamps = exports.handleGetPinInfo = exports.handleHeartbeat = exports.handleGetSpyDrillsReward = exports.handleGetSpyDrillsChallenge = exports.handleSetPuffleLaunchData = exports.handleGetPuffleLaunchData = exports.handleDisconnect = exports.handleFindPlayer = exports.handleFindBuddy = exports.handleGetPlayer = exports.handleBuddyMessage = exports.handleBuddyRemove = exports.handleBuddyDecline = exports.handleBuddyAccept = exports.handleBuddyRequest = exports.sendBuddyOnlineList = exports.sendGetBuddies = exports.handleReceiveInventory = exports.handleSpyRequest = exports.handleGetCoins = exports.handleSendCoins = exports.handleGetTotalCoins = exports.handlePBI = exports.handleGLR = exports.isBackyardGuard = exports.isPreBackyardGuard = exports.handleJoinPlayerModern = exports.handleJoinPlayerCpip = exports.handleJoinPlayerOld = exports.handleAddItem = exports.handleGetItems = exports.joinRoom = exports.leaveRoom = exports.handleJoinServer = exports.sendStamps = void 0;
 exports.formatBuddyEntry = formatBuddyEntry;
 exports.getPenguinString = getPenguinString;
 exports.filterItems = filterItems;
@@ -682,3 +682,22 @@ const handleEPFStamp = ({ msg, penguin }, stamp) => {
     }
 };
 exports.handleEPFStamp = handleEPFStamp;
+/** i#qi: o jogador (eu ou outro) tem esse item? */
+const handleCheckInventory = async ({ msg, penguin, world, db }, itemId, playerId) => {
+    if (!Number.isFinite(itemId) || !Number.isFinite(playerId)) {
+        return;
+    }
+    let owned = false;
+    const live = playerId === penguin.id ? penguin : world.getById(playerId);
+    if (live !== undefined) {
+        owned = live.inventory.has(itemId);
+    }
+    else {
+        try {
+            owned = ((await db.get(playerId))?.inventory ?? []).includes(itemId);
+        }
+        catch { /* sem dados */ }
+    }
+    msg.send(penguin, 'qi', itemId, playerId, owned ? 1 : 0);
+};
+exports.handleCheckInventory = handleCheckInventory;

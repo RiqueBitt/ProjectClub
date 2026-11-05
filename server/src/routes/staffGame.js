@@ -91,4 +91,38 @@ router.post('/parties/active', async (req, res, next) => {
   }
 });
 
+// Mensagens da EPF (telefone espião dentro do jogo)
+router.get('/epf', async (req, res, next) => {
+  try {
+    await ctx();
+    const epf = require('../services/waddle/epf');
+    res.json({ messages: epf.list(), mascots: epf.MASCOTS });
+  } catch (err) { next(err); }
+});
+
+router.post('/epf', async (req, res, next) => {
+  try {
+    await ctx();
+    const out = require('../services/waddle/epf').add(req.body?.message, req.body?.mascot);
+    logAction(req.app.get('io'), {
+      actorId: req.user.id, action: 'GAME_EPF_MESSAGE', targetType: 'EPF', targetId: 'phone',
+      metadata: { message: String(req.body?.message || '').slice(0, 300) },
+    }).catch(() => {});
+    res.json(out);
+  } catch (err) {
+    if (err?.status) return res.status(err.status).json({ error: err.message });
+    return next(err);
+  }
+});
+
+router.delete('/epf', async (req, res, next) => {
+  try {
+    await ctx();
+    res.json(require('../services/waddle/epf').remove(req.body?.time, req.body?.message));
+  } catch (err) {
+    if (err?.status) return res.status(err.status).json({ error: err.message });
+    return next(err);
+  }
+});
+
 module.exports = router;

@@ -1,6 +1,6 @@
 import { sendError } from "./login";
 import { PenguinMessenger } from "../../socket-server/messenger";
-import { WorldPenguin } from "@server/socket-server/world/world-penguin";
+import { WorldPenguin, refreshPuffleStats } from "@server/socket-server/world/world-penguin";
 import { GameData } from "@server/timelines/game-data";
 import { PUFFLES } from "@server/game-logic/puffle";
 import { PenguinRepository, PlayerPuffle } from "@server/database/database";
@@ -297,8 +297,7 @@ export function getPuffleWalkArguments(data: GameData, penguin: WorldPenguin, pe
       return undefined;
     }
 
-    // TODO hat (last one)
-    return [penguin.id, playerPuffle.id, ...getClientPuffleIds(playerPuffle.type), walking, 0];
+    return [penguin.id, playerPuffle.id, ...getClientPuffleIds(playerPuffle.type), walking, playerPuffle.hat ?? 0];
   }
 
   return [penguin.id, `${penguinPuffleId}||||||||||||${walking}`];
@@ -394,6 +393,7 @@ const puffleDig: RoomHandler<[boolean]> = (ctx, onCommand: boolean) => {
   if (playerPuffle === undefined) {
     throw new Error('Digging, but no walking puffle');
   }
+  lastDigAt.set(penguin, Date.now());
   const puffleType = playerPuffle.type;
 
   // every color stamp, which requires you to dig with
@@ -553,33 +553,127 @@ const puffleDig: RoomHandler<[boolean]> = (ctx, onCommand: boolean) => {
 
 export const handleEatPuffleItem: PenguinHandler<[number, number]> = (ctx, playerPuffleId, itemId) => {
   const { penguin, msg, prst } = ctx;
-  const puffleItem = PUFFLE_ITEMS.getStrict(itemId);
+  const puffleItem = PUFFLE_ITEMS.get(itemId);
   const puffle = penguin.puffle.getPuffle(playerPuffleId);
-
-  if (puffle === undefined) {
-    throw new Error('No puffle but eating puffle item');
+  if (puffle === undefined || puffleItem === undefined || puffleItem === null) {
+    sendError(msg, penguin, 402);
+    return;
   }
-
-  // TODO non golden puffle handling
-  // code here only accounts for the gold puffle berry you get
-  msg.send(penguin, 'pcid', penguin.id, [
+  if (puffleItem.member && !penguin.membership.isMember) {
+    sendError(msg, penguin, 999);
+    return;
+  }
+  // comida comprada é gasta (os itens de graça — escova, banho, Puffle O's — não)
+  const isFood = puffleItem.type === 'food';
+  if (isFood && !BASE_CARE_INVENTORY.includes(puffleItem.id) && puffleItem.cost > 0 && !penguin.puffle.useItem(puffleItem.parentId)) {
+    sendError(msg, penguin, 402);
+    return;
+  }
+  const goldBerry = PUFFLE_ITEMS.get(126);
+  const isGoldBerry = puffleItem.id === goldBerry?.id;
+  if (!isGoldBerry) {
+    penguin.puffle.care(puffle, {
+      food: puffleItem.foodEffect,
+      rest: puffleItem.restEffect,
+      play: puffleItem.playEffect,
+      clean: puffleItem.cleanEffect,
+    });
+  }
+  const players = 'room' in ctx ? (ctx as any).room.players as WorldPenguin[] : [penguin];
+  if (isFood) {
+    msg.send(players, 'carestationmenuchoice', penguin.id, puffle.id);
+  }
+  const play = puffle.play ?? 100;
+  const maxed = [puffle.food, play, puffle.rest, puffle.clean].every((v) => v >= 100);
+  msg.send(players, 'pcid', penguin.id, [
     puffle.id,
     puffle.food,
-    100, // TODO puffle.play
+    play,
     puffle.rest,
     puffle.clean,
-    Number(false) // TODO "celebration" (apparently when puffle is maxed out?)
+    Number(maxed) // comemoração: tudo no máximo
   ].join('|'));
-  
+
   // starting golden puffle quest
-  const goldBerry = PUFFLE_ITEMS.get(126);
-  if (puffleItem.id === goldBerry?.id) {
+  if (isGoldBerry && goldBerry) {
     penguin.currency.discount(goldBerry.cost);
     penguin.gold.setState();
-    msg.send(penguin, 'oberry', penguin.id, puffle.id);
+    msg.send(players, 'oberry', penguin.id, puffle.id);
     sendGoldNuggets(ctx);
   }
   prst(penguin);
+}
+
+/** p#puphi: põe/tira o chapéu do puffle (gasta o chapéu do inventário; o anterior volta). */
+export const handlePuffleHat: PenguinHandler<[number, number]> = (ctx, playerPuffleId, hatId) => {
+  const { penguin, msg, prst } = ctx;
+  const puffle = penguin.puffle.getPuffle(playerPuffleId);
+  if (puffle === undefined || !Number.isFinite(hatId) || hatId < 0) {
+    return;
+  }
+  const previous = puffle.hat ?? 0;
+  if (previous === hatId) {
+    return;
+  }
+  if (hatId !== 0) {
+    const hat = PUFFLE_ITEMS.get(hatId);
+    if (hat === undefined || hat === null || hat.type !== 'head' || !penguin.puffle.useItem(hatId)) {
+      return;
+    }
+  }
+  if (previous !== 0) {
+    penguin.puffle.addItem(previous, 1);
+  }
+  puffle.hat = hatId;
+  const players = 'room' in ctx ? (ctx as any).room.players as WorldPenguin[] : [penguin];
+  msg.send(players, 'puphi', puffle.id, hatId);
+  prst(penguin);
+}
+
+/** p#prp: devolve o puffle pra natureza (o cliente já pediu confirmação). */
+export const handleReturnPuffle: PenguinHandler<[number]> = (ctx, playerPuffleId) => {
+  const { penguin, msg, prst } = ctx;
+  const puffle = penguin.puffle.getPuffle(playerPuffleId);
+  if (puffle === undefined) {
+    return;
+  }
+  const hat = puffle.hat ?? 0;
+  if (hat !== 0) {
+    penguin.puffle.addItem(hat, 1);
+  }
+  const players = 'room' in ctx ? (ctx as any).room.players as WorldPenguin[] : [penguin];
+  if (penguin.puffle.walking === puffle.id) {
+    const args = getPuffleWalkArguments(ctx.data, penguin, puffle.id, 0);
+    penguin.puffle.unwalk();
+    if (args !== undefined) msg.send(players, 'pw', ...args);
+  }
+  penguin.puffle.removePuffle(puffle.id);
+  msg.send(players, 'prp', puffle.id);
+  prst(penguin);
+}
+
+/** p#phg: o jogador já passou pelo tutorial do cuidador de puffles. */
+export const handlePuffleHandlerStatus: PenguinHandler<[]> = ({ msg, penguin }) => {
+  msg.send(penguin, 'phg', 1);
+}
+
+/** p#puffletrick: truque do puffle passeando (todos na sala veem). */
+export const handlePuffleTrick: RoomHandler<[number]> = ({ msg, room, penguin }, trick) => {
+  if (!Number.isFinite(trick) || penguin.puffle.walking === null) {
+    return;
+  }
+  msg.send(room.players, 'puffletrick', penguin.id, trick);
+}
+
+const DIG_COOLDOWN_MS = 2 * 60 * 1000;
+const lastDigAt = new WeakMap<WorldPenguin, number>();
+/** p#getdigcooldown: segundos até o puffle poder cavar de novo. */
+export const handleGetDigCooldown: PenguinHandler<[]> = ({ msg, penguin }) => {
+  if (penguin.puffle.walking === null) {
+    return;
+  }
+  const last = lastDigAt.get(penguin) ?? 0;
+  msg.send(penguin, 'getdigcooldown', Math.max(0, Math.ceil((last + DIG_COOLDOWN_MS - Date.now()) / 1000)));
 }
 
 export const handleRevealGoldPuffle: PenguinHandler<[]> = ({ msg, penguin }) => {
@@ -626,17 +720,18 @@ export const handleGetIglooPuffles: PenguinHandler<[number, string]> = async ({ 
       // filtering for backyard or igloo puffles
       return owner.backyard.has(puffle.id) === isBackyard;
     }).map((puffle) => {
+      refreshPuffleStats(puffle);
       return [
         puffle.id,
         ...getClientPuffleIds(puffle.type),
         puffle.name,
         // o cliente lê a adoção em SEGUNDOS (antes ia em ms: data no futuro)
-        Math.floor(Date.now() / 1000), // TODO puffle adoption date in puffle
+        Math.floor((puffle.adopted ?? Date.now()) / 1000),
         puffle.food,
-        100, // TODO puffle play
+        puffle.play ?? 100,
         puffle.rest,
         puffle.clean,
-        0, // TODO puffle hat
+        puffle.hat ?? 0,
         0, 0, // TODO what are these 0?
         puffle.id === owner.walking ? 1 : 0
       ].join('|')

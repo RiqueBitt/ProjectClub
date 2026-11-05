@@ -1,6 +1,6 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.handleCoinDig = exports.handleTeleport = exports.isHockeyGuard = exports.isTableGuard = exports.handleUpdateHockeyGame = exports.handleMoveHockeyPuckOld = exports.handleMoveHockeyPuck = exports.handleGetHockeyGame = exports.handleUpdateBackground = exports.handleUpdatePin = exports.handleUpdateFeet = exports.handleUpdateHand = exports.handleUpdateBody = exports.handleUpdateNeck = exports.handleUpdateFace = exports.handleUpdateHead = exports.handleUpdateColor = exports.handleUpdatePenguinOld = exports.handleSendTableMove = exports.handleLeaveTableGame = exports.handleJoinTableGame = exports.handleGetTableGame = exports.handleLeaveTable = exports.handleJoinTable = exports.handleGetTables = exports.sendTeleportOld = exports.handlePlayerTransform = exports.handleCloseToy = exports.handleAddToyOld = exports.handleAddToy = exports.handleLeaveWaddle = exports.handleJoinWaddle = exports.handleGetWaddle = exports.handleSendLine = exports.handleSafeMessage = exports.handleSendMessage = exports.handleSendJoke = exports.handleSendEmote = exports.handleSetSnowball = exports.handleSetAction = exports.handleSetFrame = exports.handleSetPosition = void 0;
+exports.handleMascotMessage = exports.handleTourGuideMessage = exports.handleCoinDig = exports.handleTeleport = exports.isHockeyGuard = exports.isTableGuard = exports.handleUpdateHockeyGame = exports.handleMoveHockeyPuckOld = exports.handleMoveHockeyPuck = exports.handleGetHockeyGame = exports.handleUpdateBackground = exports.handleUpdatePin = exports.handleUpdateFeet = exports.handleUpdateHand = exports.handleUpdateBody = exports.handleUpdateNeck = exports.handleUpdateFace = exports.handleUpdateHead = exports.handleUpdateColor = exports.handleUpdatePenguinOld = exports.handleSendTableMove = exports.handleLeaveTableGame = exports.handleJoinTableGame = exports.handleGetTableGame = exports.handleLeaveTable = exports.handleJoinTable = exports.handleGetTables = exports.sendTeleportOld = exports.handlePlayerTransform = exports.handleCloseToy = exports.handleAddToyOld = exports.handleAddToy = exports.handleLeaveWaddle = exports.handleJoinWaddle = exports.handleGetWaddle = exports.handleSendLine = exports.handleSafeMessage = exports.handleSendMessage = exports.handleSendJoke = exports.handleSendEmote = exports.handleSetSnowball = exports.handleSetAction = exports.handleSetFrame = exports.handleSetPosition = void 0;
 const join_1 = require("./join");
 const world_table_1 = require("../world/world-table.js");
 const rooms_1 = require("../../game-data/rooms.js");
@@ -407,3 +407,19 @@ const handleCoinDig = ({ penguin, room, msg, prst }) => {
     prst(penguin);
 };
 exports.handleCoinDig = handleCoinDig;
+/** u#sg: guia turístico apresentando a sala (balão com a descrição pra todos). */
+const handleTourGuideMessage = ({ penguin, room, msg }, roomId) => {
+    if (!Number.isFinite(roomId)) {
+        return;
+    }
+    msg.send(room.players, 'sg', penguin.id, roomId);
+};
+exports.handleTourGuideMessage = handleTourGuideMessage;
+/** u#sma: frases prontas dos mascotes (Rockhopper, Tia Ártica…). */
+const handleMascotMessage = ({ penguin, room, msg }, lineId) => {
+    if (!Number.isFinite(lineId) || !penguin.mascot) {
+        return;
+    }
+    msg.send(room.players, 'sma', penguin.id, lineId);
+};
+exports.handleMascotMessage = handleMascotMessage;
