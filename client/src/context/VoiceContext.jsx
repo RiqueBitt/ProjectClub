@@ -3,6 +3,12 @@ import { useAuth } from './AuthContext.jsx';
 import { useSocket } from './SocketContext.jsx';
 import { useStore } from '../store/useStore';
 import { playSound, playEntrySound } from '../utils/sounds';
+
+// Voz "do lugar" (Praça do Club Penguin: 'praca:ilha'): é um recurso do
+// próprio jogo (botões Falar/Ouvir na barra dele), não uma chamada — sem sons
+// de entrar/sair/mutar, sem barra de chamada, sem sobreposição do app de PC e
+// sem notificação de chamada no Android.
+export const isAmbientChannel = (id) => typeof id === 'string' && id.startsWith('praca:');
 import { getExtra, useExtra } from '../utils/extraPrefs';
 import { getPreferredMicId, setPreferredMicId } from '../utils/audioDevices';
 import { getVoiceJoin, reportVoiceConnectFailure } from '../api/endpoints';
@@ -199,6 +205,7 @@ export function VoiceProvider({ children }) {
     fxPrevRef.current = now;
     if (!now.id) { entrySoundSentRef.current = null; return; }
     if (!prev || prev.id !== now.id) return;
+    if (isAmbientChannel(now.id)) return;
     if (prev.deafened !== deafened) playSound(deafened ? 'deafen' : 'undeafen', 0.4);
     else if (prev.muted !== muted) playSound(muted ? 'mute' : 'unmute', 0.4);
     if (prev.cameraOn !== cameraOn) playSound(cameraOn ? 'camOn' : 'camOff', 0.4);
@@ -634,8 +641,10 @@ export function VoiceProvider({ children }) {
     if (!isSwitch) {
       setCallStartedAt(Date.now());
       setMyRole('speaker');
-      playSound('callJoin');
-      startCallForegroundService(channelName);
+      if (!isAmbientChannel(channelId)) {
+        playSound('callJoin');
+        startCallForegroundService(channelName);
+      }
       setIncomingCall((c) => (c && c.channelId === channelId ? null : c));
     }
     // Sinalização (roster/quem-está-na-sala) é sempre nossa, via socket —
@@ -708,7 +717,7 @@ export function VoiceProvider({ children }) {
     const current = callRef.current;
     if (!current) return;
     socket?.emit('voice:leave', { channelId: current.channelId });
-    playSound('callLeave');
+    if (!isAmbientChannel(current.channelId)) playSound('callLeave');
     stopCallForegroundService();
     Object.values(soundboardAudiosRef.current).forEach((el) => { try { el.pause(); el.src = ''; } catch { /* ok */ } });
     soundboardAudiosRef.current = {};
@@ -1060,7 +1069,7 @@ export function VoiceProvider({ children }) {
         setMuted(true);
       }
       // Som de entrada escolhido em Configurações → Voz e vídeo (toca pra todos).
-      if (!sync && entrySoundSentRef.current !== channelId) {
+      if (!sync && entrySoundSentRef.current !== channelId && !isAmbientChannel(channelId)) {
         entrySoundSentRef.current = channelId;
         const entry = getExtra().joinSoundId;
         if (entry) { socket.emit('voice:entry-sound', { channelId, sound: entry }); playEntrySound(entry); }
@@ -1091,12 +1100,12 @@ export function VoiceProvider({ children }) {
     };
     const onUserJoined = ({ channelId, userId, role }) => {
       if (callRef.current?.channelId !== channelId) return;
-      if (userId !== user?.id) playSound('userJoin', 0.4);
+      if (userId !== user?.id && !isAmbientChannel(channelId)) playSound('userJoin', 0.4);
       setParticipants((s) => ({ ...s, [userId]: { muted: role === 'audience', deafened: false, video: false, screenSharing: false, role } }));
     };
     const onUserLeft = ({ channelId, userId }) => {
       if (callRef.current?.channelId !== channelId) return;
-      if (userId !== user?.id) playSound('userLeave', 0.4);
+      if (userId !== user?.id && !isAmbientChannel(channelId)) playSound('userLeave', 0.4);
       setParticipants((s) => { const n = { ...s }; delete n[userId]; return n; });
     };
     const onState = ({ channelId, userId, ...state }) => {
@@ -1318,14 +1327,14 @@ export function VoiceProvider({ children }) {
       socket.emit('voice:join', { channelId });
     };
 
-    const onSocketDisconnect = () => { sawDisconnectRef.current = true; if (callRef.current) playSound('disconnect', 0.4); };
+    const onSocketDisconnect = () => { sawDisconnectRef.current = true; if (callRef.current && !isAmbientChannel(callRef.current.channelId)) playSound('disconnect', 0.4); };
     const onSocketConnect = () => {
       socket.emit('voice:rosters');
       if (!sawDisconnectRef.current) return;
       sawDisconnectRef.current = false;
       const current = callRef.current;
       if (!current) return;
-      playSound('reconnect', 0.4);
+      if (!isAmbientChannel(current.channelId)) playSound('reconnect', 0.4);
       socket.emit('voice:join', { channelId: current.channelId });
     };
 
@@ -1674,7 +1683,7 @@ export function VoiceProvider({ children }) {
     const ref = overlaySentRef.current;
     ref.build = () => {
       let payload = null;
-      if (call?.channelId) {
+      if (call?.channelId && !isAmbientChannel(call.channelId)) {
         const members = useStore.getState().members || [];
         const nameOf = (uid) => members.find((m) => m.user.id === uid)?.user?.displayName || 'Alguém';
         const people = [{ id: user?.id, name: user?.displayName || 'Você', speaking: !!localSpeaking && !muted, muted: !!muted, deafened: !!deafened, me: true }];

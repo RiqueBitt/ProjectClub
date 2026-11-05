@@ -83,6 +83,35 @@ const FLASH = [
 }));
 MINIJOGOS.push(...FLASH);
 
+// Mini-Jogos de verdade: cada um abre DENTRO do Club Penguin da Praça (o
+// minijogo do próprio jogo de 2012, com as moedas indo pro saldo do Project
+// Club). `cp.game` = chave do jogo em games.json do Club Penguin; `cp.room` =
+// sala onde o jogo fica (Corrida de Trenó é na Montanha, em grupo). Os que não
+// existem no Club Penguin (Fluffy) continuam abrindo à parte.
+const CP_GAMES = {
+  beancounters: { game: 'beans' },
+  pizzatron: { game: 'pizzatron' },
+  sledracing: { room: 'mtn', x: 380, y: 290 },
+  thinice: { game: 'thinice' },
+  astrobarrier: { game: 'astro' },
+  cartsurfer: { game: 'cart' },
+  icefishing: { game: 'fish' },
+  aquagrabber: { game: 'aqua' },
+  catchinwaves: { game: 'waves' },
+  dance: { game: 'dancing' },
+  systemdefender: { game: 'systemdefend' },
+  hydrohopper: { game: 'hydro' },
+  balloonpop: { game: 'balloon' },
+  feedapuffle: { game: 'feed' },
+  pufflepaddle: { game: 'paddle' },
+  puffleroundup: { game: 'roundup' },
+  pufflesoaker: { game: 'soaker' },
+};
+for (const g of MINIJOGOS) if (CP_GAMES[g.slug]) g.cp = CP_GAMES[g.slug];
+
+/** Endereço da Praça que abre o jogo dentro do Club Penguin. */
+export const pracaGameUrl = (slug) => `/praca?jogo=${encodeURIComponent(slug)}`;
+
 export function findMinijogo(slug) {
   return MINIJOGOS.find((g) => g.slug === slug) || null;
 }

@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext.jsx';
 import { api } from '../api/client.js';
 import { enterGameMode, exitGameMode } from '../minijogos/orientation.js';
@@ -7,6 +8,7 @@ import { autoLogin, watchEntry } from '../praca/autoLogin.js';
 import { gameCacheReady, clearGameCache, installPack, installFiles } from '../praca/installer.js';
 import { usePracaVoice, useInGameVoiceButtons } from '../praca/PracaSocial.jsx';
 import { RemoteAudioSinks } from '../components/CallBar.jsx';
+import { findMinijogo } from '../minijogos/catalog.js';
 import '../styles/praca.css';
 
 // Praça = Club Penguin completo, rodando em cima do Waddle Forever embutido no
@@ -75,7 +77,7 @@ function installSwfAddressShim() {
 // nova a cada versão) e sempre conferindo com o servidor.
 const FRESH_GAME_FILES = [
   /\/play\/v2\/content\/global\/content\/interface\.swf(\?|$)/,
-  /\/play\/v2\/client\/(shell|catalog_viewer)\.swf(\?|$)/,
+  /\/play\/v2\/client\/(shell|catalog_viewer|igloo)\.swf(\?|$)/,
   /\/play\/v2\/content\/local\/[a-z]{2}\/news\//,
 ];
 function freshUrl(url) {
@@ -171,6 +173,9 @@ export default function PracaPage({ embedded = false }) {
   const autoAbort = useRef(null);
   const playerRef = useRef(null);
   const drops = useRef([]); // quando a conexão caiu (evita reconectar em loop)
+  const [inWorld, setInWorld] = useState(false); // já entrou na ilha (pode ir pra um minijogo)
+  const location = useLocation();
+  const navigate = useNavigate();
   // botões Falar/Ouvir DENTRO da barra do jogo (interface.swf ↔ página)
   useInGameVoiceButtons(playerRef, pracaVoice);
   const touch = useMemo(() => isTouchDevice(), []);
@@ -189,7 +194,7 @@ export default function PracaPage({ embedded = false }) {
     try { tried = sessionStorage.getItem(key) === '1'; } catch { /* ok */ }
     if (tried) return;
     try { sessionStorage.setItem(key, '1'); } catch { /* ok */ }
-    window.location.replace(embedded ? '/praca/app' : '/praca');
+    window.location.replace(`${embedded ? '/praca/app' : '/praca'}${window.location.search}`);
   }, [cspOk, embedded]);
 
   // 1) configuração da sessão (SWF de entrada + ticket + pinguim)
@@ -358,8 +363,10 @@ export default function PracaPage({ embedded = false }) {
         const entry = cfg.autoEntry === 'flashvars'
           ? watchEntry({ signal: ac.signal, onStep }) // o próprio jogo entra (nau/nal)
           : autoLogin({ player, as3: !!cfg.as3, name: cfg.penguin.name, signal: ac.signal, onStep });
+        setInWorld(false);
         entry.then((ok) => {
           if (!alive) return;
+          if (ok) setInWorld(true);
           setEntering(ok ? 'world' : 'manual');
           window.setTimeout(() => { if (alive) setEntering(null); }, ok ? 800 : 0);
         });
@@ -407,6 +414,37 @@ export default function PracaPage({ embedded = false }) {
       playerRef.current = null;
     };
   }, [ready, touch]);
+
+  // Mini-Jogos: /praca?jogo=<slug> entra na ilha e vai direto pro minijogo do
+  // próprio Club Penguin (ver minijogos/catalog.js → cp).
+  const wantedGame = useMemo(() => {
+    try { return findMinijogo(new URLSearchParams(location.search).get('jogo'))?.cp || null; } catch { return null; }
+  }, [location.search]);
+  useEffect(() => {
+    if (!inWorld || !wantedGame) return undefined;
+    let alive = true;
+    let tries = 0;
+    const clearParam = () => {
+      const q = new URLSearchParams(location.search);
+      q.delete('jogo');
+      const rest = q.toString();
+      navigate(`${location.pathname}${rest ? `?${rest}` : ''}`, { replace: true });
+    };
+    const attempt = () => {
+      if (!alive) return;
+      const p = playerRef.current;
+      let ok = false;
+      try {
+        if (wantedGame.game && typeof p?.pracaJoinGame === 'function') ok = p.pracaJoinGame(wantedGame.game) === true;
+        else if (wantedGame.room && typeof p?.pracaJoinRoom === 'function') ok = p.pracaJoinRoom(wantedGame.room, wantedGame.x || 380, wantedGame.y || 300) === true;
+      } catch { ok = false; }
+      tries += 1;
+      if (ok || tries >= 15) { clearParam(); return; }
+      window.setTimeout(attempt, 1000);
+    };
+    const t = window.setTimeout(attempt, 1800); // a sala acabou de carregar
+    return () => { alive = false; window.clearTimeout(t); };
+  }, [inWorld, wantedGame]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // 3) escala do palco: cabe na área disponível mantendo 760x480
   useEffect(() => {

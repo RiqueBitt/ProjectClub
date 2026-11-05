@@ -276,6 +276,79 @@ if(!pcvSetup())
    };
 }
 
+// Moeda única: o saldo do jogo é o das moedas do Project Club — o cartão do
+// jogador mostra a moeda "PC" (client/public/praca-ui/coin.png) por cima da
+// moeda antiga, ao lado de "Suas Moedas".
+var PCV_COIN = 23;
+var PCV_COIN_GAP = 2;
+function pcvCoinIcon(art)
+{
+   if(art == undefined || art.coins_txt == undefined)
+   {
+      return undefined;
+   }
+   if(art.pcvCoin_mc != undefined)
+   {
+      return art.pcvCoin_mc;
+   }
+   var c = art.createEmptyMovieClip("pcvCoin_mc", art.getNextHighestDepth());
+   var h = c.createEmptyMovieClip("img_mc", 1);
+   var l = new MovieClipLoader();
+   var o = {};
+   o.onLoadInit = function(m)
+   {
+      m.forceSmoothing = true;
+      m._width = PCV_COIN;
+      m._height = PCV_COIN;
+   };
+   l.addListener(o);
+   l.loadClip("/praca-ui/coin.png", h);
+   c.onEnterFrame = function()
+   {
+      var t = this._parent.coins_txt;
+      var show = t != undefined && t._visible && t.text.length > 0;
+      this._visible = show;
+      if(show)
+      {
+         this._x = t._x - PCV_COIN - PCV_COIN_GAP + PCV_COIN_DX;
+         this._y = t._y + (t._height - PCV_COIN) / 2 + PCV_COIN_DY;
+      }
+   };
+   return c;
+}
+var PCV_COIN_DX = -6;
+var PCV_COIN_DY = -3;
+var pcvOrigWidgetCoins = updatePlayerWidgetCoins;
+updatePlayerWidgetCoins = function()
+{
+   pcvOrigWidgetCoins();
+   pcvCoinIcon(PLAYER_WIDGET.art_mc);
+};
+
+// Mini-Jogos do Project Club: a página abre a Praça e pede pra entrar direto
+// no minijogo (ou numa sala) do próprio Club Penguin.
+if(pcvEI.available)
+{
+   pcvEI.addCallback("pracaJoinGame", null, function(key)
+   {
+      if(shell.getCurrentGameRoomId() == undefined && shell.getGameCrumbsByName(String(key)) != undefined)
+      {
+         shell.sendJoinGame(String(key));
+         return true;
+      }
+      return false;
+   });
+   pcvEI.addCallback("pracaJoinRoom", null, function(key, x, y)
+   {
+      if(shell.getRoomCrumbsByName(String(key)) == undefined)
+      {
+         return false;
+      }
+      shell.sendJoinRoom(String(key), Number(x), Number(y));
+      return true;
+   });
+}
+
 // Tirar a roupa clicando no item de novo: na interface de 2012 o único jeito
 // de tirar um item é clicar NELE no pinguim do cartão — clicar no item no
 // inventário (o que todo mundo tenta) não fazia nada. Agora clicar num item

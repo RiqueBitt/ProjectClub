@@ -65,6 +65,21 @@ async function boot() {
   const { createWaddle } = loadWaddle();
   store = new PrismaPenguinStore(prisma);
   const w = await createWaddle({ db: store, targetIP: FAKE_IP, targetPort: FAKE_HTTP_PORT });
+  // Moeda única (ver penguinStore.js): saldo mudou no site → o pinguim online
+  // recebe a diferença na hora (e o jogo mostra o saldo novo).
+  store.onCoins = (id, diff) => {
+    const live = w.world.getOnline(id);
+    if (!live) return;
+    live.currency.add(diff);
+    if (live.currency.coins < 0) live.currency.set(0);
+    try { w.world.notify(live, 'gtc', live.currency.coins); } catch { /* cliente saindo */ }
+  };
+  store.onUserCoins = (userId, coins) => {
+    try { io?.to(`user:${userId}`).emit('user:update', { id: userId, coins }); } catch { /* ok */ }
+  };
+  setInterval(() => {
+    for (const id of penguinUser.keys()) store.refreshCoins(id, { force: true }).catch(() => {});
+  }, 4000).unref?.();
   const media = require('../../../waddle/dist/common/media-store.js');
   console.log(`[praça] Club Penguin ${w.settings.settings.version} pronto — manifesto com ${media.manifestSize()} arquivos; conferindo a mídia no disco…`);
   // Não espera: o site sobe normal; a Praça mostra "preparando" até terminar.

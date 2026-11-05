@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
-import { useVoice } from '../context/VoiceContext.jsx';
+import { useVoice, isAmbientChannel } from '../context/VoiceContext.jsx';
 import { useAuth } from '../context/AuthContext.jsx';
 import { useStore } from '../store/useStore';
 import ScreenShareModal from './modals/ScreenShareModal.jsx';
@@ -210,6 +210,8 @@ export default function CallBar() {
   const callChannelId = voice?.call?.channelId || null;
   const callChannel = useStore((s) => (callChannelId ? (s.channels.find((c) => c.id === callChannelId) || s.categories.flatMap((cat) => cat.channels || []).find((c) => c.id === callChannelId) || null) : null));
   if (!voice?.call) return null;
+  // Voz da ilha (Club Penguin): parte do jogo, sem barra de chamada — só o áudio.
+  if (isAmbientChannel(voice.call.channelId)) return <RemoteAudioSinks />;
 
   const { call, muted, micMissing, deafened, cameraOn, screenOn, participants, myRole } = voice;
   // Most mobile browsers (iOS Safari especially) don't expose the Screen

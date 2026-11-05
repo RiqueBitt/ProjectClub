@@ -2,7 +2,7 @@ import AccountSwitcher from './AccountSwitcher.jsx';
 import { useEffect, useRef, useState } from 'react';
 import { useStore } from '../store/useStore';
 import { useAuth } from '../context/AuthContext.jsx';
-import { useVoice } from '../context/VoiceContext.jsx';
+import { useVoice, isAmbientChannel } from '../context/VoiceContext.jsx';
 import { useNavigate } from 'react-router-dom';
 import { setStatus as setStatusApi, getMyEconomy } from '../api/endpoints';
 import { STATUS_LABEL } from '../utils/status';
@@ -59,7 +59,7 @@ export default function UserStatusBar() {
   const customStatus = presence?.customStatus ?? user.customStatus;
   const muted = !!voice?.muted;
   const deafened = !!voice?.deafened;
-  const inCall = !!voice?.call;
+  const inCall = !!voice?.call && !isAmbientChannel(voice.call.channelId);
 
   const changeStatus = async (s) => {
     setMenuOpen(false);

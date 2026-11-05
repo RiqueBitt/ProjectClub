@@ -2,7 +2,7 @@ import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } fr
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext.jsx';
 import { useStore } from '../store/useStore';
-import { MINIJOGOS, MINIJOGOS_CATEGORIES, findMinijogo } from '../minijogos/catalog.js';
+import { MINIJOGOS, MINIJOGOS_CATEGORIES, findMinijogo, pracaGameUrl } from '../minijogos/catalog.js';
 import '../styles/minijogos.css';
 import { useMinijogoScores, ScoresPanel, WeeklyPrizesBanner } from '../minijogos/MiniJogoScores.jsx';
 import TouchControls from '../minijogos/touch/TouchControls.jsx';
@@ -431,13 +431,23 @@ export default function MiniJogosPage() {
   const [params, setParams] = useSearchParams();
   const [query, setQuery] = useState('');
   const [expanded, setExpanded] = useState({});
-  const current = findMinijogo(params.get('jogo'));
-
   const navigate = useNavigate();
+  // Os mini-jogos do Club Penguin abrem DENTRO do jogo (Praça); aqui só fica
+  // o player dos que não existem lá.
+  const inPraca = (g) => !!g?.cp && isFeatureEnabled('plaza');
+  const asked = findMinijogo(params.get('jogo'));
+  const current = inPraca(asked) ? null : asked;
+  useEffect(() => {
+    if (inPraca(asked)) navigate(pracaGameUrl(asked.slug), { replace: true });
+  }, [asked?.slug]); // eslint-disable-line react-hooks/exhaustive-deps
+
   // Abriu por aqui (entrada nova no histórico)? Então fechar = voltar,
   // pra o "voltar" do navegador não reabrir o jogo depois.
   const openedHere = useRef(false);
-  const openGame = (slug) => { openedHere.current = true; setParams({ jogo: slug }); };
+  const openGame = (slug) => {
+    if (inPraca(findMinijogo(slug))) { navigate(pracaGameUrl(slug)); return; }
+    openedHere.current = true; setParams({ jogo: slug });
+  };
   const closeGame = useCallback(() => {
     if (openedHere.current) { openedHere.current = false; navigate(-1); return; }
     setParams((p) => { const n = new URLSearchParams(p); n.delete('jogo'); return n; }, { replace: true });
@@ -458,7 +468,7 @@ export default function MiniJogosPage() {
             <span className="mj-header-icon"><MjIcon name="shapes" size={26} /></span>
             <div>
               <h1>Mini-Jogos</h1>
-              <p>Jogos rápidos que já vêm no Project Club. É só clicar e jogar.</p>
+              <p>Os mini-jogos do Club Penguin: clique e eles abrem direto na ilha — as moedas que você ganha vão pro seu saldo do Project Club.</p>
             </div>
           </header>
 

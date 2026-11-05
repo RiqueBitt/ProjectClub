@@ -22,6 +22,10 @@
  * Pátio do Dojo (o shell mandava pra uma sala de 2013 que prende o pinguim) —
  * ver praca-shell-action.ts (gerado de server/waddle/praca-voice/shell.as).
  *
+ * igloo.swf: um DoAction a mais no 1º quadro mostra, ao soltar um móvel no
+ * editor do iglu, um painel com o móvel em cada direção (antes só dava pra
+ * girar com as setas do teclado enquanto arrastava) — praca-igloo-action.ts.
+ *
  * catalog_viewer.swf (AS3): ao mostrar uma página o catálogo faz
  * `closeButton.buttonMode = true`; no Catálogo de Puffles o botão de fechar é
  * um SimpleButton (que não tem buttonMode) → erro #1056 no meio da função e
@@ -32,6 +36,7 @@
 import zlib from 'zlib';
 import { PRACA_VOICE_DOACTION } from './praca-voice-action';
 import { PRACA_SHELL_DOACTION } from './praca-shell-action';
+import { PRACA_IGLOO_DOACTION } from './praca-igloo-action';
 
 type Patch = { from: string; to: string };
 
@@ -47,6 +52,11 @@ const PATCHES: Array<{ test: (route: string) => boolean; patches: Patch[]; frame
       from: '\xf0\x46\xd0\x66\xf6\x03\x66\xe4\x19\x26\x61\xe7\x19\xf0\x48',
       to: '\xf0\x46\xd0\x66\xf6\x03\x66\xe4\x19\x29\x02\x02\x02\xf0\x48',
     }],
+  },
+  {
+    test: (route) => /(^|\/)play\/v2\/client\/igloo\.swf$/.test(route),
+    patches: [],
+    frame1Tags: [PRACA_IGLOO_DOACTION],
   },
   {
     test: (route) => /(^|\/)play\/v2\/client\/shell\.swf$/.test(route),

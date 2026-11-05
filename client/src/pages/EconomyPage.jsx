@@ -30,7 +30,7 @@ const MISSION_ICON = {
   MESSAGES: 'chat', REACTIONS: 'heart', VOICE_MINUTES: 'volume', FORUM_POSTS: 'news',
   FORUM_COMMENTS: 'pen', SHOP_VISIT: 'store', DAILY_CHEST: 'chest',
 };
-const HISTORY_ICON = { DAILY: 'chest', MISSION: 'bolt', SHOP: 'store', ADMIN: 'shield', LEVEL: 'trophy' };
+const HISTORY_ICON = { DAILY: 'chest', MISSION: 'bolt', SHOP: 'store', ADMIN: 'shield', LEVEL: 'trophy', GAME: 'coin' };
 
 function RewardChips({ m }) {
   return (
