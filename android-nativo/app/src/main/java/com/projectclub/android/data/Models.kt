@@ -85,12 +85,25 @@ data class CommunityInfo(val name: String? = null, val iconUrl: String? = null, 
 @Serializable
 data class Member(val user: User, val roleIds: List<String> = emptyList())
 
+/** Cargo da comunidade (lista de membros: agrupa e colore os nomes). */
+@Serializable
+data class Role(
+    val id: String,
+    val name: String = "",
+    val color: String? = null,
+    val position: Int = 0,
+    val hoist: Boolean = false,
+    val isDefault: Boolean = false,
+    val icon: String? = null,
+)
+
 @Serializable
 data class CommunityResponse(
     val community: CommunityInfo? = null,
     val categories: List<Category> = emptyList(),
     val channels: List<Channel> = emptyList(),
     val members: List<Member> = emptyList(),
+    val roles: List<Role> = emptyList(),
 )
 
 @Serializable

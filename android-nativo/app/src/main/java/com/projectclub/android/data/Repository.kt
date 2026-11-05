@@ -523,6 +523,7 @@ class Repository(private val context: Context, val api: Api, private val scope: 
             categories = categories,
             channels = items(o["channels"], "channel", channel),
             members = items(o["members"], "member") { AppJson.decodeFromJsonElement<Member>(it) },
+            roles = items(o["roles"], "role") { AppJson.decodeFromJsonElement<Role>(it) },
         )
     }
 

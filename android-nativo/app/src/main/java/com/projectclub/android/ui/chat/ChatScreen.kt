@@ -45,6 +45,7 @@ import androidx.compose.material.icons.automirrored.filled.Reply
 import androidx.compose.material.icons.automirrored.filled.Forward
 import androidx.compose.material.icons.filled.Alarm
 import androidx.compose.material.icons.filled.PushPin
+import androidx.compose.material.icons.filled.People
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.automirrored.filled.Send
 import androidx.compose.material.icons.filled.AddCircle
@@ -158,6 +159,7 @@ fun ChatScreen(
     var forwardFor by remember { mutableStateOf<Message?>(null) }
     var remindFor by remember { mutableStateOf<Message?>(null) }
     var scheduling by remember { mutableStateOf(false) }
+    var showMembers by remember { mutableStateOf(false) }
     val snack = remember { androidx.compose.material3.SnackbarHostState() }
     val scope = rememberCoroutineScope()
     fun toast(msg: String) { scope.launch { snack.showSnackbar(msg) } }
@@ -179,6 +181,8 @@ fun ChatScreen(
         scope.launch { vm.addFiles(uris.map { repo.describe(it) }) }
     }
 
+    // canal da comunidade: lista de membros puxando a borda direita da tela
+    MembersDrawerHost(repo, enabled = channel != null, open = showMembers, onOpenChange = { showMembers = it }) {
     Scaffold(
         containerColor = PC.Bg,
         // Sem margem de baixo do Scaffold: a caixa de mensagem já soma a barra
@@ -209,6 +213,7 @@ fun ChatScreen(
                     IconButton(onClick = { showSearch = true }) { Icon(Icons.Filled.Search, "Buscar mensagens") }
                     IconButton(onClick = { showPinned = true }) { Icon(Icons.Filled.PushPin, "Mensagens fixadas") }
                     if (room.conversationId != null) IconButton(onClick = { onCall("dm:${room.conversationId}", title) }) { Icon(Icons.Filled.Call, "Ligar") }
+                    if (channel != null) IconButton(onClick = { showMembers = true }) { Icon(Icons.Filled.People, "Membros") }
                 },
             )
         },
@@ -277,6 +282,7 @@ fun ChatScreen(
                 callBar()
             }
         }
+    }
     }
 
     if (showPicker) PickerSheet(
