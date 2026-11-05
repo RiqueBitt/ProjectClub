@@ -39,6 +39,7 @@ jobs:
       - name: Publicar na release waddle-parties
         env:
           GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
         run: |
           if ! gh release view waddle-parties >/dev/null 2>&1; then
             gh release create waddle-parties --title "Festas 2013-2017 da Praça" --latest=false \

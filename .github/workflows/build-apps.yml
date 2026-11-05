@@ -48,11 +48,13 @@ jobs:
           fetch-depth: 0 # precisa do histórico completo pra achar a última tag e os commits desde ela
       # Limpeza: uma release errada ("vandroid-nativo...") virou a "mais
       # recente" e quebrou os links de download do site (404). Some com ela.
+      # As releases fixas (android-nativo, waddle-media, waddle-parties) ficam:
+      # o servidor baixa a mídia do jogo delas.
       - name: Remover release com versão inválida
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          for t in $(gh release list --repo "${{ github.repository }}" --limit 50 --json tagName -q '.[].tagName' | grep -vE '^v[0-9]+\.[0-9]+\.[0-9]+$' | grep -v '^android-nativo$' || true); do
+          for t in $(gh release list --repo "${{ github.repository }}" --limit 50 --json tagName -q '.[].tagName' | grep -vE '^v[0-9]+\.[0-9]+\.[0-9]+$' | grep -vE '^(android-nativo|waddle-media|waddle-parties)$' || true); do
             echo "Apagando release inválida: $t"
             gh release delete "$t" --repo "${{ github.repository }}" --cleanup-tag -y || true
           done

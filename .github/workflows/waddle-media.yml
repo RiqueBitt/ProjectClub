@@ -53,6 +53,7 @@ jobs:
       - name: Publicar na release waddle-media
         env:
           GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
         run: |
           if ! gh release view waddle-media >/dev/null 2>&1; then
             gh release create waddle-media --title "Mídia da Praça (Club Penguin / Waddle Forever)" --latest=false \

@@ -33,7 +33,12 @@ jobs:
       - name: Publicar na release waddle-parties
         env:
           GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
         run: |
+          if ! gh release view waddle-parties >/dev/null 2>&1; then
+            gh release create waddle-parties --title "Festas 2013-2017 da Praça" --latest=false \
+              --notes "Salas e arquivos das festas de 2013 a 2017 do Club Penguin (arquivo histórico, via Club Penguin Archives). Usado pela Praça do Project Club; não é uma versão do app."
+          fi
           cd out
           gh release upload waddle-parties media-parties-ui.tar parties-ui-index.json parties-paths-union.json SHA256SUMS-parties-ui.txt --clobber
           gh release view waddle-parties --json assets --jq '.assets[] | "\(.name) \(.size)"'
