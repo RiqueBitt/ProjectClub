@@ -28,7 +28,7 @@ import '../styles/praca.css';
 // moedas, quem está online, mudo, tela cheia; e o palco do jogo escala pra
 // caber em qualquer tela (celular inclusive, deitado em tela cheia).
 
-const RUFFLE_SRC = '/ruffle/ruffle.js?v=pcei01'; // ?v: o Ruffle daqui tem ExternalInterface sem eval
+const RUFFLE_SRC = '/ruffle/ruffle.js?v=pcei02'; // ?v: o Ruffle daqui tem ExternalInterface sem eval
 const STAGE = { w: 760, h: 480 };
 const MUTE_KEY = 'pc.praca.muted';
 const BASE_KEY = 'pc.praca.base'; // versão do jogo instalada neste navegador
