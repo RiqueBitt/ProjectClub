@@ -84,7 +84,7 @@ function makeHandler(handler, command, r) {
                 return;
             case 'transform': {
                 const avatar = nums[0];
-                if (!Number.isInteger(avatar) || avatar < 0 || avatar > 1000)
+                if (!Number.isInteger(avatar) || avatar < 0 || avatar > 100000)
                     return;
                 penguin.avatar.transform(avatar);
                 const room = ctx.world.getPenguinRoom(penguin);

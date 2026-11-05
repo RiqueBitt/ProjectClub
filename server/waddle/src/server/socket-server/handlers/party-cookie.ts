@@ -96,7 +96,7 @@ function makeHandler(handler: string, command: string, r: Rule): PenguinHandler<
         return;
       case 'transform': {
         const avatar = nums[0];
-        if (!Number.isInteger(avatar) || avatar < 0 || avatar > 1000) return;
+        if (!Number.isInteger(avatar) || avatar < 0 || avatar > 100000) return;
         penguin.avatar.transform(avatar);
         const room = ctx.world.getPenguinRoom(penguin);
         msg.send(room?.players ?? [penguin], 'spts', penguin.id, avatar);

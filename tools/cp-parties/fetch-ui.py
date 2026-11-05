@@ -32,8 +32,10 @@ UI = re.compile(r'^(?P<lang>EN|PT|FR|ES|DE|RU)?(?P<kind>Close_ups|Catalogues|Mem
 # arquivos globais das festas de 2015+ (content/features.swf é a "configuração"
 # da festa: missões, transformações, puffles pra adotar)
 CONTENT = re.compile(r'^(?P<kind>Content)(?P<name>Party_icon|Features|Prompts|Logo)-(?P<party>[^.]+)\.swf$')
+# fantasias das transformações das festas (w.avatarSprite.olaf → avatar/sprites/olaf.swf)
+AVATAR = re.compile(r'^(?P<kind>AvatarSprites)(?P<name>[A-Za-z0-9_]+?)(?:-(?P<party>[^.]+))?\.swf$')
 KIND_DIR = {'Close_ups': 'local/en/close_ups', 'Catalogues': 'local/en/catalogues', 'Membership': 'global/membership',
-            'Content': 'global/content'}
+            'Content': 'global/content', 'AvatarSprites': 'global/avatar/sprites'}
 LANG_RANK = {'pt': 0, '': 1, 'en': 2}
 
 WAYBACK_TARGETS = [
@@ -105,7 +107,7 @@ def main():
         for link in parser.links:
             url = urllib.parse.urljoin(page_url, link['href'])
             name = urllib.parse.unquote(url.split('?')[0].rsplit('/', 1)[-1])
-            m = UI.match(name) or CONTENT.match(name)
+            m = UI.match(name) or CONTENT.match(name) or AVATAR.match(name)
             if not m:
                 continue
             gd = m.groupdict()

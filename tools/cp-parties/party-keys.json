@@ -90,6 +90,8 @@
   "w.app.p2015.message.sadness2",
   "w.app.p2015.message.sadness3",
   "w.app.p2015.message.sadness4",
+  "w.avatarSprite.bingbong",
+  "w.avatarSprite.rainbowunicorn",
   "w.p2013.superhero.loginprompt",
   "w.p2013.superhero.superheroui",
   "w.p2013.superhero.villainui",
@@ -124,6 +126,8 @@
   "w.party.catalogue.party2"
  ],
  "Halloween_Party_2014": [
+  "w.avatarSprite.marshmallow",
+  "w.avatarSprite.olaf",
   "w.p2014.frozen.dialogue.collect",
   "w.p2014.frozen.dialogue.elsa",
   "w.p2014.frozen.dialogue.login.1",
@@ -224,6 +228,7 @@
   "w.party.catalogue.party1"
  ],
  "Future_Party": [
+  "w.avatarSprite.robo.",
   "w.p2013.superhero.loginprompt",
   "w.p2013.superhero.superheroui",
   "w.p2013.superhero.villainui",
@@ -294,6 +299,8 @@
   "w.party.catalogue.party2"
  ],
  "9th_Anniversary_Party": [
+  "w.avatarSprite.marshmallow",
+  "w.avatarSprite.olaf",
   "w.p2014.frozen.dialogue.collect",
   "w.p2014.frozen.dialogue.elsa",
   "w.p2014.frozen.dialogue.login.1",
@@ -307,6 +314,7 @@
   "w.party.catalogue.party2"
  ],
  "Puffle_Party_2014": [
+  "w.avatarSprite.puffle.",
   "w.p2014.muppets.constantine.museum",
   "w.p2014.muppets.constantinewantedposter",
   "w.p2014.muppets.dialogue.addedtoinventory",
@@ -369,6 +377,8 @@
   "w.party.catalogue.party2"
  ],
  "Frozen_Fever_Party_2015": [
+  "w.avatarSprite.marshmallow",
+  "w.avatarSprite.olaf",
   "w.p2014.frozen.dialogue.collect",
   "w.p2014.frozen.dialogue.elsa",
   "w.p2014.frozen.dialogue.login.1",
@@ -382,6 +392,7 @@
   "w.party.catalogue.party2"
  ],
  "Puffle_Party_2015": [
+  "w.avatarSprite.puffle.",
   "w.p2014.puffles.dialogue.gotopetshop",
   "w.p2014.puffles.dialogue.ph.1",
   "w.p2014.puffles.dialogue.ph.2",
@@ -397,6 +408,10 @@
   "w.party.catalogue.party1"
  ],
  "The_Fair_2015": [
+  "w.avatarSprite.coyote",
+  "w.avatarSprite.crab",
+  "w.avatarSprite.dragon",
+  "w.avatarSprite.robo",
   "w.p2013.dialogue.ok",
   "w.p2015.may.dailyspin",
   "w.p2015.may.dialogue.dailyspin.member",
@@ -420,6 +435,8 @@
   "w.party.catalogue.party1"
  ],
  "School_&_Skate_Party": [
+  "w.avatarSprite.marshmallow",
+  "w.avatarSprite.olaf",
   "w.p2014.frozen.dialogue.collect",
   "w.p2014.frozen.dialogue.elsa",
   "w.p2014.frozen.dialogue.login.1",
@@ -450,6 +467,8 @@
   "w.party.catalogue.party1"
  ],
  "Penguin_Cup": [
+  "w.avatarSprite.soccer.ballkick",
+  "w.avatarSprite.soccer.victory.",
   "w.p2014.muppets.constantine.museum",
   "w.p2014.muppets.constantinewantedposter",
   "w.p2014.muppets.dialogue.addedtoinventory",
@@ -503,6 +522,8 @@
   "w.party.catalogue.party1"
  ],
  "Frozen_Fever_Party_2016": [
+  "w.avatarSprite.marshmallow",
+  "w.avatarSprite.olaf",
   "w.p2015.april.dialogue.collect",
   "w.p2015.april.dialogue.elsa",
   "w.p2015.april.dialogue.login.1",
@@ -534,6 +555,7 @@
   "w.party.catalogue.party2"
  ],
  "Puffle_Party_2016": [
+  "w.avatarSprite.puffle.",
   "w.p2014.puffles.dialogue.gotopetshop",
   "w.p2014.puffles.dialogue.ph.1",
   "w.p2014.puffles.dialogue.ph.2",
@@ -586,6 +608,8 @@
   "w.party.clothing.catalogue1"
  ],
  "Frozen_Party": [
+  "w.avatarSprite.marshmallow",
+  "w.avatarSprite.olaf",
   "w.p2014.frozen.dialogue.collect",
   "w.p2014.frozen.dialogue.elsa",
   "w.p2014.frozen.dialogue.login.1",
