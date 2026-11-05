@@ -12,6 +12,7 @@ import { RemoteAudioSinks } from '../components/CallBar.jsx';
 import { findMinijogo } from '../minijogos/catalog.js';
 import DownloadCenter from '../praca/DownloadCenter.jsx';
 import '../styles/praca.css';
+import { useAdaptiveQuality } from '../praca/adaptiveQuality.js';
 
 // Praça = Club Penguin completo, rodando em cima do Waddle Forever embutido no
 // servidor (server/waddle, MIT). O jogo original é Flash; aqui ele roda no
@@ -488,9 +489,10 @@ export default function PracaPage({ embedded = false, background = false, onClos
   // de vídeo) e sem foco do teclado; ao voltar, qualidade máxima de novo. O
   // pedido vai pro próprio jogo (interface.swf → _quality); tenta de novo até
   // a interface ter carregado.
+  const autoQuality = useAdaptiveQuality(phase === 'playing' && !background);
   useEffect(() => {
     if (phase !== 'playing') return undefined;
-    const want = background ? 'low' : 'best';
+    const want = background ? 'low' : autoQuality;
     let tries = 0;
     let t = 0;
     const apply = () => {
@@ -502,7 +504,7 @@ export default function PracaPage({ embedded = false, background = false, onClos
     apply();
     if (background) { try { playerRef.current?.blur?.(); } catch { /* ok */ } }
     return () => window.clearTimeout(t);
-  }, [background, phase, inWorld]);
+  }, [background, phase, inWorld, autoQuality]);
 
   // Saiu da página: tela cheia não faz sentido; e se o jogo nem chegou a
   // abrir (escolha de download, erro), não tem o que manter rodando.
