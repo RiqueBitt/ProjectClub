@@ -27,7 +27,10 @@ const ROTATION = [2012, 2013, 2014, 2015, 2016];
 const ROTATION_JAN_MAR = [2012, 2013, 2014, 2015, 2016, 2017];
 
 const mediaDir = () => process.env.WADDLE_MEDIA_DIR || path.join(process.env.WADDLE_DATA_DIR || path.join(__dirname, '..', '..', '..', 'data', 'waddle'), 'media');
-const filesDir = () => path.join(mediaDir(), 'parties', 'pcparties');
+// pasta das festas na mídia. "v2": a primeira versão foi extraída com o dono
+// do GitHub Actions e não dá pra sobrescrever no servidor de produção.
+const SUBDIR = 'pcparties-v2';
+const filesDir = () => path.join(mediaDir(), 'parties', SUBDIR);
 const stateFile = () => path.join(process.env.WADDLE_DATA_DIR || path.join(__dirname, '..', '..', '..', 'data', 'waddle'), 'pc-party.json');
 
 const bySlug = new Map(DATA.parties.map((p) => [p.slug, p]));
@@ -119,13 +122,13 @@ function merged(slugs) {
   }
   // mapa da ilha decorado: o da festa principal (ou de outra que tenha)
   const withMap = parties.find((p) => p.map && onDisk(p.map));
-  if (withMap) out.routes[MAP_ROUTE] = `parties/pcparties/${withMap.map}`;
+  if (withMap) out.routes[MAP_ROUTE] = `parties/${SUBDIR}/${withMap.map}`;
   return out;
 }
 
 function overlayRooms(party) {
   const out = {};
-  for (const [room, file] of Object.entries(party.rooms)) out[room] = `parties/pcparties/${file}`;
+  for (const [room, file] of Object.entries(party.rooms)) out[room] = `parties/${SUBDIR}/${file}`;
   return out;
 }
 
@@ -133,7 +136,7 @@ function overlayRooms(party) {
 function overlayMusicFiles(party) {
   const out = {};
   for (const [id, file] of Object.entries(party.musicFiles || {})) {
-    try { if (fs.existsSync(path.join(filesDir(), file))) out[id] = `parties/pcparties/${file}`; } catch { /* ok */ }
+    try { if (fs.existsSync(path.join(filesDir(), file))) out[id] = `parties/${SUBDIR}/${file}`; } catch { /* ok */ }
   }
   return out;
 }
@@ -199,7 +202,8 @@ function run(cmd, args) {
   });
 }
 
-const extractTar = (file, dest) => run('tar', ['xf', file, '-C', dest]);
+// --no-same-owner: os arquivos ficam do usuário do servidor (senão ninguém sobrescreve depois)
+const extractTar = (file, dest) => run('tar', ['xf', file, '-C', dest, '--no-same-owner', '--no-same-permissions']);
 
 /** Baixa e extrai as festas (uma vez; depois fica no disco). */
 async function ensureFiles() {
@@ -223,7 +227,24 @@ async function ensureFiles() {
       if (!res.ok || !res.body) throw new Error(`HTTP ${res.status}`);
       await pipeline(Readable.fromWeb(res.body), fs.createWriteStream(tmp));
     }
-    await extractTar(tmp, mediaDir());
+    // extrai numa pasta à parte e move arquivo por arquivo: no disco de
+    // produção o tar não consegue sobrescrever ("File exists")
+    const stage = path.join(mediaDir(), '.tmp-parties');
+    await fs.promises.rm(stage, { recursive: true, force: true });
+    await fs.promises.mkdir(stage, { recursive: true });
+    await extractTar(tmp, stage);
+    const from = path.join(stage, 'parties', 'pcparties');
+    await fs.promises.mkdir(filesDir(), { recursive: true });
+    for (const name of await fs.promises.readdir(from)) {
+      const dest = path.join(filesDir(), name);
+      try {
+        await fs.promises.rename(path.join(from, name), dest);
+      } catch {
+        await fs.promises.rm(dest, { force: true }).catch(() => {});
+        await fs.promises.copyFile(path.join(from, name), dest);
+      }
+    }
+    await fs.promises.rm(stage, { recursive: true, force: true }).catch(() => {});
     downloadState = { state: fs.existsSync(index) ? 'ready' : 'partial' };
     console.log(`[festas] arquivos das festas 2013-2017 prontos (${DATA.parties.filter(filesReady).length}/${DATA.parties.length} festas)`);
   } catch (err) {
