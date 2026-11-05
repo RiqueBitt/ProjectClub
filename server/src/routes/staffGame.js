@@ -66,4 +66,29 @@ router.post('/penguins/:id/kick', async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
+// Festas de 2013-2017 (ver services/waddle/parties.js): lista, rodízio do mês
+// e a festa ligada pela staff (as de outras marcas só rodam por aqui).
+router.get('/parties', async (req, res, next) => {
+  try {
+    await ctx();
+    res.json(require('../services/waddle/parties').list());
+  } catch (err) { next(err); }
+});
+
+router.post('/parties/active', async (req, res, next) => {
+  try {
+    await ctx();
+    const slug = req.body?.slug ? String(req.body.slug) : null;
+    const out = require('../services/waddle/parties').setManual(slug, { reload: req.body?.reload !== false });
+    logAction(req.app.get('io'), {
+      actorId: req.user.id, action: 'GAME_PARTY_SET', targetType: 'PARTY', targetId: slug || 'calendario',
+      metadata: { slug, kicked: out.kicked },
+    }).catch(() => {});
+    res.json(out);
+  } catch (err) {
+    if (err?.status) return res.status(err.status).json({ error: err.message });
+    return next(err);
+  }
+});
+
 module.exports = router;

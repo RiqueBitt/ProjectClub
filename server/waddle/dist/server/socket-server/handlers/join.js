@@ -258,9 +258,16 @@ const handleAddItem = (ctx, item) => {
         addStarterDeck(ctx, deck);
     }
     const info = data.getItem(item);
-    if (info !== null) {
+    // item que o jogo não conhece: getItem devolve undefined (antes passava e o
+    // saldo virava NaN ao descontar um custo inexistente)
+    if (info !== undefined && info !== null) {
+        const cost = Number.isFinite(info.cost) ? info.cost : 0;
+        if (penguin.currency.coins < cost) {
+            msg.send(penguin, 'e', 401); // moedas insuficientes
+            return;
+        }
         penguin.inventory.add(item);
-        msg.send(penguin, 'ai', item, penguin.currency.discount(info.cost));
+        msg.send(penguin, 'ai', item, penguin.currency.discount(cost));
     }
     prst(penguin);
 };

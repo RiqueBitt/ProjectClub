@@ -663,12 +663,53 @@ class GameData {
             this.updateListener.fire();
         }
     }
+    /**
+     * Project Club — "camada de festa": salas de uma festa que o Waddle Forever
+     * não tem na linha do tempo (2013-2017, baixadas da Club Penguin Archives)
+     * por cima da ilha da data atual. Usada pelo rodízio de anos e pelas festas
+     * que a staff liga no painel. Sobrevive às trocas de data (update()).
+     */
+    overlay = null;
+    /**
+     * Liga (ou desliga, com null) a camada de festa.
+     * `rooms`: sala → arquivo da mídia (caminho relativo); `music`: sala → id da
+     * música; `musicFiles`: id da música → arquivo (músicas que o WF não tem).
+     */
+    setPartyOverlay(name, rooms = {}, music = {}, musicFiles = {}) {
+        if (name === null) {
+            this.overlay = null;
+        }
+        else {
+            const routes = new Map();
+            for (const room in rooms) {
+                routes.set(`play/v2/content/global/rooms/${room}.swf`, rooms[room]);
+            }
+            for (const id in musicFiles) {
+                routes.set(`play/v2/content/global/music/${id}.swf`, musicFiles[id]);
+                routes.set(`music/${id}.swf`, musicFiles[id]);
+            }
+            const roomMusic = new Map();
+            for (const room in music) {
+                roomMusic.set(room, music[room]);
+            }
+            this.overlay = { name, routes, music: roomMusic };
+        }
+        this.updateListener.fire();
+    }
+    getPartyOverlayName() {
+        return this.overlay?.name ?? null;
+    }
     lookupFile(route) {
-        return this.state.files.get(route);
+        return this.overlay?.routes.get(route) ?? this.state.files.get(route);
     }
     /** Todas as rotas de arquivos servidas na data atual (rota → arquivo da mídia). */
     getAllRoutes() {
-        return this.state.files;
+        if (this.overlay === null) {
+            return this.state.files;
+        }
+        const all = new Map(this.state.files);
+        this.overlay.routes.forEach((file, route) => all.set(route, file));
+        return all;
     }
     getDate() {
         return this.date;
@@ -688,9 +729,26 @@ class GameData {
     getMigrator() {
         return this.state.migrator;
     }
+    /** Festa (da linha do tempo do WF) ativa numa data qualquer, sem mudar a data atual. */
+    getPartyAt(date) {
+        let name = null;
+        for (const update of this.updates) {
+            if ((0, versions_1.isGreater)(update.date, date)) {
+                break;
+            }
+            if (update.end !== undefined && (0, versions_1.isGreaterOrEqual)(date, update.end)) {
+                continue;
+            }
+            const u = update.update;
+            if (typeof u.partyName === 'string') {
+                name = u.partyName;
+            }
+        }
+        return name;
+    }
     /** Festa ativa na data atual (ex.: "Halloween Party"), ou null */
     getPartyName() {
-        return this.state.partyName;
+        return this.overlay?.name ?? this.state.partyName;
     }
     getPartyIcon() {
         return this.state.partyIcon;
@@ -735,7 +793,7 @@ class GameData {
         return this.state.newShell2009;
     }
     getRoomsMusic(overrides) {
-        return new Map([...this.state.roomMusic, ...overrides]);
+        return new Map([...this.state.roomMusic, ...(this.overlay?.music ?? []), ...overrides]);
     }
     getRoomsMember() {
         return this.state.roomMember;

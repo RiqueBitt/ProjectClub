@@ -124,6 +124,8 @@ async function boot() {
   setInterval(() => {
     for (const id of penguinUser.keys()) store.refreshCoins(id, { force: true }).catch(() => {});
   }, 4000).unref?.();
+  // festas de 2013-2017 (rodízio de anos + festas ligadas pela staff)
+  try { require('./parties').attach(w); } catch (err) { console.warn('[festas] não iniciou:', err?.message || err); }
   const media = require('../../../waddle/dist/common/media-store.js');
   console.log(`[praça] Club Penguin ${w.settings.settings.version} pronto — manifesto com ${media.manifestSize()} arquivos; conferindo a mídia no disco…`);
   // Não espera: o site sobe normal; a Praça mostra "preparando" até terminar.
@@ -357,7 +359,7 @@ const PARTY_PT = {
   'Island Adventure Party': 'Festa da Aventura na Ilha', 'Wilderness Expedition': 'Expedição Selvagem', '6th Anniversary Party': 'Festa de 6º Aniversário',
   '7th Anniversary Party': 'Festa de 7º Aniversário', 'Battle of Doom': 'Batalha da Perdição', 'Great Snow Race': 'Grande Corrida na Neve',
 };
-const partyLabel = (name) => (name ? PARTY_PT[name] || name : null);
+const partyLabel = (name) => (name ? PARTY_PT[name] || require('./parties').labelOf(name) || name : null);
 
 /** Código numérico estável (2 dígitos) pra festa: entra na contentVersion. */
 function partyCode(party) {

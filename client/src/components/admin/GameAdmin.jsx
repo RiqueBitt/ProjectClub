@@ -68,6 +68,7 @@ export default function GameAdmin() {
 
   return (
     <div className={`stu stg${selected ? ' has-selected' : ''}`}>
+      <PartiesPanel notify={notify} />
       <div className="stg-layout">
         <aside className="stg-list">
           <label className="stu-search">
@@ -143,6 +144,97 @@ export default function GameAdmin() {
       </div>
       {toast && <div className={`stg-toast ${toast.kind}`} role="status">{toast.msg}</div>}
     </div>
+  );
+}
+
+// ---------- festas 2013-2017 ----------
+
+const fmtDay = (mmdd) => { const [m, d] = String(mmdd || '').split('-'); return d && m ? `${d}/${m}` : '—'; };
+
+// Festas de 2013-2017 (server/src/services/waddle/parties.js): as do Club
+// Penguin entram sozinhas no rodízio de anos do calendário; as de outras
+// marcas da Disney só rodam quando alguém da equipe liga aqui.
+function PartiesPanel({ notify }) {
+  const [data, setData] = useState(null);
+  const [open, setOpen] = useState(false);
+  const [filter, setFilter] = useState('todas');
+  const [busy, setBusy] = useState(false);
+  const load = useCallback(() => { api.get('/staff-game/parties').then(({ data: d }) => setData(d)).catch(() => {}); }, []);
+  useEffect(() => { load(); }, [load]);
+
+  const setActive = async (slug, label) => {
+    const msg = slug ? `Ligar "${label}" agora? Quem está na ilha reconecta sozinho já com a festa.` : 'Desligar a festa e voltar ao calendário normal? Quem está na ilha reconecta sozinho.';
+    if (!window.confirm(msg)) return;
+    setBusy(true);
+    try {
+      const { data: d } = await api.post('/staff-game/parties/active', { slug });
+      notify(slug ? `Festa ligada: ${label}${d.kicked ? ` · ${d.kicked} jogador(es) reconectando` : ''}` : 'Calendário normal de volta.');
+      load();
+    } catch (err) { notify(err?.response?.data?.error || 'Não deu pra trocar a festa.', 'bad'); } finally { setBusy(false); }
+  };
+
+  const groups = useMemo(() => {
+    const out = new Map();
+    for (const p of data?.parties || []) {
+      if (filter === 'cp' && p.licensed) continue;
+      if (filter === 'marcas' && !p.licensed) continue;
+      if (!out.has(p.year)) out.set(p.year, []);
+      out.get(p.year).push(p);
+    }
+    return [...out.entries()];
+  }, [data, filter]);
+
+  if (!data) return null;
+  const active = data.active;
+  const filesNote = data.files?.state === 'downloading' ? 'Baixando os arquivos das festas no servidor…' : data.files?.state === 'error' ? `Arquivos das festas indisponíveis (${data.files.error}).` : null;
+  return (
+    <section className={`stg-parties${open ? ' is-open' : ''}`} aria-label="Festas da ilha">
+      <button type="button" className="stg-parties-head" onClick={() => setOpen((o) => !o)} aria-expanded={open}>
+        <span className="stg-parties-icon" aria-hidden="true">🎉</span>
+        <span className="stg-parties-title">
+          <strong>Festas da ilha</strong>
+          <span>
+            {active ? <>Agora: <b>{active.label}</b> · {active.source === 'staff' ? 'ligada pela equipe' : 'rodízio do calendário'}</> : `Agora: calendário normal (festas de ${data.rotationYear} este mês)`}
+          </span>
+        </span>
+        <span className="stg-parties-caret" aria-hidden="true">{open ? '▴' : '▾'}</span>
+      </button>
+      {open && (
+        <div className="stg-parties-body">
+          <p className="stg-note">As festas do Club Penguin de 2013 a 2017 entram sozinhas no calendário (cada mês usa um ano diferente). As de outras marcas da Disney (Star Wars, Frozen, Marvel…) só rodam quando alguém liga aqui. Ao trocar, quem está na ilha reconecta já com a festa nova.</p>
+          {filesNote && <div className="sth-error-banner">{filesNote}</div>}
+          <div className="stg-parties-bar">
+            <div className="stg-chips" role="tablist" aria-label="Filtrar festas">
+              {[['todas', 'Todas'], ['cp', 'Do Club Penguin'], ['marcas', 'Outras marcas']].map(([k, label]) => (
+                <button key={k} type="button" role="tab" aria-selected={filter === k} className={`stg-chip${filter === k ? ' active' : ''}`} onClick={() => setFilter(k)}>{label}</button>
+              ))}
+            </div>
+            {data.manual && <button type="button" className="sth-btn" disabled={busy} onClick={() => setActive(null)}>Voltar ao calendário</button>}
+          </div>
+          {groups.map(([year, parties]) => (
+            <div key={year} className="stg-parties-year">
+              <h4>{year}</h4>
+              <ul>
+                {parties.map((p) => {
+                  const isOn = (active?.slugs || []).includes(p.slug);
+                  return (
+                    <li key={p.slug} className={`stg-party${isOn ? ' is-on' : ''}`}>
+                      <span className="stg-party-main">
+                        <span className="stg-party-name">{p.label}{p.licensed && <span className="stu-flag stg-flag-brand">outra marca</span>}{isOn && <span className="stu-flag stg-flag-on">na ilha</span>}</span>
+                        <span className="stg-party-sub">{fmtDay(p.start)} a {fmtDay(p.end)} · {p.rooms} sala{p.rooms === 1 ? '' : 's'}{!p.ready ? (p.rooms ? ' · arquivos pendentes' : ' · sem salas no arquivo') : ''}{!p.licensed ? ' · entra no rodízio' : ' · só pela equipe'}</span>
+                      </span>
+                      {data.manual === p.slug
+                        ? <button type="button" className="sth-btn danger" disabled={busy} onClick={() => setActive(null)}>Desligar</button>
+                        : <button type="button" className="sth-btn" disabled={busy || !p.ready} onClick={() => setActive(p.slug, p.label)}>Ligar</button>}
+                    </li>
+                  );
+                })}
+              </ul>
+            </div>
+          ))}
+        </div>
+      )}
+    </section>
   );
 }
 

@@ -29,6 +29,10 @@ class SettingsManager {
      * Ligado por WADDLE_VERSION=auto.
      */
     calendarYear = null;
+    /** Ajuste opcional da data do modo calendário (ver services/waddle/parties.js). */
+    calendarAdjust = null;
+    /** Reaplica o modo calendário agora (depois de trocar o ajuste). */
+    resyncCalendar = null;
     /** Data de hoje mapeada no ano da linha do tempo (AAAA-MM-DD) */
     static calendarVersion(year, now = new Date()) {
         let month = now.getMonth() + 1;
@@ -42,13 +46,17 @@ class SettingsManager {
     followCalendar(year) {
         this.calendarYear = year;
         const sync = () => {
-            const v = SettingsManager.calendarVersion(year);
+            const base = SettingsManager.calendarVersion(year);
+            // Project Club: o agendador de festas pode trocar o dia (ex.: um dia de
+            // 2012 sem festa quando uma festa de 2013-2017 está por cima da ilha)
+            const v = this.calendarAdjust !== null ? this.calendarAdjust(base) : base;
             if (this.settings.version !== v) {
                 console.log(`[waddle] calendário: hoje vira ${v} na linha do tempo`);
                 this.updateSettings({ version: v });
             }
         };
         sync();
+        this.resyncCalendar = sync;
         // confere a cada minuto (vira a data à meia-noite)
         const timer = setInterval(sync, 60_000);
         timer.unref?.();

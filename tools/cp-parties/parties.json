@@ -1,59 +1,444 @@
 {
-  "_comment": "Festas de 2013-2017 baixadas da cópia da Club Penguin Archives na Solero (toolbox.solero.me/cparchives). 'licensed': festa de outra marca da Disney — fica nos arquivos mas só roda quando a staff liga no painel.",
-  "base": "https://toolbox.solero.me/cparchives/wiki/",
-  "parties": [
-    { "slug": "Prehistoric_Party_2013" },
-    { "slug": "Hollywood_Party" },
-    { "slug": "Puffle_Party_2013" },
-    { "slug": "Marvel_Super_Hero_Takeover_2013", "licensed": true },
-    { "slug": "Card-Jitsu_Party_2013" },
-    { "slug": "Monsters_University_Takeover", "licensed": true },
-    { "slug": "Star_Wars_Takeover", "licensed": true },
-    { "slug": "Teen_Beach_Movie_Summer_Jam", "licensed": true },
-    { "slug": "Medieval_Party_2013" },
-    { "slug": "Halloween_Party_2013" },
-    { "slug": "8th_Anniversary_Party" },
-    { "slug": "Operation:_Puffle" },
-    { "slug": "Holiday_Party_2013" },
-    { "slug": "Prehistoric_Party_2014" },
-    { "slug": "The_Fair_2014" },
-    { "slug": "Muppets_World_Tour", "licensed": true },
-    { "slug": "Puffle_Party_2014" },
-    { "slug": "Future_Party" },
-    { "slug": "Penguin_Cup" },
-    { "slug": "Music_Jam_2014" },
-    { "slug": "Frozen_Party", "licensed": true },
-    { "slug": "School_&_Skate_Party" },
-    { "slug": "9th_Anniversary_Party" },
-    { "slug": "Halloween_Party_2014" },
-    { "slug": "Pirate_Party_2014" },
-    { "slug": "Merry_Walrus_Party" },
-    { "slug": "Star_Wars_Rebels_Takeover", "licensed": true },
-    { "slug": "SoundStudio_Party" },
-    { "slug": "Puffle_Party_2015" },
-    { "slug": "Frozen_Fever_Party_2015", "licensed": true },
-    { "slug": "The_Fair_2015" },
-    { "slug": "Rainbow_Puffle_Party" },
-    { "slug": "Festival_of_Snow_2015" },
-    { "slug": "Inside_Out_Party", "licensed": true },
-    { "slug": "Fashion_Festival" },
-    { "slug": "Descendants_Party", "licensed": true },
-    { "slug": "10th_Anniversary_Party" },
-    { "slug": "Halloween_Party_2015" },
-    { "slug": "Operation:_Crustacean" },
-    { "slug": "Holiday_Party_2015" },
-    { "slug": "Prehistoric_Party_2016" },
-    { "slug": "Operation:_Tri-umph" },
-    { "slug": "Puffle_Party_2016" },
-    { "slug": "Wilderness_Expedition_2016" },
-    { "slug": "Zootopia_Party", "licensed": true },
-    { "slug": "Finding_Dory_Party", "licensed": true },
-    { "slug": "Frozen_Fever_Party_2016", "licensed": true },
-    { "slug": "Halloween_Party_2016" },
-    { "slug": "11th_Anniversary_Party" },
-    { "slug": "Music_Jam_2016" },
-    { "slug": "Holiday_Party_2016" },
-    { "slug": "Club_Penguin_Island_Party" },
-    { "slug": "Waddle_On_Party" }
-  ]
+ "_comment": "Festas de 2013-2017 baixadas da cópia da Club Penguin Archives na Solero (toolbox.solero.me/cparchives). 'licensed': festa de outra marca da Disney — fica nos arquivos mas só roda quando a staff liga no painel.",
+ "base": "https://toolbox.solero.me/cparchives/wiki/",
+ "parties": [
+  {
+   "slug": "Prehistoric_Party_2013",
+   "year": 2013,
+   "start": "01-17",
+   "end": "01-31",
+   "name": "Prehistoric Party 2013",
+   "label": "Festa Pré-Histórica 2013"
+  },
+  {
+   "slug": "Hollywood_Party",
+   "year": 2013,
+   "start": "02-14",
+   "end": "02-28",
+   "name": "Hollywood Party",
+   "label": "Festa de Hollywood"
+  },
+  {
+   "slug": "Puffle_Party_2013",
+   "year": 2013,
+   "start": "03-21",
+   "end": "04-04",
+   "name": "Puffle Party 2013",
+   "label": "Festa dos Puffles 2013"
+  },
+  {
+   "slug": "Marvel_Super_Hero_Takeover_2013",
+   "licensed": true,
+   "year": 2013,
+   "start": "04-25",
+   "end": "05-09",
+   "name": "Marvel Super Hero Takeover 2013",
+   "label": "Invasão dos Super-Heróis Marvel 2013"
+  },
+  {
+   "slug": "Card-Jitsu_Party_2013",
+   "year": 2013,
+   "start": "05-23",
+   "end": "06-06",
+   "name": "Card-Jitsu Party 2013",
+   "label": "Festa do Card-Jitsu 2013"
+  },
+  {
+   "slug": "Monsters_University_Takeover",
+   "licensed": true,
+   "year": 2013,
+   "start": "06-27",
+   "end": "07-11",
+   "name": "Monsters University Takeover",
+   "label": "Invasão da Universidade Monstros"
+  },
+  {
+   "slug": "Star_Wars_Takeover",
+   "licensed": true,
+   "year": 2013,
+   "start": "07-25",
+   "end": "08-13",
+   "name": "Star Wars Takeover",
+   "label": "Invasão Star Wars"
+  },
+  {
+   "slug": "Teen_Beach_Movie_Summer_Jam",
+   "licensed": true,
+   "year": 2013,
+   "start": "08-22",
+   "end": "09-04",
+   "name": "Teen Beach Movie Summer Jam",
+   "label": "Festival de Verão Teen Beach"
+  },
+  {
+   "slug": "Medieval_Party_2013",
+   "year": 2013,
+   "start": "09-19",
+   "end": "10-03",
+   "name": "Medieval Party 2013",
+   "label": "Festa Medieval 2013"
+  },
+  {
+   "slug": "Halloween_Party_2013",
+   "year": 2013,
+   "start": "10-17",
+   "end": "10-31",
+   "name": "Halloween Party 2013",
+   "label": "Festa de Halloween 2013"
+  },
+  {
+   "slug": "8th_Anniversary_Party",
+   "year": 2013,
+   "start": "10-24",
+   "end": "10-31",
+   "name": "8th Anniversary Party",
+   "label": "Festa de 8º Aniversário"
+  },
+  {
+   "slug": "Operation:_Puffle",
+   "year": 2013,
+   "start": "11-21",
+   "end": "12-05",
+   "name": "Operation: Puffle",
+   "label": "Operação: Puffle"
+  },
+  {
+   "slug": "Holiday_Party_2013",
+   "year": 2013,
+   "start": "12-19",
+   "end": "01-02",
+   "name": "Holiday Party 2013",
+   "label": "Festa de Natal 2013"
+  },
+  {
+   "slug": "Prehistoric_Party_2014",
+   "year": 2014,
+   "start": "01-23",
+   "end": "02-06",
+   "name": "Prehistoric Party 2014",
+   "label": "Festa Pré-Histórica 2014"
+  },
+  {
+   "slug": "The_Fair_2014",
+   "year": 2014,
+   "start": "02-20",
+   "end": "03-06",
+   "name": "The Fair 2014",
+   "label": "A Feira 2014"
+  },
+  {
+   "slug": "Muppets_World_Tour",
+   "licensed": true,
+   "year": 2014,
+   "start": "03-20",
+   "end": "04-01",
+   "name": "Muppets World Tour",
+   "label": "Turnê Mundial dos Muppets"
+  },
+  {
+   "slug": "Puffle_Party_2014",
+   "year": 2014,
+   "start": "04-17",
+   "end": "04-29",
+   "name": "Puffle Party 2014",
+   "label": "Festa dos Puffles 2014"
+  },
+  {
+   "slug": "Future_Party",
+   "year": 2014,
+   "start": "05-22",
+   "end": "06-03",
+   "name": "Future Party",
+   "label": "Festa do Futuro"
+  },
+  {
+   "slug": "Penguin_Cup",
+   "year": 2014,
+   "start": "06-19",
+   "end": "07-01",
+   "name": "Penguin Cup",
+   "label": "Copa Pinguim"
+  },
+  {
+   "slug": "Music_Jam_2014",
+   "year": 2014,
+   "start": "07-17",
+   "end": "07-29",
+   "name": "Music Jam 2014",
+   "label": "Festival de Música 2014"
+  },
+  {
+   "slug": "Frozen_Party",
+   "licensed": true,
+   "year": 2014,
+   "start": "08-21",
+   "end": "09-03",
+   "name": "Frozen Party",
+   "label": "Festa Frozen"
+  },
+  {
+   "slug": "School_&_Skate_Party",
+   "year": 2014,
+   "start": "09-18",
+   "end": "10-01",
+   "name": "School & Skate Party",
+   "label": "Festa Escola & Skate"
+  },
+  {
+   "slug": "9th_Anniversary_Party",
+   "year": 2014,
+   "start": "10-23",
+   "end": "10-29",
+   "name": "9th Anniversary Party",
+   "label": "Festa de 9º Aniversário"
+  },
+  {
+   "slug": "Halloween_Party_2014",
+   "year": 2014,
+   "start": "10-23",
+   "end": "11-05",
+   "name": "Halloween Party 2014",
+   "label": "Festa de Halloween 2014"
+  },
+  {
+   "slug": "Pirate_Party_2014",
+   "year": 2014,
+   "start": "11-20",
+   "end": "12-03",
+   "name": "Pirate Party 2014",
+   "label": "Festa Pirata 2014"
+  },
+  {
+   "slug": "Merry_Walrus_Party",
+   "year": 2014,
+   "start": "12-18",
+   "end": "12-30",
+   "name": "Merry Walrus Party",
+   "label": "Festa da Morsa Feliz"
+  },
+  {
+   "slug": "Star_Wars_Rebels_Takeover",
+   "licensed": true,
+   "year": 2015,
+   "start": "01-22",
+   "end": "02-04",
+   "name": "Star Wars Rebels Takeover",
+   "label": "Invasão Star Wars Rebels"
+  },
+  {
+   "slug": "SoundStudio_Party",
+   "year": 2015,
+   "start": "02-19",
+   "end": "03-04",
+   "name": "SoundStudio Party",
+   "label": "Festa SoundStudio"
+  },
+  {
+   "slug": "Puffle_Party_2015",
+   "year": 2015,
+   "start": "03-26",
+   "end": "04-09",
+   "name": "Puffle Party 2015",
+   "label": "Festa dos Puffles 2015"
+  },
+  {
+   "slug": "Frozen_Fever_Party_2015",
+   "licensed": true,
+   "year": 2015,
+   "start": "04-23",
+   "end": "05-06",
+   "name": "Frozen Fever Party 2015",
+   "label": "Festa Frozen Febre Congelante 2015"
+  },
+  {
+   "slug": "The_Fair_2015",
+   "year": 2015,
+   "start": "05-21",
+   "end": "06-11",
+   "name": "The Fair 2015",
+   "label": "A Feira 2015"
+  },
+  {
+   "slug": "Rainbow_Puffle_Party",
+   "year": 2015,
+   "start": "05-21",
+   "end": "06-17",
+   "name": "Rainbow Puffle Party",
+   "label": "Festa do Puffle Arco-Íris"
+  },
+  {
+   "slug": "Festival_of_Snow_2015",
+   "year": 2015,
+   "start": "06-30",
+   "end": "07-08",
+   "name": "Festival of Snow 2015",
+   "label": "Festival da Neve 2015"
+  },
+  {
+   "slug": "Inside_Out_Party",
+   "licensed": true,
+   "year": 2015,
+   "start": "07-22",
+   "end": "08-05",
+   "name": "Inside Out Party",
+   "label": "Festa Divertida Mente"
+  },
+  {
+   "slug": "Fashion_Festival",
+   "year": 2015,
+   "start": "08-26",
+   "end": "09-16",
+   "name": "Fashion Festival",
+   "label": "Festival da Moda"
+  },
+  {
+   "slug": "Descendants_Party",
+   "licensed": true,
+   "year": 2015,
+   "start": "09-16",
+   "end": "09-30",
+   "name": "Descendants Party",
+   "label": "Festa Descendentes"
+  },
+  {
+   "slug": "10th_Anniversary_Party",
+   "year": 2015,
+   "start": "09-30",
+   "end": "10-21",
+   "name": "10th Anniversary Party",
+   "label": "Festa de 10º Aniversário"
+  },
+  {
+   "slug": "Halloween_Party_2015",
+   "year": 2015,
+   "start": "10-21",
+   "end": "11-04",
+   "name": "Halloween Party 2015",
+   "label": "Festa de Halloween 2015"
+  },
+  {
+   "slug": "Operation:_Crustacean",
+   "year": 2015,
+   "start": "11-18",
+   "end": "12-15",
+   "name": "Operation: Crustacean",
+   "label": "Operação: Crustáceo"
+  },
+  {
+   "slug": "Holiday_Party_2015",
+   "year": 2015,
+   "start": "12-16",
+   "end": "01-06",
+   "name": "Holiday Party 2015",
+   "label": "Festa de Natal 2015"
+  },
+  {
+   "slug": "Prehistoric_Party_2016",
+   "year": 2016,
+   "start": "01-20",
+   "end": "02-03",
+   "name": "Prehistoric Party 2016",
+   "label": "Festa Pré-Histórica 2016"
+  },
+  {
+   "slug": "Operation:_Tri-umph",
+   "year": 2016,
+   "start": "02-10",
+   "end": "03-02",
+   "name": "Operation: Tri-umph",
+   "label": "Operação: Tri-unfo"
+  },
+  {
+   "slug": "Puffle_Party_2016",
+   "year": 2016,
+   "start": "03-16",
+   "end": "04-19",
+   "name": "Puffle Party 2016",
+   "label": "Festa dos Puffles 2016"
+  },
+  {
+   "slug": "Wilderness_Expedition_2016",
+   "year": 2016,
+   "start": "04-20",
+   "end": "05-04",
+   "name": "Wilderness Expedition 2016",
+   "label": "Expedição Selvagem 2016"
+  },
+  {
+   "slug": "Zootopia_Party",
+   "licensed": true,
+   "year": 2016,
+   "start": "05-19",
+   "end": "07-06",
+   "name": "Zootopia Party",
+   "label": "Festa Zootopia"
+  },
+  {
+   "slug": "Finding_Dory_Party",
+   "licensed": true,
+   "year": 2016,
+   "start": "07-06",
+   "end": "08-17",
+   "name": "Finding Dory Party",
+   "label": "Festa Procurando Dory"
+  },
+  {
+   "slug": "Frozen_Fever_Party_2016",
+   "licensed": true,
+   "year": 2016,
+   "start": "08-17",
+   "end": "09-28",
+   "name": "Frozen Fever Party 2016",
+   "label": "Festa Frozen Febre Congelante 2016"
+  },
+  {
+   "slug": "Halloween_Party_2016",
+   "year": 2016,
+   "start": "09-28",
+   "end": "11-01",
+   "name": "Halloween Party 2016",
+   "label": "Festa de Halloween 2016"
+  },
+  {
+   "slug": "11th_Anniversary_Party",
+   "year": 2016,
+   "start": "10-19",
+   "end": "11-01",
+   "name": "11th Anniversary Party",
+   "label": "Festa de 11º Aniversário"
+  },
+  {
+   "slug": "Music_Jam_2016",
+   "year": 2016,
+   "start": "11-02",
+   "end": "11-30",
+   "name": "Music Jam 2016",
+   "label": "Festival de Música 2016"
+  },
+  {
+   "slug": "Holiday_Party_2016",
+   "year": 2016,
+   "start": "12-01",
+   "end": "01-04",
+   "name": "Holiday Party 2016",
+   "label": "Festa de Natal 2016"
+  },
+  {
+   "slug": "Club_Penguin_Island_Party",
+   "year": 2017,
+   "start": "01-04",
+   "end": "01-30",
+   "name": "Club Penguin Island Party",
+   "label": "Festa Club Penguin Island"
+  },
+  {
+   "slug": "Waddle_On_Party",
+   "year": 2017,
+   "start": "01-31",
+   "end": "03-30",
+   "name": "Waddle On Party",
+   "label": "Festa Waddle On"
+  }
+ ],
+ "_dates": "Datas: Club Penguin Wiki (fandom), \"List of Parties and Events in AAAA\". end = último dia (inclusive)."
 }
