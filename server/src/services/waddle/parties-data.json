@@ -1,7 +1,7 @@
 {
  "_comment": "Gerado por tools/cp-parties/build-data.py — não editar à mão.",
  "source": "https://toolbox.solero.me/cparchives/wiki/",
- "generatedAt": "2026-11-05T14:06:02Z",
+ "generatedAt": "2026-11-05T14:38:22Z",
  "parties": [
   {
    "slug": "Prehistoric_Party_2013",
@@ -706,7 +706,8 @@
     "707": "Music707.swf",
     "714": "Music714.swf"
    },
-   "haveMusic": []
+   "haveMusic": [],
+   "map": "ContentMap-PenguinCup.swf"
   },
   {
    "slug": "Music_Jam_2014",
@@ -746,7 +747,8 @@
     "725": "Music725.swf",
     "723": "Music723.swf"
    },
-   "haveMusic": []
+   "haveMusic": [],
+   "map": "ContentMap-MusicJam2014.swf"
   },
   {
    "slug": "Frozen_Party",
@@ -784,7 +786,8 @@
     "739": "Music739.swf",
     "743": "Music743.swf"
    },
-   "haveMusic": []
+   "haveMusic": [],
+   "map": "ContentMap-FrozenParty.swf"
   },
   {
    "slug": "School_&_Skate_Party",
@@ -818,7 +821,8 @@
     "748": "Music748.swf",
     "749": "Music749.swf"
    },
-   "haveMusic": []
+   "haveMusic": [],
+   "map": "ContentMap-School&SkateParty.swf"
   },
   {
    "slug": "9th_Anniversary_Party",
@@ -969,7 +973,8 @@
    "haveMusic": [
     343,
     345
-   ]
+   ],
+   "map": "ContentMap-HalloweenParty2014.swf"
   },
   {
    "slug": "Pirate_Party_2014",
@@ -1006,7 +1011,8 @@
     "793": "Music793.swf",
     "792": "Music792.swf"
    },
-   "haveMusic": []
+   "haveMusic": [],
+   "map": "ContentMap-PirateParty2014.swf"
   },
   {
    "slug": "Merry_Walrus_Party",
@@ -1092,7 +1098,8 @@
     "837": "Music837.swf",
     "840": "Music840.swf"
    },
-   "haveMusic": []
+   "haveMusic": [],
+   "map": "ContentMap-StarWarsRebelsTakeover.swf"
   },
   {
    "slug": "SoundStudio_Party",
@@ -1147,7 +1154,8 @@
     "864": "Music864.swf",
     "356": "Music356.swf"
    },
-   "haveMusic": []
+   "haveMusic": [],
+   "map": "ContentMap-SoundStudioParty.swf"
   },
   {
    "slug": "Puffle_Party_2015",
@@ -1254,7 +1262,8 @@
     "739": "Music739.swf",
     "910": "Music910.swf"
    },
-   "haveMusic": []
+   "haveMusic": [],
+   "map": "ContentMap-FrozenFeverParty.swf"
   },
   {
    "slug": "The_Fair_2015",
@@ -2102,7 +2111,8 @@
     "1135": "Music1135.swf",
     "1132": "Music1132.swf"
    },
-   "haveMusic": []
+   "haveMusic": [],
+   "map": "ContentMap-FrozenFeverParty2016.swf"
   },
   {
    "slug": "Halloween_Party_2016",
