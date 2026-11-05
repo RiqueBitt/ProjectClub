@@ -37,10 +37,17 @@ import zlib from 'zlib';
 import { PRACA_VOICE_DOACTION } from './praca-voice-action';
 import { PRACA_SHELL_DOACTION } from './praca-shell-action';
 import { PRACA_IGLOO_DOACTION } from './praca-igloo-action';
+import { replaceCoins } from './swf-coins';
 
 type Patch = { from: string; to: string };
 
-const PATCHES: Array<{ test: (route: string) => boolean; patches: Patch[]; frame1Tags?: Buffer[] }> = [
+const PATCHES: Array<{ test: (route: string) => boolean; patches: Patch[]; frame1Tags?: Buffer[]; transform?: (body: Buffer) => Buffer }> = [
+  {
+    // catálogos: a moeda dos preços vira a moeda "PC" (moeda única) — swf-coins.ts
+    test: (route) => /(^|\/)play\/v2\/content\/local\/[a-z]{2}\/catalogues\/[^/]+\.swf$/.test(route),
+    patches: [],
+    transform: replaceCoins,
+  },
   {
     test: (route) => /(^|\/)play\/v2\/content\/global\/content\/interface\.swf$/.test(route),
     patches: [{ from: 'autoLogin\0', to: 'autoLogXn\0' }],
@@ -108,6 +115,7 @@ export function patchSwf(route: string, data: Buffer | string): Buffer | string 
     body = replaceAll(body, from, to);
   }
   if (rule.frame1Tags?.length) body = insertIntoFrame1(body, rule.frame1Tags);
+  if (rule.transform) { try { body = rule.transform(body); } catch { /* arquivo diferente do esperado: fica como está */ } }
   const header = Buffer.from(data.subarray(0, 8));
   header.writeUInt32LE(body.length + 8, 4); // tamanho descomprimido (igual ao original)
   const out = sig === 'CWS' ? Buffer.concat([header, zlib.deflateSync(body, { level: 9 })]) : Buffer.concat([header, body]);

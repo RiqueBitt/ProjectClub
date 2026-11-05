@@ -61,6 +61,40 @@ function loadWaddle() {
   return require('../../../waddle/dist/server/boot.js');
 }
 
+// Amizade entre duas contas mudou no site: põe/tira um do outro na lista de
+// amigos do Club Penguin (online: na hora, com o aviso do jogo; offline: no JSON).
+async function syncFriendPair(w, ids) {
+  const [a, b] = ids;
+  if (!a || !b || a === b) return;
+  const [pa, pb] = await Promise.all([store.idForUser(a), store.idForUser(b)]);
+  if (!pa || !pb) return;
+  const friends = !!(await prisma.friendship.findFirst({ where: { status: 'ACCEPTED', OR: [{ requesterId: a, addresseeId: b }, { requesterId: b, addresseeId: a }] }, select: { id: true } }));
+  for (const [me, other] of [[pa, pb], [pb, pa]]) {
+    const live = w.world.getOnline(me);
+    if (live) {
+      if (friends && !live.buddy.isBuddy(other) && !live.buddy.ignored.includes(other)) {
+        const otherJson = await store.get(other);
+        live.buddy.add(other);
+        w.world.notify(live, 'ba', other, otherJson?.name || 'Amigo');
+        if (!w.world.getOnline(other)) w.world.notify(live, 'bof', other);
+        w.world.persist(live);
+      } else if (!friends && live.buddy.isBuddy(other)) {
+        live.buddy.remove(other);
+        w.world.notify(live, 'rb', other);
+        w.world.persist(live);
+      }
+    } else {
+      const json = await store.get(me);
+      if (!json) continue;
+      const list = new Set((Array.isArray(json.buddies) ? json.buddies : []).map(Number));
+      const ignored = new Set((Array.isArray(json.ignored) ? json.ignored : []).map(Number));
+      const before = list.size;
+      if (friends && !ignored.has(other)) list.add(other); else if (!friends) list.delete(other);
+      if (list.size !== before) { json.buddies = [...list]; await store.write(me, json); }
+    }
+  }
+}
+
 async function boot() {
   const { createWaddle } = loadWaddle();
   store = new PrismaPenguinStore(prisma);
@@ -77,6 +111,16 @@ async function boot() {
   store.onUserCoins = (userId, coins) => {
     try { io?.to(`user:${userId}`).emit('user:update', { id: userId, coins }); } catch { /* ok */ }
   };
+  store.onCoinCap = (userId, cap) => {
+    try { io?.to(`user:${userId}`).emit('praca:coin-cap', { cap }); } catch { /* ok */ }
+  };
+  // saldo mudou no site (loja, baú, missão…): o pinguim online recebe na hora
+  require('../coinEvents').onCoinsChanged((userId) => {
+    for (const [pid, uid] of penguinUser) if (uid === userId) store.refreshCoins(pid, { force: true }).catch(() => {});
+  });
+  // amigos do Project Club = amigos no jogo: aceitou/desfez no site → muda na hora
+  require('../friendEvents').onFriendsChanged((ids) => { syncFriendPair(w, ids).catch((err) => console.warn('[praça] amigos:', err?.message || err)); });
+  // e, por garantia, confere de tempos em tempos
   setInterval(() => {
     for (const id of penguinUser.keys()) store.refreshCoins(id, { force: true }).catch(() => {});
   }, 4000).unref?.();

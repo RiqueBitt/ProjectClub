@@ -150,6 +150,7 @@ async function updatePenguin(w, store, id, ops = {}) {
       const puffle = live.puffle.addPuffle(name, type); changes.push(`+puffle ${name} (#${puffle.id})`);
     }
     for (const pid of ids(ops.puffles?.remove)) if (live.puffle.getPuffle(pid)) { live.puffle.removePuffle(pid); changes.push(`-puffle #${pid}`); }
+    if (ops.coins) store.allowUncapped(id); // moedas da equipe não contam no limite diário do jogo
     w.world.persist(live);
     await Promise.resolve();
     if (ops.kick) { w.world.kick(id); changes.push('desconectado'); }
@@ -206,6 +207,7 @@ async function updatePenguin(w, store, id, ops = {}) {
       json.backyard = (json.backyard || []).filter((x) => x !== pid);
       changes.push(`-puffle #${pid}`);
     }
+    if (ops.coins) store.allowUncapped(id);
     await store.write(id, json);
   }
   return { changes, penguin: await getPenguin(w, store, id) };

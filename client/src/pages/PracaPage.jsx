@@ -6,7 +6,7 @@ import { enterGameMode, exitGameMode } from '../minijogos/orientation.js';
 import { isTouchDevice } from '../minijogos/touch/detect.js';
 import { autoLogin, watchEntry } from '../praca/autoLogin.js';
 import { gameCacheReady, clearGameCache, installPack, installFiles } from '../praca/installer.js';
-import { usePracaVoice, useInGameVoiceButtons } from '../praca/PracaSocial.jsx';
+import { usePracaVoice, useInGameVoiceButtons, usePracaCoinCap } from '../praca/PracaSocial.jsx';
 import { RemoteAudioSinks } from '../components/CallBar.jsx';
 import { findMinijogo } from '../minijogos/catalog.js';
 import '../styles/praca.css';
@@ -28,7 +28,7 @@ import '../styles/praca.css';
 // moedas, quem está online, mudo, tela cheia; e o palco do jogo escala pra
 // caber em qualquer tela (celular inclusive, deitado em tela cheia).
 
-const RUFFLE_SRC = '/ruffle/ruffle.js';
+const RUFFLE_SRC = '/ruffle/ruffle.js?v=pcei01'; // ?v: o Ruffle daqui tem ExternalInterface sem eval
 const STAGE = { w: 760, h: 480 };
 const MUTE_KEY = 'pc.praca.muted';
 const BASE_KEY = 'pc.praca.base'; // versão do jogo instalada neste navegador
@@ -78,7 +78,7 @@ function installSwfAddressShim() {
 const FRESH_GAME_FILES = [
   /\/play\/v2\/content\/global\/content\/interface\.swf(\?|$)/,
   /\/play\/v2\/client\/(shell|catalog_viewer|igloo)\.swf(\?|$)/,
-  /\/play\/v2\/content\/local\/[a-z]{2}\/news\//,
+  /\/play\/v2\/content\/local\/[a-z]{2}\/(news|catalogues)\//,
 ];
 function freshUrl(url) {
   const u = new URL(url, window.location.href);
@@ -178,24 +178,15 @@ export default function PracaPage({ embedded = false }) {
   const navigate = useNavigate();
   // botões Falar/Ouvir DENTRO da barra do jogo (interface.swf ↔ página)
   useInGameVoiceButtons(playerRef, pracaVoice);
+  usePracaCoinCap();
   const touch = useMemo(() => isTouchDevice(), []);
 
-  // 0) O Ruffle executa o ExternalInterface do jogo com `new Function` — a
-  // CSP do site só libera isso no documento /praca. Se esta página foi
-  // aberta por navegação interna (documento de outra rota), recarrega uma
-  // vez pra receber o cabeçalho certo; senão o jogo trava ao abrir.
-  const [cspOk] = useState(() => {
-    try { new Function('return 1')(); return true; } catch { return false; } // eslint-disable-line no-new-func
-  });
-  useEffect(() => {
-    const key = 'pc.praca.csp-reload';
-    if (cspOk) { try { sessionStorage.removeItem(key); } catch { /* ok */ } return; }
-    let tried = false;
-    try { tried = sessionStorage.getItem(key) === '1'; } catch { /* ok */ }
-    if (tried) return;
-    try { sessionStorage.setItem(key, '1'); } catch { /* ok */ }
-    window.location.replace(`${embedded ? '/praca/app' : '/praca'}${window.location.search}`);
-  }, [cspOk, embedded]);
+  // 0) Antes a página recarregava inteira ao abrir a Praça por dentro do site
+  // (o Ruffle usava `new Function` no ExternalInterface e a CSP do site só
+  // libera isso no documento /praca). O Ruffle servido aqui (public/ruffle)
+  // resolve as chamadas do jogo (nomes como pracaVoiceReady ou
+  // SWFAddress.getValue) sem eval — então não precisa mais recarregar.
+  const cspOk = true;
 
   // 1) configuração da sessão (SWF de entrada + ticket + pinguim)
   useEffect(() => {

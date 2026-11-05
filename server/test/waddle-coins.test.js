@@ -70,3 +70,52 @@ test('moedas: gastou no site enquanto jogava — o saldo nunca fica negativo nem
   assert.strictEqual(JSON.parse(prisma.penguins.get(1000).data).coins, 0);
   assert.deepStrictEqual(diffs, [-50]); // o pinguim online é corrigido pra 0
 });
+
+test('moedas: o jogo paga no máximo o limite do dia (o resto volta)', async () => {
+  const prisma = fakePrisma({ coins: 100 });
+  const ledger = [];
+  prisma.economyTransaction = {
+    aggregate: async () => ({ _sum: { coins: ledger.filter((t) => t.kind === 'GAME' && t.coins > 0).reduce((n, t) => n + t.coins, 0) } }),
+  };
+  const store = new PrismaPenguinStore(prisma);
+  store.dailyCap = 300;
+  // sem o histórico real: registra direto
+  const realWrite = store.addUserCoins.bind(store);
+  store.addUserCoins = async (userId, delta) => { ledger.push({ kind: 'GAME', coins: delta }); return realWrite(userId, delta); };
+  const caps = []; const diffs = [];
+  store.onCoinCap = (u, cap) => caps.push(cap);
+  store.onCoins = (id, d) => diffs.push(d);
+  await store.get(1000);
+  await store.write(1000, { name: 'Pingu', coins: 350 }); // +250 (cabe)
+  assert.strictEqual(prisma.users.get('u1').coins, 350);
+  await store.write(1000, { name: 'Pingu', coins: 550 }); // +200, só cabem 50
+  assert.strictEqual(prisma.users.get('u1').coins, 400);
+  assert.deepStrictEqual(caps, [300]);
+  assert.deepStrictEqual(diffs, [-150]);
+  await store.write(1000, { name: 'Pingu', coins: 500 }); // +100, limite batido
+  assert.strictEqual(prisma.users.get('u1').coins, 400);
+  // gastar continua valendo
+  await store.write(1000, { name: 'Pingu', coins: 300 });
+  assert.strictEqual(prisma.users.get('u1').coins, 300);
+  // moedas da equipe não contam no limite
+  store.allowUncapped(1000);
+  await store.write(1000, { name: 'Pingu', coins: 1300 });
+  assert.strictEqual(prisma.users.get('u1').coins, 1300);
+});
+
+test('amigos: os amigos do Project Club entram na lista de amigos do jogo', async () => {
+  const prisma = fakePrisma({ coins: 10 });
+  prisma.penguins.get(1000).data = JSON.stringify({ name: 'Pingu', coins: 10, buddies: [1005], ignored: [1003] });
+  prisma.friendship = {
+    findMany: async () => [
+      { requesterId: 'u1', addresseeId: 'u2' }, // aceito
+      { requesterId: 'u3', addresseeId: 'u1' }, // aceito, mas ignorado no jogo
+      { requesterId: 'u4', addresseeId: 'u1' }, // conta sem pinguim
+    ],
+  };
+  const penguinOf = { u2: { id: 1002, name: 'Amiga' }, u3: { id: 1003, name: 'Chato' } };
+  prisma.waddlePenguin.findMany = async ({ where }) => where.userId.in.map((u) => penguinOf[u]).filter(Boolean);
+  const store = new PrismaPenguinStore(prisma);
+  const json = await store.get(1000);
+  assert.deepStrictEqual(json.buddies.sort(), [1002, 1005]); // amigo do jogo fica, ignorado não entra
+});

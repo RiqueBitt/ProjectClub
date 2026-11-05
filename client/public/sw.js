@@ -8,14 +8,14 @@
  * (pc-praca) e aqui eles são servidos de lá — o jogo roda inteiro do
  * navegador, sem baixar nada de novo. Esses arquivos têm versão na URL, e o
  * que não estiver no cache vai pra rede e entra no cache ao passar. */
-const VERSION = 'pc-sw-7';
+const VERSION = 'pc-sw-8';
 const GAME_CACHE = 'pc-praca';
 // Consertados/traduzidos no servidor: a interface (server/waddle/.../swf-patches.ts)
 // e o jornal (server/src/services/waddle/news — traduzido aos poucos pela IA)
 const FRESH = [
   /\/play\/v2\/content\/global\/content\/interface\.swf$/,
   /\/play\/v2\/client\/(shell|catalog_viewer|igloo)\.swf$/,
-  /\/play\/v2\/content\/local\/[a-z]{2}\/news\//,
+  /\/play\/v2\/content\/local\/[a-z]{2}\/(news|catalogues)\//,
 ];
 const isGameUrl = (url) => url.origin === self.location.origin && (url.pathname.startsWith('/play/') || url.pathname.startsWith('/playstart/'));
 

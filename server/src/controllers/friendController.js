@@ -88,6 +88,8 @@ async function respondRequest(req, res, next) {
     });
     const io = req.app.get('io');
     io?.notifyUser?.(friendship.requesterId, 'friend:update', { friendship: updated });
+    // amigos do Project Club = amigos no Club Penguin (Praça)
+    if (status === 'ACCEPTED' || status === 'BLOCKED') require('../services/friendEvents').friendsChanged(friendship.requesterId, friendship.addresseeId);
 
     // Accepting a request should behave like Discord: the DM is just there,
     // ready to use, instead of making both people go find each other again
@@ -124,6 +126,7 @@ async function removeFriend(req, res, next) {
     }
     await prisma.friendship.delete({ where: { id } });
     const otherId = friendship.requesterId === req.user.id ? friendship.addresseeId : friendship.requesterId;
+    require('../services/friendEvents').friendsChanged(friendship.requesterId, friendship.addresseeId);
     req.app.get('io')?.notifyUser?.(otherId, 'friend:removed', { friendshipId: id });
     res.json({ ok: true });
   } catch (err) { next(err); }
@@ -156,6 +159,7 @@ async function blockUser(req, res, next) {
         data: { requesterId: req.user.id, addresseeId: target.id, status: 'BLOCKED' },
       });
     }
+    require('../services/friendEvents').friendsChanged(req.user.id, target.id);
     res.json({ ok: true });
   } catch (err) { next(err); }
 }

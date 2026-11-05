@@ -18,6 +18,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useSocket } from '../context/SocketContext.jsx';
 import { useVoice } from '../context/VoiceContext.jsx';
+import { useStore } from '../store/useStore';
 
 export const PRACA_VOICE_ID = 'praca:ilha';
 const NEAR = 110; // até aqui: volume cheio (px do palco 760x480)
@@ -156,4 +157,20 @@ export function useInGameVoiceButtons(playerRef, v) {
     return () => { delete window.pracaVoiceToggle; delete window.pracaVoiceReady; };
   }, [push]);
   useEffect(() => { push(); }, [v.talk, v.listen, v.speaking, v.someoneNearTalking, v.joining, v.inVoice, push]);
+}
+
+// Limite diário de moedas do Club Penguin (o saldo é o do Project Club): avisa
+// uma vez por dia quando o jogo para de pagar.
+export function usePracaCoinCap() {
+  const { socket } = useSocket() || {};
+  useEffect(() => {
+    if (!socket) return undefined;
+    const onCap = ({ cap } = {}) => {
+      const key = `pc.praca.cap.${new Date().toLocaleDateString('pt-BR')}`;
+      try { if (localStorage.getItem(key)) return; localStorage.setItem(key, '1'); } catch { /* ok */ }
+      useStore.getState().pushNotice(cap ? `Você já ganhou as ${cap} moedas de hoje no Club Penguin. Amanhã o jogo volta a pagar!` : 'Você já ganhou as moedas de hoje no Club Penguin. Amanhã o jogo volta a pagar!');
+    };
+    socket.on('praca:coin-cap', onCap);
+    return () => { socket.off('praca:coin-cap', onCap); };
+  }, [socket]);
 }

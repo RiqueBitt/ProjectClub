@@ -17,6 +17,26 @@ function pooledUrl() {
 const dbUrl = pooledUrl();
 const prisma = globalForPrisma.__prisma || new PrismaClient(dbUrl ? { datasources: { db: { url: dbUrl } } } : undefined);
 
+// Moeda única: qualquer mudança no saldo (User.coins) avisa a Praça na hora.
+if (!prisma.__coinsHook && typeof prisma.$use === 'function') {
+  prisma.__coinsHook = true;
+  const WRITES = new Set(['update', 'updateMany', 'upsert']);
+  prisma.$use(async (params, next) => {
+    const result = await next(params);
+    try {
+      if (params.model === 'User' && WRITES.has(params.action)) {
+        const data = params.action === 'upsert' ? params.args?.update : params.args?.data;
+        const id = params.args?.where?.id;
+        if (data && Object.prototype.hasOwnProperty.call(data, 'coins') && typeof id === 'string') {
+          // depois do commit (dentro de transação o valor novo ainda não aparece)
+          setTimeout(() => require('../services/coinEvents').coinsChanged(id), 250);
+        }
+      }
+    } catch { /* aviso é opcional */ }
+    return result;
+  });
+}
+
 if (process.env.NODE_ENV !== 'production') {
   globalForPrisma.__prisma = prisma;
 }

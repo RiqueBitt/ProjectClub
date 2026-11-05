@@ -44,7 +44,14 @@ const zlib_1 = __importDefault(require("zlib"));
 const praca_voice_action_1 = require("./praca-voice-action");
 const praca_shell_action_1 = require("./praca-shell-action");
 const praca_igloo_action_1 = require("./praca-igloo-action");
+const swf_coins_1 = require("./swf-coins");
 const PATCHES = [
+    {
+        // catálogos: a moeda dos preços vira a moeda "PC" (moeda única) — swf-coins.ts
+        test: (route) => /(^|\/)play\/v2\/content\/local\/[a-z]{2}\/catalogues\/[^/]+\.swf$/.test(route),
+        patches: [],
+        transform: swf_coins_1.replaceCoins,
+    },
     {
         test: (route) => /(^|\/)play\/v2\/content\/global\/content\/interface\.swf$/.test(route),
         patches: [{ from: 'autoLogin\0', to: 'autoLogXn\0' }],
@@ -121,6 +128,12 @@ function patchSwf(route, data) {
     }
     if (rule.frame1Tags?.length)
         body = insertIntoFrame1(body, rule.frame1Tags);
+    if (rule.transform) {
+        try {
+            body = rule.transform(body);
+        }
+        catch { /* arquivo diferente do esperado: fica como está */ }
+    }
     const header = Buffer.from(data.subarray(0, 8));
     header.writeUInt32LE(body.length + 8, 4); // tamanho descomprimido (igual ao original)
     const out = sig === 'CWS' ? Buffer.concat([header, zlib_1.default.deflateSync(body, { level: 9 })]) : Buffer.concat([header, body]);
