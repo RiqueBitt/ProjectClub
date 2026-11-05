@@ -53,17 +53,26 @@ function getModernIglooString(igloo, index) {
         getFurnitureString(igloo.furniture)
     ].join(':');
 }
-const handleGetIglooCpip = ({ world, penguin, msg, data }, penguinId) => {
-    const host = world.getById(penguinId);
-    if (host !== undefined) {
-        // const igloo = host.getOwnIglooString();
-        const igloo = host.igloo.activeIgloo;
-        if (!data.isVanillaEngine()) {
-            msg.send(penguin, 'gm', penguinId, igloo.type, igloo.music, igloo.flooring, getFurnitureString(igloo.furniture));
-        }
-        else {
-            msg.send(penguin, 'gm', penguinId, getModernIglooString(igloo, 1));
-        }
+const handleGetIglooCpip = async ({ world, db, penguin, msg, data }, penguinId) => {
+    // Dono offline (ex.: visitar a casa de um amigo pela lista de amigos): o iglu
+    // vem do banco. Antes só respondia com o dono online e o cliente ficava
+    // carregando pra sempre esperando o 'gm'.
+    let igloo;
+    try {
+        igloo = await getIglooFromId(world, db, penguinId);
+    }
+    catch {
+        igloo = undefined;
+    }
+    if (igloo === undefined) {
+        // sem dados: iglu básico vazio (nunca deixa a tela de carregamento presa)
+        igloo = { id: 1, type: 1, music: 0, flooring: 0, furniture: [], locked: false, location: 1 };
+    }
+    if (!data.isVanillaEngine()) {
+        msg.send(penguin, 'gm', penguinId, igloo.type, igloo.music, igloo.flooring, getFurnitureString(igloo.furniture));
+    }
+    else {
+        msg.send(penguin, 'gm', penguinId, getModernIglooString(igloo, 1));
     }
 };
 exports.handleGetIglooCpip = handleGetIglooCpip;
