@@ -191,13 +191,15 @@ function calendarAdjust(version) {
   return version;
 }
 
-function extractTar(file, dest) {
+function run(cmd, args) {
   return new Promise((resolve, reject) => {
-    const p = spawn('tar', ['xf', file, '-C', dest], { stdio: 'ignore' });
+    const p = spawn(cmd, args, { stdio: 'ignore' });
     p.on('error', reject);
-    p.on('exit', (code) => (code === 0 ? resolve() : reject(new Error(`tar saiu com ${code}`))));
+    p.on('exit', (code) => (code === 0 ? resolve() : reject(new Error(`${cmd} saiu com ${code}`))));
   });
 }
+
+const extractTar = (file, dest) => run('tar', ['xf', file, '-C', dest]);
 
 /** Baixa e extrai as festas (uma vez; depois fica no disco). */
 async function ensureFiles() {
@@ -210,10 +212,17 @@ async function ensureFiles() {
   const tmp = path.join(mediaDir(), '.tmp-parties.tar');
   try {
     fs.mkdirSync(mediaDir(), { recursive: true });
-    const res = await fetch(`${RELEASE}/media-parties.tar`, { redirect: 'follow' });
-    if (!res.ok || !res.body) throw new Error(`HTTP ${res.status}`);
-    // ~650 MB: vai direto pro disco (sem segurar tudo na memória)
-    await pipeline(Readable.fromWeb(res.body), fs.createWriteStream(tmp));
+    // ~650 MB direto pro disco. curl aguenta melhor download longo com o
+    // servidor carregado (o fetch do Node estourava o tempo no meio); sem
+    // curl, usa o fetch mesmo.
+    try {
+      await run('curl', ['-fsSL', '--retry', '3', '--retry-delay', '5', '-o', tmp, `${RELEASE}/media-parties.tar`]);
+    } catch (err) {
+      if (err?.code !== 'ENOENT') throw err;
+      const res = await fetch(`${RELEASE}/media-parties.tar`, { redirect: 'follow' });
+      if (!res.ok || !res.body) throw new Error(`HTTP ${res.status}`);
+      await pipeline(Readable.fromWeb(res.body), fs.createWriteStream(tmp));
+    }
     await extractTar(tmp, mediaDir());
     downloadState = { state: fs.existsSync(index) ? 'ready' : 'partial' };
     console.log(`[festas] arquivos das festas 2013-2017 prontos (${DATA.parties.filter(filesReady).length}/${DATA.parties.length} festas)`);
