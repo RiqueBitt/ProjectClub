@@ -32,12 +32,18 @@ const mediaDir = () => process.env.WADDLE_MEDIA_DIR || path.join(process.env.WAD
 // produção, nada mais consegue escrever ali — por isso a pasta nova.
 const SUBDIR = 'pcparties-v2';
 const filesDir = () => path.join(mediaDir(), SUBDIR);
+// telas das festas (close-ups, catálogos, content/features.swf…): outro pacote
+const UI_SUBDIR = 'pcparties-ui';
+const uiDir = () => path.join(mediaDir(), UI_SUBDIR);
+let PATHS = { global: {}, local: {} };
+try { PATHS = require('./parties-paths.json'); } catch { /* sem chaves extras */ }
 const stateFile = () => path.join(process.env.WADDLE_DATA_DIR || path.join(__dirname, '..', '..', '..', 'data', 'waddle'), 'pc-party.json');
 
 const bySlug = new Map(DATA.parties.map((p) => [p.slug, p]));
 let manual = null; // slug ligado pela staff
 let active = null; // { slugs: [principal, ...], source: 'staff' | 'rotation' }
 let downloadState = { state: 'idle' };
+let uiState = { state: 'idle' };
 let instance = null;
 
 function readState() {
@@ -57,6 +63,8 @@ function writeState() {
 let fileExists = (file) => fs.existsSync(file);
 const MAP_ROUTE = 'play/v2/content/global/content/map.swf';
 const onDisk = (file) => { try { return fileExists(path.join(filesDir(), file)); } catch { return false; } };
+const uiOnDisk = (file) => { try { return fileExists(path.join(uiDir(), file)); } catch { return false; } };
+const uiMissing = () => DATA.parties.some((p) => Object.values(p.ui || {}).some((f) => !uiOnDisk(f)));
 
 /** Algum arquivo citado pelas festas (salas, mapa, músicas) ainda falta no disco? */
 function anyMissing() {
@@ -124,6 +132,12 @@ function merged(slugs) {
   // mapa da ilha decorado: o da festa principal (ou de outra que tenha)
   const withMap = parties.find((p) => p.map && onDisk(p.map));
   if (withMap) out.routes[MAP_ROUTE] = `${SUBDIR}/${withMap.map}`;
+  // telas (close-ups, catálogos, features): a festa principal ganha nas repetidas
+  for (const p of [...parties].reverse()) {
+    for (const [route, file] of Object.entries(p.ui || {})) {
+      if (uiOnDisk(file)) out.routes[`play/v2/content/${route}`] = `${UI_SUBDIR}/${file}`;
+    }
+  }
   return out;
 }
 
@@ -206,6 +220,45 @@ function run(cmd, args) {
 // --no-same-owner: os arquivos ficam do usuário do servidor (senão ninguém sobrescreve depois)
 const extractTar = (file, dest) => run('tar', ['xf', file, '-C', dest, '--no-same-owner', '--no-same-permissions']);
 
+/**
+ * Baixa um .tar da release e põe os arquivos de <pasta do tar> em <destino>.
+ * Extrai numa pasta à parte e move arquivo por arquivo: no disco de produção
+ * o tar não consegue sobrescrever ("File exists").
+ */
+async function downloadTar(asset, inner, dest, tag) {
+  const tmp = path.join(mediaDir(), `.tmp-${tag}.tar`);
+  const stage = path.join(mediaDir(), `.tmp-${tag}`);
+  try {
+    fs.mkdirSync(mediaDir(), { recursive: true });
+    // centenas de MB direto pro disco: curl aguenta melhor (sem curl, fetch)
+    try {
+      await run('curl', ['-fsSL', '--retry', '3', '--retry-delay', '5', '-o', tmp, `${RELEASE}/${asset}`]);
+    } catch (err) {
+      if (err?.code !== 'ENOENT') throw err;
+      const res = await fetch(`${RELEASE}/${asset}`, { redirect: 'follow' });
+      if (!res.ok || !res.body) throw new Error(`HTTP ${res.status}`);
+      await pipeline(Readable.fromWeb(res.body), fs.createWriteStream(tmp));
+    }
+    await fs.promises.rm(stage, { recursive: true, force: true });
+    await fs.promises.mkdir(stage, { recursive: true });
+    await extractTar(tmp, stage);
+    const from = path.join(stage, ...inner.split('/'));
+    await fs.promises.mkdir(dest, { recursive: true });
+    for (const name of await fs.promises.readdir(from)) {
+      const target = path.join(dest, name);
+      try {
+        await fs.promises.rename(path.join(from, name), target);
+      } catch {
+        await fs.promises.rm(target, { force: true }).catch(() => {});
+        await fs.promises.copyFile(path.join(from, name), target);
+      }
+    }
+  } finally {
+    await fs.promises.rm(stage, { recursive: true, force: true }).catch(() => {});
+    fs.promises.unlink(tmp).catch(() => {});
+  }
+}
+
 /** Baixa e extrai as festas (uma vez; depois fica no disco). */
 async function ensureFiles() {
   const index = path.join(filesDir(), 'index.json');
@@ -214,45 +267,28 @@ async function ensureFiles() {
   if (!anyMissing()) { downloadState = { state: 'ready' }; return; }
   if (!RELEASE) { downloadState = { state: 'missing', missing }; return; }
   downloadState = { state: 'downloading', missing };
-  const tmp = path.join(mediaDir(), '.tmp-parties.tar');
   try {
-    fs.mkdirSync(mediaDir(), { recursive: true });
-    // ~650 MB direto pro disco. curl aguenta melhor download longo com o
-    // servidor carregado (o fetch do Node estourava o tempo no meio); sem
-    // curl, usa o fetch mesmo.
-    try {
-      await run('curl', ['-fsSL', '--retry', '3', '--retry-delay', '5', '-o', tmp, `${RELEASE}/media-parties.tar`]);
-    } catch (err) {
-      if (err?.code !== 'ENOENT') throw err;
-      const res = await fetch(`${RELEASE}/media-parties.tar`, { redirect: 'follow' });
-      if (!res.ok || !res.body) throw new Error(`HTTP ${res.status}`);
-      await pipeline(Readable.fromWeb(res.body), fs.createWriteStream(tmp));
-    }
-    // extrai numa pasta à parte e move arquivo por arquivo: no disco de
-    // produção o tar não consegue sobrescrever ("File exists")
-    const stage = path.join(mediaDir(), '.tmp-parties');
-    await fs.promises.rm(stage, { recursive: true, force: true });
-    await fs.promises.mkdir(stage, { recursive: true });
-    await extractTar(tmp, stage);
-    const from = path.join(stage, 'parties', 'pcparties');
-    await fs.promises.mkdir(filesDir(), { recursive: true });
-    for (const name of await fs.promises.readdir(from)) {
-      const dest = path.join(filesDir(), name);
-      try {
-        await fs.promises.rename(path.join(from, name), dest);
-      } catch {
-        await fs.promises.rm(dest, { force: true }).catch(() => {});
-        await fs.promises.copyFile(path.join(from, name), dest);
-      }
-    }
-    await fs.promises.rm(stage, { recursive: true, force: true }).catch(() => {});
+    await downloadTar('media-parties.tar', 'parties/pcparties', filesDir(), 'parties');
     downloadState = { state: fs.existsSync(index) ? 'ready' : 'partial' };
     console.log(`[festas] arquivos das festas 2013-2017 prontos (${DATA.parties.filter(filesReady).length}/${DATA.parties.length} festas)`);
   } catch (err) {
     downloadState = { state: 'error', error: err?.message || String(err) };
     console.warn('[festas] não deu pra baixar as festas:', downloadState.error);
-  } finally {
-    fs.promises.unlink(tmp).catch(() => {});
+  }
+}
+
+/** Telas das festas (close-ups, catálogos…): pacote à parte. */
+async function ensureUiFiles() {
+  if (!uiMissing()) { uiState = { state: 'ready' }; return; }
+  if (!RELEASE) { uiState = { state: 'missing' }; return; }
+  uiState = { state: 'downloading' };
+  try {
+    await downloadTar('media-parties-ui.tar', 'parties/pcparties-ui', uiDir(), 'parties-ui');
+    uiState = { state: uiMissing() ? 'partial' : 'ready' };
+    console.log('[festas] telas das festas prontas');
+  } catch (err) {
+    uiState = { state: 'error', error: err?.message || String(err) };
+    console.warn('[festas] não deu pra baixar as telas das festas:', uiState.error);
   }
 }
 
@@ -261,12 +297,13 @@ function attach(w) {
   instance = w;
   readState();
   w.settings.calendarAdjust = calendarAdjust;
+  try { w.gameData.setExtraPaths?.(PATHS.global || {}, PATHS.local || {}); } catch { /* WF antigo */ }
   apply();
-  const download = () => ensureFiles().then(() => apply(true)).catch(() => {});
+  const download = () => ensureFiles().then(() => ensureUiFiles()).then(() => apply(true)).catch(() => {});
   download();
   setInterval(() => { try { apply(); } catch (err) { console.warn('[festas]', err?.message || err); } }, 60_000).unref?.();
   // deu erro (rede, servidor ocupado)? tenta baixar de novo a cada 10 min
-  setInterval(() => { if (downloadState.state === 'error' || downloadState.state === 'partial') download(); }, 10 * 60_000).unref?.();
+  setInterval(() => { if (['error', 'partial'].includes(downloadState.state) || ['error', 'partial'].includes(uiState.state)) download(); }, 10 * 60_000).unref?.();
 }
 
 /** Derruba todo mundo da ilha: o jogo reconecta sozinho já com a festa nova. */
@@ -295,6 +332,7 @@ function status() {
     manual,
     rotationYear: rotationYear(),
     files: downloadState,
+    screens: uiState,
   };
 }
 
@@ -330,6 +368,12 @@ function downloadEntries(slug) {
   for (const [room, name] of Object.entries(p.rooms || {})) add(`play/v2/content/global/rooms/${room}.swf`, name);
   for (const [id, name] of Object.entries(p.musicFiles || {})) add(`play/v2/content/global/music/${id}.swf`, name);
   if (p.map) add(MAP_ROUTE, p.map);
+  for (const [route, name] of Object.entries(p.ui || {})) {
+    let size = 0;
+    const file = path.join(uiDir(), name);
+    try { size = fs.statSync(file).size; } catch { continue; }
+    out.push({ route: `play/v2/content/${route}`, file, size });
+  }
   return out;
 }
 

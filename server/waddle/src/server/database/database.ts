@@ -69,6 +69,8 @@ export type Mail = {
   }
 };
 
+export type MusicTrackJson = { id: number, name: string, notes: string, hash: string, likes: number, likedBy?: Record<string, number> };
+
 export interface PenguinJson {
 // PROFILE
   name: string
@@ -182,6 +184,9 @@ export interface PenguinJson {
 
 // PROGRESSO DAS FESTAS 2013-2017 ("party cookie"): festa -> JSON
   partyCookies?: Record<string, Record<string, unknown>>;
+
+// SOUNDSTUDIO
+  musicTracks?: MusicTrackJson[];
 
 // USER PREFERENCE
   noSave?: boolean;

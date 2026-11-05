@@ -1,4 +1,4 @@
-import { getDefaultIgloo, Igloo, Mail, PenguinJson, PlayerPuffle, RainbowPuffleStage, StampbookCover } from "@server/database/database";
+import { getDefaultIgloo, Igloo, Mail, MusicTrackJson, PenguinJson, PlayerPuffle, RainbowPuffleStage, StampbookCover } from "@server/database/database";
 import { MASCOTS } from "@server/game-data/mascots";
 import { CardJitsuFireProgress, CardJitsuProgress } from "@server/game-logic/ninja-progress";
 import { processVersion } from "@server/routes/versions";
@@ -1120,6 +1120,8 @@ export class WorldPenguin implements UserPenguin {
   public iglooLikes: Record<string, Record<string, [number, number]>>;
   /** progresso das festas 2013-2017 (um JSON por festa) */
   public partyCookies: Record<string, Record<string, unknown>>;
+  /** músicas do SoundStudio */
+  public musicTracks: MusicTrackJson[];
 
   constructor(
     id: number,
@@ -1149,6 +1151,7 @@ export class WorldPenguin implements UserPenguin {
     this._preference = new UserPreference(json);
     this.iglooLikes = json.iglooLikes ?? {};
     this.partyCookies = json.partyCookies ?? {};
+    this.musicTracks = Array.isArray(json.musicTracks) ? json.musicTracks : [];
   }
 
   public get id() {
@@ -1332,6 +1335,7 @@ export class WorldPenguin implements UserPenguin {
 
       iglooLikes: this.iglooLikes,
       partyCookies: this.partyCookies,
+      musicTracks: this.musicTracks,
 
       noSave: !this._preference.canSave,
       safeChat: this._preference.isSafeChat

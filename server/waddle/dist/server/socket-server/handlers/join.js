@@ -5,6 +5,7 @@ exports.formatBuddyEntry = formatBuddyEntry;
 exports.getPenguinString = getPenguinString;
 exports.filterItems = filterItems;
 exports.sendLPMessage = sendLPMessage;
+const music_1 = require("./music");
 const rooms_1 = require("../../game-logic/rooms.js");
 const world_penguin_1 = require("../world/world-penguin.js");
 const puffle_1 = require("./puffle");
@@ -490,6 +491,10 @@ exports.handleFindPlayer = handleFindPlayer;
 const handleDisconnect = async (ctx) => {
     if ('penguin' in ctx) {
         const { penguin, msg, prst, world } = ctx;
+        try {
+            (0, music_1.musicOnDisconnect)(penguin);
+        }
+        catch { /* fila da danceteria */ }
         if (penguin.psa.isPending) {
             penguin.inventory.add(800);
         }

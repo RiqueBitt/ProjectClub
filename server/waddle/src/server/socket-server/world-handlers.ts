@@ -7,10 +7,11 @@ import { handleAbortCard, handleCardJitsuAction, handleEnterCardGame, handleQuit
 import { handleDeleteMailFromPenguin, handleDeletePostcard, handleGetMail, handleMailTotal, handleSendCard, handleSendMail, handleSetMailCheck } from "./handlers/mail";
 import { handleCheckName } from "./handlers/create";
 import { handleLeaveGame, handleRoomRefresh, isGameGuard } from "./handlers/game";
-import { getIglooOld, handleCanLikeIgloo, handleLikeIgloo, handleGetNamesBySwid, handlePlayerIglooOpen, handleAddFlooring, handleAddFurniture, handleAddIgloo, handleAddIglooLayout, handleAddIglooLocation, handleCloseIgloo, handleGetAllIglooLayouts, handleGetDj3kTracks, handleGetFurniture, handleGetFurnitureNew, handleGetIglooCpip, handleGetIglooItems, handleGetIglooLikes, handleGetIglooTypes, handleGetMusicTracks, handleGetOpenIgloos, handleOpenIgloo, handleUpdateIgloo, handleUpdateIglooLayout, handleUpdateIglooNew, handleUpdateIglooOld, handleUpdateIglooType, handleUpdateMusic } from "./handlers/igloo";
+import { getIglooOld, handleCanLikeIgloo, handleLikeIgloo, handleGetNamesBySwid, handlePlayerIglooOpen, handleAddFlooring, handleAddFurniture, handleAddIgloo, handleAddIglooLayout, handleAddIglooLocation, handleCloseIgloo, handleGetAllIglooLayouts, handleGetDj3kTracks, handleGetFurniture, handleGetFurnitureNew, handleGetIglooCpip, handleGetIglooItems, handleGetIglooLikes, handleGetIglooTypes, handleGetOpenIgloos, handleOpenIgloo, handleUpdateIgloo, handleUpdateIglooLayout, handleUpdateIglooNew, handleUpdateIglooOld, handleUpdateIglooType, handleUpdateMusic } from "./handlers/igloo";
 import { handleBuyNinjaCards, handleGetFireLevel, handleGetNinjaCards, handleGetNinjaLevel, handleGetNinjaRanks, handleGetWaterLevel, handleJoinFromMatchmake, handleJoinMatchmaking, handleJoinSensei, handleLeaveMatchmake } from "./handlers/ninja";
 import { handleDonateCoins, handleGetBakeryState, handleGetCookieInventory, handleRetrieveMedieval2012, handleSendEnterHopper, handleViewedMedieval2012 } from "./handlers/party";
 import { getPartyCookieHandlers } from "./handlers/party-cookie";
+import { MUSIC_HANDLERS } from "./handlers/music";
 import { handleGetComMessages, handleGetActionStatus, handleGetABTests, handleIgnore } from "./handlers/extra";
 import { handleAdoptPuffle, handlePuffleHat, handleReturnPuffle, handlePuffleHandlerStatus, handlePuffleTrick, handleGetDigCooldown, handleAdoptPuffleOld, handleBuyPuffleCareItem, handlePuffleMove, handlePuffleFrame, sendGoldNuggets, handleEatPuffleItem, handleGetIglooPuffles, handleGetIglooPufflesOld, handleGetPuffleInventory, handlePuffleBackyardSwap, handlePuffleDigOnCommand, handlePuffleDigRandom, handlePuffleWalk, handleRevealGoldPuffle, isAfterPuffleCreatureGuard, isBeforePuffleCreatureGuard, sendModernPuffleCheck, sendPuffleCheck } from "./handlers/puffle";
 import { handleGetRainbowQuestData, handleSendRainbowQuestBonusCoins, handleSendRainbowQuestCollectCoins, handleSendRainbowQuestItemCollect, handleSendRainbowTaskComplete } from "./handlers/rainbow";
@@ -298,7 +299,7 @@ export const createWorldXtHandler = (): XtHandler => {
     r.xt('s', 'a#jt', ['number'], handleJoinTable),
     r.xt('s', 'a#lt', [], handleLeaveTable),
     
-    p.xt('s', 'musictrack#getmymusictracks', [], handleGetMusicTracks),
+    ...MUSIC_HANDLERS.map(([name, handler]) => p.xt('s', name, 'string', handler)),
 
     r.xt('s', 'pt#spts', ['number'], handlePlayerTransform),
     

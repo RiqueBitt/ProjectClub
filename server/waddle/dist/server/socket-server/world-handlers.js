@@ -13,6 +13,7 @@ const igloo_1 = require("./handlers/igloo");
 const ninja_1 = require("./handlers/ninja");
 const party_1 = require("./handlers/party");
 const party_cookie_1 = require("./handlers/party-cookie");
+const music_1 = require("./handlers/music");
 const extra_1 = require("./handlers/extra");
 const puffle_1 = require("./handlers/puffle");
 const rainbow_1 = require("./handlers/rainbow");
@@ -257,7 +258,7 @@ const createWorldXtHandler = () => {
         r.xt('s', 'a#gt', 'number', room_1.handleGetTables),
         r.xt('s', 'a#jt', ['number'], room_1.handleJoinTable),
         r.xt('s', 'a#lt', [], room_1.handleLeaveTable),
-        p.xt('s', 'musictrack#getmymusictracks', [], igloo_1.handleGetMusicTracks),
+        ...music_1.MUSIC_HANDLERS.map(([name, handler]) => p.xt('s', name, 'string', handler)),
         r.xt('s', 'pt#spts', ['number'], room_1.handlePlayerTransform),
         p.xt('s', 'r#gtc', [], join_1.handleGetTotalCoins),
         p.xt('s', 'st#gsbcd', ['number'], join_1.handleGetStampbookCoverData),

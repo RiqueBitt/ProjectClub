@@ -2,8 +2,10 @@
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.getPathsJson = getPathsJson;
 function getPathsJson(d) {
+    const extra = d.getExtraPaths();
     const paths = {
         "global": {
+            ...extra.global,
             "puffle_cookie": "puffle\/icons\/cookie.swf",
             "puffle_food": "puffle\/icons\/food.swf",
             "puffle_bath": "puffle\/icons\/bath.swf",
@@ -349,6 +351,7 @@ function getPathsJson(d) {
             'w.p0512.medieval.lighthouse.telescope': 'close_ups/lighthouse_telescope.swf'
         },
         "local": {
+            ...extra.local,
             "801_award": "awards\/801.swf",
             "802_award": "awards\/802.swf",
             "803_award": "awards\/803.swf",

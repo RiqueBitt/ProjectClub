@@ -1,3 +1,4 @@
+import { musicOnDisconnect } from "./music";
 import { PenguinRepository } from '@server/database/database';
 import { isGameRoom, Room } from '@server/game-logic/rooms';
 import { World } from '@server/socket-server/world/world';
@@ -547,6 +548,7 @@ export const handleFindPlayer: PenguinHandler<[number]> = ({ msg, penguin, world
 export const handleDisconnect = async (ctx: WorldContext) => {
   if ('penguin' in ctx) {
     const { penguin, msg, prst, world } = ctx;
+    try { musicOnDisconnect(penguin); } catch { /* fila da danceteria */ }
     if (penguin.psa.isPending) {
       penguin.inventory.add(800);
     }

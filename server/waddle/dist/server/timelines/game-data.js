@@ -815,6 +815,17 @@ class GameData {
     getGlobalPaths() {
         return this.state.globalPaths;
     }
+    /**
+     * Chaves de paths.json das festas de 2013-2017 (paths.json originais do
+     * Wayback + as que as salas usam). Não substituem as de 2012.
+     */
+    _extraPaths = { global: {}, local: {} };
+    setExtraPaths(global, local) {
+        this._extraPaths = { global: { ...global }, local: { ...local } };
+    }
+    getExtraPaths() {
+        return this._extraPaths;
+    }
     hasSchool() {
         return this.state.school;
     }

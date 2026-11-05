@@ -899,6 +899,8 @@ class WorldPenguin {
     iglooLikes;
     /** progresso das festas 2013-2017 (um JSON por festa) */
     partyCookies;
+    /** músicas do SoundStudio */
+    musicTracks;
     constructor(id, json, settings) {
         this._profile = new Profile(id, json);
         this._membership = new Membership(json);
@@ -923,6 +925,7 @@ class WorldPenguin {
         this._preference = new UserPreference(json);
         this.iglooLikes = json.iglooLikes ?? {};
         this.partyCookies = json.partyCookies ?? {};
+        this.musicTracks = Array.isArray(json.musicTracks) ? json.musicTracks : [];
     }
     get id() {
         return this._profile.id;
@@ -1059,6 +1062,7 @@ class WorldPenguin {
             medieval2012Message: this._medieval2012.message,
             iglooLikes: this.iglooLikes,
             partyCookies: this.partyCookies,
+            musicTracks: this.musicTracks,
             noSave: !this._preference.canSave,
             safeChat: this._preference.isSafeChat
         };
