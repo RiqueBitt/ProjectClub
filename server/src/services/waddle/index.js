@@ -384,8 +384,9 @@ async function getEntry(w) {
   const flashvars = text.match(/name="flashvars"\s+value="([^"]*)"/i);
   let fv = flashvars ? flashvars[1] : 'lang=en';
   const party = w.gameData.getPartyName ? w.gameData.getPartyName() : null;
+  const baseContent = (fv.match(/contentVersion=(\d+)/) || [])[1] || '';
   if (party) fv = fv.replace(/(contentVersion=)(\d+)/, (_, k, v) => `${k}${v}${partyCode(party)}`);
-  return { swf: data ? data[1] : '/boots.swf', flashvars: fv, party };
+  return { swf: data ? data[1] : '/boots.swf', flashvars: fv, party, baseContent };
 }
 
 // ---------------------------------------------------------------------------
@@ -535,6 +536,144 @@ async function streamPack(kind, res) {
   res.end();
 }
 
+// ---------------------------------------------------------------------------
+// Centro de Download (PracaPage → DownloadCenter): pacotes por categoria.
+//
+// Cada pacote é uma lista de arquivos com as MESMAS URLs que o jogo pede; a
+// página baixa num fluxo só (streamPack) e grava no Cache Storage. `from`
+// continua de onde parou (pausar/retomar). As festas de 2013-2017 entram com a
+// contentVersion que o jogo vai usar quando cada festa estiver na ilha.
+
+const PACK_INFO = {
+  evento: { category: 'evento', name: 'Evento atual', desc: 'Decoração, salas e músicas da festa que está na ilha agora', icon: 'evento' },
+  essenciais: { category: 'essenciais', name: 'Jogo base', desc: 'O jogo, a interface e as salas da ilha', icon: 'base' },
+  minigames: { category: 'ilha', name: 'Minigames', desc: 'Todos os jogos da ilha (Hydro Hopper, Card-Jitsu, Puffle Rescue…)', icon: 'games' },
+  iglus: { category: 'ilha', name: 'Iglus, móveis e puffles', desc: 'Editor de iglu, móveis, pisos e os puffles', icon: 'igloo' },
+  extras: { category: 'ilha', name: 'Extras da ilha', desc: 'Cartões-postais, livros, telas especiais e o resto do jogo', icon: 'extras' },
+  'roupas-icones': { category: 'roupas', name: 'Ícones das roupas', desc: 'As figurinhas do inventário e dos catálogos', icon: 'icons' },
+  'roupas-cartao': { category: 'roupas', name: 'Roupas no cartão', desc: 'Como cada roupa aparece no cartão do pinguim', icon: 'paper' },
+  'roupas-pinguim': { category: 'roupas', name: 'Roupas no pinguim', desc: 'Como cada roupa aparece no pinguim andando pela ilha', icon: 'sprites' },
+};
+const PACK_CATEGORIES = [
+  { id: 'evento', name: 'Eventos' },
+  { id: 'essenciais', name: 'Essenciais' },
+  { id: 'ilha', name: 'Ilha' },
+  { id: 'festas', name: 'Festas 2013–2017' },
+  { id: 'roupas', name: 'Roupas e itens' },
+];
+const packCache = new Map();
+
+async function getPacks(w) {
+  const entry = await getEntry(w);
+  const b = await getBundles(w);
+  const fv = parseFlashvars(entry.flashvars);
+  const q = { client: fv.clientVersion ? `?clientVersion=${fv.clientVersion}` : '', content: fv.contentVersion ? `?contentVersion=${fv.contentVersion}` : '', config: fv.configVersion ? `?configVersion=${fv.configVersion}` : '', games: fv.minigameVersion ? `?minigameVersion=${fv.minigameVersion}` : '' };
+  const key = `${b.version}|${entry.party || ''}|${w.settings.settings.version}`;
+  if (packCache.has(key)) return packCache.get(key);
+  const packs = new Map();
+  const put = (id, files, extra = {}) => {
+    if (!files.length) return;
+    packs.set(id, { id, ...PACK_INFO[id], ...extra, files, bytes: files.reduce((n, f) => n + (f.size || 0), 0) });
+  };
+  // essenciais / evento: os mesmos do instalador de sempre
+  const baseSet = new Set();
+  const complete = [];
+  for (const [route, query] of completeRoutes(w, q)) complete.push({ route, url: `/${route}${query}` });
+  const completeUrls = new Set(complete.map((f) => f.url));
+  const essentials = b.base.files.filter((f) => !completeUrls.has(f.url));
+  essentials.forEach((f) => baseSet.add(f.url));
+  put('essenciais', essentials);
+  if (b.event) put('evento', b.event.files, { name: b.event.name, required: true, key: b.event.key });
+  (b.event?.files || []).forEach((f) => baseSet.add(f.url));
+  // o resto do jogo completo, por assunto
+  const rest = b.base.files.filter((f) => completeUrls.has(f.url) && !baseSet.has(f.url));
+  put('minigames', rest.filter((f) => f.url.startsWith('/play/v2/games/')));
+  put('iglus', rest.filter((f) => /^\/play\/v2\/(content\/global\/(igloo|furniture|puffle)\/|client\/(igloo|puffle))/.test(f.url)));
+  put('extras', rest.filter((f) => !f.url.startsWith('/play/v2/games/') && !/^\/play\/v2\/(content\/global\/(igloo|furniture|puffle)\/|client\/(igloo|puffle))/.test(f.url)));
+  // roupas (fora do jogo base: ~650 MB, cada item baixa quando alguém veste)
+  const clothing = { icons: [], paper: [], sprites: [] };
+  for (const route of w.gameData.getAllRoutes().keys()) {
+    const m = route.match(/^play\/v2\/content\/global\/clothing\/(icons|paper|sprites)\//);
+    if (m) clothing[m[1]].push({ url: `/${route}${q.content}`, size: await sizeOf(w, route) });
+  }
+  put('roupas-icones', clothing.icons);
+  put('roupas-cartao', clothing.paper);
+  put('roupas-pinguim', clothing.sprites);
+  // festas 2013-2017: um pacote por ano, com a URL de quando cada festa estiver na ilha
+  const parties = require('./parties');
+  const byYear = new Map();
+  for (const p of parties._data.parties) {
+    const cv = `${entry.baseContent}${partyCode(p.name)}`;
+    for (const e of parties.downloadEntries(p.slug)) {
+      if (!byYear.has(p.year)) byYear.set(p.year, []);
+      byYear.get(p.year).push({ url: `/${e.route}?contentVersion=${cv}`, size: e.size, file: e.file });
+    }
+  }
+  for (const [year, files] of [...byYear.entries()].sort((a, c) => a[0] - c[0])) {
+    const n = parties._data.parties.filter((p) => p.year === year && Object.keys(p.rooms || {}).length).length;
+    PACK_INFO[`festas-${year}`] = { category: 'festas', name: `Festas de ${year}`, desc: `${n} festa${n === 1 ? '' : 's'}: salas decoradas, músicas e mapas`, icon: 'party' };
+    put(`festas-${year}`, files);
+  }
+  // arquivos gerados/consertados pelo servidor não têm tamanho no disco: mede
+  // os dos pacotes pequenos (essenciais/evento) pra barra de progresso bater
+  const fsrv = w.http.getFileServer();
+  for (const id of ['essenciais', 'evento']) {
+    const p = packs.get(id);
+    if (!p) continue;
+    for (const f of p.files) {
+      if (f.size) continue;
+      try { const body = await fsrv.resolve(f.url.slice(1).split('?')[0]); f.size = body ? Buffer.byteLength(body) : 0; } catch { /* ok */ }
+    }
+    p.bytes = p.files.reduce((n, f) => n + (f.size || 0), 0);
+  }
+  const list = [...packs.values()].map((p) => ({ ...p, version: `${p.id}|${p.key || key}|${p.files.length}|${p.bytes}` }));
+  const out = { categories: PACK_CATEGORIES, packs: list, party: entry.party ? partyLabel(entry.party) : null };
+  packCache.clear();
+  packCache.set(key, out);
+  return out;
+}
+
+/** Resumo dos pacotes pra página (sem a lista de arquivos). */
+async function listPacks() {
+  const w = await getWaddle();
+  const { categories, packs, party } = await getPacks(w);
+  return { categories, party, packs: packs.map(({ files, ...rest }) => ({ ...rest, files: files.length })) };
+}
+
+/** URLs de um pacote (a página usa pra apagar do cache). */
+async function packUrls(id) {
+  const w = await getWaddle();
+  const p = (await getPacks(w)).packs.find((x) => x.id === id);
+  return p ? p.files.map((f) => f.url) : null;
+}
+
+/** Fluxo de um pacote do Centro de Download, a partir do arquivo `from`. */
+async function streamNamedPack(id, from, res) {
+  const w = await getWaddle();
+  const p = (await getPacks(w)).packs.find((x) => x.id === id);
+  if (!p) { res.status(404).json({ error: 'Pacote não encontrado.' }); return; }
+  const start = Math.max(0, Math.min(p.files.length, Number(from) || 0));
+  const list = p.files.slice(start);
+  const fsrv = w.http.getFileServer();
+  const { translateJsonText } = require('../../../waddle/dist/server/i18n/index.js');
+  res.status(200).set({ 'Content-Type': 'application/octet-stream', 'Cache-Control': 'no-store', 'X-Pack-Files': String(list.length), 'X-Pack-Bytes': String(list.reduce((n, f) => n + (f.size || 0), 0)), 'X-Pack-Start': String(start) });
+  for (const f of list) {
+    if (res.destroyed || res.writableEnded) return;
+    const route = f.url.slice(1).split('?')[0];
+    let body;
+    try { body = f.file ? await fs.promises.readFile(f.file) : await fsrv.resolve(route); } catch { body = undefined; }
+    if (body === undefined) body = Buffer.alloc(0); // mantém a contagem (o retomar usa o índice)
+    const ext = route.split('.').pop();
+    if (ext === 'json' && body.length) body = translateJsonText(body);
+    const buf = Buffer.isBuffer(body) ? body : Buffer.from(String(body), 'utf-8');
+    const head = Buffer.from(JSON.stringify({ u: f.url, s: buf.length, t: MIME[ext] || 'application/octet-stream' }), 'utf-8');
+    const len = Buffer.alloc(4); len.writeUInt32BE(head.length, 0);
+    const ok = res.write(Buffer.concat([len, head, buf]));
+    if (!ok) await new Promise((r) => res.once('drain', r));
+  }
+  res.end();
+}
+
 async function getConfig(user) {
   const w = await getWaddle();
   const { id, json } = await ensurePenguin(user);
@@ -654,4 +793,4 @@ function tickPresence() {
   }
 }
 
-module.exports = { getWaddle, mountHttp, attachUpgrade, getConfig, getStatus, ensurePenguin, cachedRouter, streamPack, getStore, setIo };
+module.exports = { getWaddle, mountHttp, attachUpgrade, getConfig, getStatus, ensurePenguin, cachedRouter, streamPack, listPacks, packUrls, streamNamedPack, getStore, setIo };

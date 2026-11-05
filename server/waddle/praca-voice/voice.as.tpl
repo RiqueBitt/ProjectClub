@@ -992,3 +992,65 @@ purchaseItemFromAS3 = function(itemType, itemID, enablePrompt)
       pcvOrigPurchase(itemType, itemID, enablePrompt);
    }
 };
+
+// Centro de Download do Project Club: ícone ao lado do jornal e do correio
+// (client/public/praca-ui/download-96.png). Abre o painel da página
+// (window.pracaOpenDownloads → praca/DownloadCenter.jsx).
+var PCD_SIZE = 40;
+function pcdMake()
+{
+   var icons = MAIL_ICON._parent;
+   if(icons == undefined || icons.pcdl_mc != undefined)
+   {
+      return icons != undefined;
+   }
+   var b = icons.createEmptyMovieClip("pcdl_mc", icons.getNextHighestDepth());
+   var art = b.createEmptyMovieClip("art_mc", 1);
+   var holder = art.createEmptyMovieClip("img_mc", 1);
+   var l = new MovieClipLoader();
+   var lis = {};
+   lis.onLoadInit = function(t)
+   {
+      t.forceSmoothing = true;
+      t._width = PCD_SIZE;
+      t._height = PCD_SIZE;
+      t._x = - PCD_SIZE / 2;
+      t._y = - PCD_SIZE / 2;
+   };
+   l.addListener(lis);
+   l.loadClip("/praca-ui/download-96.png", holder);
+   var mb = MAIL_ICON.getBounds(icons);
+   b._x = mb.xMax + 8 + PCD_SIZE / 2;
+   b._y = (mb.yMin + mb.yMax) / 2;
+   b.onRollOver = function()
+   {
+      this.art_mc._xscale = this.art_mc._yscale = 110;
+      showHint(this, "Centro de Download", 0, 30, false);
+   };
+   b.onRollOut = b.onDragOut = function()
+   {
+      this.art_mc._xscale = this.art_mc._yscale = 100;
+      closeHint();
+   };
+   b.onPress = function()
+   {
+      this.art_mc._xscale = this.art_mc._yscale = 94;
+   };
+   b.onRelease = function()
+   {
+      this.art_mc._xscale = this.art_mc._yscale = 110;
+      closeHint();
+      if(pcvEI.available)
+      {
+         pcvEI.call("pracaOpenDownloads");
+      }
+   };
+   return true;
+}
+var pcdTimer = setInterval(function()
+{
+   if(MAIL_ICON != undefined && pcdMake())
+   {
+      clearInterval(pcdTimer);
+   }
+}, 500);

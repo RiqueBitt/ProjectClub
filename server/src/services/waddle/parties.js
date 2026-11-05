@@ -312,7 +312,28 @@ function labelOf(name) {
   return p ? p.label : null;
 }
 
+/**
+ * Centro de Download: arquivos de uma festa com as URLs que o jogo usa
+ * quando ela estiver na ilha (a contentVersion leva o código da festa).
+ * Devolve [{ route, file (caminho no disco), size }].
+ */
+function downloadEntries(slug) {
+  const p = bySlug.get(slug);
+  if (!p) return [];
+  const out = [];
+  const add = (route, name) => {
+    const file = path.join(filesDir(), name);
+    let size = 0;
+    try { size = fs.statSync(file).size; } catch { return; }
+    out.push({ route, file, size });
+  };
+  for (const [room, name] of Object.entries(p.rooms || {})) add(`play/v2/content/global/rooms/${room}.swf`, name);
+  for (const [id, name] of Object.entries(p.musicFiles || {})) add(`play/v2/content/global/music/${id}.swf`, name);
+  if (p.map) add(MAP_ROUTE, p.map);
+  return out;
+}
+
 /** Testes: troca a checagem de arquivo no disco. */
 function _setFileCheck(fn) { fileExists = fn; }
 
-module.exports = { attach, list, status, setManual, labelOf, rotationYear, wanted, covers, merged, _data: DATA, _setFileCheck };
+module.exports = { attach, list, status, setManual, labelOf, rotationYear, wanted, covers, merged, downloadEntries, _data: DATA, _setFileCheck };

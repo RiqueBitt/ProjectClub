@@ -21,6 +21,21 @@ router.get('/pack/:kind(base|event)', requireAuth, async (req, res, next) => {
   try { await waddle.streamPack(req.params.kind, res); } catch (err) { next(err); }
 });
 
+// Centro de Download do jogo: pacotes por categoria.
+router.get('/packs', requireAuth, async (req, res, next) => {
+  try { res.set('Cache-Control', 'no-store'); res.json(await waddle.listPacks()); } catch (err) { next(err); }
+});
+router.get('/packs/:id/urls', requireAuth, async (req, res, next) => {
+  try {
+    const urls = await waddle.packUrls(String(req.params.id));
+    if (!urls) return res.status(404).json({ error: 'Pacote não encontrado.' });
+    return res.json({ urls });
+  } catch (err) { return next(err); }
+});
+router.get('/packs/:id/stream', requireAuth, async (req, res, next) => {
+  try { await waddle.streamNamedPack(String(req.params.id), req.query.from, res); } catch (err) { next(err); }
+});
+
 // Sem login: quantos pinguins estão na ilha (pra badge da barra lateral).
 router.get('/status', async (req, res, next) => {
   try { res.json(await waddle.getStatus()); } catch (err) { next(err); }

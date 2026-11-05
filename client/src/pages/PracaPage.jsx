@@ -10,6 +10,7 @@ import { gameCacheReady, clearGameCache, installPack, installFiles } from '../pr
 import { usePracaVoice, useInGameVoiceButtons, usePracaCoinCap } from '../praca/PracaSocial.jsx';
 import { RemoteAudioSinks } from '../components/CallBar.jsx';
 import { findMinijogo } from '../minijogos/catalog.js';
+import DownloadCenter from '../praca/DownloadCenter.jsx';
 import '../styles/praca.css';
 
 // Praça = Club Penguin completo, rodando em cima do Waddle Forever embutido no
@@ -168,6 +169,10 @@ export default function PracaPage({ embedded = false, background = false, onClos
   const [ready, setReady] = useState(null); // config liberada pro Ruffle (depois da instalação)
   const [showBar, setShowBar] = useState(false); // tela cheia no celular: barra aparece por 3 s ao tocar
   const [hint, setHint] = useState(() => { try { return localStorage.getItem('pc.praca.hint') !== '1'; } catch { return true; } });
+  // Centro de Download (botão dentro do jogo e na barra de cima)
+  const [dlOpen, setDlOpen] = useState(false);
+  const [cacheOk, setCacheOk] = useState(false);
+  const [dlTick, setDlTick] = useState(0);
 
   const pageRef = useRef(null);
   const stageRef = useRef(null);
@@ -246,6 +251,7 @@ export default function PracaPage({ embedded = false, background = false, onClos
       const useCache = await gameCacheReady();
       if (!alive) return;
       useCacheRef.current = useCache;
+      setCacheOk(useCache);
       const installed = readLS(BASE_KEY);
       if (installed !== b.version) {
         setPhase('download');
@@ -293,7 +299,6 @@ export default function PracaPage({ embedded = false, background = false, onClos
   const downloadBase = useCallback(() => runInstall(cfg?.bundles?.base, 'base'), [cfg, runInstall]);
   const downloadEvent = useCallback(() => runInstall(cfg?.bundles?.event, 'event'), [cfg, runInstall]);
   const skipDownload = useCallback(() => { setReady(cfg); }, [cfg]);
-  const skipEvent = useCallback(() => { setReady(cfg); }, [cfg]);
 
   // 2) sobe o Ruffle com o jogo
   useEffect(() => {
@@ -508,6 +513,13 @@ export default function PracaPage({ embedded = false, background = false, onClos
     if (idle) onClose?.();
   }, [background, phase, install?.ask]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  // botão do Centro de Download dentro do jogo (interface.swf → página)
+  useEffect(() => {
+    if (background) return undefined;
+    window.pracaOpenDownloads = () => { setTimeout(() => setDlOpen(true), 0); return true; };
+    return () => { delete window.pracaOpenDownloads; };
+  }, [background]);
+
   // quem está online (a cada 30 s)
   useEffect(() => {
     const id = window.setInterval(() => {
@@ -605,6 +617,9 @@ export default function PracaPage({ embedded = false, background = false, onClos
           {cfg?.version && <span className="praca-chip praca-year" title="Época do jogo">{cfg.version.slice(0, 4)}</span>}
         </div>
         <div className="praca-actions">
+          <button type="button" className="praca-icon-btn praca-dl-open" onClick={() => setDlOpen(true)} title="Centro de Download" aria-label="Centro de Download">
+            <img src="/praca-ui/download-48.png" alt="" width="22" height="22" />
+          </button>
           <button type="button" className="praca-icon-btn" onClick={() => setMuted((m) => !m)} aria-pressed={muted} title={muted ? 'Ligar o som' : 'Silenciar'}>
             {muted ? (
               <svg viewBox="0 0 24 24" width="20" height="20"><path fill="currentColor" d="M3 9v6h4l5 5V4L7 9H3zm13.5 3a4.5 4.5 0 0 0-2.5-4v8a4.5 4.5 0 0 0 2.5-4zM19 3.3 20.7 5 5 20.7 3.3 19 19 3.3z" /></svg>
@@ -655,11 +670,12 @@ export default function PracaPage({ embedded = false, background = false, onClos
             {phase === 'event' && install?.ask && (
               <>
                 <strong>Evento: {install.name}</strong>
-                <span>A ilha está em festa! Baixe o conteúdo do evento ({fmtMB(install?.total || 0)}) para ver a decoração, os itens e as salas especiais.</span>
+                <span>A ilha está em festa! Pra entrar na festa, baixe o conteúdo do evento ({fmtMB(install?.total || 0)}): a decoração, os itens e as salas especiais.</span>
                 <div className="praca-overlay-actions">
                   <button type="button" className="pet-btn primary" onClick={downloadEvent}>Baixar evento</button>
-                  <button type="button" className="pet-btn" onClick={skipEvent}>Depois</button>
+                  <button type="button" className="pet-btn" onClick={() => setDlOpen(true)}>Centro de Download</button>
                 </div>
+                <small className="praca-progress-label">Download obrigatório durante a festa. Fora de festa, nada é obrigatório.</small>
               </>
             )}
             {(phase === 'install' || (phase === 'event' && !install?.ask)) && (
@@ -708,6 +724,24 @@ export default function PracaPage({ embedded = false, background = false, onClos
         )}
       </div>
       </div>
+      {!background && (
+        <DownloadCenter
+          key={dlTick}
+          open={dlOpen}
+          onClose={() => setDlOpen(false)}
+          autoStart={phase === 'event'}
+          useCache={cacheOk}
+          container={pageRef.current}
+          baseInstalled={!!cfg?.bundles?.version && readLS(BASE_KEY) === cfg.bundles.version}
+          eventInstalled={!!cfg?.bundles?.event && readLS(EVENT_KEY + cfg.bundles.event.key) === '1'}
+          onEventInstalled={() => {
+            if (!cfg?.bundles?.event) return;
+            writeLS(EVENT_KEY + cfg.bundles.event.key, '1');
+            // estava na tela de "baixar evento": libera o jogo
+            if (phase === 'event') { setDlOpen(false); setReady(cfg); setDlTick((t) => t + 1); }
+          }}
+        />
+      )}
       {/* App Android (rota /praca/app): fora do app do site não tem a barra de call — o áudio da voz toca daqui */}
       {embedded && <RemoteAudioSinks />}
 
