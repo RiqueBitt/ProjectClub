@@ -404,6 +404,7 @@ function createApp() {
   app.use('/api/ui-layout', uiEditorRoutes);
   app.use('/api/platform', platformRoutes);
   app.use('/api/admin', adminRoutes);
+  app.use('/api/dev', require('./routes/dev'));
   app.use('/api/app-catalog', appCatalogRoutes);
   app.use('/api/mods', modsRoutes);
   app.use('/api/modpacks', modpacksRoutes);

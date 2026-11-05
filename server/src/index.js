@@ -1,3 +1,5 @@
+// logs ao vivo do Project Club Dev (antes de qualquer console.log)
+require('./services/devStudio/logRing').install();
 const http = require('http');
 const createApp = require('./app');
 const { initSockets } = require('./sockets');
