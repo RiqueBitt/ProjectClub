@@ -276,6 +276,423 @@ if(!pcvSetup())
    };
 }
 
+// Lista de amigos: o botão de amigos da barra (e o "Adicionar amigo" do
+// cartão) chamavam o sistema novo de Amigos da Disney — um módulo AS3 que
+// precisa de arquivos e servidores que não existem aqui, então não abria
+// nada; e a lista clássica não tem mais a arte nessa interface. Aqui vai uma
+// lista de amigos nova, no estilo do jogo: os amigos (que já incluem os do
+// Project Club), online primeiro; clicar num amigo abre o cartão dele (com
+// os botões de achar e de iglu). Pedidos de amizade pelo jeito antigo.
+var PCB_W = 214;
+var PCB_ROW = 26;
+var PCB_ROWS = 10;
+var pcbPage = 0;
+var pcbPanel = undefined;
+
+function pcbBox(mc, x, y, w, h, r, fill, line)
+{
+   mc.lineStyle(3, line, 100);
+   mc.beginFill(fill, 100);
+   mc.moveTo(x + r, y);
+   mc.lineTo(x + w - r, y);
+   mc.curveTo(x + w, y, x + w, y + r);
+   mc.lineTo(x + w, y + h - r);
+   mc.curveTo(x + w, y + h, x + w - r, y + h);
+   mc.lineTo(x + r, y + h);
+   mc.curveTo(x, y + h, x, y + h - r);
+   mc.lineTo(x, y + r);
+   mc.curveTo(x, y, x + r, y);
+   mc.endFill();
+}
+function pcbText(mc, name, depth, x, y, w, h, size, color, bold, align)
+{
+   var t = mc.createTextField(name, depth, x, y, w, h);
+   t.selectable = false;
+   t.setNewTextFormat(new TextFormat("_sans", size, color, bold, false, false, null, null, align));
+   return t;
+}
+// Lista de amigos própria (o shell desta mídia não guarda mais a lista do
+// servidor — isso era do sistema novo da Disney): escuta os pacotes de
+// amigos do jogo (gb, go, bon, bof, ba, rb) e também preenche a lista do
+// shell (ROSTER), pro cartão do jogador saber quem já é amigo.
+var pcbRoster = [];
+var pcbGotList = false;
+var pcbAsked = false;
+function pcbFind(id)
+{
+   var i = 0;
+   while(i < pcbRoster.length)
+   {
+      if(pcbRoster[i].player_id == id)
+      {
+         return pcbRoster[i];
+      }
+      i++;
+   }
+   return undefined;
+}
+function pcbSync()
+{
+   var r = _global.getCurrentShell().ROSTER.buddies;
+   if(r != undefined)
+   {
+      r.splice(0, r.length);
+      var i = 0;
+      while(i < pcbRoster.length)
+      {
+         r.push(pcbRoster[i]);
+         i++;
+      }
+   }
+   pcbRender();
+}
+function pcbAdd(id, name, online)
+{
+   id = Number(id);
+   if(isNaN(id))
+   {
+      return undefined;
+   }
+   var f = pcbFind(id);
+   if(f == undefined)
+   {
+      f = {player_id:id, nickname:String(name), is_online:online == true};
+      pcbRoster.push(f);
+   }
+   else
+   {
+      if(name != undefined)
+      {
+         f.nickname = String(name);
+      }
+      if(online != undefined)
+      {
+         f.is_online = online == true;
+      }
+   }
+   return f;
+}
+var pcbAT = undefined;
+// o AIRTOWER do shell só existe depois do login: liga quando aparecer
+function pcbHook()
+{
+   if(pcbAT != undefined)
+   {
+      return true;
+   }
+   var at = _global.getCurrentAirtower();
+   if(at == undefined)
+   {
+      return false;
+   }
+   pcbAT = at;
+   pcbAT.addListener(pcbAT.GET_BUDDY_LIST, function(d)
+   {
+      pcbGotList = true;
+      pcbRoster = [];
+      var i = 1;
+      while(i < d.length)
+      {
+         var e = String(d[i]).split("|");
+         if(e[0] != "")
+         {
+            pcbAdd(e[0], e[1], Number(e[2]) == 1);
+         }
+         i++;
+      }
+      pcbSync();
+   });
+   pcbAT.addListener("go", function(d)
+   {
+      var i = 1;
+      while(i < d.length)
+      {
+         var f = pcbFind(Number(d[i]));
+         if(f != undefined)
+         {
+            f.is_online = true;
+         }
+         i++;
+      }
+      pcbSync();
+   });
+   pcbAT.addListener(pcbAT.BUDDY_ONLINE, function(d)
+   {
+      var f = pcbFind(Number(d[1]));
+      if(f != undefined)
+      {
+         f.is_online = true;
+      }
+      pcbSync();
+   });
+   pcbAT.addListener(pcbAT.BUDDY_OFFLINE, function(d)
+   {
+      var f = pcbFind(Number(d[1]));
+      if(f != undefined)
+      {
+         f.is_online = false;
+      }
+      pcbSync();
+   });
+   pcbAT.addListener(pcbAT.ACCEPT_BUDDY, function(d)
+   {
+      pcbAdd(d[1], d[2], true);
+      pcbSync();
+   });
+   pcbAT.addListener(pcbAT.REMOVE_BUDDY, function(d)
+   {
+      var id = Number(d[1]);
+      var i = 0;
+      while(i < pcbRoster.length)
+      {
+         if(pcbRoster[i].player_id == id)
+         {
+            pcbRoster.splice(i, 1);
+            break;
+         }
+         i++;
+      }
+      pcbSync();
+   });
+   pcbAT.addListener(pcbAT.REQUEST_BUDDY, function(d)
+   {
+      pcvOnBuddyRequest({player_id:Number(d[1]), nickname:String(d[2])});
+   });
+   return true;
+}
+function pcbBuddies()
+{
+   var on = [];
+   var off = [];
+   var i = 0;
+   while(i < pcbRoster.length)
+   {
+      if(pcbRoster[i].is_online)
+      {
+         on.push(pcbRoster[i]);
+      }
+      else
+      {
+         off.push(pcbRoster[i]);
+      }
+      i++;
+   }
+   var byName = function(a, b)
+   {
+      return String(a.nickname).toLowerCase() < String(b.nickname).toLowerCase() ? -1 : 1;
+   };
+   on.sort(byName);
+   off.sort(byName);
+   return {list:on.concat(off), online:on.length};
+}
+function pcbClose()
+{
+   if(pcbPanel != undefined)
+   {
+      pcbPanel.removeMovieClip();
+   }
+   pcbPanel = undefined;
+}
+function pcbRender()
+{
+   if(pcbPanel == undefined)
+   {
+      return undefined;
+   }
+   var p = pcbPanel;
+   p.rows_mc.removeMovieClip();
+   var rows = p.createEmptyMovieClip("rows_mc", 20);
+   var b = pcbBuddies();
+   var pages = Math.max(1, Math.ceil(b.list.length / PCB_ROWS));
+   if(pcbPage >= pages)
+   {
+      pcbPage = pages - 1;
+   }
+   p.count_txt.text = b.online + " online · " + b.list.length + (b.list.length == 1 ? " amigo" : " amigos");
+   if(b.list.length == 0)
+   {
+      var e = pcbText(rows, "empty_txt", 1, 12, 70, PCB_W - 24, 90, 12, 0xFFFFFF, false, "center");
+      e.multiline = true;
+      e.wordWrap = true;
+      e.text = "Você ainda não tem amigos aqui. Os seus amigos do Project Club aparecem nesta lista assim que entrarem na ilha.";
+   }
+   var i = 0;
+   while(i < PCB_ROWS)
+   {
+      var f = b.list[pcbPage * PCB_ROWS + i];
+      if(f == undefined)
+      {
+         break;
+      }
+      var r = rows.createEmptyMovieClip("r" + i, 10 + i);
+      r._x = 10;
+      r._y = 56 + i * PCB_ROW;
+      var bg = r.createEmptyMovieClip("bg_mc", 1);
+      pcbBox(bg, 0, 0, PCB_W - 20, PCB_ROW - 4, 6, 0xEAF4FF, 0x7DB2E6);
+      var dot = r.createEmptyMovieClip("dot_mc", 2);
+      dot.lineStyle(1, f.is_online ? 0x1F7A1F : 0x6B6B6B, 100);
+      dot.beginFill(f.is_online ? 0x37C837 : 0xB5B5B5, 100);
+      var a = 0;
+      dot.moveTo(13 + 5, 11);
+      while(a <= 12)
+      {
+         dot.lineTo(13 + Math.cos(a * Math.PI / 6) * 5, 11 + Math.sin(a * Math.PI / 6) * 5);
+         a++;
+      }
+      dot.endFill();
+      var n = pcbText(r, "name_txt", 3, 24, 2, PCB_W - 50, 20, 13, 0x0A3A70, f.is_online, "left");
+      n.text = f.nickname;
+      r.pcbId = f.player_id;
+      r.pcbName = f.nickname;
+      r.onRelease = function()
+      {
+         showPlayerWidget(this.pcbId, this.pcbName);
+      };
+      r.onRollOver = function()
+      {
+         this._alpha = 80;
+      };
+      r.onRollOut = r.onDragOut = function()
+      {
+         this._alpha = 100;
+      };
+      i++;
+   }
+   p.prev_mc._visible = pcbPage > 0;
+   p.next_mc._visible = pcbPage < pages - 1;
+   p.page_txt.text = pages > 1 ? (pcbPage + 1) + "/" + pages : "";
+}
+function pcbArrow(p, name, depth, x, y, up)
+{
+   var m = p.createEmptyMovieClip(name, depth);
+   m._x = x;
+   m._y = y;
+   pcbBox(m, 0, 0, 30, 22, 6, 0x2C8FE0, 0x0A3A70);
+   m.lineStyle(0, 0xFFFFFF, 0);
+   m.beginFill(0xFFFFFF, 100);
+   if(up)
+   {
+      m.moveTo(8, 15);
+      m.lineTo(22, 15);
+      m.lineTo(15, 6);
+   }
+   else
+   {
+      m.moveTo(8, 7);
+      m.lineTo(22, 7);
+      m.lineTo(15, 16);
+   }
+   m.endFill();
+   return m;
+}
+function pcbOpen()
+{
+   pcbClose();
+   // mesma camada da barra e dos cartões (coordenadas da tela do jogo)
+   var host = DOCK._parent;
+   var p = host.createEmptyMovieClip("pcbPanel_mc", host.getNextHighestDepth());
+   pcbPanel = p;
+   var h = 56 + PCB_ROWS * PCB_ROW + 40;
+   p._x = 760 - PCB_W - 12;
+   p._y = Math.round((430 - h) / 2) + 4;
+   var bg = p.createEmptyMovieClip("bg_mc", 1);
+   pcbBox(bg, 0, 0, PCB_W, h, 14, 0x1C67B5, 0x0A3A70);
+   var t = pcbText(p, "title_txt", 2, 12, 6, PCB_W - 50, 24, 17, 0xFFFFFF, true, "left");
+   t.text = "Amigos";
+   pcbText(p, "count_txt", 3, 12, 30, PCB_W - 24, 18, 11, 0xCFE6FF, false, "left");
+   var x = p.createEmptyMovieClip("close_mc", 4);
+   x._x = PCB_W - 34;
+   x._y = 8;
+   pcbBox(x, 0, 0, 24, 24, 12, 0x2C8FE0, 0x0A3A70);
+   x.lineStyle(3, 0xFFFFFF, 100);
+   x.moveTo(7, 7);
+   x.lineTo(17, 17);
+   x.moveTo(17, 7);
+   x.lineTo(7, 17);
+   x.onRelease = pcbClose;
+   var pv = pcbArrow(p, "prev_mc", 5, 12, h - 32, true);
+   pv.onRelease = function()
+   {
+      pcbPage = Math.max(0, pcbPage - 1);
+      pcbRender();
+   };
+   var nx = pcbArrow(p, "next_mc", 6, PCB_W - 42, h - 32, false);
+   nx.onRelease = function()
+   {
+      pcbPage = pcbPage + 1;
+      pcbRender();
+   };
+   pcbText(p, "page_txt", 7, 50, h - 30, PCB_W - 100, 18, 12, 0xFFFFFF, true, "center");
+   // fundo do painel segura o clique (não anda o pinguim)
+   bg.onRelease = function()
+   {
+   };
+   bg.useHandCursor = false;
+   pcbRender();
+}
+function pcvToggleBuddies()
+{
+   if(pcbPanel != undefined)
+   {
+      pcbClose();
+   }
+   else
+   {
+      pcbPage = 0;
+      pcbOpen();
+      if(!pcbGotList && pcbAT != undefined)
+      {
+         pcbAT.send(pcbAT.PLAY_EXT, pcbAT.BUDDY_HANDLER + "#" + pcbAT.GET_BUDDY_LIST, [], "str", shell.getCurrentServerRoomId());
+      }
+   }
+   closeHint();
+   chatController.handleBlur();
+}
+sendBuddyRequest = function()
+{
+   var id = Number(getActivePlayerId());
+   showPrompt("ok", getLocalizedString("buddy_request_sent_prompt"));
+   if(!isNaN(id))
+   {
+      shell.sendBuddyRequest(id);
+   }
+};
+var pcvBuddyReq = undefined;
+function pcvOnBuddyRequest(o)
+{
+   if(o == undefined || isNaN(Number(o.player_id)))
+   {
+      return undefined;
+   }
+   pcvBuddyReq = o;
+   showPrompt("question", o.nickname + " quer ser seu amigo. Aceitar?", "", function()
+   {
+      shell.sendBuddyAccept(Number(pcvBuddyReq.player_id));
+   });
+}
+var pcvBuddyWatch = this.createEmptyMovieClip("pcvBuddyWatch_mc", 8998);
+pcvBuddyWatch.onEnterFrame = function()
+{
+   // já dentro de uma sala e sem a lista: pede (a resposta do login pode ter
+   // chegado antes de a gente escutar)
+   if(pcbHook() && !pcbGotList && !pcbAsked && shell.getCurrentRoomId() > 0)
+   {
+      pcbAsked = true;
+      pcbAT.send(pcbAT.PLAY_EXT, pcbAT.BUDDY_HANDLER + "#" + pcbAT.GET_BUDDY_LIST, [], "str", shell.getCurrentServerRoomId());
+      pcbAT.send(pcbAT.PLAY_EXT, pcbAT.BUDDY_HANDLER + "#go", [], "str", shell.getCurrentServerRoomId());
+   }
+   // a barra é montada (e remontada) pelo próprio jogo: mantém o botão ligado na lista nova
+   if(DOCK.buddy_btn != undefined && DOCK.buddy_btn.onRelease != pcvToggleBuddies)
+   {
+      DOCK.buddy_btn.onRelease = pcvToggleBuddies;
+   }
+   // some junto com a barra (minijogos, editor do iglu, troca de sala)
+   if(pcbPanel != undefined && DOCK._visible == false)
+   {
+      pcbClose();
+   }
+};
+
 // Moeda única: o saldo do jogo é o das moedas do Project Club — o cartão do
 // jogador mostra a moeda "PC" (client/public/praca-ui/coin.png) por cima da
 // moeda antiga, ao lado de "Suas Moedas".
