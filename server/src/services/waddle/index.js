@@ -377,6 +377,8 @@ function completeRoutes(w, q) {
   return out;
 }
 
+const FRESH_KEY = `${(process.env.GIT_SHA || '').slice(0, 7)}${Date.now().toString(36)}`;
+
 const bundleCache = new Map(); // version → bundles (lista grande; calculada uma vez por versão)
 
 async function getBundles(w) {
@@ -517,6 +519,11 @@ async function getConfig(user) {
     media,
     bundles: await getBundles(w),
     ticket: issueTicket(user.id),
+    // Arquivos consertados/traduzidos no servidor (interface, shell, jornal)
+    // têm a mesma URL do original — e a CDN guardou cópias antigas por até
+    // 30 dias. A página pede esses arquivos com ?pcf=<isto>: muda a cada
+    // versão do servidor, então nenhuma cópia velha é usada.
+    fresh: FRESH_KEY,
   };
 }
 

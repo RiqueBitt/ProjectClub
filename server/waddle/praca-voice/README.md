@@ -29,3 +29,15 @@ cd ../.. && npm run waddle:build
 
 O servidor insere a tag no `interface.swf` na hora de servir
 (`src/server/file-server/swf-patches.ts`).
+
+## Conserto do shell.swf (`shell.as`)
+
+`shell.as` vai no 1º quadro do `shell.swf`: saindo do Dojo/Pátio, o shell
+mandava pra sala "dojoextsolo" (2013) quem não tinha o amuleto + os 4
+baralhos — até pelo mapa — e o pinguim ficava preso. Gerar de novo:
+
+```sh
+mkdir -p shell-scripts/frame_1 && cp shell.as shell-scripts/frame_1/DoAction.as
+java -jar ffdec.jar -importScript template.swf shell.swf shell-scripts
+python3 extract.py --swf shell.swf --out ../src/server/file-server/praca-shell-action.ts --name PRACA_SHELL_DOACTION
+```

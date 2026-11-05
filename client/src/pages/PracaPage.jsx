@@ -68,11 +68,21 @@ function installSwfAddressShim() {
   };
 }
 // Arquivos do jogo que o servidor conserta ou traduz (interface com os botões
-// de voz, jornal em português) têm a MESMA URL do original. Uma visita antiga
-// pode ter guardado a versão velha no cache do navegador (30 dias) — aí o
-// jogo abria sem os botões e com o jornal em inglês. O Ruffle baixa tudo com
-// fetch(): para esses arquivos, sempre confere com o servidor.
-const FRESH_GAME_FILES = [/\/play\/v2\/content\/global\/content\/interface\.swf(\?|$)/, /\/play\/v2\/content\/local\/[a-z]{2}\/news\//];
+// de voz, shell, jornal em português) têm a MESMA URL do original — e cópias
+// antigas ficaram guardadas no navegador e na CDN por até 30 dias (o jogo
+// abria sem os botões, sem a barra e com o jornal em inglês). O Ruffle baixa
+// tudo com fetch(): esses arquivos vão com ?pcf=<versão do servidor> (cópia
+// nova a cada versão) e sempre conferindo com o servidor.
+const FRESH_GAME_FILES = [
+  /\/play\/v2\/content\/global\/content\/interface\.swf(\?|$)/,
+  /\/play\/v2\/client\/(shell|catalog_viewer)\.swf(\?|$)/,
+  /\/play\/v2\/content\/local\/[a-z]{2}\/news\//,
+];
+function freshUrl(url) {
+  const u = new URL(url, window.location.href);
+  u.searchParams.set('pcf', String(window.__pcFreshKey || '1'));
+  return u.href;
+}
 function installFreshFetch() {
   if (window.__pcFreshFetch) return;
   const orig = window.fetch.bind(window);
@@ -81,8 +91,8 @@ function installFreshFetch() {
     try {
       const url = typeof input === 'string' ? input : (input instanceof URL ? input.href : input?.url);
       if (url && FRESH_GAME_FILES.some((re) => re.test(url))) {
-        if (input instanceof Request) return orig(new Request(input, { cache: 'no-cache' }));
-        return orig(input, { ...(init || {}), cache: 'no-cache' });
+        if (input instanceof Request) return orig(new Request(freshUrl(url), input), { cache: 'no-cache' });
+        return orig(freshUrl(url), { ...(init || {}), cache: 'no-cache' });
       }
     } catch { /* segue normal */ }
     return orig(input, init);
@@ -299,6 +309,7 @@ export default function PracaPage({ embedded = false }) {
       if (!alive) return;
       // socketProxy: cada host:porta que o Flash tenta abrir vira um WebSocket
       // do site, com o ticket da conta na URL.
+      window.__pcFreshKey = cfg.fresh || '1';
       const socketProxy = cfg.socketProxy.map((p) => ({ host: p.host, port: p.port, proxyUrl: `${wsBase()}${p.path}?token=${encodeURIComponent(cfg.ticket)}` }));
       // socketProxy é lido da config global na criação do player
       RufflePlayer.config = { ...(RufflePlayer.config || {}), socketProxy, publicPath: '/ruffle/', polyfills: false };

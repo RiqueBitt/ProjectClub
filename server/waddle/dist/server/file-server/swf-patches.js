@@ -24,14 +24,38 @@ exports.isPatchedRoute = isPatchedRoute;
  * Também no interface.swf: um DoAction a mais no 1º quadro (depois do script
  * principal) põe os botões de voz Falar/Ouvir DENTRO da barra do jogo — ver
  * praca-voice-action.ts (gerado de server/waddle/praca-voice/).
+ *
+ * shell.swf: um DoAction a mais no 1º quadro conserta o teleporte saindo do
+ * Pátio do Dojo (o shell mandava pra uma sala de 2013 que prende o pinguim) —
+ * ver praca-shell-action.ts (gerado de server/waddle/praca-voice/shell.as).
+ *
+ * catalog_viewer.swf (AS3): ao mostrar uma página o catálogo faz
+ * `closeButton.buttonMode = true`; no Catálogo de Puffles o botão de fechar é
+ * um SimpleButton (que não tem buttonMode) → erro #1056 no meio da função e
+ * o catálogo ficava travado (sem fechar, sem virar página). Os bytes
+ * `pushtrue; setproperty buttonMode` (linha 70 de CatalogView.showPage)
+ * viram `pop; nop; nop; nop` — mesmo tamanho, só pula essa linha.
  */
 const zlib_1 = __importDefault(require("zlib"));
 const praca_voice_action_1 = require("./praca-voice-action");
+const praca_shell_action_1 = require("./praca-shell-action");
 const PATCHES = [
     {
         test: (route) => /(^|\/)play\/v2\/content\/global\/content\/interface\.swf$/.test(route),
         patches: [{ from: 'autoLogin\0', to: 'autoLogXn\0' }],
         frame1Tags: [praca_voice_action_1.PRACA_VOICE_DOACTION],
+    },
+    {
+        test: (route) => /(^|\/)play\/v2\/client\/catalog_viewer\.swf$/.test(route),
+        patches: [{
+                from: '\xf0\x46\xd0\x66\xf6\x03\x66\xe4\x19\x26\x61\xe7\x19\xf0\x48',
+                to: '\xf0\x46\xd0\x66\xf6\x03\x66\xe4\x19\x29\x02\x02\x02\xf0\x48',
+            }],
+    },
+    {
+        test: (route) => /(^|\/)play\/v2\/client\/shell\.swf$/.test(route),
+        patches: [],
+        frame1Tags: [praca_shell_action_1.PRACA_SHELL_DOACTION],
     },
 ];
 /** Insere `tags` no fim do 1º quadro da linha do tempo principal (antes do 1º ShowFrame). */

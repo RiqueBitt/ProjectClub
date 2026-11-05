@@ -1,7 +1,14 @@
 import struct, zlib, base64, sys
 import os
 os.chdir(os.path.dirname(os.path.abspath(__file__)))
-d=open('voice.swf','rb').read()
+import argparse
+ap=argparse.ArgumentParser()
+ap.add_argument('--swf', default='voice.swf')
+ap.add_argument('--out', default='../src/server/file-server/praca-voice-action.ts')
+ap.add_argument('--name', default='PRACA_VOICE_DOACTION')
+ap.add_argument('--doc', default='com os botões de voz Falar/Ouvir dentro da barra do jogo.\n * Fonte: server/waddle/praca-voice/voice.as.tpl (compilada com o JPEXS FFDec);\n * inserida no 1º quadro do interface.swf por swf-patches.ts.')
+args=ap.parse_args()
+d=open(args.swf,'rb').read()
 body = zlib.decompress(d[8:]) if d[:3]==b'CWS' else d[8:]
 nb = body[0]>>3; off = (5+4*nb+7)//8 + 4
 tags=[]
@@ -17,14 +24,11 @@ raw=act[0]; h=struct.unpack_from('<H',raw,0)[0]; ln=h&63
 bodyb = raw[6:] if ln==63 else raw[2:]
 tagb = struct.pack('<HI',(12<<6)|63,len(bodyb))+bodyb
 b64=base64.b64encode(tagb).decode()
-out=sys.argv[1] if len(sys.argv) > 1 else '../src/server/file-server/praca-voice-action.ts'
-open(out,'w').write("""/**
+open(args.out,'w').write("""/**
  * GERADO (Project Club) — não editar à mão.
- * Tag DoAction (AVM1) com os botões de voz Falar/Ouvir dentro da barra do jogo.
- * Fonte: server/waddle/praca-voice/voice.as.tpl (compilada com o JPEXS FFDec);
- * inserida no 1º quadro do interface.swf por swf-patches.ts.
+ * Tag DoAction (AVM1) """+args.doc+"""
  */
-export const PRACA_VOICE_DOACTION = Buffer.from(
+export const """+args.name+""" = Buffer.from(
   '"""+b64+"""',
   'base64',
 );
