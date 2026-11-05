@@ -112,6 +112,7 @@ const ids = (arr) => (Array.isArray(arr) ? arr.map(num).filter((n) => n !== null
  */
 async function updatePenguin(w, store, id, ops = {}) {
   id = Number(id);
+  if (ops.giveAll === true) return giveAll(w, store, id);
   const catalog = getCatalog(w);
   const known = { item: new Set(catalog.items.map((i) => i.id)), furniture: new Set(catalog.furniture.map((f) => f.id)), igloo: new Set(catalog.igloos.map((i) => i.id)), flooring: new Set(catalog.floorings.map((i) => i.id)), puffle: new Set(catalog.puffles.map((p) => p.id)), stamp: new Set(catalog.stamps.map((s) => s.id)) };
   const changes = [];
@@ -213,8 +214,50 @@ async function updatePenguin(w, store, id, ops = {}) {
   return { changes, penguin: await getPenguin(w, store, id) };
 }
 
+/**
+ * Dá TUDO do jogo de uma vez: todas as roupas/itens, todos os móveis (1 de
+ * cada, quem já tem fica com o que tem), todos os iglus, pisos e locais.
+ * Online: sem avisos um por um (seriam milhares de janelinhas) — o jogador é
+ * desconectado no fim e a página entra de novo sozinha, já com tudo.
+ */
+async function giveAll(w, store, id) {
+  id = Number(id);
+  const c = getCatalog(w);
+  const live = w.world.getOnline(id);
+  const count = { items: 0, furniture: 0, igloos: 0, floorings: 0, locations: 0 };
+  if (live) {
+    for (const it of c.items) if (!live.inventory.has(it.id)) { live.inventory.add(it.id); count.items++; }
+    for (const f of c.furniture) if (live.igloo.getFurnitureAmount(f.id) < 1) { live.igloo.setFurnitureAmount(f.id, 1); count.furniture++; }
+    const types = new Set(live.igloo.types); for (const g of c.igloos) if (!types.has(g.id)) { live.igloo.addIglooType(g.id); count.igloos++; }
+    const floors = new Set(live.igloo.floorings); for (const f of c.floorings) if (!floors.has(f.id)) { live.igloo.addFlooring(f.id); count.floorings++; }
+    const locs = new Set(live.igloo.locations); for (const l of c.locations) if (!locs.has(l.id)) { live.igloo.addLocation(l.id); count.locations++; }
+    w.world.persist(live);
+    await new Promise((r) => setTimeout(r, 300)); // deixa gravar antes de derrubar
+    w.world.kick(id);
+  } else {
+    const json = await store.get(id);
+    if (!json) return null;
+    const inv = new Set(Array.isArray(json.inventory) ? json.inventory : []);
+    for (const it of c.items) if (!inv.has(it.id)) { inv.add(it.id); count.items++; }
+    json.inventory = [...inv];
+    json.furniture = json.furniture && typeof json.furniture === 'object' ? json.furniture : {};
+    for (const f of c.furniture) if (!(json.furniture[f.id] >= 1)) { json.furniture[f.id] = 1; count.furniture++; }
+    const addAll = (key, list, n) => {
+      const set = new Set(Array.isArray(json[key]) ? json[key] : []);
+      for (const o of list) if (!set.has(o.id)) { set.add(o.id); count[n]++; }
+      json[key] = [...set];
+    };
+    addAll('iglooTypes', c.igloos, 'igloos');
+    addAll('iglooFloorings', c.floorings, 'floorings');
+    addAll('iglooLocations', c.locations, 'locations');
+    await store.write(id, json);
+  }
+  const changes = [`dar tudo: +${count.items} itens, +${count.furniture} móveis, +${count.igloos} iglus, +${count.floorings} pisos, +${count.locations} locais${live ? ' (reconectando o jogador)' : ''}`];
+  return { changes, penguin: await getPenguin(w, store, id) };
+}
+
 async function kickPenguin(w, id) {
   return w.world.kick(Number(id));
 }
 
-module.exports = { getCatalog, listPenguins, getPenguin, updatePenguin, kickPenguin };
+module.exports = { getCatalog, listPenguins, getPenguin, updatePenguin, kickPenguin, giveAll };

@@ -150,6 +150,7 @@ export default function GameAdmin() {
 
 function SummarySection({ p, apply, busy }) {
   const [coins, setCoins] = useState('');
+  const [confirmAll, setConfirmAll] = useState(false);
   const n = Number(coins);
   const valid = coins !== '' && Number.isFinite(n);
   return (
@@ -163,6 +164,18 @@ function SummarySection({ p, apply, busy }) {
           <button type="button" className="sth-btn" disabled={!valid || busy} onClick={() => { apply({ coins: { add: -Math.abs(n) } }); setCoins(''); }}>Tirar</button>
           <button type="button" className="sth-btn" disabled={!valid || busy} onClick={() => { apply({ coins: { set: n } }); setCoins(''); }}>Definir</button>
         </div>
+      </div>
+      <div className="stu-block">
+        <h3>Dar tudo</h3>
+        <p className="stg-note">Todas as roupas e itens, todos os móveis (1 de cada), todos os iglus, pisos e locais do jogo, de uma vez.{p.online ? ' O jogador está online: ele é reconectado sozinho em seguida, já com tudo.' : ''}</p>
+        {confirmAll ? (
+          <div className="stg-inline">
+            <button type="button" className="sth-btn primary" disabled={busy} onClick={() => { setConfirmAll(false); apply({ giveAll: true }); }}>Sim, dar tudo</button>
+            <button type="button" className="sth-btn" disabled={busy} onClick={() => setConfirmAll(false)}>Cancelar</button>
+          </div>
+        ) : (
+          <button type="button" className="sth-btn primary" disabled={busy} onClick={() => setConfirmAll(true)}>Dar todos os itens do jogo</button>
+        )}
       </div>
       <div className="stu-block">
         <h3>Conta do pinguim</h3>
