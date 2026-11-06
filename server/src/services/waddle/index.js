@@ -369,6 +369,20 @@ const PARTY_PT = {
 };
 const partyLabel = (name) => (name ? PARTY_PT[name] || require('./parties').labelOf(name) || name : null);
 
+// Camadas do Project Club por cima da ilha (island.js / assets.js) usam a
+// mesma camada de festa do WF — mas não são festa pra rótulos e pacotes.
+const LAYER_NAMES = new Set(['Ilha 2015', 'Arquivos da Archives']);
+function realParty(w) {
+  const name = w.gameData.getPartyName ? w.gameData.getPartyName() : null;
+  return name && !LAYER_NAMES.has(name) ? name : null;
+}
+function layerCode() {
+  let code = '';
+  try { if (require('./island').overlay().any) code += '15'; } catch { /* ok */ }
+  try { if (require('./assets').overlay().any) code += '77'; } catch { /* ok */ }
+  return code;
+}
+
 /** Código numérico estável (2 dígitos) pra festa: entra na contentVersion. */
 function partyCode(party) {
   if (!party) return '';
@@ -391,9 +405,12 @@ async function getEntry(w) {
   const data = text.match(/<object[^>]*\sdata="([^"]+)"/i);
   const flashvars = text.match(/name="flashvars"\s+value="([^"]*)"/i);
   let fv = flashvars ? flashvars[1] : 'lang=en';
-  const party = w.gameData.getPartyName ? w.gameData.getPartyName() : null;
+  const party = realParty(w);
   const baseContent = (fv.match(/contentVersion=(\d+)/) || [])[1] || '';
-  if (party) fv = fv.replace(/(contentVersion=)(\d+)/, (_, k, v) => `${k}${v}${partyCode(party)}`);
+  // ilha 2015 e arquivos da Archives também trocam conteúdo na MESMA rota
+  // (mapa, salas): entram na contentVersion pra furar o cache de 30 dias
+  const layers = layerCode();
+  if (party || layers) fv = fv.replace(/(contentVersion=)(\d+)/, (_, k, v) => `${k}${v}${partyCode(party)}${layers}`);
   return { swf: data ? data[1] : '/boots.swf', flashvars: fv, party, baseContent };
 }
 
@@ -742,7 +759,7 @@ function mediaState() {
 async function getStatus() {
   if (!instance) return { ready: false, online: 0, media: mediaState(), error: lastError ? String(lastError.message || lastError) : null };
   const media = mediaState();
-  return { ready: media.state === 'ready' || media.state === 'partial', online: instance.world.getAllPlayersInfo().length, version: instance.settings.settings.version, party: instance.gameData.getPartyName ? instance.gameData.getPartyName() : null, partyLabel: partyLabel(instance.gameData.getPartyName ? instance.gameData.getPartyName() : null), media };
+  return { ready: media.state === 'ready' || media.state === 'partial', online: instance.world.getAllPlayersInfo().length, version: instance.settings.settings.version, party: realParty(instance), partyLabel: partyLabel(realParty(instance)), media };
 }
 
 const getStore = () => store;
