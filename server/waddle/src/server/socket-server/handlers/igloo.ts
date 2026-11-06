@@ -81,16 +81,25 @@ export const handleGetIglooCpip: PenguinHandler<[number]> = async ({ world, db, 
   }
 }
 
+// Project Club: itens que não têm arquivo na mídia do servidor (conferido
+// em todas as URLs da mídia publicada — ver tools/cp-parties/README.md,
+// "conferir mídia do iglu"). No editor eles quebravam: o iglu 81 não tem o
+// sprite (escolher deixava só o chão, sem iglu e sem o pinguim) e os móveis
+// 318/319 não têm ícone nem sprite. Ficam fora do inventário do EDITOR; o
+// jogador continua com eles salvos (voltam se a mídia ganhar os arquivos).
+const NO_MEDIA_FURNITURE = new Set([318, 319]);
+const NO_MEDIA_IGLOOS = new Set([81]);
+
 export const handleGetIglooItems: PenguinHandler<[]> = ({ msg, penguin }) => {
   // No idea what these zeros are used for
   const zeros = '0000000000';
-  const furnitureInfo = penguin.igloo.furniture.map((pair) => {
+  const furnitureInfo = penguin.igloo.furniture.filter(([id]) => !NO_MEDIA_FURNITURE.has(Number(id))).map((pair) => {
     const [id, amount] = pair;
     return `${id}|${zeros}|${amount}`;
   });
   
   const floorings = penguin.igloo.floorings;
-  const igloos = penguin.igloo.types;
+  const igloos = penguin.igloo.types.filter((id) => !NO_MEDIA_IGLOOS.has(Number(id)));
   const locations = penguin.igloo.locations;
   const information = [
     furnitureInfo,

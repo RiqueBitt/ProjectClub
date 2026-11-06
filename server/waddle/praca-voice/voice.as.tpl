@@ -1092,6 +1092,37 @@ pcxShell.idleDisconnect = function()
    _global.getCurrentShell().stopPlayerIdleCheck();
 };
 
+// Editor do iglu aberto: trocar o iglu (ou o local) faz a sala se remontar e
+// a interface mostrava de novo o jornal, a carta, o mapa e o Centro de
+// Download POR CIMA do editor — cobrindo os primeiros itens do inventário.
+// Enquanto o editor estiver aberto, um vigia esconde o que reaparecer; ao
+// fechar, o próprio jogo mostra a interface de volta.
+function pcxIglooEditing()
+{
+   var S = _global.com.clubpenguin.igloo.model.IglooState;
+   return S != undefined && S.EDITOR != undefined && S.EDITOR.isActive() == true && _global.getCurrentShell().getIsRoomIgloo() == true;
+}
+var pcxEditWatch = this.createEmptyMovieClip("pcxEditWatch_mc", 8998);
+pcxEditWatch.onEnterFrame = function()
+{
+   if(!pcxIglooEditing())
+   {
+      return undefined;
+   }
+   if(ICONS._visible)
+   {
+      ICONS._visible = false;
+   }
+   if(MAP_ICON._visible)
+   {
+      MAP_ICON._visible = false;
+   }
+   if(EPFMissionHUDLayer._visible)
+   {
+      EPFMissionHUDLayer._visible = false;
+   }
+};
+
 // Jukebox da Danceteria: uma jukebox (client/public/praca-ui/jukebox-128.png)
 // em cima da mesinha redonda do canto direito, ao lado dos sofás. Só aparece
 // na Danceteria (sala 120). Clicar abre a janela do DJ
