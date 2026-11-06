@@ -53,6 +53,11 @@ export class WorldServer implements MessageHandler {
   }
 
   // ---- Painel da equipe (Project Club) ----
+  /** Ações dos pinguins (emote, bola de neve, piada, fala) — quests da Praça. */
+  public onAction(fn: (a: import('./world/world').PenguinAction) => void): void {
+    this._world.onAction(fn);
+  }
+
   /** Pinguim conectado agora (undefined se offline). */
   public getOnline(penguinId: number): WorldPenguin | undefined {
     return this._world.getById(penguinId);
@@ -80,15 +85,19 @@ export class WorldServer implements MessageHandler {
    * Quem está em qual sala e onde (pro chat de texto e a voz por
    * proximidade do Project Club). Pinguim em minijogo/sem sala fica de fora.
    */
-  public getPresence(): Array<{ id: number; name: string; room: number; x: number; y: number }> {
-    const out: Array<{ id: number; name: string; room: number; x: number; y: number }> = [];
+  // frame = animação atual (26 = dançando, 27 = acenando…); walking = puffle
+  // passeando (tipo). Usados pelas quests da Praça (Project Club).
+  public getPresence(): Array<{ id: number; name: string; room: number; x: number; y: number; frame: number; walking: number | null }> {
+    const out: Array<{ id: number; name: string; room: number; x: number; y: number; frame: number; walking: number | null }> = [];
     for (const p of this._world.players) {
       const room = this._world.getPenguinRoom(p);
       if (room === undefined) continue;
-      let st: { x: number; y: number } | undefined;
+      let st: { x: number; y: number; frame?: number } | undefined;
       try { st = room.getState(p); } catch { st = undefined; }
       if (st === undefined) continue;
-      out.push({ id: p.id, name: p.name, room: room.id, x: st.x, y: st.y });
+      let walking: number | null = null;
+      try { const w = p.puffle.getWalking(); walking = w ? w.type : null; } catch { walking = null; }
+      out.push({ id: p.id, name: p.name, room: room.id, x: st.x, y: st.y, frame: Number(st.frame) || 0, walking });
     }
     return out;
   }

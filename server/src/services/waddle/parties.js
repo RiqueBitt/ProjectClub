@@ -182,10 +182,22 @@ function apply(force = false) {
     next = null;
   }
   active = next;
+  // arquivos da Club Penguin Archives ligados pela staff (assets.js) ficam
+  // por cima de tudo — com ou sem festa
+  let extra = { rooms: {}, routes: {}, musicFiles: {}, any: false };
+  try { extra = require('./assets').overlay(); } catch { /* sem assets */ }
+  // ilha 2015 (island.js): mapa de junho/2015 + Hotel dos Puffles, Parque,
+  // Puffle Wild e Escola — fica POR BAIXO da festa (as salas e o mapa
+  // decorados ganham) e por baixo dos arquivos da Archives ligados pela staff
+  let island = { rooms: {}, music: {}, routes: {}, musicFiles: {}, any: false };
+  try { island = require('./island').overlay(); } catch { /* sem ilha 2015 */ }
   if (next) {
     const m = merged(next.slugs);
-    w.gameData.setPartyOverlay(m.name, m.rooms, m.music, m.musicFiles, m.routes);
-    console.log(`[festas] na ilha: ${next.slugs.map((s) => bySlug.get(s).name).join(' + ')} (${next.source === 'staff' ? 'ligada pela staff' : 'rodízio'})`);
+    w.gameData.setPartyOverlay(m.name, { ...island.rooms, ...m.rooms, ...extra.rooms }, { ...island.music, ...m.music }, { ...island.musicFiles, ...m.musicFiles, ...extra.musicFiles }, { ...island.routes, ...m.routes, ...extra.routes });
+    console.log(`[festas] na ilha: ${next.slugs.map((s) => bySlug.get(s).name).join(' + ')} (${next.source === 'staff' ? 'ligada pela staff' : 'rodízio'})${island.any ? ' + ilha 2015' : ''}${extra.any ? ' + arquivos da Archives' : ''}`);
+  } else if (extra.any || island.any) {
+    w.gameData.setPartyOverlay(island.any ? 'Ilha 2015' : 'Arquivos da Archives', { ...island.rooms, ...extra.rooms }, island.music, { ...island.musicFiles, ...extra.musicFiles }, { ...island.routes, ...extra.routes });
+    if (prev || force) console.log(`[festas] ${island.any ? 'ilha 2015' : ''}${island.any && extra.any ? ' + ' : ''}${extra.any ? 'arquivos da Archives' : ''} por cima da ilha de 2012`);
   } else {
     w.gameData.setPartyOverlay(null);
     if (prev) console.log('[festas] camada de festa desligada');
@@ -386,4 +398,4 @@ function downloadEntries(slug) {
 /** Testes: troca a checagem de arquivo no disco. */
 function _setFileCheck(fn) { fileExists = fn; }
 
-module.exports = { attach, list, status, setManual, labelOf, rotationYear, wanted, covers, merged, downloadEntries, _data: DATA, _setFileCheck };
+module.exports = { attach, apply, list, status, setManual, labelOf, rotationYear, wanted, covers, merged, downloadEntries, _data: DATA, _setFileCheck };

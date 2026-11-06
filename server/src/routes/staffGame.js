@@ -125,4 +125,87 @@ router.delete('/epf', async (req, res, next) => {
   }
 });
 
+// ---- Eventos da Praça (services/waddle/events.js) ----
+const events = require('../services/waddle/events');
+const parties = require('../services/waddle/parties');
+const evWrap = (fn) => async (req, res, next) => {
+  try { res.json(await fn(req)); } catch (err) {
+    if (err?.code === 'P2025') return res.status(404).json({ error: 'Não encontrado.' });
+    if (err && err.message && !/prisma|ECONN/i.test(err.message)) return res.status(400).json({ error: err.message });
+    return next(err);
+  }
+};
+router.get('/events', evWrap(async () => ({ events: await events.listEvents(), codes: await events.listCodes(), visits: await events.listVisits(), party: parties.status().active || null })));
+router.get('/events/template', evWrap(async () => {
+  const st = parties.status();
+  const p = st.active ? parties._data.parties.find((x) => x.slug === st.active.slug) : null;
+  const rooms = p ? Object.keys(p.rooms || {}).map(Number).filter(Boolean) : [];
+  return events.templateForParty(p ? { slug: p.slug, name: p.name, label: p.label } : null, rooms);
+}));
+router.put('/events', evWrap(async (req) => {
+  const row = await events.saveEvent(req.body || {});
+  await logAction(req.app.get('io'), { actorId: req.user.id, action: 'PLAZA_EVENT_SAVE', targetType: 'PLAZA_EVENT', targetId: row.slug, metadata: { name: row.name } }).catch(() => {});
+  return row;
+}));
+router.delete('/events/:slug', evWrap(async (req) => { await events.deleteEvent(req.params.slug); await logAction(req.app.get('io'), { actorId: req.user.id, action: 'PLAZA_EVENT_DELETE', targetType: 'PLAZA_EVENT', targetId: req.params.slug }).catch(() => {}); return { ok: true }; }));
+router.put('/codes', evWrap(async (req) => { const c = await events.saveCode(req.body || {}); await logAction(req.app.get('io'), { actorId: req.user.id, action: 'PLAZA_CODE_SAVE', targetType: 'PLAZA_CODE', targetId: c.code }).catch(() => {}); return c; }));
+router.delete('/codes/:code', evWrap(async (req) => { await events.deleteCode(req.params.code); return { ok: true }; }));
+router.put('/visits', evWrap(async (req) => { const v = await events.saveVisit(req.body || {}); await logAction(req.app.get('io'), { actorId: req.user.id, action: 'PLAZA_MASCOT_VISIT', targetType: 'PLAZA_VISIT', targetId: v.id, metadata: { name: v.name, room: v.room } }).catch(() => {}); return v; }));
+router.delete('/visits/:id', evWrap(async (req) => { await events.deleteVisit(req.params.id); return { ok: true }; }));
+// modelos prontos (eventPresets.js): lista, corpo pronto pra editar e códigos sugeridos
+const presets = require('../services/waddle/eventPresets');
+router.get('/events/presets', evWrap(async () => presets.list()));
+router.get('/events/presets/:key', evWrap(async (req) => { const b = presets.build(req.params.key); if (!b) throw new Error('Modelo desconhecido.'); return b; }));
+router.post('/events/presets/:key/codes', evWrap(async (req) => {
+  const b = presets.build(req.params.key); if (!b) throw new Error('Modelo desconhecido.');
+  const out = []; for (const c of b.codes) out.push(await events.saveCode({ ...c, eventSlug: b.slug }));
+  await logAction(req.app.get('io'), { actorId: req.user.id, action: 'PLAZA_CODE_SAVE', targetType: 'PLAZA_CODE', targetId: req.params.key, metadata: { n: out.length } }).catch(() => {});
+  return out;
+}));
+
+// ---- Concursos (contests.js) ----
+const contests = require('../services/waddle/contests');
+router.get('/contests', evWrap(async () => contests.list()));
+router.get('/contests/:id', evWrap(async (req) => contests.detail(req.params.id)));
+router.put('/contests', evWrap(async (req) => { const c = await contests.save(req.body || {}); await logAction(req.app.get('io'), { actorId: req.user.id, action: 'PLAZA_CONTEST_SAVE', targetType: 'PLAZA_CONTEST', targetId: c.id, metadata: { title: c.title } }).catch(() => {}); return c; }));
+router.delete('/contests/:id', evWrap(async (req) => { await contests.remove(req.params.id); return { ok: true }; }));
+router.post('/contests/:id/winners', evWrap(async (req) => { const out = await contests.pickWinners(req.params.id, req.body?.entryIds || []); await logAction(req.app.get('io'), { actorId: req.user.id, action: 'PLAZA_CONTEST_WINNERS', targetType: 'PLAZA_CONTEST', targetId: req.params.id, metadata: { winners: out.map((w) => w.userId) } }).catch(() => {}); return out; }));
+router.post('/contests/entries/:entryId/hide', evWrap(async (req) => contests.hideEntry(req.params.entryId, req.body?.hidden !== false)));
+
+// ---- Jigsaw Jam (puzzles.js) ----
+const puzzles = require('../services/waddle/puzzles');
+router.get('/puzzles', evWrap(async () => puzzles.list()));
+router.patch('/puzzles/:id', evWrap(async (req) => puzzles.review(req.params.id, req.body || {})));
+router.delete('/puzzles/:id', evWrap(async (req) => { await puzzles.remove(req.params.id); return { ok: true }; }));
+router.put('/puzzles/settings', evWrap(async (req) => puzzles.saveSettings(req.body || {})));
+
+// ---- Ilha 2015 (island.js): mapa de junho/2015 + salas do hotel/parque/escola ----
+const island = require('../services/waddle/island');
+router.get('/island', evWrap(async () => island.status()));
+router.put('/island', evWrap(async (req) => { const st = await island.setEnabled(req.body?.enabled !== false); await logAction(req.app.get('io'), { actorId: req.user.id, action: 'PLAZA_ISLAND_TOGGLE', targetType: 'PLAZA', targetId: 'island-2015', metadata: { enabled: st.enabled } }).catch(() => {}); return st; }));
+router.post('/island/download', evWrap(async () => island.ensureFiles()));
+
+// ---- Arquivos da Club Penguin Archives (assets.js) ----
+const assets = require('../services/waddle/assets');
+router.get('/assets', evWrap(async () => assets.list()));
+router.post('/assets', evWrap(async (req) => { const a = await assets.add(req.body || {}); await logAction(req.app.get('io'), { actorId: req.user.id, action: 'PLAZA_ASSET_ADD', targetType: 'PLAZA_ASSET', targetId: a.id, metadata: { kind: a.kind, target: a.target, source: a.source } }).catch(() => {}); return a; }));
+router.patch('/assets/:id', evWrap(async (req) => assets.update(req.params.id, req.body || {})));
+router.delete('/assets/:id', evWrap(async (req) => { await assets.remove(req.params.id); return { ok: true }; }));
+
+// salas do jogo (id + nome) pra equipe montar quests sem decorar números
+router.get('/rooms', async (req, res, next) => {
+  try {
+    const { ROOMS } = require('../../waddle/dist/server/game-data/rooms.js');
+    const island = require('../services/waddle/island');
+    res.json(Object.entries(ROOMS).map(([key, r]) => ({ key, id: r.id, name: island.roomName(key) || r.name })).filter((r) => r.id).sort((a, b) => a.id - b.id));
+  } catch (err) { next(err); }
+});
+// contas da equipe (pra marcar quem "veste" um mascote)
+router.get('/staff-accounts', async (req, res, next) => {
+  try {
+    const prisma = require('../config/prisma');
+    res.json(await prisma.user.findMany({ where: { platformRole: { in: ['ADMIN', 'MODERATOR'] } }, select: { id: true, username: true, displayName: true }, take: 100 }));
+  } catch (err) { next(err); }
+});
+
 module.exports = router;

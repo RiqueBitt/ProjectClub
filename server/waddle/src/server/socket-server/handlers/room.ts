@@ -24,8 +24,9 @@ export const handleSetAction: RoomHandler<[string]> = ({ room, msg, penguin }, a
   msg.send(room.players, 'sa', penguin.id, action);
 }
 
-export const handleSetSnowball: RoomHandler<[string, string]> = ({ room, msg, penguin }, x, y) => {
+export const handleSetSnowball: RoomHandler<[string, string]> = ({ room, msg, penguin, world }, x, y) => {
   msg.send(room.players, 'sb', penguin.id, x, y);
+  world.emitAction({ penguinId: penguin.id, room: room.id, kind: 'snowball', value: `${x},${y}` });
 }
 
 export const handleSendEmote: RoomHandler<[string]> = ({ room, msg, penguin, data, world }, emote) => {
@@ -36,18 +37,22 @@ export const handleSendEmote: RoomHandler<[string]> = ({ room, msg, penguin, dat
   }
   
   msg.send(room.players, 'se', penguin.id, emote);
+  world.emitAction({ penguinId: penguin.id, room: room.id, kind: 'emote', value: String(emote) });
 }
 
-export const handleSendJoke: RoomHandler<[string]> = ({ room, msg, penguin }, joke) => {
+export const handleSendJoke: RoomHandler<[string]> = ({ room, msg, penguin, world }, joke) => {
   msg.send(room.players, 'sj', penguin.id, joke);
+  world.emitAction({ penguinId: penguin.id, room: room.id, kind: 'joke', value: String(joke) });
 }
 
-export const handleSendMessage: RoomHandler<[string, string]> = ({ room, msg }, penguin, message) => {
-  msg.send(room.players, 'sm', penguin, message);
+export const handleSendMessage: RoomHandler<[string, string]> = ({ room, msg, penguin, world }, _penguin, message) => {
+  msg.send(room.players, 'sm', penguin.id, message);
+  world.emitAction({ penguinId: penguin.id, room: room.id, kind: 'message', value: String(message) });
 }
 
-export const handleSafeMessage: RoomHandler<[string]> = ({ room, msg, penguin }, message) => {
+export const handleSafeMessage: RoomHandler<[string]> = ({ room, msg, penguin, world }, message) => {
   msg.send(room.players, 'ss', penguin.id, message);
+  world.emitAction({ penguinId: penguin.id, room: room.id, kind: 'safe', value: String(message) });
 }
 
 export const handleSendLine: RoomHandler<[string]> = ({ room, msg, penguin }, line) => {

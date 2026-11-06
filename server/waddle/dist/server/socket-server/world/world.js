@@ -15,6 +15,10 @@ const fire_1 = require("./fire");
 const games_1 = require("../../game-data/games.js");
 class World {
     gameData;
+    // Project Club: ações dos pinguins pras quests da Praça
+    _actionListeners = [];
+    onAction(fn) { this._actionListeners.push(fn); }
+    emitAction(a) { for (const fn of this._actionListeners) { try { fn(a); } catch { /* ok */ } } }
     penguins = new Map();
     states = new Map;
     rooms = new Map();
