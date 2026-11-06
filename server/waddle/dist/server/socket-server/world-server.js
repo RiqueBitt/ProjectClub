@@ -69,6 +69,8 @@ class WorldServer {
      * Quem está em qual sala e onde (pro chat de texto e a voz por
      * proximidade do Project Club). Pinguim em minijogo/sem sala fica de fora.
      */
+    /** Ações dos pinguins (emote, bola de neve, piada, fala) — quests da Praça. */
+    onAction(fn) { this._world.onAction(fn); }
     getPresence() {
         const out = [];
         for (const p of this._world.players) {

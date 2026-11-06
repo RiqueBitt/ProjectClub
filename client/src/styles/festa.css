@@ -102,3 +102,5 @@
 .cpf-entry.is-voted { border-color: #2a6db3; box-shadow: 0 0 0 2px #d6e9fa; }
 .cpf-entry a { display: block; }
 .cpf-entry .cpjb-pill { align-self: flex-start; }
+
+.cpf-quest.is-locked { opacity: .6; background: #eef3f8; border-style: dashed; }

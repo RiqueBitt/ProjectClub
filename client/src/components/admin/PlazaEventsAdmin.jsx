@@ -11,7 +11,9 @@ const QUEST_TYPES = [
   ['dance', 'Dançar (com item) nas salas'], ['walk_puffle', 'Passear com o puffle até salas'],
   ['online', 'Ficar X minutos na ilha'], ['mascot', 'Encontrar um mascote'], ['donate', 'Doar moedas (Coins for Change)'],
   ['trivia', 'Trivia (TourBot: pergunta numa sala)'],
+  ['emote', 'Emotes (N vezes, ou N pinguins juntos — "sala feliz")'], ['snowball', 'Jogar N bolas de neve'], ['joke', 'Contar N piadas'], ['say', 'Dizer um texto no chat'],
 ];
+const EMOTES = [[1, 'Risada'], [2, 'Sorriso'], [3, 'Língua'], [4, 'Surpreso'], [5, 'Triste'], [6, 'Piscada'], [7, 'Enjoado'], [8, 'Bravo'], [9, 'Sério'], ...Array.from({ length: 21 }, (_, i) => [10 + i, `Emote ${10 + i}`])];
 const DIFFICULTIES = [['facil', 'Fácil (50 moedas)'], ['media', 'Média (120)'], ['dificil', 'Difícil (250)'], ['extrema', 'Extrema (500)']];
 const PUFFLES = [[0, 'Azul'], [1, 'Rosa'], [2, 'Preto'], [3, 'Verde'], [4, 'Roxo'], [5, 'Vermelho'], [6, 'Amarelo'], [7, 'Branco'], [8, 'Laranja'], [9, 'Marrom'], [10, 'Arco-íris'], [11, 'Dourado']];
 const toLocal = (iso) => { if (!iso) return ''; const d = new Date(iso); const p = (n) => String(n).padStart(2, '0'); return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}T${p(d.getHours())}:${p(d.getMinutes())}`; };
@@ -286,6 +288,14 @@ function QuestCard({ q, rooms, catalog, itemName, roomName, currencyName, onChan
         {q.type === 'trivia' && <label className="pea-wide">Opções (separadas por ;)<input value={options.join('; ')} onChange={(e) => upd({ options: e.target.value.split(';').map((o) => o.trim()) })} placeholder="Rockhopper; Pingu; Gary" /></label>}
         {q.type === 'trivia' && <label>Resposta certa<select value={q.answer ?? 0} onChange={(e) => upd({ answer: Number(e.target.value) })}>{options.map((o, i) => <option key={i} value={i}>{o || `opção ${i + 1}`}</option>)}</select></label>}
         {q.type === 'trivia' && <RoomsField value={q.rooms || []} rooms={rooms} roomName={roomName} onChange={(v) => upd({ rooms: v })} label="Sala do TourBot (vazio = responde de qualquer lugar)" />}
+        {['emote', 'snowball', 'joke', 'say'].includes(q.type) && <RoomsField value={q.rooms || []} rooms={rooms} roomName={roomName} onChange={(v) => upd({ rooms: v })} label="Salas (vazio = qualquer)" />}
+        {['emote', 'snowball', 'joke', 'say'].includes(q.type) && <ItemsField value={q.items || []} catalog={catalog} itemName={itemName} onChange={(v) => upd({ items: v })} label="Vestindo (vazio = qualquer roupa)" />}
+        {q.type === 'emote' && <label>Emote<select value={(q.emotes || [])[0] ?? ''} onChange={(e) => upd({ emotes: e.target.value === '' ? [] : [Number(e.target.value)] })}><option value="">qualquer</option>{EMOTES.map(([k, l]) => <option key={k} value={k}>{l} ({k <= 9 ? `E+${k}` : `id ${k}`})</option>)}</select></label>}
+        {q.type === 'emote' && <label>Pinguins juntos (0 = conta só os seus)<input type="number" min="0" max="100" value={q.together || 0} onChange={(e) => upd({ together: Number(e.target.value) })} /></label>}
+        {['emote', 'snowball', 'joke', 'say'].includes(q.type) && !(q.type === 'emote' && q.together > 1) && <label>Quantas vezes<input type="number" min="1" max="200" value={q.count || 1} onChange={(e) => upd({ count: Number(e.target.value) })} /></label>}
+        {q.type === 'say' && <label>Texto que precisa aparecer<input value={q.text || ''} onChange={(e) => upd({ text: e.target.value })} placeholder="feliz natal" /></label>}
+        {q.type === 'gather' && <ItemsField value={q.items || []} catalog={catalog} itemName={itemName} onChange={(v) => upd({ items: v })} label="Só conta quem veste (vazio = todo mundo)" />}
+        <label className="pea-wide">Abre depois de (chaves de outras quests, separadas por vírgula — cadeia de história)<input value={Array.isArray(q.requires) ? q.requires.join(', ') : (q.requires || '')} onChange={(e) => upd({ requires: e.target.value.split(/[\s,;]+/).filter(Boolean) })} placeholder="pista1, pista2" /></label>
         {q.type === 'dance' && <RoomsField value={q.rooms || []} rooms={rooms} roomName={roomName} onChange={(v) => upd({ rooms: v })} label="Salas pra dançar (vazio = qualquer)" />}
         {q.type === 'dance' && <ItemsField value={q.items || []} catalog={catalog} itemName={itemName} onChange={(v) => upd({ items: v })} label="Dançando com (vazio = qualquer roupa)" />}
         {q.type === 'walk_puffle' && <RoomsField value={q.rooms || []} rooms={rooms} roomName={roomName} onChange={(v) => upd({ rooms: v })} label="Salas pra levar o puffle" />}

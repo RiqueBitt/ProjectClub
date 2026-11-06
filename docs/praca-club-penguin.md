@@ -174,3 +174,14 @@ moeda do evento. Código em `server/src/services/waddle/events.js`; modelos
 - **Arquivos da Club Penguin Archives** (`assets.js`, `PlazaAsset`) — a staff cola o link de um arquivo da Archives (página `File:` ou nome) e ele entra na ilha por cima da festa: sala, rota do jogo ou música. Fica em `media/pcarchives/`; `parties.apply` reaplica a camada na hora. Só aceita a Archives e confere os bytes (SWF/MP3/PNG…).
 
 Testes: `node --test server/test/praca-eventos.test.js server/test/praca-concursos.test.js`.
+
+### Terceira leva: ações do jogo e cadeias de história
+
+O Waddle passou a emitir `world.onAction({ penguinId, room, kind, value })` para emote (`u#se`), bola de neve (`u#sb`), piada (`u#sj`), fala (`m#sm`) e mensagem segura (`u#ss`) — `src` e `dist` do fork. Com isso, quests novas:
+
+- `emote` — N emotes seus (`emotes: [id]`, `count`) ou **N pinguins fazendo o mesmo emote na sala em 1 min** (`together`, modelo "Happy Room"/"Sala feliz").
+- `snowball` — N bolas de neve (com `rooms`/`items` opcionais).
+- `joke` — N piadas (tecla J).
+- `say` — dizer um texto no chat (`text`, sem diferenciar maiúsculas; mensagem segura também vale).
+- `gather` com `items` — só conta quem está vestindo (ex.: "20 pinguins de Capacete de Obra na Lagoa" = virar a Lagoa).
+- `requires: [keys]` em qualquer quest — **cadeia de história** (modelo das operações da EPF do CP Journey/Dimensions e das mascot quests do CP Zero): a quest fica trancada (🔒 na janela Festa) até as anteriores concluírem; `cleanConfig` valida as chaves.

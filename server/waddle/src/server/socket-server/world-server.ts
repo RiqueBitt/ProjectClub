@@ -53,6 +53,11 @@ export class WorldServer implements MessageHandler {
   }
 
   // ---- Painel da equipe (Project Club) ----
+  /** Ações dos pinguins (emote, bola de neve, piada, fala) — quests da Praça. */
+  public onAction(fn: (a: import('./world/world').PenguinAction) => void): void {
+    this._world.onAction(fn);
+  }
+
   /** Pinguim conectado agora (undefined se offline). */
   public getOnline(penguinId: number): WorldPenguin | undefined {
     return this._world.getById(penguinId);

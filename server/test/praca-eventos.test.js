@@ -225,3 +225,58 @@ test('visita surpresa só aparece na agenda quando começa', async () => {
   const st = await events.playerState('u1');
   assert.deepEqual(st.mascots.map((m) => m.id), ['v2']);
 });
+
+test('ações do jogo: emotes (sozinho e em grupo), bola de neve, piada, fala; cadeia de história e juntar com item', async () => {
+  db.events.push({ id: 'ev4', slug: 'acoes', name: 'Ações', currencyName: 'Fichas', active: true, startsAt: new Date(now - 1000), endsAt: new Date(now + 86400000), config: JSON.stringify(events.cleanConfig({
+    quests: [
+      { key: 'sorrir', title: 'Sorria', type: 'emote', emotes: [1], count: 2, rooms: [100] },
+      { key: 'feliz', title: 'Sala feliz', type: 'emote', emotes: [1], together: 2 },
+      { key: 'neve', title: 'Bolas', type: 'snowball', count: 3 },
+      { key: 'piada', title: 'Piadas', type: 'joke', count: 1 },
+      { key: 'falar', title: 'Diga oi', type: 'say', text: 'feliz natal', count: 1 },
+      { key: 'fim', title: 'Final da história', type: 'visit', rooms: [110], requires: ['sorrir', 'neve'] },
+      { key: 'furar', title: 'Virar a Lagoa', type: 'gather', rooms: [805], count: 2, items: [403] },
+    ],
+  })) });
+  assert.throws(() => events.cleanConfig({ quests: [{ key: 'a', type: 'visit', requires: ['zzz'] }] }), /não existe/);
+  assert.throws(() => events.cleanConfig({ quests: [{ key: 'a', type: 'visit', requires: 'a' }] }), /dela mesma/);
+  const ev = (await events.activeEvents(true)).find((e) => e.slug === 'acoes');
+  presence.length = 0; presence.push({ id: 1000, name: 'Rique', room: 100, x: 0, y: 0 }, { id: 2000, name: 'Outro', room: 100, x: 0, y: 0 });
+  const act = (kind, value, room = 100, penguinId = 1000) => events._test.onAction({ penguinId, room, kind, value });
+  // emote na sala errada não conta; na certa conta; o outro pinguim sorrindo junto fecha a "sala feliz"
+  await act('emote', '1', 300);
+  assert.equal((await events._test.getProgress('u1', 'ev4', 'sorrir'))?.progress || 0, 0);
+  await act('emote', '1');
+  assert.equal((await events._test.getProgress('u1', 'ev4', 'sorrir')).progress, 1);
+  assert.equal((await events._test.getProgress('u1', 'ev4', 'feliz')).progress, 1);
+  await act('emote', '1', 100, 2000); // outro pinguim (sem conta) só alimenta a sala
+  await act('emote', '2'); // emote errado não conta pro 'sorrir'
+  assert.equal((await events._test.getProgress('u1', 'ev4', 'sorrir')).progress, 1);
+  await act('emote', '1');
+  assert.equal((await events._test.getProgress('u1', 'ev4', 'sorrir')).done, true);
+  assert.equal((await events._test.getProgress('u1', 'ev4', 'feliz')).done, true, '2 pinguins sorrindo em 1 min');
+  // cadeia: 'fim' está trancada até sorrir + neve
+  await events._test.evaluate('u1', 110, live.get(1000), [ev]);
+  assert.equal((await events._test.getProgress('u1', 'ev4', 'fim'))?.done || false, false, 'trancada');
+  let st = await events.playerState('u1');
+  assert.equal(st.events.find((e) => e.slug === 'acoes').quests.find((q) => q.key === 'fim').locked, true);
+  await act('snowball', '1,2'); await act('snowball', '1,2'); await act('snowball', '1,2');
+  assert.equal((await events._test.getProgress('u1', 'ev4', 'neve')).done, true);
+  await events._test.evaluate('u1', 110, live.get(1000), [ev]);
+  assert.equal((await events._test.getProgress('u1', 'ev4', 'fim')).done, true, 'destrancou');
+  // piada e fala (texto, sem diferenciar maiúsculas; mensagem segura também vale)
+  await act('joke', '3');
+  assert.equal((await events._test.getProgress('u1', 'ev4', 'piada')).done, true);
+  await act('message', 'oi gente');
+  assert.equal((await events._test.getProgress('u1', 'ev4', 'falar'))?.done || false, false);
+  await act('safe', 'FELIZ NATAL pra todos');
+  assert.equal((await events._test.getProgress('u1', 'ev4', 'falar')).done, true);
+  // juntar com item: só conta quem veste o Capacete de Obra
+  presence[0].room = 805; presence[1].room = 805;
+  live.get(1000).inventory.head = 403; live.set(2000, { inventory: { head: 0, face: 0, neck: 0, body: 0, feet: 0, hand: 0, pin: 0, background: 0 } });
+  await events._test.evaluate('u1', 805, live.get(1000), [ev]);
+  assert.equal((await events._test.getProgress('u1', 'ev4', 'furar')).progress, 1);
+  live.get(2000).inventory.head = 403;
+  await events._test.evaluate('u1', 805, live.get(1000), [ev]);
+  assert.equal((await events._test.getProgress('u1', 'ev4', 'furar')).done, true);
+});

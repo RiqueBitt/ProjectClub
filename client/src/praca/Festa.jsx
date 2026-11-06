@@ -191,6 +191,11 @@ export default function Festa({ active, stageRef, playerRef, user, isStaff }) {
                   )}
                   <ul className="cpf-list">
                     {ev.quests.map((q) => (
+                      q.locked ? (
+                        <li key={q.key} className="cpf-quest is-locked">
+                          <span className="cpf-q-main"><b>🔒 {q.title}</b><small>Complete antes: {q.requires.join(', ')}</small></span>
+                        </li>
+                      ) : (
                       <li key={q.key} className={`cpf-quest${q.claimed ? ' is-claimed' : q.done ? ' is-done' : ''}${q.rotated ? ' is-rot' : ''}`}>
                         <span className="cpf-q-main">
                           <b>{q.rotated && <em className="cpf-diff is-rot">{ev.rotation?.label || 'da semana'}</em>}{q.title}{q.difficulty && <em className={`cpf-diff is-${q.difficulty}`}>{DIFF_LABEL[q.difficulty]}</em>}{q.type === 'trivia' && <em className="cpf-diff is-bot">TourBot</em>}</b>
@@ -209,8 +214,9 @@ export default function Festa({ active, stageRef, playerRef, user, isStaff }) {
                         </span>
                         {q.claimed ? <span className="cpf-ok"><Icon d={I.check} size={16} /></span>
                           : q.done ? <button type="button" className="cpjb-pill is-green is-small" disabled={busy === q.key} onClick={() => call(q.key, () => api.post(`/plaza/events/${ev.slug}/quests/${q.key}/claim`), (r) => `Recompensa: ${rewardText(r)}!`)}>Pegar</button>
-                            : ['visit', 'dance', 'walk_puffle', 'gather', 'trivia'].includes(q.type) && q.rooms.length && !q.hint ? <button type="button" className="cpjb-mini" title="Ir até a sala" onClick={() => goTo(q.rooms.find((r) => r.key)?.key)}><Icon d={I.go} size={14} /></button> : null}
+                            : ['visit', 'dance', 'walk_puffle', 'gather', 'trivia', 'emote', 'snowball', 'joke', 'say'].includes(q.type) && q.rooms.length && !q.hint ? <button type="button" className="cpjb-mini" title="Ir até a sala" onClick={() => goTo(q.rooms.find((r) => r.key)?.key)}><Icon d={I.go} size={14} /></button> : null}
                       </li>
+                      )
                     ))}
                   </ul>
                 </div>

@@ -150,12 +150,83 @@ function notify(userId, event, payload) {
   try { io?.to(`user:${userId}`).emit(event, payload); } catch { /* sem socket */ }
 }
 
+function wearing(live, want) {
+  if (!live) return false;
+  const inv = live.inventory;
+  const worn = [inv.head, inv.face, inv.neck, inv.body, inv.feet, inv.hand, inv.pin, inv.background].map(Number);
+  return want.length ? want.some((i) => worn.includes(i)) : worn.some((i) => i > 0);
+}
+
+/** Cadeia de história: a quest só abre depois das listadas em `requires`. */
+async function unlocked(userId, ev, q) {
+  const req = Array.isArray(q.requires) ? q.requires.filter(Boolean) : [];
+  for (const k of req) { const p = await getProgress(userId, ev.id, k); if (!p?.done) return false; }
+  return true;
+}
+
+// ---------------------------------------------------------------------------
+// Ações do jogo (emote, bola de neve, piada, fala) — vêm do Waddle
+// (world.onAction) e viram quests: 'emote' (N emotes; `together` = N pinguins
+// fazendo o mesmo emote na sala em 1 min, modelo "Happy Room"), 'snowball',
+// 'joke' e 'say' (dizer um texto).
+// ---------------------------------------------------------------------------
+const recentEmotes = new Map(); // room -> Map(penguinId -> { emote, at })
+const ACTION_TYPES = ['emote', 'snowball', 'joke', 'say'];
+async function onAction(a) {
+  const userId = waddle.userOfPenguin ? waddle.userOfPenguin(a.penguinId) : null;
+  if (a.kind === 'emote') {
+    if (!recentEmotes.has(a.room)) recentEmotes.set(a.room, new Map());
+    recentEmotes.get(a.room).set(a.penguinId, { emote: Number(a.value), at: Date.now() });
+  }
+  if (!userId) return;
+  const events = await activeEvents();
+  if (!events.length) return;
+  const live = w.world.getOnline(a.penguinId);
+  for (const ev of events) {
+    for (const q of ev.cfg.quests) {
+      if (!ACTION_TYPES.includes(q.type)) continue;
+      const kinds = { emote: 'emote', snowball: 'snowball', joke: 'joke', say: ['message', 'safe'] }[q.type];
+      if (!(Array.isArray(kinds) ? kinds.includes(a.kind) : kinds === a.kind)) continue;
+      const rooms = ids(q.rooms);
+      if (rooms.length && !rooms.includes(a.room)) continue;
+      if (ids(q.items).length && !wearing(live, ids(q.items))) continue;
+      const cur = (await getProgress(userId, ev.id, q.key)) || { progress: 0, done: false, data: null };
+      if (cur.done || !(await unlocked(userId, ev, q))) continue;
+      let next = null;
+      if (q.type === 'emote') {
+        const want = ids(q.emotes);
+        if (want.length && !want.includes(Number(a.value))) continue;
+        const together = num(q.together);
+        if (together > 1) {
+          const now = Date.now();
+          const same = [...(recentEmotes.get(a.room) || new Map()).values()].filter((e) => now - e.at < 60000 && (!want.length ? e.emote === Number(a.value) : want.includes(e.emote))).length;
+          const best = Math.max(cur.progress, same);
+          if (best !== cur.progress) next = { progress: best, done: best >= together };
+        } else {
+          const n = cur.progress + 1;
+          next = { progress: n, done: n >= num(q.count || 1) };
+        }
+      } else if (q.type === 'say') {
+        const text = String(q.text || '').trim().toLowerCase();
+        if (text && !String(a.value).toLowerCase().includes(text)) continue;
+        const n = cur.progress + 1;
+        next = { progress: n, done: n >= num(q.count || 1) };
+      } else {
+        const n = cur.progress + 1;
+        next = { progress: n, done: n >= num(q.count || 1) };
+      }
+      if (next) await setProgress(userId, ev.id, q.key, next);
+    }
+  }
+}
+
 /** Avalia as quests de um jogador que está na ilha (sala atual, pinguim vivo). */
 async function evaluate(userId, room, live, events, pres = null) {
   for (const ev of events) {
     for (const q of ev.cfg.quests) {
       const cur = (await getProgress(userId, ev.id, q.key)) || { progress: 0, done: false, data: null };
       if (cur.done) continue;
+      if (!(await unlocked(userId, ev, q))) continue;
       let next = null;
       switch (q.type) {
         case 'visit': {
@@ -170,7 +241,9 @@ async function evaluate(userId, room, live, events, pres = null) {
         case 'gather': {
           const rooms = ids(q.rooms);
           if (rooms.length && !rooms.includes(room)) break;
-          const here = waddle.roomPlayers(room).length;
+          const want = ids(q.items);
+          // com itens: só conta quem está vestindo (ex.: "20 pinguins de furadeira na Lagoa")
+          const here = want.length ? waddle.roomPlayers(room).filter((p) => wearing(w.world.getOnline(p.id), want)).length : waddle.roomPlayers(room).length;
           const best = Math.max(cur.progress, here);
           if (best !== cur.progress) next = { progress: best, done: best >= num(q.count || 5) };
           break;
@@ -565,8 +638,10 @@ async function playerState(userId) {
       wallet: { balance: wallet?.balance || 0, earned: wallet?.earned || 0 },
       quests: ev.cfg.quests.map((q) => {
         const p = progress.get(q.key);
-        const target = ['visit', 'dance', 'walk_puffle'].includes(q.type) ? Math.max(1, ids(q.rooms).length) : q.type === 'gather' ? num(q.count || 5) : q.type === 'online' ? num(q.minutes || 10) : q.type === 'donate' ? num(q.count || 100) : 1;
-        const base = { key: q.key, title: q.title || q.key, desc: q.desc || '', hint: q.hint ? String(q.hint) : '', type: q.type, difficulty: DIFF_KEYS.includes(q.difficulty) ? q.difficulty : null, points: questPoints(q), rooms: ids(q.rooms).map((id) => ({ id, ...roomInfo(id) })), items: ids(q.items), target, progress: Math.min(target, p?.progress || 0), done: !!p?.done, claimed: !!p?.claimedAt, reward: questReward(q), rotated: !!q.rotated, rotationEndsAt: q.rotationEndsAt || null };
+        const target = ['visit', 'dance', 'walk_puffle'].includes(q.type) ? Math.max(1, ids(q.rooms).length) : q.type === 'gather' ? num(q.count || 5) : q.type === 'online' ? num(q.minutes || 10) : q.type === 'donate' ? num(q.count || 100) : q.type === 'emote' && num(q.together) > 1 ? num(q.together) : ACTION_TYPES.includes(q.type) ? num(q.count || 1) : 1;
+        const requires = Array.isArray(q.requires) ? q.requires.filter(Boolean) : [];
+        const locked = requires.some((k) => !progress.get(k)?.done);
+        const base = { locked, requires: requires.map((k) => ev.cfg.quests.find((x) => x.key === k)?.title || k), key: q.key, title: q.title || q.key, desc: q.desc || '', hint: q.hint ? String(q.hint) : '', type: q.type, difficulty: DIFF_KEYS.includes(q.difficulty) ? q.difficulty : null, points: questPoints(q), rooms: ids(q.rooms).map((id) => ({ id, ...roomInfo(id) })), items: ids(q.items), target, progress: Math.min(target, p?.progress || 0), done: !!p?.done, claimed: !!p?.claimedAt, reward: questReward(q), rotated: !!q.rotated, rotationEndsAt: q.rotationEndsAt || null };
         if (q.type === 'trivia') { base.question = String(q.question || ''); base.options = (Array.isArray(q.options) ? q.options : []).map(String); base.wrong = Array.isArray(p?.data?.wrong) ? p.data.wrong : []; }
         return base;
       }),
@@ -606,7 +681,7 @@ async function friendsOnIsland(userId) {
 // Staff
 // ---------------------------------------------------------------------------
 function cleanQuest(q) {
-  const types = ['visit', 'gather', 'wear', 'online', 'mascot', 'donate', 'dance', 'walk_puffle', 'trivia'];
+  const types = ['visit', 'gather', 'wear', 'online', 'mascot', 'donate', 'dance', 'walk_puffle', 'trivia', 'emote', 'snowball', 'joke', 'say'];
   const coins = q.reward?.coins;
   const options = (Array.isArray(q.options) ? q.options : []).map((o) => String(o || '').slice(0, 80)).filter(Boolean).slice(0, 6);
   return {
@@ -619,6 +694,8 @@ function cleanQuest(q) {
     rooms: ids(q.rooms), items: ids(q.items), puffles: Array.isArray(q.puffles) ? q.puffles.map(Number).filter((n) => Number.isInteger(n) && n >= 0) : [], frames: ids(q.frames),
     count: Math.max(1, Math.min(200, num(q.count) || 5)), minutes: Math.max(1, Math.min(600, num(q.minutes) || 10)),
     mascot: String(q.mascot || 'pingu').slice(0, 40),
+    emotes: ids(q.emotes), together: Math.max(0, Math.min(100, num(q.together))), text: String(q.text || '').slice(0, 80),
+    requires: (Array.isArray(q.requires) ? q.requires : String(q.requires || '').split(/[\s,;]+/)).map((k) => String(k || '').toLowerCase().replace(/[^a-z0-9_-]/g, '')).filter(Boolean).slice(0, 10),
     // coins em branco = usa o padrão da dificuldade
     reward: { coins: coins === undefined || coins === null || coins === '' ? null : Math.max(0, Math.min(100000, num(coins))), eventCoins: Math.max(0, Math.min(MAX_EVENT_COINS, num(q.reward?.eventCoins))), items: ids(q.reward?.items) },
   };
@@ -628,6 +705,7 @@ function cleanConfig(c = {}) {
   const quests = (Array.isArray(c.quests) ? c.quests : []).map(cleanQuest).filter((q) => q.key);
   const keys = new Set();
   for (const q of quests) { if (keys.has(q.key)) throw new Error(`Quest repetida: ${q.key}`); keys.add(q.key); if (q.type === 'trivia' && (!q.question || q.options.length < 2)) throw new Error(`Trivia "${q.key}": precisa de pergunta e pelo menos 2 opções.`); }
+  for (const q of quests) for (const k of q.requires) { if (k === q.key) throw new Error(`Quest "${q.key}" não pode depender dela mesma.`); if (!quests.some((x) => x.key === k)) throw new Error(`Quest "${q.key}" depende de "${k}", que não existe.`); }
   const rotQuests = (c.rotation && Array.isArray(c.rotation.quests) ? c.rotation.quests : []).map(cleanQuest).filter((q) => q.key);
   for (const q of rotQuests) { if (keys.has(q.key)) throw new Error(`Quest repetida no rodízio: ${q.key}`); keys.add(q.key); }
   return {
@@ -716,6 +794,8 @@ function attach(instance, deps) {
   if (tickTimer) return;
   tickTimer = setInterval(() => { tick().catch((err) => console.error('[praça eventos]', err?.message || err)); }, TICK_MS);
   tickTimer.unref?.();
+  // emotes, bolas de neve, piadas e falas (Waddle → world.onAction)
+  try { w.world.onAction?.((a) => { onAction(a).catch((err) => console.error('[praça eventos] ação:', err?.message || err)); }); } catch { /* WF sem ações */ }
   // troca de sala conta na hora (sem esperar o tique)
   waddle.onRoomChange((userId, _from, to) => {
     if (to === null || to === undefined) return;
@@ -731,5 +811,5 @@ function setIo(socketIo) { io = socketIo; }
 module.exports = {
   roomInfo, attach, setIo, activeEvents, playerState, claimQuest, claimCompletion, questReward, questPoints, DIFFICULTY, buy, redeemCode, donate, claimCfc, claimAdvent, friendsOnIsland, answerTrivia, claimPass, grant, onlineUsers,
   listEvents, saveEvent, deleteEvent, listCodes, saveCode, deleteCode, listVisits, saveVisit, deleteVisit, templateForParty, cleanConfig, parseConfig,
-  _test: { evaluate, setProgress, getProgress, grant },
+  _test: { evaluate, setProgress, getProgress, grant, onAction },
 };

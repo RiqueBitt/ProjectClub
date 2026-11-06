@@ -25,8 +25,9 @@ const handleSetAction = ({ room, msg, penguin }, action) => {
     msg.send(room.players, 'sa', penguin.id, action);
 };
 exports.handleSetAction = handleSetAction;
-const handleSetSnowball = ({ room, msg, penguin }, x, y) => {
+const handleSetSnowball = ({ room, msg, penguin, world }, x, y) => {
     msg.send(room.players, 'sb', penguin.id, x, y);
+    world.emitAction({ penguinId: penguin.id, room: room.id, kind: 'snowball', value: `${x},${y}` });
 };
 exports.handleSetSnowball = handleSetSnowball;
 const handleSendEmote = ({ room, msg, penguin, data, world }, emote) => {
@@ -36,18 +37,22 @@ const handleSendEmote = ({ room, msg, penguin, data, world }, emote) => {
         }
     }
     msg.send(room.players, 'se', penguin.id, emote);
+    world.emitAction({ penguinId: penguin.id, room: room.id, kind: 'emote', value: String(emote) });
 };
 exports.handleSendEmote = handleSendEmote;
-const handleSendJoke = ({ room, msg, penguin }, joke) => {
+const handleSendJoke = ({ room, msg, penguin, world }, joke) => {
     msg.send(room.players, 'sj', penguin.id, joke);
+    world.emitAction({ penguinId: penguin.id, room: room.id, kind: 'joke', value: String(joke) });
 };
 exports.handleSendJoke = handleSendJoke;
-const handleSendMessage = ({ room, msg }, penguin, message) => {
-    msg.send(room.players, 'sm', penguin, message);
+const handleSendMessage = ({ room, msg, penguin, world }, _penguin, message) => {
+    msg.send(room.players, 'sm', penguin.id, message);
+    world.emitAction({ penguinId: penguin.id, room: room.id, kind: 'message', value: String(message) });
 };
 exports.handleSendMessage = handleSendMessage;
-const handleSafeMessage = ({ room, msg, penguin }, message) => {
+const handleSafeMessage = ({ room, msg, penguin, world }, message) => {
     msg.send(room.players, 'ss', penguin.id, message);
+    world.emitAction({ penguinId: penguin.id, room: room.id, kind: 'safe', value: String(message) });
 };
 exports.handleSafeMessage = handleSafeMessage;
 const handleSendLine = ({ room, msg, penguin }, line) => {

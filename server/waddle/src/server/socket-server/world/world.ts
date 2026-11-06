@@ -15,6 +15,8 @@ import { MatchMaker } from "./matchmaker";
 import { FireGame } from "./fire";
 import { MATCHMAKERS } from "@server/game-data/games";
 
+export type PenguinAction = { penguinId: number; room: number; kind: 'emote' | 'snowball' | 'joke' | 'message' | 'safe'; value: string };
+
 export class World {
   private penguins = new Map<number, WorldPenguin>();
   private states = new Map<WorldPenguin, PenguinEnvironment>
@@ -28,6 +30,14 @@ export class World {
   private _puckPosition = new Vector(0, 0);
   private _puckPositionParty = new Vector(0, 0);
   private _teamsScore: [number, number] = [0, 0];
+
+  // ---- Project Club: ações dos pinguins (emote, bola de neve, piada, fala)
+  // pras quests da Praça (server/src/services/waddle/events.js) ----
+  private _actionListeners: Array<(a: PenguinAction) => void> = [];
+  public onAction(fn: (a: PenguinAction) => void): void { this._actionListeners.push(fn); }
+  public emitAction(a: PenguinAction): void {
+    for (const fn of this._actionListeners) { try { fn(a); } catch { /* ouvinte com erro não derruba o jogo */ } }
+  }
 
   constructor(private gameData: GameData) {
     this.init();
