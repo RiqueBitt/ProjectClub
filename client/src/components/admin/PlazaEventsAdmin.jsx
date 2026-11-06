@@ -8,8 +8,11 @@ import '../../styles/plaza-events-admin.css';
 
 const QUEST_TYPES = [
   ['visit', 'Visitar salas'], ['gather', 'Juntar N pinguins numa sala'], ['wear', 'Vestir um item'],
+  ['dance', 'Dançar (com item) nas salas'], ['walk_puffle', 'Passear com o puffle até salas'],
   ['online', 'Ficar X minutos na ilha'], ['mascot', 'Encontrar um mascote'], ['donate', 'Doar moedas (Coins for Change)'],
 ];
+const DIFFICULTIES = [['facil', 'Fácil (50 moedas)'], ['media', 'Média (120)'], ['dificil', 'Difícil (250)'], ['extrema', 'Extrema (500)']];
+const PUFFLES = [[0, 'Azul'], [1, 'Rosa'], [2, 'Preto'], [3, 'Verde'], [4, 'Roxo'], [5, 'Vermelho'], [6, 'Amarelo'], [7, 'Branco'], [8, 'Laranja'], [9, 'Marrom'], [10, 'Arco-íris'], [11, 'Dourado']];
 const toLocal = (iso) => { if (!iso) return ''; const d = new Date(iso); const p = (n) => String(n).padStart(2, '0'); return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}T${p(d.getHours())}:${p(d.getMinutes())}`; };
 const idsText = (arr) => (Array.isArray(arr) ? arr.join(', ') : '');
 const parseIds = (text) => String(text || '').split(/[\s,;]+/).map(Number).filter((n) => Number.isInteger(n) && n > 0);
@@ -61,8 +64,9 @@ export default function PlazaEventsAdmin({ notify, catalog }) {
               <p className="stg-note">Um evento liga quests e uma moeda própria por um período. Toda a arte é a do próprio jogo: a loja vende itens originais do Club Penguin pela moeda do evento. "Criar a partir da festa atual" monta um modelo com as salas decoradas de agora ({data.party ? data.party.label : 'sem festa ligada'}).</p>
               <div className="stg-parties-bar">
                 <button type="button" className="sth-btn primary" disabled={busy} onClick={async () => { try { const { data: t } = await api.get('/staff-game/events/template'); setEditing(t); } catch { notify('Não deu pra montar o modelo.', 'bad'); } }}>Criar a partir da festa atual</button>
-                <button type="button" className="sth-btn" onClick={() => setEditing({ slug: '', name: '', currencyName: 'Fichas', startsAt: new Date().toISOString(), endsAt: new Date(Date.now() + 14 * 86400000).toISOString(), active: true, config: { quests: [], shop: [], advent: [], cfc: null } })}>Evento em branco</button>
+                <button type="button" className="sth-btn" onClick={() => setEditing({ slug: '', name: '', currencyName: 'Fichas', startsAt: new Date().toISOString(), endsAt: new Date(Date.now() + 14 * 86400000).toISOString(), active: true, config: { quests: [], shop: [], advent: [], cfc: null, completion: null } })}>Evento em branco</button>
               </div>
+              <Presets notify={notify} busy={busy} onPick={(t) => setEditing(t)} onCodes={(key) => run(() => api.post(`/staff-game/events/presets/${key}/codes`), 'Códigos do modelo criados.')} />
               <ul className="pea-list">
                 {data.events.map((ev) => (
                   <li key={ev.slug} className={`stg-party${ev.running ? ' is-on' : ''}`}>
@@ -131,7 +135,7 @@ export default function PlazaEventsAdmin({ notify, catalog }) {
 
 // ---------- formulário do evento ----------
 function EventForm({ ev, rooms, catalog, itemName, roomName, busy, onSave, onCancel }) {
-  const [f, setF] = useState(() => ({ ...ev, startsAt: toLocal(ev.startsAt), endsAt: toLocal(ev.endsAt), config: { quests: ev.config?.quests || [], shop: ev.config?.shop || [], advent: ev.config?.advent || [], cfc: ev.config?.cfc || null } }));
+  const [f, setF] = useState(() => ({ ...ev, startsAt: toLocal(ev.startsAt), endsAt: toLocal(ev.endsAt), config: { quests: ev.config?.quests || [], shop: ev.config?.shop || [], advent: ev.config?.advent || [], cfc: ev.config?.cfc || null, completion: ev.config?.completion || null } }));
   const set = (k, v) => setF((x) => ({ ...x, [k]: v }));
   const setCfg = (k, v) => setF((x) => ({ ...x, config: { ...x.config, [k]: v } }));
   const upd = (list, i, patch) => setCfg(list, f.config[list].map((q, j) => (j === i ? { ...q, ...patch } : q)));
@@ -155,21 +159,36 @@ function EventForm({ ev, rooms, catalog, itemName, roomName, busy, onSave, onCan
             <label>Chave<input value={q.key || ''} onChange={(e) => upd('quests', i, { key: e.target.value })} placeholder="explorar" required /></label>
             <label>Título<input value={q.title || ''} onChange={(e) => upd('quests', i, { title: e.target.value })} required /></label>
             <label>Tipo<select value={q.type || 'visit'} onChange={(e) => upd('quests', i, { type: e.target.value })}>{QUEST_TYPES.map(([k, l]) => <option key={k} value={k}>{l}</option>)}</select></label>
+            <label>Dificuldade<select value={q.difficulty || 'facil'} onChange={(e) => upd('quests', i, { difficulty: e.target.value })}>{DIFFICULTIES.map(([k, l]) => <option key={k} value={k}>{l}</option>)}</select></label>
             <label className="pea-wide">Descrição<input value={q.desc || ''} onChange={(e) => upd('quests', i, { desc: e.target.value })} /></label>
+            {q.type === 'dance' && <RoomsField value={q.rooms || []} rooms={rooms} roomName={roomName} onChange={(v) => upd('quests', i, { rooms: v })} label="Salas pra dançar (vazio = qualquer)" />}
+            {q.type === 'dance' && <ItemsField value={q.items || []} catalog={catalog} itemName={itemName} onChange={(v) => upd('quests', i, { items: v })} label="Dançando com (vazio = qualquer roupa)" />}
+            {q.type === 'walk_puffle' && <RoomsField value={q.rooms || []} rooms={rooms} roomName={roomName} onChange={(v) => upd('quests', i, { rooms: v })} label="Salas pra levar o puffle" />}
+            {q.type === 'walk_puffle' && <label>Puffle<select value={(q.puffles || [])[0] ?? ''} onChange={(e) => upd('quests', i, { puffles: e.target.value === '' ? [] : [Number(e.target.value)] })}><option value="">qualquer</option>{PUFFLES.map(([k, l]) => <option key={k} value={k}>{l}</option>)}</select></label>}
             {(q.type === 'visit' || q.type === 'gather') && <RoomsField value={q.rooms || []} rooms={rooms} roomName={roomName} onChange={(v) => upd('quests', i, { rooms: v })} label={q.type === 'visit' ? 'Salas pra visitar' : 'Sala (vazio = qualquer)'} />}
             {q.type === 'gather' && <label>Quantos pinguins<input type="number" min="2" max="200" value={q.count || 5} onChange={(e) => upd('quests', i, { count: Number(e.target.value) })} /></label>}
             {q.type === 'wear' && <ItemsField value={q.items || []} catalog={catalog} itemName={itemName} onChange={(v) => upd('quests', i, { items: v })} label="Itens aceitos (vazio = qualquer)" />}
             {q.type === 'online' && <label>Minutos<input type="number" min="1" max="600" value={q.minutes || 10} onChange={(e) => upd('quests', i, { minutes: Number(e.target.value) })} /></label>}
             {q.type === 'mascot' && <label>Mascote (chave)<input value={q.mascot || 'pingu'} onChange={(e) => upd('quests', i, { mascot: e.target.value })} /></label>}
             {q.type === 'donate' && <label>Moedas doadas<input type="number" min="1" value={q.count || 100} onChange={(e) => upd('quests', i, { count: Number(e.target.value) })} /></label>}
-            <label>Recompensa: moedas<input type="number" min="0" value={q.reward?.coins || 0} onChange={(e) => upd('quests', i, { reward: { ...(q.reward || {}), coins: Number(e.target.value) } })} /></label>
+            <label>Recompensa: moedas (vazio = padrão da dificuldade)<input type="number" min="0" value={q.reward?.coins ?? ''} onChange={(e) => upd('quests', i, { reward: { ...(q.reward || {}), coins: e.target.value === '' ? null : Number(e.target.value) } })} /></label>
             <label>Recompensa: {f.currencyName || 'moeda do evento'}<input type="number" min="0" value={q.reward?.eventCoins || 0} onChange={(e) => upd('quests', i, { reward: { ...(q.reward || {}), eventCoins: Number(e.target.value) } })} /></label>
             <ItemsField value={q.reward?.items || []} catalog={catalog} itemName={itemName} onChange={(v) => upd('quests', i, { reward: { ...(q.reward || {}), items: v } })} label="Recompensa: itens" />
           </div>
           <button type="button" className="sth-btn danger" onClick={() => del('quests', i)}>Tirar quest</button>
         </div>
       ))}
-      <button type="button" className="sth-btn" onClick={() => setCfg('quests', [...f.config.quests, { key: `quest${f.config.quests.length + 1}`, title: '', type: 'visit', rooms: [], reward: { coins: 100, eventCoins: 20, items: [] } }])}>+ Quest</button>
+      <button type="button" className="sth-btn" onClick={() => setCfg('quests', [...f.config.quests, { key: `quest${f.config.quests.length + 1}`, title: '', type: 'visit', difficulty: 'facil', rooms: [], reward: { coins: null, eventCoins: 20, items: [] } }])}>+ Quest</button>
+
+      <h4>Prêmio por completar todas as quests</h4>
+      <div className="pea-card">
+        <div className="pea-grid">
+          <label>Nome do prêmio<input value={f.config.completion?.label || ''} onChange={(e) => setCfg('completion', { ...(f.config.completion || {}), label: e.target.value })} placeholder="Fantasia de Dragão" /></label>
+          <label>Moedas<input type="number" min="0" value={f.config.completion?.coins || 0} onChange={(e) => setCfg('completion', { ...(f.config.completion || {}), coins: Number(e.target.value) })} /></label>
+          <label>{f.currencyName || 'Moeda do evento'}<input type="number" min="0" value={f.config.completion?.eventCoins || 0} onChange={(e) => setCfg('completion', { ...(f.config.completion || {}), eventCoins: Number(e.target.value) })} /></label>
+          <ItemsField value={f.config.completion?.items || []} catalog={catalog} itemName={itemName} onChange={(v) => setCfg('completion', { ...(f.config.completion || {}), items: v })} label="Itens (deixe tudo vazio pra não ter prêmio final)" />
+        </div>
+      </div>
 
       <h4>Loja do evento ({f.config.shop.length}) — itens por {f.currencyName || 'moeda do evento'}</h4>
       {f.config.shop.map((s, i) => (
@@ -224,6 +243,32 @@ function EventForm({ ev, rooms, catalog, itemName, roomName, busy, onSave, onCan
         <button type="button" className="sth-btn" onClick={onCancel}>Cancelar</button>
       </div>
     </form>
+  );
+}
+
+function Presets({ notify, busy, onPick, onCodes }) {
+  const [list, setList] = useState(null);
+  const [open, setOpen] = useState(false);
+  useEffect(() => { if (open && !list) api.get('/staff-game/events/presets').then(({ data }) => setList(data)).catch(() => setList([])); }, [open, list]);
+  return (
+    <div className="pea-card">
+      <button type="button" className="sth-btn" onClick={() => setOpen((o) => !o)}>{open ? '▴' : '▾'} Modelos prontos (Halloween, Natal, Puffles, Dance-A-Thon, Medieval, Feira, Copa, aniversário…)</button>
+      {open && (
+        <ul className="pea-list">
+          {(list || []).map((p) => (
+            <li key={p.key} className="stg-party">
+              <span className="stg-party-main">
+                <span className="stg-party-name">{p.name}</span>
+                <span className="stg-party-sub">{p.when} · {p.quests} quests · {p.shop} na loja · moeda "{p.currencyName}"{p.advent ? ' · advento' : ''}{p.cfc ? ' · Coins for Change' : ''}{p.codes ? ` · ${p.codes} código(s)` : ''}</span>
+              </span>
+              {p.quests > 0 && <button type="button" className="sth-btn primary" disabled={busy} onClick={async () => { try { const { data } = await api.get(`/staff-game/events/presets/${p.key}`); onPick(data); } catch { notify('Não deu pra carregar o modelo.', 'bad'); } }}>Usar</button>}
+              {p.codes > 0 && <button type="button" className="sth-btn" disabled={busy} onClick={() => onCodes(p.key)}>Criar códigos</button>}
+            </li>
+          ))}
+          {list && !list.length && <li className="sth-empty"><span>Sem modelos.</span></li>}
+        </ul>
+      )}
+    </div>
   );
 }
 

@@ -84,7 +84,16 @@ class WorldServer {
             }
             if (st === undefined)
                 continue;
-            out.push({ id: p.id, name: p.name, room: room.id, x: st.x, y: st.y });
+            // frame = animação atual (26 = dançando); walking = tipo do puffle passeando (quests da Praça)
+            let walking = null;
+            try {
+                const w = p.puffle.getWalking();
+                walking = w ? w.type : null;
+            }
+            catch {
+                walking = null;
+            }
+            out.push({ id: p.id, name: p.name, room: room.id, x: st.x, y: st.y, frame: Number(st.frame) || 0, walking });
         }
         return out;
     }

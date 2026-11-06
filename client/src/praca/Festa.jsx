@@ -11,6 +11,7 @@ import '../styles/jukebox.css';
 import '../styles/festa.css';
 
 const STAGE_W = 760; const STAGE_H = 480;
+const DIFF_LABEL = { facil: 'fácil', media: 'média', dificil: 'difícil', extrema: 'extrema' };
 const WIN_W = 470; const WIN_H = 400;
 const clamp = (v, a, b) => Math.min(b, Math.max(a, v));
 
@@ -170,18 +171,30 @@ export default function Festa({ active, stageRef, playerRef, user, isStaff }) {
                 <div key={ev.slug} className="cpf-block">
                   {data.events.length > 1 && <h3>{ev.name}</h3>}
                   {!ev.quests.length && <Empty text="Essa festa não tem quests." />}
+                  {ev.completion && (
+                    <div className={`cpf-quest cpf-final${ev.completion.claimed ? ' is-claimed' : ev.completion.allDone ? ' is-done' : ''}`}>
+                      <span className="cpf-q-main">
+                        <b>🏆 Prêmio final{ev.completion.label ? `: ${ev.completion.label}` : ''}</b>
+                        <small>Complete todas as quests · {rewardText(ev.completion)}</small>
+                        <span className="cpf-prog"><i style={{ width: `${Math.round((ev.quests.filter((x) => x.done).length / Math.max(1, ev.quests.length)) * 100)}%` }} /></span>
+                        <small className="cpf-reward">{ev.quests.filter((x) => x.done).length}/{ev.quests.length} quests</small>
+                      </span>
+                      {ev.completion.claimed ? <span className="cpf-ok"><Icon d={I.star} size={16} /></span>
+                        : ev.completion.allDone ? <button type="button" className="cpjb-pill is-yellow is-small" disabled={busy === 'final'} onClick={() => call('final', () => api.post(`/plaza/events/${ev.slug}/completion/claim`), (r) => `Prêmio final: ${rewardText(r)}!`)}>Pegar</button> : null}
+                    </div>
+                  )}
                   <ul className="cpf-list">
                     {ev.quests.map((q) => (
                       <li key={q.key} className={`cpf-quest${q.claimed ? ' is-claimed' : q.done ? ' is-done' : ''}`}>
                         <span className="cpf-q-main">
-                          <b>{q.title}</b>
-                          <small>{q.desc}{q.type === 'visit' && q.rooms.length ? ` (${q.rooms.map((r) => r.name).join(', ')})` : ''}</small>
+                          <b>{q.title}{q.difficulty && <em className={`cpf-diff is-${q.difficulty}`}>{DIFF_LABEL[q.difficulty]}</em>}</b>
+                          <small>{q.desc}{['visit', 'dance', 'walk_puffle'].includes(q.type) && q.rooms.length ? ` (${q.rooms.map((r) => r.name).join(', ')})` : ''}</small>
                           <span className="cpf-prog"><i style={{ width: `${Math.round((q.progress / q.target) * 100)}%` }} /></span>
                           <small className="cpf-reward">{q.progress}/{q.target} · {rewardText(q.reward)}</small>
                         </span>
                         {q.claimed ? <span className="cpf-ok"><Icon d={I.check} size={16} /></span>
                           : q.done ? <button type="button" className="cpjb-pill is-green is-small" disabled={busy === q.key} onClick={() => call(q.key, () => api.post(`/plaza/events/${ev.slug}/quests/${q.key}/claim`), (r) => `Recompensa: ${rewardText(r)}!`)}>Pegar</button>
-                            : q.type === 'visit' && q.rooms.length ? <button type="button" className="cpjb-mini" title="Ir até a sala" onClick={() => goTo(q.rooms.find((r) => r.key)?.key)}><Icon d={I.go} size={14} /></button> : null}
+                            : ['visit', 'dance', 'walk_puffle', 'gather'].includes(q.type) && q.rooms.length ? <button type="button" className="cpjb-mini" title="Ir até a sala" onClick={() => goTo(q.rooms.find((r) => r.key)?.key)}><Icon d={I.go} size={14} /></button> : null}
                       </li>
                     ))}
                   </ul>

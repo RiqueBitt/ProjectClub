@@ -122,3 +122,51 @@ test('cleanConfig: rejeita quest repetida e limpa números/ids', () => {
   assert.equal(c.shop.length, 1); assert.equal(c.shop[0].price, 0);
   assert.deepEqual(c.advent.map((a) => a.day), [3]);
 });
+
+test('dificuldade, dançar com item, passear com puffle e prêmio final', async () => {
+  db.events.push({ id: 'ev2', slug: 'legacy', name: 'Quests estilo Legacy', currencyName: 'Fichas', active: true, startsAt: new Date(now - 1000), endsAt: new Date(now + 86400000), config: JSON.stringify(events.cleanConfig({
+    quests: [
+      { key: 'danca', title: 'Dança', type: 'dance', difficulty: 'dificil', rooms: [100, 120], items: [5016] },
+      { key: 'puffle', title: 'Puffle', type: 'walk_puffle', difficulty: 'extrema', puffles: [5], rooms: [809] },
+    ],
+    completion: { label: 'Dragão', items: [795], coins: 800 },
+  })) });
+  const ev = (await events.activeEvents(true)).find((e) => e.slug === 'legacy');
+  const inv = { color: 1, head: 0, face: 0, neck: 0, body: 0, feet: 0, hand: 5016, pin: 0, background: 0 };
+  const liveP = { inventory: inv };
+  // dançando (frame 26) com boombox no Centro e na Danceteria
+  await events._test.evaluate('u1', 100, liveP, [ev], { frame: 1, walking: null });
+  assert.equal((await events._test.getProgress('u1', 'ev2', 'danca'))?.progress || 0, 0, 'parado não conta');
+  await events._test.evaluate('u1', 100, liveP, [ev], { frame: 26, walking: null });
+  await events._test.evaluate('u1', 120, liveP, [ev], { frame: 26, walking: null });
+  assert.equal((await events._test.getProgress('u1', 'ev2', 'danca')).done, true);
+  // puffle vermelho (5) na Floresta (809); azul não conta
+  await events._test.evaluate('u1', 809, liveP, [ev], { frame: 1, walking: 0 });
+  assert.equal((await events._test.getProgress('u1', 'ev2', 'puffle'))?.done || false, false);
+  await events._test.evaluate('u1', 809, liveP, [ev], { frame: 1, walking: 5 });
+  assert.equal((await events._test.getProgress('u1', 'ev2', 'puffle')).done, true);
+  // recompensa pela dificuldade (sem coins na quest): difícil = 250, extrema = 500
+  const r1 = await events.claimQuest('u1', 'legacy', 'danca');
+  assert.equal(r1.coins, events.DIFFICULTY.dificil);
+  const r2 = await events.claimQuest('u1', 'legacy', 'puffle');
+  assert.equal(r2.coins, events.DIFFICULTY.extrema);
+  // prêmio final: uma vez
+  const fin = await events.claimCompletion('u1', 'legacy');
+  assert.deepEqual(fin.items, [795]); assert.equal(fin.coins, 800);
+  await assert.rejects(() => events.claimCompletion('u1', 'legacy'), /já pegou/);
+  const st = await events.playerState('u1');
+  const e2 = st.events.find((e) => e.slug === 'legacy');
+  assert.equal(e2.completion.claimed, true);
+  assert.equal(e2.quests[0].difficulty, 'dificil');
+});
+
+test('modelos prontos: todos passam na limpeza e têm só ids de itens do catálogo', () => {
+  const presets = require(src('services/waddle/eventPresets.js'));
+  const list = presets.list();
+  assert.ok(list.length >= 8);
+  for (const p of list) {
+    const body = presets.build(p.key);
+    assert.equal(typeof body.slug, 'string');
+    events.cleanConfig(body.config); // não pode lançar
+  }
+});

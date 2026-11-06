@@ -64,8 +64,16 @@ function parseConfig(ev) {
     shop: Array.isArray(c.shop) ? c.shop.filter((s) => s && s.key) : [],
     advent: Array.isArray(c.advent) ? c.advent.filter((a) => a && a.day >= 1 && a.day <= 25) : [],
     cfc: c.cfc && typeof c.cfc === 'object' ? { goals: Array.isArray(c.cfc.goals) ? c.cfc.goals.filter((g) => g && num(g.amount) > 0) : [] } : null,
+    // prêmio por completar TODAS as quests (modelo das Island Quests do CP Legacy)
+    completion: c.completion && typeof c.completion === 'object' ? { coins: num(c.completion.coins), eventCoins: num(c.completion.eventCoins), items: ids(c.completion.items), label: String(c.completion.label || '') } : null,
   };
 }
+
+// Dificuldade (modelo do CP Legacy): moedas padrão quando a quest não define.
+const DIFFICULTY = { facil: 50, media: 120, dificil: 250, extrema: 500 };
+const DIFF_KEYS = Object.keys(DIFFICULTY);
+const DANCE_FRAMES = [26]; // frame 26 = dançando (tecla D)
+const COMPLETION_KEY = '__completion';
 
 async function activeEvents(force = false) {
   const now = Date.now();
@@ -121,7 +129,7 @@ function notify(userId, event, payload) {
 }
 
 /** Avalia as quests de um jogador que está na ilha (sala atual, pinguim vivo). */
-async function evaluate(userId, room, live, events) {
+async function evaluate(userId, room, live, events, pres = null) {
   for (const ev of events) {
     for (const q of ev.cfg.quests) {
       const cur = (await getProgress(userId, ev.id, q.key)) || { progress: 0, done: false, data: null };
@@ -170,6 +178,40 @@ async function evaluate(userId, room, live, events) {
           if (met > 0 && !cur.done) next = { progress: 1, done: true };
           break;
         }
+        case 'dance': {
+          // dançar (ou outro frame) em cada sala da lista — com o item, se pedido
+          if (!pres) break;
+          const frames = ids(q.frames).length ? ids(q.frames) : DANCE_FRAMES;
+          if (!frames.includes(Number(pres.frame))) break;
+          const want = ids(q.items);
+          if (want.length && live) {
+            const inv = live.inventory;
+            const worn = [inv.head, inv.face, inv.neck, inv.body, inv.feet, inv.hand, inv.pin, inv.background].map(Number);
+            if (!want.some((i) => worn.includes(i))) break;
+          }
+          const rooms = ids(q.rooms);
+          if (!rooms.length) { next = { progress: 1, done: true }; break; }
+          if (!rooms.includes(room)) break;
+          const seen = new Set(Array.isArray(cur.data?.rooms) ? cur.data.rooms : []);
+          if (seen.has(room)) break;
+          seen.add(room);
+          next = { progress: seen.size, done: seen.size >= rooms.length, data: { rooms: [...seen] } };
+          break;
+        }
+        case 'walk_puffle': {
+          // passear com o puffle (de um tipo, se pedido) até a(s) sala(s)
+          if (!pres || pres.walking === null || pres.walking === undefined) break;
+          const types = ids(q.puffles);
+          if (types.length && !types.includes(Number(pres.walking))) break;
+          const rooms = ids(q.rooms);
+          if (!rooms.length) { next = { progress: 1, done: true }; break; }
+          if (!rooms.includes(room)) break;
+          const seen = new Set(Array.isArray(cur.data?.rooms) ? cur.data.rooms : []);
+          if (seen.has(room)) break;
+          seen.add(room);
+          next = { progress: seen.size, done: seen.size >= rooms.length, data: { rooms: [...seen] } };
+          break;
+        }
         default: break;
       }
       if (next) await setProgress(userId, ev.id, q.key, next);
@@ -183,7 +225,7 @@ function onlineUsers() {
   if (!waddle || !w) return out;
   for (const p of (w.world.getPresence ? w.world.getPresence() : [])) {
     const userId = waddle.userOfPenguin ? waddle.userOfPenguin(p.id) : null;
-    if (userId) out.push({ userId, penguinId: p.id, room: p.room });
+    if (userId) out.push({ userId, penguinId: p.id, room: p.room, frame: Number(p.frame) || 0, walking: p.walking ?? null });
   }
   return out;
 }
@@ -210,7 +252,7 @@ async function tick() {
   if (!events.length && !(await visitsNow()).length) return;
   for (const u of users) {
     const live = w.world.getOnline(u.penguinId);
-    await evaluate(u.userId, u.room, live, events).catch((err) => console.error('[praça eventos] quest:', err?.message || err));
+    await evaluate(u.userId, u.room, live, events, u).catch((err) => console.error('[praça eventos] quest:', err?.message || err));
   }
   await checkMascots(users).catch((err) => console.error('[praça eventos] mascote:', err?.message || err));
 }
@@ -287,8 +329,29 @@ async function claimQuest(userId, slug, key) {
   const r = await prisma.plazaQuestProgress.updateMany({ where: { userId, eventId: ev.id, questKey: key, claimedAt: null }, data: { claimedAt: new Date() } });
   if (!r.count) throw new Error('Você já pegou essa recompensa.');
   progressCache.set(pkey(userId, ev.id, key), { ...cur, claimedAt: new Date() });
-  const reward = q.reward || {};
+  const reward = questReward(q);
   return grant(userId, { coins: reward.coins, eventCoins: reward.eventCoins, items: reward.items, eventId: ev.id });
+}
+
+/** Recompensa efetiva: a da quest, ou as moedas padrão da dificuldade. */
+function questReward(q) {
+  const r = q.reward || {};
+  const diff = DIFF_KEYS.includes(q.difficulty) ? q.difficulty : null;
+  const coins = r.coins !== undefined && r.coins !== null && r.coins !== '' ? num(r.coins) : (diff ? DIFFICULTY[diff] : 0);
+  return { coins, eventCoins: num(r.eventCoins), items: ids(r.items) };
+}
+
+/** Prêmio por completar todas as quests do evento (uma vez). */
+async function claimCompletion(userId, slug) {
+  const ev = (await activeEvents()).find((e) => e.slug === slug);
+  if (!ev) throw new Error('Esse evento não está rolando.');
+  if (!ev.cfg.completion || !ev.cfg.quests.length) throw new Error('Esse evento não tem prêmio final.');
+  const progress = await loadProgress(userId, ev.id);
+  const allDone = ev.cfg.quests.every((q) => progress.get(q.key)?.done);
+  if (!allDone) throw new Error('Complete todas as quests primeiro.');
+  try { await prisma.plazaEventPurchase.create({ data: { userId, eventId: ev.id, shopKey: COMPLETION_KEY, price: 0 } }); } catch { throw new Error('Você já pegou o prêmio final.'); }
+  const c = ev.cfg.completion;
+  return grant(userId, { coins: c.coins, eventCoins: c.eventCoins, items: c.items, eventId: ev.id });
 }
 
 async function buy(userId, slug, shopKey) {
@@ -416,9 +479,10 @@ async function playerState(userId) {
       wallet: { balance: wallet?.balance || 0, earned: wallet?.earned || 0 },
       quests: ev.cfg.quests.map((q) => {
         const p = progress.get(q.key);
-        const target = q.type === 'visit' ? ids(q.rooms).length : q.type === 'gather' ? num(q.count || 5) : q.type === 'online' ? num(q.minutes || 10) : q.type === 'donate' ? num(q.count || 100) : 1;
-        return { key: q.key, title: q.title || q.key, desc: q.desc || '', type: q.type, rooms: ids(q.rooms).map((id) => ({ id, ...roomInfo(id) })), items: ids(q.items), target, progress: Math.min(target, p?.progress || 0), done: !!p?.done, claimed: !!p?.claimedAt, reward: { coins: num(q.reward?.coins), eventCoins: num(q.reward?.eventCoins), items: ids(q.reward?.items) } };
+        const target = ['visit', 'dance', 'walk_puffle'].includes(q.type) ? Math.max(1, ids(q.rooms).length) : q.type === 'gather' ? num(q.count || 5) : q.type === 'online' ? num(q.minutes || 10) : q.type === 'donate' ? num(q.count || 100) : 1;
+        return { key: q.key, title: q.title || q.key, desc: q.desc || '', type: q.type, difficulty: DIFF_KEYS.includes(q.difficulty) ? q.difficulty : null, rooms: ids(q.rooms).map((id) => ({ id, ...roomInfo(id) })), items: ids(q.items), target, progress: Math.min(target, p?.progress || 0), done: !!p?.done, claimed: !!p?.claimedAt, reward: questReward(q) };
       }),
+      completion: ev.cfg.completion ? { ...ev.cfg.completion, allDone: ev.cfg.quests.length > 0 && ev.cfg.quests.every((q) => progress.get(q.key)?.done), claimed: bought.has(COMPLETION_KEY) } : null,
       shop: ev.cfg.shop.map((s) => ({ key: s.key, label: s.label || s.key, itemIds: ids(s.itemIds), price: num(s.price), bought: bought.has(s.key) })),
       advent: await adventStatus(ev, userId),
       cfc: await cfcStatus(ev, userId),
@@ -451,14 +515,18 @@ async function friendsOnIsland(userId) {
 // Staff
 // ---------------------------------------------------------------------------
 function cleanQuest(q) {
-  const types = ['visit', 'gather', 'wear', 'online', 'mascot', 'donate'];
+  const types = ['visit', 'gather', 'wear', 'online', 'mascot', 'donate', 'dance', 'walk_puffle'];
+  const coins = q.reward?.coins;
   return {
     key: String(q.key || '').toLowerCase().replace(/[^a-z0-9_-]/g, '').slice(0, 40),
     title: String(q.title || '').slice(0, 80), desc: String(q.desc || '').slice(0, 300),
     type: types.includes(q.type) ? q.type : 'visit',
-    rooms: ids(q.rooms), items: ids(q.items), count: Math.max(1, Math.min(200, num(q.count) || 5)), minutes: Math.max(1, Math.min(600, num(q.minutes) || 10)),
+    difficulty: DIFF_KEYS.includes(q.difficulty) ? q.difficulty : 'facil',
+    rooms: ids(q.rooms), items: ids(q.items), puffles: Array.isArray(q.puffles) ? q.puffles.map(Number).filter((n) => Number.isInteger(n) && n >= 0) : [], frames: ids(q.frames),
+    count: Math.max(1, Math.min(200, num(q.count) || 5)), minutes: Math.max(1, Math.min(600, num(q.minutes) || 10)),
     mascot: String(q.mascot || 'pingu').slice(0, 40),
-    reward: { coins: Math.max(0, Math.min(100000, num(q.reward?.coins))), eventCoins: Math.max(0, Math.min(MAX_EVENT_COINS, num(q.reward?.eventCoins))), items: ids(q.reward?.items) },
+    // coins em branco = usa o padrão da dificuldade
+    reward: { coins: coins === undefined || coins === null || coins === '' ? null : Math.max(0, Math.min(100000, num(coins))), eventCoins: Math.max(0, Math.min(MAX_EVENT_COINS, num(q.reward?.eventCoins))), items: ids(q.reward?.items) },
   };
 }
 
@@ -471,6 +539,7 @@ function cleanConfig(c = {}) {
     shop: (Array.isArray(c.shop) ? c.shop : []).map((s) => ({ key: String(s.key || '').toLowerCase().replace(/[^a-z0-9_-]/g, '').slice(0, 40), label: String(s.label || '').slice(0, 80), itemIds: ids(s.itemIds), price: Math.max(0, Math.min(MAX_EVENT_COINS, num(s.price))) })).filter((s) => s.key && s.itemIds.length),
     advent: (Array.isArray(c.advent) ? c.advent : []).map((a) => ({ day: num(a.day), coins: Math.max(0, num(a.coins)), eventCoins: Math.max(0, num(a.eventCoins)), items: ids(a.items) })).filter((a) => a.day >= 1 && a.day <= 25),
     cfc: c.cfc && Array.isArray(c.cfc.goals) && c.cfc.goals.length ? { goals: c.cfc.goals.map((g) => ({ amount: Math.max(1, num(g.amount)), label: String(g.label || '').slice(0, 80), items: ids(g.items), coins: Math.max(0, num(g.coins)) })) } : null,
+    completion: c.completion && (num(c.completion.coins) || num(c.completion.eventCoins) || ids(c.completion.items).length) ? { coins: Math.max(0, num(c.completion.coins)), eventCoins: Math.max(0, num(c.completion.eventCoins)), items: ids(c.completion.items), label: String(c.completion.label || '').slice(0, 80) } : null,
   };
 }
 
@@ -554,14 +623,14 @@ function attach(instance, deps) {
     activeEvents().then((events) => {
       if (!events.length) return;
       const u = onlineUsers().find((x) => x.userId === userId);
-      return evaluate(userId, Number(to), u ? w.world.getOnline(u.penguinId) : null, events);
+      return evaluate(userId, Number(to), u ? w.world.getOnline(u.penguinId) : null, events, u);
     }).catch(() => {});
   });
 }
 function setIo(socketIo) { io = socketIo; }
 
 module.exports = {
-  roomInfo, attach, setIo, activeEvents, playerState, claimQuest, buy, redeemCode, donate, claimCfc, claimAdvent, friendsOnIsland,
+  roomInfo, attach, setIo, activeEvents, playerState, claimQuest, claimCompletion, questReward, DIFFICULTY, buy, redeemCode, donate, claimCfc, claimAdvent, friendsOnIsland,
   listEvents, saveEvent, deleteEvent, listCodes, saveCode, deleteCode, listVisits, saveVisit, deleteVisit, templateForParty, cleanConfig, parseConfig,
   _test: { evaluate, setProgress, getProgress, grant },
 };

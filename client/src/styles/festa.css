@@ -51,3 +51,10 @@
 .cpf-day.is-claimed { background: #f1ffe9; border-color: #6bcb3b; color: #3f8d1a; }
 .cpf-day:disabled:not(.is-claimed) { opacity: .55; }
 .cpf-staff { margin: 0; font-size: 11px; color: #d4ecff; text-align: center; text-shadow: 0 1.5px 0 var(--cp-line); }
+
+.cpf-final { background: #fff6d6; border-color: #f5b116; margin-bottom: 6px; }
+.cpf-final.is-done { background: #f1ffe9; border-color: #6bcb3b; }
+.cpf-diff { margin-left: 6px; font-style: normal; font-size: 10px; letter-spacing: .04em; padding: 1px 6px; border-radius: 99px; background: #d6e9fa; color: #2a6db3; vertical-align: middle; }
+.cpf-diff.is-media { background: #fff0c2; color: #8a5200; }
+.cpf-diff.is-dificil { background: #ffd9d9; color: #a11b1b; }
+.cpf-diff.is-extrema { background: #2b1a4a; color: #e8d4ff; }

@@ -136,10 +136,21 @@ moeda do evento. Código em `server/src/services/waddle/events.js`; modelos
   é só ajustar quests, loja, advento e metas. Códigos e visitas de mascote
   ficam nas outras abas.
 - **Quests** (`type`): `visit` (salas), `gather` (N pinguins na mesma sala),
-  `wear` (vestir item), `online` (minutos na ilha), `mascot` (encontrar) e
-  `donate` (Coins for Change). O progresso é avaliado a cada 15 s e a cada
-  troca de sala; a recompensa (moedas do Project Club, moeda do evento, itens)
-  só sai uma vez, no clique.
+  `wear` (vestir item), `dance` (dançar — frame 26 — nas salas, com item se
+  pedido), `walk_puffle` (passear com o puffle, de um tipo se pedido, até as
+  salas), `online` (minutos na ilha), `mascot` (encontrar) e `donate` (Coins
+  for Change). Cada quest tem **dificuldade** (fácil 50 · média 120 · difícil
+  250 · extrema 500 moedas, quando a quest não define moedas) e o evento pode
+  ter **prêmio final** por completar todas (modelo das Island Quests do CP
+  Legacy). O progresso é avaliado a cada 15 s e a cada troca de sala; a
+  recompensa só sai uma vez, no clique. O `getPresence()` do Waddle foi
+  estendido com `frame` e `walking` pra isso (src e dist).
+- **Modelos prontos** (`eventPresets.js`): Halloween, Natal (advento + Coins
+  for Change), Festival das Luzes, Festa dos Puffles, Dance-A-Thon, Medieval,
+  Feira, Copa dos Pinguins, Aniversário do Project Club, Marcos da comunidade
+  (códigos) e Pizza Palooza — montados a partir das festas dos projetos de fãs
+  (Legacy, Journey, Zero, Rewritten, CPO) só com itens originais do jogo. No
+  painel: "Modelos prontos" → Usar (abre pra editar) / Criar códigos.
 - **Mascotes com agenda** — a visita marca sala e horário e a **conta que
   veste o mascote** (o Pingu é o mascote oficial; qualquer conta da equipe
   pode vestir outro). Enquanto o pinguim dessa conta está na sala, quem entra
