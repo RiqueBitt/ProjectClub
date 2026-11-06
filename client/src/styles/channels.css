@@ -12,6 +12,10 @@
 }
 .featured-eventos { --fc: var(--yellow); }
 .featured-anuncios { --fc: #f23f43; }
+/* Navegação principal como destaques (nov/2026): cada um com a própria cor. */
+.featured-inicio { --fc: var(--brand); }
+.featured-amigos { --fc: #3ba55d; }
+.featured-progresso { --fc: #e0a526; }
 .featured-feed { --fc: var(--brand); }
 .featured-galeria { --fc: color-mix(in srgb, var(--red) 55%, var(--brand)); }
 

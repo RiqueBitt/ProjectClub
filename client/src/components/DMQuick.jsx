@@ -85,7 +85,7 @@ export function DMSwitcher({ currentId }) {
   if (!user) return null;
   return (
     <div className="dmq-switcher" role="navigation" aria-label="Trocar de conversa">
-      <button type="button" className="dmq-sw-btn" onClick={() => navigate('/dms?tab=mensagens')} title="Voltar para o Social" aria-label="Voltar para o Social"><Svg d={BACK} /></button>
+      <button type="button" className="dmq-sw-btn" onClick={() => navigate('/dms?tab=mensagens')} title="Voltar para Amigos" aria-label="Voltar para Amigos"><Svg d={BACK} /></button>
       <div className="dmq-sw-list">
         {list.map((c) => {
           const unread = isConversationUnread(c, user.id);

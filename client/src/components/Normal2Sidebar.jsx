@@ -1,45 +1,33 @@
 import { useState } from 'react';
 import { NavLink, useLocation } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
-import { useStore, isChannelUnread, isConversationUnread, useMyRoleIds } from '../store/useStore';
+import { useStore } from '../store/useStore';
 import { useAuth } from '../context/AuthContext.jsx';
 import ChannelSidebar from './ChannelSidebar.jsx';
 import DonationGoalBar from './DonationGoalBar.jsx';
 import { ITEMS, visibleNavItems } from './MainSidebar.jsx';
 import { FEATURED, useFeaturedVisibility } from './FeaturedChannels.jsx';
-import { useClaimableMissions } from '../utils/missionBadge';
+import { useNavBadges } from '../utils/navBadges';
 
 // Layout "Normal 2.0": uma coluna só à esquerda, no estilo Discord —
-// banner da comunidade no topo, o menu principal em botões logo abaixo
-// e os canais/categorias embaixo. A lista de canais é o MESMO
-// ChannelSidebar dos outros layouts (permissões, arrastar, menus de
+// banner da comunidade no topo e os canais embaixo. A lista de canais é o
+// MESMO ChannelSidebar dos outros layouts (permissões, arrastar, menus de
 // contexto, salas de voz), só embutido aqui.
 //
-// O item "Comunidade" sai do menu: os canais já estão sempre à vista.
+// Menu principal (nov/2026, pedido do dono): a fileira de ícones que ficava
+// acima dos canais SAIU — os destinos dela viraram canais em destaque
+// (FeaturedChannels.jsx: Início, Amigos, Novidades, Economia, Progresso, Club
+// Penguin), no mesmo visual de Novidades, logo abaixo do banner. Suporte foi
+// pra barra superior (TopSearchBar.jsx). O componente N2Nav continua aqui,
+// desligado (SHOW_N2_MENU) — é só religar se a fileira voltar.
 // Usa a classe .main-sidebar, então no celular vira a mesma gaveta
 // lateral dos outros layouts, sem regra nova de toque/abrir/fechar.
 // O Navegador fica só no globo da barra de título (app de Windows/Linux).
+const SHOW_N2_MENU = false;
 const N2_ITEMS = ITEMS.filter((i) => i.to !== '/' && i.to !== '/navegador');
 
-export function useBadges(user) {
-  const myRoleIds = useMyRoleIds(user.id);
-  const categories = useStore((s) => s.categories);
-  const channels = useStore((s) => s.channels);
-  const channelReadAt = useStore((s) => s.channelReadAt);
-  const conversations = useStore((s) => s.conversations);
-  const friends = useStore((s) => s.friends);
-  const unreadConversations = conversations.filter((c) => isConversationUnread(c, user.id)).length;
-  const pendingIncoming = friends.filter((f) => f.status === 'PENDING' && f.isIncoming).length;
-  const allChannels = [...channels, ...categories.flatMap((c) => c.channels || [])];
-  const unreadChannels = allChannels.filter((ch) => isChannelUnread(ch, channelReadAt, user.id, myRoleIds)).length;
-  const claimableMissions = useClaimableMissions(); // missões prontas pra resgatar
-  return (to) => {
-    if (to === '/economia') return claimableMissions;
-    if (to === '/dms') return unreadConversations + pendingIncoming;
-    if (to === '/notifications') return unreadChannels + unreadConversations + pendingIncoming;
-    return 0;
-  };
-}
+// Bolinhas por destino — ver utils/navBadges.js (também usado pelos destaques).
+export const useBadges = useNavBadges;
 
 function N2Nav() {
   const { t } = useTranslation();
@@ -55,14 +43,12 @@ function N2Nav() {
     return !v;
   });
   const badgeFor = useBadges(user);
-  // Se o Fórum voltar a ser um canal em destaque (FEATURED), o botão do
-  // menu some pra não duplicar — e volta se a staff esconder esse canal.
+  // Destino que já é um canal em destaque visível não repete no menu.
   const isFeaturedVisible = useFeaturedVisibility();
   const disabledSystems = useStore((s) => s.disabledSystems);
   const shownItems = visibleNavItems(N2_ITEMS, disabledSystems, user);
-  const forumFeatured = FEATURED.some((f) => f.key === 'feed') && isFeaturedVisible('feed');
-  const baseItems = forumFeatured ? shownItems.filter((i) => i.to !== '/comunidades') : shownItems;
-  const items = baseItems; // Painel: botão na barra superior (TopSearchBar.jsx)
+  const featuredTo = new Set(FEATURED.filter((f) => isFeaturedVisible(f.key)).map((f) => f.to));
+  const items = shownItems.filter((i) => !featuredTo.has(i.to)); // Painel: botão na barra superior (TopSearchBar.jsx)
 
   return (
     <div className={`n2-nav${compact ? ' is-compact' : ''}`}>
@@ -101,7 +87,7 @@ function N2Nav() {
 export default function Normal2Sidebar({ activeChannelId }) {
   return (
     <aside className="main-sidebar n2-sidebar">
-      <ChannelSidebar activeChannelId={activeChannelId} embedded sentenceCase topSlot={<><DonationGoalBar /><N2Nav /></>} />
+      <ChannelSidebar activeChannelId={activeChannelId} embedded sentenceCase topSlot={<><DonationGoalBar />{SHOW_N2_MENU && <N2Nav />}</>} />
     </aside>
   );
 }

@@ -1,0 +1,10 @@
+{
+  "name": "projectclub-waddle-embedded",
+  "private": true,
+  "version": "1.0.0",
+  "dependencies": {
+    "dotenv": "^16.6.1",
+    "express": "^4.22.3",
+    "ws": "^8.22.1"
+  }
+}

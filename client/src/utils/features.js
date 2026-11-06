@@ -15,6 +15,11 @@ export const FEATURES = Object.freeze({
   // Cartão do servidor de Minecraft no Início. DESLIGADO (pedido do dono, nov/2026);
   // a integração continua no painel (Integrações) e no Pingu.
   minecraftHome: false,
+  // Fórum (temas e posts) DESATIVADO temporariamente (pedido do dono,
+  // nov/2026): some do menu, da busca, do Início e dos atalhos; /comunidades,
+  // /forum/… e /posts/… mostram "Em breve" (ForumDisabledPage). Código,
+  // páginas e dados ficam intactos — pra religar: true aqui e no servidor.
+  forum: false,
 });
 
 export const isFeatureEnabled = (key) => FEATURES[key] === true;

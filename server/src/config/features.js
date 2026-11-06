@@ -17,6 +17,11 @@ const FEATURES = Object.freeze({
   // Praça: Club Penguin completo (Waddle Forever embutido em server/waddle).
   // false = o jogo nem sobe, /api/plaza responde 404 e o site esconde a aba.
   plaza: true,
+  // Fórum (temas/posts: /api/communities e /api/posts). DESATIVADO
+  // temporariamente (pedido do dono, nov/2026): as rotas respondem 503
+  // "temporariamente desativado"; nada é apagado — temas, posts, votos e
+  // comentários continuam no banco. Pra religar: true aqui e no cliente.
+  forum: false,
 });
 
 function isFeatureEnabled(key) {
@@ -36,5 +41,6 @@ function requireFeature(key, opts = {}) {
 }
 
 const CARDS_WAR_OFF_MSG = 'O Guerra das Cartas está temporariamente desativado.';
+const FORUM_OFF_MSG = 'O Fórum está temporariamente desativado.';
 
-module.exports = { FEATURES, isFeatureEnabled, requireFeature, CARDS_WAR_OFF_MSG };
+module.exports = { FEATURES, isFeatureEnabled, requireFeature, CARDS_WAR_OFF_MSG, FORUM_OFF_MSG };

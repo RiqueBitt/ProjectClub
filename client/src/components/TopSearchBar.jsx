@@ -10,6 +10,7 @@ import logoIcon from '../assets/icons/logo-project-club.png';
 import searchIcon from '../assets/icons/nav-search.png';
 import notificationsIcon from '../assets/icons/nav-notifications.png';
 import settingsIcon from '../assets/icons/settings.png';
+import supportIcon from '../assets/icons/nav-support.png';
 import { useQuickSearch, QuickResults, quickSearchKeys } from './QuickSwitcher.jsx';
 
 export const DONATE_URL = 'https://livepix.gg/projectclubr';
@@ -221,6 +222,11 @@ export default function TopSearchBar() {
         <button type="button" className="top-search-bar-icon-btn" title="Notificações" aria-label={notifBadge > 0 ? `Notificações (${notifBadge > 99 ? 'mais de 99' : notifBadge} novas)` : 'Notificações'} onClick={() => navigate('/notifications')}>
           <span className="top-search-bar-icon-mask top-search-bar-notif-icon" style={{ WebkitMaskImage: `url(${notificationsIcon})`, maskImage: `url(${notificationsIcon})` }} />
           {notifBadge > 0 && <span className="top-search-bar-badge">{notifBadge > 99 ? '99+' : notifBadge}</span>}
+        </button>
+        {/* Suporte (tickets): saiu do menu lateral pra cá, ao lado de
+            Configurações (pedido do dono, nov/2026). */}
+        <button type="button" className={`top-search-bar-icon-btn${pathname.startsWith('/tickets') ? ' active' : ''}`} title="Suporte" aria-label="Suporte" onClick={() => navigate('/tickets')}>
+          <span className="top-search-bar-icon-mask" style={{ WebkitMaskImage: `url(${supportIcon})`, maskImage: `url(${supportIcon})`, width: 18, height: 18 }} />
         </button>
         {/* Item pedido: engrenagem de Configurações, do lado do sino de
             notificações, no cabeçalho. */}

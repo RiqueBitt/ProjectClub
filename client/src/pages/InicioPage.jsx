@@ -164,7 +164,7 @@ export default function InicioPage() {
     // Eventos: reaproveita o pacote de abertura se ele acabou de chegar (utils/bootstrap.js).
     (bootSection('events') || listEvents()).then((d) => setEvents(d.events)).catch(() => setEvents([]));
     listYoutubeVideos().then((d) => setVideos(d.videos)).catch(() => setVideos([]));
-    listFeaturedPosts().then((d) => setFeaturedPosts(d.posts)).catch(() => setFeaturedPosts([]));
+    if (isFeatureEnabled('forum')) listFeaturedPosts().then((d) => setFeaturedPosts(d.posts)).catch(() => setFeaturedPosts([]));
     getPlatformStats().then(setStats).catch(() => setStats(null));
     // Perfil completo traz o progresso do nível (levelProgress).
     if (user?.id) getUserProfile(user.id).then((d) => setMe(d)).catch(() => setMe(null));
@@ -176,7 +176,7 @@ export default function InicioPage() {
   useLiveRefresh(async (ctx) => {
     const { put } = ctx;
     await Promise.allSettled([
-      listFeaturedPosts().then((d) => put(setFeaturedPosts)(d.posts)),
+      isFeatureEnabled('forum') ? listFeaturedPosts().then((d) => put(setFeaturedPosts)(d.posts)) : Promise.resolve(),
       user?.id ? getUserProfile(user.id).then(put(setMe)) : null,
     ]);
   }, { interval: 22000 });
@@ -247,8 +247,8 @@ export default function InicioPage() {
   const disabledSystems = useStore((st) => st.disabledSystems) || [];
   const shortcuts = [
     firstText && { icon: 'chat', label: 'Conversar', hint: `#${firstText.name}`, to: channelPath(firstText) },
-    { icon: 'feed', label: 'Fórum', hint: 'Posts e temas', to: '/comunidades' },
-    { icon: 'social', label: 'Social', hint: 'Amigos e mensagens', to: '/dms' },
+    isFeatureEnabled('forum') && { icon: 'feed', label: 'Fórum', hint: 'Posts e temas', to: '/comunidades' },
+    { icon: 'social', label: 'Amigos', hint: 'Amigos e mensagens', to: '/dms' },
     { icon: 'star', label: 'Progresso', hint: 'Ranks e conquistas', to: '/progresso' },
   ].filter(Boolean);
 
@@ -326,7 +326,7 @@ export default function InicioPage() {
             )}
           </Section>
 
-          <Section
+          {isFeatureEnabled('forum') && <Section
             icon="fire" title="Em alta no Fórum"
             action={<button type="button" className="home-link" onClick={() => navigate('/comunidades')}>Ver Fórum</button>}
           >
@@ -339,7 +339,7 @@ export default function InicioPage() {
                 ))}
               </div>
             )}
-          </Section>
+          </Section>}
 
           {videos?.length > 0 && (
             <Section icon="play" title="Vídeos do MrPinguim">
