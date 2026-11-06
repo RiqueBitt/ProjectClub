@@ -52,7 +52,9 @@ function roomInfo(id) {
       for (const [key, r] of Object.entries(ROOMS)) if (r && r.id) roomIndex.set(Number(r.id), { key, name: r.name });
     } catch { /* sem dist */ }
   }
-  return roomIndex.get(Number(id)) || { key: null, name: `Sala ${id}` };
+  const r = roomIndex.get(Number(id)) || { key: null, name: `Sala ${id}` };
+  try { const n = require('./island').roomName(r.key); if (n) return { key: r.key, name: n }; } catch { /* sem ilha */ }
+  return r;
 }
 const ids = (arr) => (Array.isArray(arr) ? arr.map(Number).filter((n) => Number.isInteger(n) && n > 0) : []);
 

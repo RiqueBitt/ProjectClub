@@ -185,3 +185,7 @@ O Waddle passou a emitir `world.onAction({ penguinId, room, kind, value })` para
 - `say` — dizer um texto no chat (`text`, sem diferenciar maiúsculas; mensagem segura também vale).
 - `gather` com `items` — só conta quem está vestindo (ex.: "20 pinguins de Capacete de Obra na Lagoa" = virar a Lagoa).
 - `requires: [keys]` em qualquer quest — **cadeia de história** (modelo das operações da EPF do CP Journey/Dimensions e das mascot quests do CP Zero): a quest fica trancada (🔒 na janela Festa) até as anteriores concluírem; `cleanConfig` valida as chaves.
+
+### Ilha 2015 (mapa final do Club Penguin)
+
+`services/waddle/island.js`: o mapa de junho/2015 (`ContentMapJun2015.swf`) vira o mapa normal da Praça, com as salas que ele aponta e o WF (que para em 2012) não tem: Hotel dos Puffles (430/431/432), Parque dos Puffles (434), Puffle Wild (436) e Escola (no id 122 da Usina de Reciclagem). Praça e Pet Shop entram na versão de 2015 (portas do hotel e do parque); o Shopping (340) continua sendo o Palco. Músicas 360/361/362/436/658/897 vêm junto. Os arquivos são originais, da Club Penguin Archives (espelho Solero), baixados no boot para `media/pcisland/`; a camada fica por baixo da festa atual e dos arquivos da aba Archives (`parties.apply`). Liga/desliga em Painel → Eventos da Praça → Ilha e Archives (`PlazaSetting` `island`, ligada por padrão). As salas novas entraram em `ROOMS` do fork (src + dist) e nos modelos (Festa dos Puffles). Teste: `server/test/praca-ilha-2015.test.js`.

@@ -57,7 +57,7 @@ export default function PlazaEventsAdmin({ notify, catalog }) {
       {open && data && (
         <div className="stg-parties-body">
           <div className="stg-chips" role="tablist">
-            {[['eventos', `Eventos (${data.events.length})`], ['codigos', `Códigos (${data.codes.length})`], ['mascotes', `Mascotes (${data.visits.length})`], ['concursos', 'Concursos'], ['jigsaw', 'Jigsaw Jam'], ['archives', 'Archives']].map(([k, label]) => (
+            {[['eventos', `Eventos (${data.events.length})`], ['codigos', `Códigos (${data.codes.length})`], ['mascotes', `Mascotes (${data.visits.length})`], ['concursos', 'Concursos'], ['jigsaw', 'Jigsaw Jam'], ['archives', 'Ilha e Archives']].map(([k, label]) => (
               <button key={k} type="button" role="tab" aria-selected={tab === k} className={`stg-chip${tab === k ? ' active' : ''}`} onClick={() => setTab(k)}>{label}</button>
             ))}
           </div>
@@ -558,6 +558,27 @@ function JigsawTab({ notify, itemName }) {
 
 // ---------- Arquivos da Club Penguin Archives ----------
 const ASSET_KINDS = [['room', 'Sala (chave da sala → SWF vira a sala)'], ['route', 'Rota do jogo (play/v2/content/…)'], ['music', 'Música (id → SWF/MP3 novo)']];
+function IslandCard({ notify }) {
+  const [st, setSt] = useState(null);
+  const [busy, setBusy] = useState(false);
+  const load = useCallback(() => api.get('/staff-game/island').then(({ data }) => setSt(data)).catch(() => {}), []);
+  useEffect(() => { load(); const t = setInterval(load, 15000); return () => clearInterval(t); }, [load]);
+  const run = async (fn, ok) => { setBusy(true); try { const { data } = await fn(); setSt(data); notify(ok); } catch (err) { notify(err?.response?.data?.error || 'Não deu certo.', 'bad'); } finally { setBusy(false); } };
+  if (!st) return null;
+  return (
+    <div className={`pea-card${st.enabled ? ' is-on' : ''}`}>
+      <div className="stg-parties-bar">
+        <span className="stg-party-main">
+          <span className="stg-party-name">🗺️ Ilha 2015 — mapa final do Club Penguin{st.enabled ? <span className="stu-flag stg-flag-on">ligada</span> : <span className="stu-flag">desligada</span>}</span>
+          <span className="stg-party-sub">Mapa de junho/2015 + Hotel dos Puffles (saguão, spa, terraço), Parque dos Puffles, Puffle Wild e Escola; Praça e Pet Shop na versão 2015. Os mapas e salas decorados de cada festa continuam por cima. Arquivos: {st.files.have}/{st.files.total}{st.files.state === 'downloading' ? ' (baixando…)' : st.ready ? ' (prontos)' : st.files.error ? ` — erro: ${st.files.error}` : ''}</span>
+        </span>
+        <button type="button" className={`sth-btn${st.enabled ? ' danger' : ' primary'}`} disabled={busy} onClick={() => run(() => api.put('/staff-game/island', { enabled: !st.enabled }), st.enabled ? 'Ilha 2015 desligada: volta o mapa de 2012.' : 'Ilha 2015 ligada!')}>{st.enabled ? 'Voltar ao mapa de 2012' : 'Ligar ilha 2015'}</button>
+        {!st.ready && <button type="button" className="sth-btn" disabled={busy} onClick={() => run(() => api.post('/staff-game/island/download'), 'Baixando os arquivos da Archives…')}>Baixar arquivos</button>}
+      </div>
+    </div>
+  );
+}
+
 function ArchivesTab({ notify, rooms }) {
   const [list, setList] = useState(null);
   const [f, setF] = useState({ url: '', kind: 'room', target: 'town', label: '' });
@@ -567,6 +588,7 @@ function ArchivesTab({ notify, rooms }) {
   const run = async (fn, ok) => { setBusy(true); try { await fn(); notify(ok); load(); return true; } catch (err) { notify(err?.response?.data?.error || 'Não deu certo.', 'bad'); return false; } finally { setBusy(false); } };
   return (
     <>
+      <IslandCard notify={notify} />
       <p className="stg-note">A <a href="https://archives.clubpenguinwiki.info/wiki/Main_Page" target="_blank" rel="noreferrer">Club Penguin Archives</a> guarda ~58 mil arquivos do jogo original (salas de festas, catálogos, músicas, telas…). Cole o link da página do arquivo (File:…) ou o nome dele: o servidor baixa e liga na ilha por cima da festa atual, na hora. A Archives só pede um link de volta — já está na página da Praça.</p>
       <form className="pea-form pea-card" onSubmit={(e) => { e.preventDefault(); run(() => api.post('/staff-game/assets', f), 'Arquivo baixado e ligado na ilha!').then((ok) => { if (ok) setF({ ...f, url: '', label: '' }); }); }}>
         <div className="pea-grid">

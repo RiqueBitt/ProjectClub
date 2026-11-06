@@ -12,6 +12,8 @@ const R = { // salas (ids do jogo)
   town: 100, coffee: 110, dance: 120, lounge: 121, shop: 130, village: 200, sport: 210, lodge: 220, attic: 221, mtn: 230,
   plaza: 300, pet: 310, dojo: 320, dojoext: 321, pizza: 330, stage: 340, beach: 400, light: 410, beacon: 411, dock: 800, forts: 801,
   rink: 802, boiler: 804, berg: 805, cave: 806, shack: 807, mine: 808, forest: 809, cove: 810, box: 811, lake: 814,
+  // ilha 2015 (island.js): Hotel dos Puffles, Parque, Puffle Wild e Escola (id da Usina)
+  hotellobby: 430, hotelspa: 431, hotelroof: 432, park: 434, wild: 436, school: 122,
 };
 const TOUR = [R.town, R.plaza, R.forts, R.village, R.beach, R.dock, R.forest, R.cove, R.berg, R.dance];
 const q = (key, title, desc, type, extra = {}) => ({ key, title, desc, type, difficulty: 'facil', ...extra });
@@ -89,6 +91,8 @@ const PRESETS = [
     key: 'puffle', name: 'Festa dos Puffles', when: 'março', currencyName: 'Biscoitos de Puffle', party: 'Puffle Party',
     quests: [
       q('explorar', 'Explorador', 'Visite as salas dos puffles.', 'visit', { rooms: [R.forest, R.cove, R.light, R.beacon, R.box, R.berg, R.mtn, R.dance, R.cave, R.lounge], ...diff('media'), reward: { eventCoins: 30 } }),
+      q('hotel', 'Hóspede do hotel', 'Visite o saguão, o spa e o terraço do Hotel dos Puffles.', 'visit', { rooms: [R.hotellobby, R.hotelspa, R.hotelroof], ...diff('facil'), reward: { eventCoins: 20 } }),
+      q('parque', 'Dia no parque', 'Passeie com um puffle até o Parque dos Puffles e o Puffle Wild.', 'walk_puffle', { rooms: [R.park, R.wild], ...diff('media'), reward: { eventCoins: 25 } }),
       q('azul', 'Puffle azul na Floresta', 'Passeie com um puffle azul até a Floresta.', 'walk_puffle', { puffles: [0], rooms: [R.forest], ...diff('facil'), reward: { eventCoins: 15 } }),
       q('vermelho', 'Puffle vermelho na Enseada', 'Passeie com um puffle vermelho até a Enseada.', 'walk_puffle', { puffles: [5], rooms: [R.cove], ...diff('facil'), reward: { eventCoins: 15 } }),
       q('roxo', 'Puffle roxo na pista', 'Passeie com um puffle roxo até a Danceteria.', 'walk_puffle', { puffles: [4], rooms: [R.dance], ...diff('facil'), reward: { eventCoins: 15 } }),

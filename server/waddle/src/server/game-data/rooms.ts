@@ -80,7 +80,15 @@ export type RoomName = 'town' |
   'party26' |
   'party27' |
   'party99' |
-  'pitch';
+  'pitch' |
+  // Project Club: salas de 2013-2015 (Hotel dos Puffles, Parque, Puffle Wild,
+  // Skatepark) — arquivos vêm da Club Penguin Archives (services/waddle/island.js)
+  'hotellobby' |
+  'hotelspa' |
+  'hotelroof' |
+  'park' |
+  'pufflewild' |
+  'skatepark';
 
 
 export type RoomMap<T> = Partial<Record<RoomName, T>>;
@@ -277,6 +285,12 @@ export const ROOMS: Record<RoomName, Room> = {
     name: 'Recycling Plant',
     preCpipName: null
   },
+  'hotellobby': { id: 430, name: 'Puffle Hotel Lobby', preCpipName: null },
+  'hotelspa': { id: 431, name: 'Puffle Hotel Spa', preCpipName: null },
+  'hotelroof': { id: 432, name: 'Puffle Hotel Roof', preCpipName: null },
+  'park': { id: 434, name: 'Puffle Park', preCpipName: null },
+  'skatepark': { id: 435, name: 'Skatepark', preCpipName: null },
+  'pufflewild': { id: 436, name: 'Puffle Wild', preCpipName: null },
   'beach': {
     id: 400,
     name: 'Beach',

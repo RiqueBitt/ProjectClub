@@ -192,6 +192,12 @@ exports.ROOMS = {
         name: 'Recycling Plant',
         preCpipName: null
     },
+    'hotellobby': { id: 430, name: 'Puffle Hotel Lobby', preCpipName: null },
+    'hotelspa': { id: 431, name: 'Puffle Hotel Spa', preCpipName: null },
+    'hotelroof': { id: 432, name: 'Puffle Hotel Roof', preCpipName: null },
+    'park': { id: 434, name: 'Puffle Park', preCpipName: null },
+    'skatepark': { id: 435, name: 'Skatepark', preCpipName: null },
+    'pufflewild': { id: 436, name: 'Puffle Wild', preCpipName: null },
     'beach': {
         id: 400,
         name: 'Beach',

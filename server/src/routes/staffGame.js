@@ -179,6 +179,12 @@ router.patch('/puzzles/:id', evWrap(async (req) => puzzles.review(req.params.id,
 router.delete('/puzzles/:id', evWrap(async (req) => { await puzzles.remove(req.params.id); return { ok: true }; }));
 router.put('/puzzles/settings', evWrap(async (req) => puzzles.saveSettings(req.body || {})));
 
+// ---- Ilha 2015 (island.js): mapa de junho/2015 + salas do hotel/parque/escola ----
+const island = require('../services/waddle/island');
+router.get('/island', evWrap(async () => island.status()));
+router.put('/island', evWrap(async (req) => { const st = await island.setEnabled(req.body?.enabled !== false); await logAction(req.app.get('io'), { actorId: req.user.id, action: 'PLAZA_ISLAND_TOGGLE', targetType: 'PLAZA', targetId: 'island-2015', metadata: { enabled: st.enabled } }).catch(() => {}); return st; }));
+router.post('/island/download', evWrap(async () => island.ensureFiles()));
+
 // ---- Arquivos da Club Penguin Archives (assets.js) ----
 const assets = require('../services/waddle/assets');
 router.get('/assets', evWrap(async () => assets.list()));
@@ -190,7 +196,8 @@ router.delete('/assets/:id', evWrap(async (req) => { await assets.remove(req.par
 router.get('/rooms', async (req, res, next) => {
   try {
     const { ROOMS } = require('../../waddle/dist/server/game-data/rooms.js');
-    res.json(Object.entries(ROOMS).map(([key, r]) => ({ key, id: r.id, name: r.name })).filter((r) => r.id).sort((a, b) => a.id - b.id));
+    const island = require('../services/waddle/island');
+    res.json(Object.entries(ROOMS).map(([key, r]) => ({ key, id: r.id, name: island.roomName(key) || r.name })).filter((r) => r.id).sort((a, b) => a.id - b.id));
   } catch (err) { next(err); }
 });
 // contas da equipe (pra marcar quem "veste" um mascote)
