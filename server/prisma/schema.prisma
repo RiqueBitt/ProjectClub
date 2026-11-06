@@ -4653,3 +4653,144 @@ model WaddlePenguin {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 }
+
+// ---------------------------------------------------------------------------
+// Eventos da Praça (Club Penguin): quests sociais, moeda de evento, loja
+// temporária, códigos de desbloqueio, mascotes com agenda, calendário do
+// advento e Coins for Change (server/src/services/waddle/events.js).
+// ---------------------------------------------------------------------------
+
+model PlazaEvent {
+  id           String   @id @default(uuid())
+  slug         String   @unique @db.VarChar(60)
+  name         String   @db.VarChar(80)
+  currencyName String   @default("Fichas") @db.VarChar(40)
+  party        String?  @db.VarChar(80) // festa do calendário ligada (opcional)
+  startsAt     DateTime
+  endsAt       DateTime
+  active       Boolean  @default(true)
+  config       String   @db.LongText // JSON: quests[], shop[], advent[], cfc{}
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+  wallets      PlazaEventWallet[]
+  progress     PlazaQuestProgress[]
+  purchases    PlazaEventPurchase[]
+  donations    PlazaDonation[]
+
+  @@index([active, startsAt, endsAt])
+}
+
+model PlazaEventWallet {
+  id      String     @id @default(uuid())
+  userId  String
+  eventId String
+  balance Int        @default(0)
+  earned  Int        @default(0)
+  event   PlazaEvent @relation(fields: [eventId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, eventId])
+}
+
+model PlazaQuestProgress {
+  id        String     @id @default(uuid())
+  userId    String
+  eventId   String
+  questKey  String     @db.VarChar(60)
+  progress  Int        @default(0)
+  done      Boolean    @default(false)
+  claimedAt DateTime?
+  data      String?    @db.Text // JSON (salas já visitadas etc.)
+  updatedAt DateTime   @updatedAt
+  event     PlazaEvent @relation(fields: [eventId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, eventId, questKey])
+  @@index([userId, eventId])
+}
+
+model PlazaEventPurchase {
+  id        String     @id @default(uuid())
+  userId    String
+  eventId   String
+  shopKey   String     @db.VarChar(60)
+  price     Int
+  createdAt DateTime   @default(now())
+  event     PlazaEvent @relation(fields: [eventId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, eventId, shopKey])
+}
+
+model PlazaDonation {
+  id        String     @id @default(uuid())
+  userId    String
+  eventId   String
+  amount    Int
+  createdAt DateTime   @default(now())
+  event     PlazaEvent @relation(fields: [eventId], references: [id], onDelete: Cascade)
+
+  @@index([eventId, createdAt])
+}
+
+model PlazaCode {
+  id         String    @id @default(uuid())
+  code       String    @unique @db.VarChar(40)
+  label      String    @default("") @db.VarChar(120)
+  coins      Int       @default(0)
+  eventCoins Int       @default(0)
+  eventSlug  String?   @db.VarChar(60)
+  items      String    @default("[]") @db.Text // JSON [itemId]
+  maxUses    Int?
+  uses       Int       @default(0)
+  expiresAt  DateTime?
+  active     Boolean   @default(true)
+  createdAt  DateTime  @default(now())
+  redemptions PlazaCodeUse[]
+}
+
+model PlazaCodeUse {
+  id        String    @id @default(uuid())
+  codeId    String
+  userId    String
+  createdAt DateTime  @default(now())
+  code      PlazaCode @relation(fields: [codeId], references: [id], onDelete: Cascade)
+
+  @@unique([codeId, userId])
+}
+
+model PlazaMascotVisit {
+  id               String   @id @default(uuid())
+  mascotKey        String   @db.VarChar(40) // pingu | rockhopper | …
+  name             String   @db.VarChar(60)
+  mascotUserId     String?  // conta que "veste" o mascote (o pinguim dela é o mascote)
+  room             Int
+  startsAt         DateTime
+  endsAt           DateTime
+  backgroundItemId Int?     // fundo de brinde ao encontrar
+  itemIds          String   @default("[]") @db.Text // outros brindes (JSON)
+  coins            Int      @default(0)
+  eventCoins       Int      @default(0)
+  note             String   @default("") @db.VarChar(200)
+  createdAt        DateTime @default(now())
+  meets            PlazaMascotMeet[]
+
+  @@index([startsAt, endsAt])
+}
+
+model PlazaMascotMeet {
+  id        String           @id @default(uuid())
+  visitId   String
+  userId    String
+  createdAt DateTime         @default(now())
+  visit     PlazaMascotVisit @relation(fields: [visitId], references: [id], onDelete: Cascade)
+
+  @@unique([visitId, userId])
+}
+
+model PlazaAdventClaim {
+  id        String   @id @default(uuid())
+  userId    String
+  year      Int
+  day       Int
+  createdAt DateTime @default(now())
+
+  @@unique([userId, year, day])
+}

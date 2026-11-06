@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import PlazaEventsAdmin from './PlazaEventsAdmin.jsx';
 import { api } from '../../api/client';
 import UserAvatar from '../UserAvatar.jsx';
 import '../../styles/staff-tools.css';
@@ -69,6 +70,7 @@ export default function GameAdmin() {
   return (
     <div className={`stu stg${selected ? ' has-selected' : ''}`}>
       <PartiesPanel notify={notify} />
+      <PlazaEventsAdmin notify={notify} catalog={catalog} />
       <EpfPanel notify={notify} />
       <div className="stg-layout">
         <aside className="stg-list">

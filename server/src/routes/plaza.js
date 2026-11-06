@@ -41,4 +41,23 @@ router.get('/status', async (req, res, next) => {
   try { res.json(await waddle.getStatus()); } catch (err) { next(err); }
 });
 
+// ---- Eventos da Praça (quests, moeda de evento, loja, códigos, mascotes,
+// advento, Coins for Change) — services/waddle/events.js. A janela "Festa"
+// dentro do jogo usa isto.
+const events = require('../services/waddle/events');
+const evWrap = (fn) => async (req, res, next) => {
+  try { res.set('Cache-Control', 'no-store'); res.json(await fn(req)); } catch (err) {
+    if (err && !err.status && err.message && !/prisma|ECONN|Unknown/i.test(err.message)) return res.status(400).json({ error: err.message });
+    return next(err);
+  }
+};
+router.get('/events', requireAuth, evWrap((req) => events.playerState(req.user.id)));
+router.post('/events/:slug/quests/:key/claim', requireAuth, evWrap((req) => events.claimQuest(req.user.id, req.params.slug, req.params.key)));
+router.post('/events/:slug/shop/:key', requireAuth, evWrap((req) => events.buy(req.user.id, req.params.slug, req.params.key)));
+router.post('/events/:slug/donate', requireAuth, evWrap((req) => events.donate(req.user.id, req.params.slug, req.body?.amount)));
+router.post('/events/:slug/cfc/:index/claim', requireAuth, evWrap((req) => events.claimCfc(req.user.id, req.params.slug, req.params.index)));
+router.post('/events/:slug/advent/:day', requireAuth, evWrap((req) => events.claimAdvent(req.user.id, req.params.slug, req.params.day)));
+router.post('/codes/redeem', requireAuth, evWrap((req) => events.redeemCode(req.user.id, req.body?.code)));
+router.get('/friends', requireAuth, evWrap((req) => events.friendsOnIsland(req.user.id)));
+
 module.exports = router;

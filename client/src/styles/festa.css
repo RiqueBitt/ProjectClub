@@ -1,0 +1,53 @@
+/* Janela "Festa" dentro do Club Penguin (praca/Festa.jsx). Reaproveita o
+   visual das janelas do jogo definido em jukebox.css (.cpjb-*). */
+.cpf-layer { z-index: 4; }
+.cpf-win { width: 470px; height: 400px; }
+.cpf-badge { position: absolute; left: 6px; top: 2px; font-size: 42px; line-height: 1; filter: drop-shadow(0 3px 0 rgba(10, 58, 112, .55)); pointer-events: none; }
+.cpf-tabs { flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none; }
+.cpf-tabs::-webkit-scrollbar { display: none; }
+.cpf-panel { background: var(--cp-paper); border: 3px solid var(--cp-line); border-radius: 14px; color: var(--cp-ink); }
+
+/* botão flutuante no canto do palco (fora da janela) */
+.cpf-fab {
+  position: absolute; left: 10px; top: 10px; display: inline-flex; align-items: center; gap: 7px; height: 36px; padding: 0 14px 0 10px;
+  border-radius: 999px; border: 2.5px solid var(--cp-line); cursor: pointer; pointer-events: auto; color: #fff; font-family: var(--cp-font); font-size: 15px;
+  background: linear-gradient(180deg, #45a4ee, #1c67b5); box-shadow: inset 0 2px 0 rgba(255, 255, 255, .5), 0 3px 0 var(--cp-line);
+  text-shadow: 0 1.5px 0 var(--cp-line); transition: transform .08s ease, filter .12s ease;
+}
+.cpf-fab:hover { filter: brightness(1.08); }
+.cpf-fab:active { transform: translateY(2px); box-shadow: inset 0 2px 0 rgba(255, 255, 255, .5), 0 1px 0 var(--cp-line); }
+.cpf-fab-ico { font-size: 18px; line-height: 1; }
+.cpf-fab.has-new { animation: cpf-wiggle 2.4s ease-in-out infinite; }
+.cpf-fab-n { display: grid; place-items: center; min-width: 20px; height: 20px; padding: 0 6px; border-radius: 999px; background: #f23f43; border: 2px solid #fff; font-size: 12px; text-shadow: none; }
+@keyframes cpf-wiggle { 0%, 80%, 100% { transform: rotate(0); } 85% { transform: rotate(-4deg); } 90% { transform: rotate(4deg); } 95% { transform: rotate(-2deg); } }
+@media (prefers-reduced-motion: reduce) { .cpf-fab.has-new { animation: none; } }
+
+.cpf-block + .cpf-block { margin-top: 12px; }
+.cpf-block h3 { margin: 0 0 6px; font-size: 15px; color: var(--cp-ink); }
+.cpf-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 5px; }
+.cpf-quest, .cpf-shop, .cpf-mascot, .cpf-friend {
+  display: flex; align-items: center; gap: 10px; padding: 7px 9px; border-radius: 10px; background: #fff; border: 2px solid var(--cp-paper-line);
+}
+.cpf-quest.is-done { border-color: #6bcb3b; background: #f1ffe9; }
+.cpf-quest.is-claimed, .cpf-shop.is-claimed, .cpf-mascot.is-claimed { opacity: .72; }
+.cpf-mascot.is-live { border-color: #f5b116; background: #fffbe0; }
+.cpf-q-main { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; line-height: 1.15; }
+.cpf-q-main b { font-size: 14px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.cpf-q-main small { font-size: 12px; color: #4a6f9a; }
+.cpf-reward { color: #2a6db3 !important; }
+.cpf-prog { display: block; height: 7px; margin-top: 2px; border-radius: 99px; background: #d6e9fa; overflow: hidden; }
+.cpf-prog i { display: block; height: 100%; background: linear-gradient(90deg, #6bcb3b, #3fa81c); transition: width .3s; }
+.cpf-ok { display: grid; place-items: center; width: 28px; height: 28px; border-radius: 50%; background: #6bcb3b; color: #fff; border: 2px solid #3f8d1a; flex: none; }
+.cpf-live { margin-left: 6px; font-style: normal; font-size: 11px; padding: 1px 7px; border-radius: 99px; background: #f5b116; color: #4a3200; }
+.cpf-avatar { flex: none; width: 34px; height: 34px; border-radius: 50%; background: #2c8fe0 center/cover no-repeat; color: #fff; display: grid; place-items: center; font-weight: 700; border: 2px solid var(--cp-line); }
+.cpf-code { flex-wrap: wrap; }
+.cpf-code .cpjb-hint { width: 100%; }
+.cpf-advent { display: grid; grid-template-columns: repeat(7, 1fr); gap: 6px; }
+.cpf-day {
+  display: flex; align-items: center; justify-content: center; gap: 3px; height: 40px; border-radius: 10px; border: 2px solid var(--cp-paper-line); background: #fff; color: var(--cp-ink); font-family: inherit; font-size: 15px; cursor: default;
+}
+.cpf-day.is-open { background: #fffbe0; border-color: #f5b116; cursor: pointer; }
+.cpf-day.is-open:hover { filter: brightness(1.04); transform: translateY(-1px); }
+.cpf-day.is-claimed { background: #f1ffe9; border-color: #6bcb3b; color: #3f8d1a; }
+.cpf-day:disabled:not(.is-claimed) { opacity: .55; }
+.cpf-staff { margin: 0; font-size: 11px; color: #d4ecff; text-align: center; text-shadow: 0 1.5px 0 var(--cp-line); }

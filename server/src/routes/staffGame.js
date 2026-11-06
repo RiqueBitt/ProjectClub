@@ -125,4 +125,46 @@ router.delete('/epf', async (req, res, next) => {
   }
 });
 
+// ---- Eventos da Praça (services/waddle/events.js) ----
+const events = require('../services/waddle/events');
+const parties = require('../services/waddle/parties');
+const evWrap = (fn) => async (req, res, next) => {
+  try { res.json(await fn(req)); } catch (err) {
+    if (err?.code === 'P2025') return res.status(404).json({ error: 'Não encontrado.' });
+    if (err && err.message && !/prisma|ECONN/i.test(err.message)) return res.status(400).json({ error: err.message });
+    return next(err);
+  }
+};
+router.get('/events', evWrap(async () => ({ events: await events.listEvents(), codes: await events.listCodes(), visits: await events.listVisits(), party: parties.status().active || null })));
+router.get('/events/template', evWrap(async () => {
+  const st = parties.status();
+  const p = st.active ? parties._data.parties.find((x) => x.slug === st.active.slug) : null;
+  const rooms = p ? Object.keys(p.rooms || {}).map(Number).filter(Boolean) : [];
+  return events.templateForParty(p ? { slug: p.slug, name: p.name, label: p.label } : null, rooms);
+}));
+router.put('/events', evWrap(async (req) => {
+  const row = await events.saveEvent(req.body || {});
+  await logAction(req.app.get('io'), { actorId: req.user.id, action: 'PLAZA_EVENT_SAVE', targetType: 'PLAZA_EVENT', targetId: row.slug, metadata: { name: row.name } }).catch(() => {});
+  return row;
+}));
+router.delete('/events/:slug', evWrap(async (req) => { await events.deleteEvent(req.params.slug); await logAction(req.app.get('io'), { actorId: req.user.id, action: 'PLAZA_EVENT_DELETE', targetType: 'PLAZA_EVENT', targetId: req.params.slug }).catch(() => {}); return { ok: true }; }));
+router.put('/codes', evWrap(async (req) => { const c = await events.saveCode(req.body || {}); await logAction(req.app.get('io'), { actorId: req.user.id, action: 'PLAZA_CODE_SAVE', targetType: 'PLAZA_CODE', targetId: c.code }).catch(() => {}); return c; }));
+router.delete('/codes/:code', evWrap(async (req) => { await events.deleteCode(req.params.code); return { ok: true }; }));
+router.put('/visits', evWrap(async (req) => { const v = await events.saveVisit(req.body || {}); await logAction(req.app.get('io'), { actorId: req.user.id, action: 'PLAZA_MASCOT_VISIT', targetType: 'PLAZA_VISIT', targetId: v.id, metadata: { name: v.name, room: v.room } }).catch(() => {}); return v; }));
+router.delete('/visits/:id', evWrap(async (req) => { await events.deleteVisit(req.params.id); return { ok: true }; }));
+// salas do jogo (id + nome) pra equipe montar quests sem decorar números
+router.get('/rooms', async (req, res, next) => {
+  try {
+    const { ROOMS } = require('../../waddle/dist/server/game-data/rooms.js');
+    res.json(Object.entries(ROOMS).map(([key, r]) => ({ key, id: r.id, name: r.name })).filter((r) => r.id).sort((a, b) => a.id - b.id));
+  } catch (err) { next(err); }
+});
+// contas da equipe (pra marcar quem "veste" um mascote)
+router.get('/staff-accounts', async (req, res, next) => {
+  try {
+    const prisma = require('../config/prisma');
+    res.json(await prisma.user.findMany({ where: { platformRole: { in: ['ADMIN', 'MODERATOR'] } }, select: { id: true, username: true, displayName: true }, take: 100 }));
+  } catch (err) { next(err); }
+});
+
 module.exports = router;

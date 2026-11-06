@@ -116,3 +116,36 @@ O banco precisa da tabela nova: `npm run prisma:push` (model `WaddlePenguin`).
   por usuário.
 - O disco do servidor precisa de ~2 GB livres pra mídia (1,7 GB extraídos +
   o pacote temporário durante a extração).
+
+## Eventos da Praça (quests, moeda do evento, loja, códigos, mascotes, advento, Coins for Change)
+
+Pedido do dono (nov/2026), inspirado nos projetos de fãs (Club Penguin
+Journey, Legacy e Zero). Tudo usa só a arte do próprio jogo: a loja do evento
+vende **itens originais do Club Penguin** (os sprites já estão na mídia) pela
+moeda do evento. Código em `server/src/services/waddle/events.js`; modelos
+`Plaza*` no `schema.prisma`; rotas em `/api/plaza/events…` (jogador) e
+`/api/staff-game/events|codes|visits` (equipe).
+
+- **Jogador** — janela **Festa** dentro do jogo (`client/src/praca/Festa.jsx`,
+  botão 🎉 no canto do palco): quests com barra de progresso e botão "Pegar",
+  loja do evento, agenda de mascotes (com "Ir" pra sala), amigos na ilha (com
+  "Ir até"), resgate de código, calendário do advento e Coins for Change.
+- **Equipe** — Painel → Club Penguin → **Eventos da Praça**
+  (`client/src/components/admin/PlazaEventsAdmin.jsx`): "Criar a partir da
+  festa atual" monta um modelo com as salas decoradas da festa ligada; depois
+  é só ajustar quests, loja, advento e metas. Códigos e visitas de mascote
+  ficam nas outras abas.
+- **Quests** (`type`): `visit` (salas), `gather` (N pinguins na mesma sala),
+  `wear` (vestir item), `online` (minutos na ilha), `mascot` (encontrar) e
+  `donate` (Coins for Change). O progresso é avaliado a cada 15 s e a cada
+  troca de sala; a recompensa (moedas do Project Club, moeda do evento, itens)
+  só sai uma vez, no clique.
+- **Mascotes com agenda** — a visita marca sala e horário e a **conta que
+  veste o mascote** (o Pingu é o mascote oficial; qualquer conta da equipe
+  pode vestir outro). Enquanto o pinguim dessa conta está na sala, quem entra
+  recebe o brinde (fundo + itens + moedas) uma vez por visita.
+- **Códigos** — letras/números, uma vez por pinguim, com limite de usos e
+  validade; podem dar moedas, moeda de evento e itens.
+- **Advento** — presentes por dia de 1 a 25 de dezembro (fuso do Brasil).
+- **Coins for Change** — doações em moedas do Project Club; a cada meta
+  batida quem doou pega a recompensa.

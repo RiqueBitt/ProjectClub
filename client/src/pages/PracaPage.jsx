@@ -12,6 +12,7 @@ import { RemoteAudioSinks } from '../components/CallBar.jsx';
 import { findMinijogo } from '../minijogos/catalog.js';
 import DownloadCenter from '../praca/DownloadCenter.jsx';
 import Jukebox from '../praca/Jukebox.jsx';
+import Festa from '../praca/Festa.jsx';
 import '../styles/praca.css';
 import { useAdaptiveQuality } from '../praca/adaptiveQuality.js';
 
@@ -752,6 +753,8 @@ export default function PracaPage({ embedded = false, background = false, onClos
         )}
         {/* Jukebox da Danceteria: botão dentro do jogo + janela por cima da tela do jogo */}
         <Jukebox room={pracaVoice.room} playerRef={playerRef} stageRef={stageRef} gameMuted={muted} active={phase === 'playing' && !background} />
+        {/* Festa: quests, loja do evento, mascotes, amigos na ilha, códigos (praca/Festa.jsx) */}
+        <Festa playerRef={playerRef} stageRef={stageRef} user={user} isStaff={['ADMIN', 'MODERATOR'].includes(user?.platformRole)} active={phase === 'playing' && !background} />
       </div>
       </div>
       {!background && (
