@@ -57,7 +57,7 @@ test('servidor fora: esconde o Project Club e abre a janela de conexão; volta s
   assert.equal(main.isVisible(), false);
   const conn = windows[1];
   assert.ok(conn && conn.isVisible(), 'janela de conexão aberta');
-  assert.match(conn.loaded[0], /conexao[\\/]index\.html$/);
+  assert.match(conn.loaded[0], /offline[\\/]index\.html$/);
   serverUp = true;
   await handlers['conexao:check']({ sender: conn.webContents });
   assert.equal(guard.isActive(), false);

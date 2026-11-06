@@ -13,6 +13,13 @@ navegador, só que como um app de verdade.
   — o app do dia a dia não pede UAC toda hora (isso quebraria rodar
   sozinho em segundo plano)
 
+## Modo offline
+Sem internet ou sem o servidor, a janela de conexão vira uma tela offline com
+Apps, Navegador, VPN e a Praça (Club Penguin rodando no próprio computador,
+com a cópia do pinguim que o site salva a cada 5 minutos). Detalhes em
+`docs/modo-offline.md`. Antes de gerar o instalador, `scripts/prepare-waddle.js`
+monta `vendor/waddle/` (roda sozinho no `npm run build:*`).
+
 ## Rodar localmente (desenvolvimento)
 ```bash
 cd desktop

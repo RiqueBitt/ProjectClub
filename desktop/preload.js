@@ -152,6 +152,16 @@ contextBridge.exposeInMainWorld('electronAPI', {
       return () => ipcRenderer.removeListener('nexus:nxm-link', handler);
     },
   },
+  // Modo offline (ver offlineStore.js / offlineShell.js): o site entrega ao
+  // app quem está logado e, dentro da Praça, uma cópia do pinguim (itens por
+  // id, saldo…) a cada 5 minutos. Sem internet ou sem o servidor, a tela
+  // offline do app usa isso pra abrir o Club Penguin no próprio computador.
+  offline: {
+    version: 1,
+    setAccount: (account) => ipcRenderer.invoke('offline:set-account', account || null),
+    savePraca: (snapshot) => ipcRenderer.invoke('offline:save-praca', snapshot || null),
+    getState: () => ipcRenderer.invoke('offline:get-state'),
+  },
   // VPN do Project Club (botão ao lado do globo). Ver vpnManager.js.
   vpn: {
     version: 1,

@@ -65,3 +65,6 @@ server/reports/
 
 # OpenVPN embutido no app de Windows (baixado e conferido pelo CI)
 desktop/vendor/openvpn/*.msi
+
+# Club Penguin embutido no app de PC (gerado por desktop/scripts/prepare-waddle.js a cada build)
+desktop/vendor/waddle/

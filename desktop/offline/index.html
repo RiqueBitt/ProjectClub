@@ -1,0 +1,102 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8" />
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'self' 'unsafe-inline'; script-src 'self'; img-src 'self' https: data:; connect-src 'none'; child-src *; frame-src *" />
+<title>Project Club · Offline</title>
+<link rel="stylesheet" href="offline.css" />
+</head>
+<body>
+  <header class="bar">
+    <span class="brand">PROJECT CLUB <em id="brandMode">· OFFLINE</em></span>
+    <div class="conn" id="conn" role="status" aria-live="polite">
+      <span class="dot" id="connDot"></span>
+      <span id="connText">Verificando…</span>
+      <button type="button" id="retry" class="link">Tentar agora</button>
+    </div>
+    <div class="win">
+      <button type="button" id="min" aria-label="Minimizar"><svg width="10" height="10" viewBox="0 0 10 10"><rect y="4.5" width="10" height="1" fill="currentColor"/></svg></button>
+      <button type="button" id="max" aria-label="Maximizar"><svg width="10" height="10" viewBox="0 0 10 10"><rect x=".5" y=".5" width="9" height="9" fill="none" stroke="currentColor"/></svg></button>
+      <button type="button" id="hide" class="close" aria-label="Fechar (continua na bandeja)"><svg width="10" height="10" viewBox="0 0 10 10"><path d="M.5.5l9 9M9.5.5l-9 9" stroke="currentColor" stroke-width="1.2"/></svg></button>
+    </div>
+  </header>
+
+  <div class="shell">
+    <nav class="rail" aria-label="Seções">
+      <button type="button" class="rail-btn active" data-section="inicio" title="Início"><span class="ico">🏠</span><span>Início</span></button>
+      <button type="button" class="rail-btn" data-section="apps" title="Apps"><span class="ico">🧩</span><span>Apps</span></button>
+      <button type="button" class="rail-btn" data-section="navegador" title="Navegador"><span class="ico">🌐</span><span>Navegador</span></button>
+      <button type="button" class="rail-btn" data-section="vpn" title="VPN"><span class="ico">🛡️</span><span>VPN</span></button>
+      <button type="button" class="rail-btn" data-section="praca" title="Praça"><span class="ico">🐧</span><span>Praça</span></button>
+      <div class="rail-foot">
+        <div class="account" id="account"><div class="avatar" id="avatar"></div><div class="who"><b id="accName">—</b><small id="accUser"></small></div></div>
+      </div>
+    </nav>
+
+    <main class="content">
+      <!-- Início -->
+      <section class="section active" id="sec-inicio">
+        <div class="hero">
+          <h1 id="title">Sem conexão com o Project Club</h1>
+          <p id="msg">A internet está funcionando, mas o servidor não respondeu. Enquanto isso, o que não depende dele continua aqui.</p>
+          <p class="detail" id="detail"></p>
+        </div>
+        <div class="grid">
+          <button type="button" class="card go" data-go="apps"><span class="ico">🧩</span><b>Apps</b><small>Abrir os apps do ecossistema já instalados.</small></button>
+          <button type="button" class="card go" data-go="navegador"><span class="ico">🌐</span><b>Navegador</b><small>Navegar com bloqueador de anúncios e seus favoritos.</small></button>
+          <button type="button" class="card go" data-go="vpn"><span class="ico">🛡️</span><b>VPN</b><small>Reconectar nos últimos servidores usados.</small></button>
+          <button type="button" class="card go" data-go="praca"><span class="ico">🐧</span><b>Praça</b><small>Club Penguin no seu computador, com o seu pinguim.</small></button>
+        </div>
+        <p class="hint">Assim que o servidor voltar, o Project Club reabre sozinho — a tela testa a cada 5 segundos.</p>
+      </section>
+
+      <!-- Apps -->
+      <section class="section" id="sec-apps">
+        <div class="sec-head"><h2>Apps</h2><p>Os apps do ecossistema instalados abrem sem internet. Instalar ou atualizar precisa de internet (as versões ficam no GitHub, não no servidor do Project Club).</p></div>
+        <div class="grid" id="appsGrid"></div>
+      </section>
+
+      <!-- Navegador -->
+      <section class="section browser" id="sec-navegador">
+        <div class="tabs" id="tabs"><button type="button" class="newtab" id="newTab" title="Nova aba (Ctrl+T)">+</button></div>
+        <div class="navbar">
+          <button type="button" id="back" title="Voltar">←</button>
+          <button type="button" id="fwd" title="Avançar">→</button>
+          <button type="button" id="reload" title="Recarregar">↻</button>
+          <form id="urlForm" class="urlform"><input id="url" type="text" spellcheck="false" autocomplete="off" placeholder="Digite um endereço ou pesquise" /></form>
+          <button type="button" id="star" title="Favoritar">☆</button>
+        </div>
+        <div class="favbar" id="favbar"></div>
+        <div class="views" id="views"></div>
+        <div class="browser-empty" id="browserEmpty"><p>Nenhuma aba aberta.</p><button type="button" id="browserOpen">Nova aba</button></div>
+      </section>
+
+      <!-- VPN -->
+      <section class="section" id="sec-vpn">
+        <div class="sec-head"><h2>VPN</h2><p>A lista de servidores vem do Project Club. Sem ele, dá pra reconectar nos últimos que você usou.</p></div>
+        <div class="vpn-state card" id="vpnState"></div>
+        <div class="list" id="vpnList"></div>
+      </section>
+
+      <!-- Praça -->
+      <section class="section praca" id="sec-praca">
+        <div class="praca-home" id="pracaHome">
+          <div class="sec-head"><h2>Praça · Club Penguin</h2><p>A ilha abre no seu computador com a cópia do seu pinguim — todos os itens, o iglu, os puffles, os carimbos e o saldo que o Project Club salvou aqui a cada 5 minutos enquanto você jogava online.</p></div>
+          <div class="grid two">
+            <div class="card" id="pracaPenguin"></div>
+            <div class="card" id="pracaMedia"></div>
+          </div>
+          <div class="actions"><button type="button" class="primary" id="pracaOpen">Abrir a Praça</button><button type="button" class="ghost" id="pracaFolder">Abrir pasta dos arquivos</button></div>
+          <p class="hint">O que acontecer offline fica só neste computador e é substituído pela próxima cópia quando você voltar a jogar online.</p>
+          <p class="err" id="pracaErr" hidden></p>
+        </div>
+        <div class="praca-game" id="pracaGame" hidden>
+          <div class="praca-top"><span id="pracaStatus">Ligando a ilha…</span><button type="button" class="ghost small" id="pracaClose">Fechar a Praça</button></div>
+          <div class="praca-view" id="pracaView"></div>
+        </div>
+      </section>
+    </main>
+  </div>
+  <script src="offline.js"></script>
+</body>
+</html>
