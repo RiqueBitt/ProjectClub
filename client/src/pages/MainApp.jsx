@@ -108,6 +108,8 @@ const ProgressPage = lazy(() => import('./ProgressPage.jsx'));
 const HousesPage = lazy(() => import('./HousesPage.jsx'));
 const CardsGamePage = lazy(() => import('./CardsGamePage.jsx'));
 const CardsDisabledPage = lazy(() => import('./CardsDisabledPage.jsx'));
+const ForumDisabledPage = lazy(() => import('./ForumDisabledPage.jsx'));
+const FORUM_ON = isFeatureEnabled('forum'); // Fórum (desligado temporariamente — utils/features.js)
 const ClanPage = lazy(() => import('./ClanPage.jsx'));
 const TicketsPage = lazy(() => import('./TicketsPage.jsx'));
 // Wiki da comunidade (Fase 9 — Pingu).
@@ -536,11 +538,13 @@ export default function MainApp() {
                     salvo/aberto. */}
                 <Route path="/clans" element={<Navigate to="/dms" replace />} />
                 <Route path="/clans/mine" element={<ClanPage />} />
-                <Route path="/comunidades" element={<CommunitiesPage />} />
-                <Route path="/comunidades/:slug" element={<CommunityPage />} />
+                {/* Fórum desligado temporariamente: as mesmas rotas mostram "Em breve"
+                    (ForumDisabledPage) — páginas e dados continuam no projeto. */}
+                <Route path="/comunidades" element={FORUM_ON ? <CommunitiesPage /> : <ForumDisabledPage />} />
+                <Route path="/comunidades/:slug" element={FORUM_ON ? <CommunityPage /> : <ForumDisabledPage />} />
                 {/* Links bonitos: /forum/<titulo> (antigo /posts/<id>, que troca sozinho). */}
-                <Route path="/forum/:ref" element={<PostRoute Page={PostDetailPage} />} />
-                <Route path="/posts/:ref" element={<PostRoute legacy Page={PostDetailPage} />} />
+                <Route path="/forum/:ref" element={FORUM_ON ? <PostRoute Page={PostDetailPage} /> : <ForumDisabledPage />} />
+                <Route path="/posts/:ref" element={FORUM_ON ? <PostRoute legacy Page={PostDetailPage} /> : <ForumDisabledPage />} />
                 <Route path="/inicio" element={<InicioPage />} />
                 <Route path="/comunidade/eventos" element={<AnunciosEventosPage tab="eventos" />} />
                 {/* /evento/<titulo>: a página de Eventos já aberta nele (antigo /eventos/<id>). */}

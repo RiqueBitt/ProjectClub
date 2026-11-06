@@ -415,8 +415,11 @@ function createApp() {
   // Fusão com o Reddit clone (fase 1) — "/api/community" (singular) já é a
   // comunidade única existente da plataforma, por isso essas novas rotas
   // (comunidades tipo subreddit, dentro delas) usam nomes no plural.
-  app.use('/api/communities', communitiesRoutes);
-  app.use('/api/posts', postsRoutes);
+  // Fórum desativado temporariamente (config/features.js → forum): 503 em
+  // tudo, sem apagar nada. Religar = trocar o interruptor.
+  const forumGate = requireFeature('forum', { status: 503, message: require('./config/features').FORUM_OFF_MSG });
+  app.use('/api/communities', forumGate, communitiesRoutes);
+  app.use('/api/posts', forumGate, postsRoutes);
   app.use('/api/achievements', achievementsRoutes);
   app.use('/api/system', systemRoutes);
   // Atualizações do app Android (ver docs/android-updates.md).

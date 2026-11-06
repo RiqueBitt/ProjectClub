@@ -33,8 +33,8 @@ const GROUP_LIMIT = 6;
 const PAGES = [
   { path: '/inicio', label: 'Início', keywords: 'home novidades destaques' },
   { path: '/', label: 'Comunidade', keywords: 'chat canais servidor' },
-  { path: '/comunidades', label: 'Fórum', keywords: 'forum fórum feed feeds posts temas' },
-  { path: '/dms', label: 'Social', keywords: 'amigos mensagens clubes dm' },
+  ...(isFeatureEnabled('forum') ? [{ path: '/comunidades', label: 'Fórum', keywords: 'forum fórum feed feeds posts temas' }] : []),
+  { path: '/dms', label: 'Amigos', keywords: 'amigos social mensagens clubes dm' },
   { path: '/jogos', label: 'Apps', keywords: 'jogos aplicativos' },
   { path: '/jogos/mods', label: 'Mods', keywords: 'modpacks jogos instalar' },
   { path: '/progresso', label: 'Progresso', keywords: 'ranks conquistas recompensas nível xp' },

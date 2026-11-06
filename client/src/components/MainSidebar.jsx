@@ -49,7 +49,8 @@ export const ITEMS = [
   { to: '/', icon: topicIcon, isImg: true, labelKey: 'nav.comunidade', match: (p) => p === '/' || isChannelPath(p) },
   // Item pedido: "mude o feed para cima e o amigos para baixo" — ordem
   // invertida (Feeds vem antes de Amigos agora).
-  { to: '/comunidades', icon: feedIcon, isImg: true, labelKey: 'nav.feeds', match: (p) => p === '/comunidades' || isPostPath(p) },
+  // Fórum desligado temporariamente (utils/features.js → forum): some daqui.
+  { to: '/comunidades', icon: feedIcon, isImg: true, labelKey: 'nav.feeds', feature: 'forum', match: (p) => p === '/comunidades' || isPostPath(p) },
   // (removido do menu a pedido do dono — rota continua existindo)
   { to: '/dms', icon: friendsIcon, isImg: true, labelKey: 'nav.amigos', match: (p) => p === '/dms' || isDmPath(p) || p.startsWith('/clans') },
   // Praça (Club Penguin): virou o botão "Club Penguin" junto de Novidades e
@@ -80,7 +81,8 @@ export const ITEMS = [
   // "economia" em Admin → Sistemas (admin sempre vê).
   { to: '/economia', icon: ECONOMY_NAV_ICON, isImg: true, labelKey: 'nav.economia', system: 'economia', match: (p) => p.startsWith('/economia') || p.startsWith('/missoes') || p.startsWith('/loja') || p.startsWith('/sorteio') },
   { to: '/progresso', icon: ranksIcon, isImg: true, labelKey: 'nav.progresso', match: (p) => p.startsWith('/progresso') || p.startsWith('/rank') || p.startsWith('/conquistas') },
-  { to: '/tickets', icon: supportIcon, isImg: true, labelKey: 'nav.suporte', match: (p) => p.startsWith('/tickets') },
+  // Suporte: botão na barra superior, ao lado de Configurações (TopSearchBar.jsx).
+  { to: '/tickets', icon: supportIcon, isImg: true, labelKey: 'nav.suporte', titleBarOnly: true, match: (p) => p.startsWith('/tickets') },
   // Navegador do Project Club: app para computador, app do celular e site.
   // titleBarOnly: abre pelo globo da barra de título (app de Windows/Linux), não pelos menus.
   { to: '/navegador', icon: BROWSER_NAV_ICON, isImg: true, labelKey: 'nav.navegador', label: 'Navegador', feature: 'browser', titleBarOnly: true, match: (p) => p.startsWith('/navegador') },
@@ -262,12 +264,13 @@ export default function MainSidebar() {
             {sortedClubs.length === 0 && (
               <div className="dim main-sidebar-community-empty">Nenhum Tema criado ainda.</div>
             )}
-            {isStaff && (
+            {isStaff && isFeatureEnabled('forum') && (
               <button className="main-sidebar-community-item main-sidebar-community-create" onClick={() => navigate('/comunidades')}>
                 <span className="main-sidebar-community-icon">➕</span>
                 <span className="main-sidebar-community-name">Criar Tema</span>
               </button>
-            )}          </div>
+            )}
+          </div>
         </div>
       </div>
       {tooltip && createPortal(

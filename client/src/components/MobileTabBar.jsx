@@ -18,7 +18,7 @@ const PATHS = {
 const ITEMS = [
   { to: '/inicio', label: 'Início', icon: 'home', match: (p) => p === '/inicio' },
   { to: '/', label: 'Comunidade', icon: 'chat', match: (p) => p === '/' },
-  { to: '/dms', label: 'Social', icon: 'friends', match: (p) => p === '/dms' || p.startsWith('/clans') },
+  { to: '/dms', label: 'Amigos', icon: 'friends', match: (p) => p === '/dms' || p.startsWith('/clans') },
   { to: '/economia', label: 'Economia', icon: 'coin', system: 'economia', match: (p) => p.startsWith('/economia') || p.startsWith('/missoes') || p === '/loja' },
   { to: '/notifications', label: 'Avisos', icon: 'bell', match: (p) => p === '/notifications' },
 ];

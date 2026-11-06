@@ -51,7 +51,7 @@ export default function AmigosPage() {
     <div className="social">
       <header className="social-hero">
         <div>
-          <h1>Social</h1>
+          <h1>Amigos</h1>
           <p>
             {accepted.length} amigo{accepted.length === 1 ? '' : 's'}
             {' · '}
