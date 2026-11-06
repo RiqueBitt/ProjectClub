@@ -824,4 +824,35 @@ function tickPresence() {
   }
 }
 
-module.exports = { getWaddle, mountHttp, attachUpgrade, getConfig, getStatus, ensurePenguin, cachedRouter, streamPack, listPacks, packUrls, streamNamedPack, getStore, setIo, onRoomChange, roomPlayers, roomOfUser };
+// ---------------------------------------------------------------------------
+// Modo offline do app de computador
+//
+// O app de PC guarda, num arquivo local, uma cópia do pinguim da conta (todos
+// os itens por id, roupas vestidas, iglu, puffles, carimbos e o saldo de
+// moedas do Project Club). A página da Praça pede isto ao entrar no jogo e a
+// cada 5 minutos; sem internet ou sem o servidor, o Club Penguin embutido no
+// app abre com esse pinguim (ver desktop/pracaOffline.js). É só uma cópia de
+// SAÍDA: nada do que acontece offline volta pro servidor (o arquivo fica no
+// computador da pessoa — se voltasse, viraria uma fonte de moedas).
+async function getOfflineSnapshot(user) {
+  const w = await getWaddle();
+  const { id, json } = await ensurePenguin(user);
+  // saldo mais recente (moeda única) antes de copiar
+  await store.refreshCoins(id, { force: true }).catch(() => {});
+  const fresh = (await store.get(id)) || json;
+  const s = w.settings;
+  return {
+    format: 'projectclub-praca-offline',
+    version: 1,
+    savedAt: new Date().toISOString(),
+    user: { id: user.id, username: user.username, displayName: user.displayName || user.username },
+    penguin: { id, data: fresh },
+    game: {
+      version: s.settings.version,
+      calendarYear: s.calendarYear || Number(process.env.WADDLE_CALENDAR_YEAR) || 2012,
+      alwaysMember: !!s.settings.always_member,
+    },
+  };
+}
+
+module.exports = { getWaddle, mountHttp, attachUpgrade, getConfig, getStatus, getOfflineSnapshot, ensurePenguin, cachedRouter, streamPack, listPacks, packUrls, streamNamedPack, getStore, setIo, onRoomChange, roomPlayers, roomOfUser };

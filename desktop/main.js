@@ -67,13 +67,26 @@ const APP_URL = (() => {
   if (!env || /squareweb\.app|squarecloud/i.test(env)) return DEFAULT_APP_URL;
   return env;
 })();
-security.configure({ appUrl: APP_URL });
+// Modo offline (offlineShell.js): a tela de sem conexão é servida em
+// pcapp://offline — origem confiável pros mesmos handlers de IPC do site.
+const offlineShellMod = require('./offlineShell');
+offlineShellMod.registerScheme();
+security.configure({ appUrl: APP_URL, trustedLocalOrigins: [offlineShellMod.pageUrl('')] });
 const { isAppUrl } = security;
+// O que fica em disco pro modo offline (conta, cópia do pinguim, VPNs usadas).
+const offlineStore = require('./offlineStore').createOfflineStore(app.getPath('userData'));
+// Club Penguin no próprio computador (processo filho; ver pracaOffline.js).
+const pracaOffline = require('./pracaOffline').createPracaOffline({ store: offlineStore });
+const offlineShell = offlineShellMod.createOfflineShell({
+  store: offlineStore, praca: pracaOffline, projectMcManager, browserEngine, vpnManager, secureHandle,
+  browserEnabled: true,
+});
 // Sem conexão: tela própria e separada do Project Club ("Project Club ·
 // Conexão" — connectionWindow.js), aberta só depois de confirmar que a
-// internet ou o servidor estão mesmo fora.
+// internet ou o servidor estão mesmo fora. Hoje ela é a tela offline.
 const connectionGuard = require('./connectionWindow').createConnectionGuard({
   appUrl: APP_URL, isAppUrl, icon: path.join(__dirname, 'build', process.platform === 'win32' ? 'icon.ico' : 'tray.png'),
+  shell: offlineShell,
 });
 // Mostra o app: a janela do Project Club, ou a de conexão se o servidor estiver fora.
 function showApp() {
@@ -959,8 +972,11 @@ if (!gotLock) {
     });
     hardenYouTubeWebview(mainWindow.webContents);
     if (BROWSER_ENABLED) browserEngine().init(mainWindow);
-    // VPN (botão ao lado do globo) — ver vpnManager.js.
+    // VPN (botão ao lado do globo) — ver vpnManager.js. As configurações
+    // usadas ficam guardadas pra tela offline reconectar sem o servidor.
+    vpnManager().configure({ onConnect: (server, configText) => { try { offlineStore.rememberVpn(server, configText); } catch { /* ok */ } } });
     vpnManager().init(mainWindow, secureHandle);
+    offlineShell.setMainWindow(mainWindow);
 
     // Aberto por um link projectclub:// → já começa na página certa.
     const startRoute = pendingDeepLinkRoute;
@@ -1953,6 +1969,14 @@ if (!gotLock) {
   app.whenReady().then(() => {
     setupScreenShareHandler();
     setupDownloadHandler();
+    // Tela offline (pcapp://offline/*) e o que o site entrega pra ela.
+    offlineShellMod.serveScheme();
+    secureHandle('offline:set-account', (_event, account) => offlineStore.setAccount(account));
+    secureHandle('offline:save-praca', (_event, snapshot) => offlineStore.savePraca(snapshot));
+    secureHandle('offline:get-state', () => {
+      const account = offlineStore.getAccount();
+      return { account, praca: account ? offlineStore.pracaSummary(account.id) : null, available: pracaOffline.available() };
+    });
     // BUG CORRIGIDO — CAUSA RAIZ CONFIRMADA de "no PC eu falo e não sai
     // áudio nenhum, mas eu escuto todo mundo": faltava isto aqui. Um
     // comentário antigo (removido) dizia que `sandbox: false` resolvia a
@@ -2061,5 +2085,5 @@ if (!gotLock) {
   });
 
   app.on('before-quit', () => { isQuitting = true; });
-  app.on('will-quit', () => { if (clipsInstance) clipsInstance.shutdown(); screenAudio.stop(); globalPtt.stop(); globalShortcut.unregisterAll(); if (activityDetectionRunning) activityDetector().stopActivityDetection(); });
+  app.on('will-quit', () => { pracaOffline.dispose().catch(() => {}); if (clipsInstance) clipsInstance.shutdown(); screenAudio.stop(); globalPtt.stop(); globalShortcut.unregisterAll(); if (activityDetectionRunning) activityDetector().stopActivityDetection(); });
 }

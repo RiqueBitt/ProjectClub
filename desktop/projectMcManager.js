@@ -732,7 +732,15 @@ async function ensureModule(id) {
 
 const withModule = (fn) => async (id, ...rest) => { await ensureModule(id); return fn(id, ...rest); };
 
+// Todos os apps conhecidos (catálogo fixo + os já vistos pelo servidor), com
+// o estado local — pra tela offline listar e abrir os instalados sem internet.
+function listStatuses() {
+  loadRemoteModules();
+  return Object.keys(MODULES).map((id) => { try { return getStatus(id); } catch { return null; } }).filter(Boolean);
+}
+
 module.exports = {
+  listStatuses,
   getStatus: withModule(getStatus),
   checkForUpdate: withModule(checkForUpdate),
   installOrUpdate: withModule(installOrUpdate),

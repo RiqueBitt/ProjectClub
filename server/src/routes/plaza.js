@@ -16,6 +16,16 @@ router.get('/config', requireAuth, async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
+// Cópia do pinguim pro modo offline do app de computador (itens por id,
+// saldo, iglu, puffles…). O app salva isto em arquivo e usa quando está sem
+// internet ou sem o servidor. Só saída: nunca volta pro banco.
+router.get('/offline-snapshot', requireAuth, async (req, res, next) => {
+  try {
+    res.set('Cache-Control', 'no-store');
+    res.json(await waddle.getOfflineSnapshot(req.user));
+  } catch (err) { next(err); }
+});
+
 // Pacote de instalação (jogo completo / evento) num fluxo único.
 router.get('/pack/:kind(base|event)', requireAuth, async (req, res, next) => {
   try { await waddle.streamPack(req.params.kind, res); } catch (err) { next(err); }

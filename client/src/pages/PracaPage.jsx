@@ -14,6 +14,7 @@ import DownloadCenter from '../praca/DownloadCenter.jsx';
 import Jukebox from '../praca/Jukebox.jsx';
 import '../styles/praca.css';
 import { useAdaptiveQuality } from '../praca/adaptiveQuality.js';
+import { startOfflineSync } from '../praca/offlineSync.js';
 
 // Praça = Club Penguin completo, rodando em cima do Waddle Forever embutido no
 // servidor (server/waddle, MIT). O jogo original é Flash; aqui ele roda no
@@ -547,6 +548,17 @@ export default function PracaPage({ embedded = false, background = false, onClos
     window.pracaOpenDownloads = () => { setTimeout(() => setDlOpen(true), 0); return true; };
     return () => { delete window.pracaOpenDownloads; };
   }, [background]);
+
+  // Modo offline do app de computador: ao entrar na ilha e a cada 5 minutos,
+  // uma cópia do pinguim (itens por id, saldo…) vai pro app de PC, que guarda
+  // em arquivo pra abrir o Club Penguin sem internet (praca/offlineSync.js).
+  // No navegador comum não faz nada.
+  const phaseRef = useRef(phase);
+  phaseRef.current = phase;
+  useEffect(() => {
+    if (!inWorld) return undefined;
+    return startOfflineSync({ active: () => phaseRef.current === 'playing' });
+  }, [inWorld]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // quem está online (a cada 30 s)
   useEffect(() => {

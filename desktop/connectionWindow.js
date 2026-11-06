@@ -1,6 +1,11 @@
 // "Project Club · Conexão" — tela de sem conexão do app de computador,
-// separada do Project Club: janela própria, pequena, com página local
-// (desktop/conexao/index.html) e preload próprio. Não carrega nada do site.
+// separada do Project Club: janela própria com página local (a tela offline,
+// desktop/offline/index.html, servida em pcapp://offline) e preload próprio.
+// Não carrega nada do site.
+//
+// Modo offline: a mesma janela é uma tela de verdade (ver offlineShell.js) —
+// Apps, Navegador, VPN e a Praça (Club Penguin no próprio computador) —
+// por isso ela é grande e redimensionável, e os webviews são permitidos.
 //
 // Antes, quando a página falhava, o app trocava a janela inteira do Project
 // Club por uma cópia do navegador embutida no instalador — sem conferir se
@@ -17,7 +22,7 @@ const { BrowserWindow, ipcMain, net } = require('electron');
 const CHECK_EVERY_MS = 5000;
 const SILENT_RELOADS_PER_MINUTE = 2;
 
-function createConnectionGuard({ appUrl, isAppUrl, icon }) {
+function createConnectionGuard({ appUrl, isAppUrl, icon, shell = null }) {
   let mainWindow = null;
   let connWindow = null;
   let active = false; // tela de conexão aberta (servidor fora)
@@ -61,29 +66,37 @@ function createConnectionGuard({ appUrl, isAppUrl, icon }) {
     const s = await status();
     checking = false;
     if (!active) return;
-    if (s.server) { restore(); return; }
+    if (s.server) {
+      // Com a Praça offline aberta, não puxa o tapete: avisa e espera a pessoa.
+      if (shell && typeof shell.holdRestore === 'function' && shell.holdRestore()) { send({ checking: false, network: true, serverBack: true, reason: lastReason }); return; }
+      restore(); return;
+    }
     send({ checking: false, network: s.network, reason: lastReason });
   }
 
   function openWindow() {
     if (connWindow && !connWindow.isDestroyed()) { connWindow.show(); connWindow.focus(); return; }
     const bounds = mainWindow && !mainWindow.isDestroyed() ? mainWindow.getBounds() : null;
-    const width = 440; const height = 440;
+    // Tamanho da janela do Project Club (a tela offline substitui ela).
+    const width = Math.max(960, bounds ? bounds.width : 1180); const height = Math.max(640, bounds ? bounds.height : 760);
     connWindow = new BrowserWindow({
-      width, height, resizable: false, maximizable: false, fullscreenable: false,
+      width, height, minWidth: 820, minHeight: 560, resizable: true, maximizable: true, fullscreenable: false,
       frame: false, show: false, backgroundColor: '#111318', title: 'Project Club · Conexão',
       icon,
       ...(bounds ? { x: Math.round(bounds.x + (bounds.width - width) / 2), y: Math.round(bounds.y + (bounds.height - height) / 2) } : {}),
       webPreferences: {
-        preload: path.join(__dirname, 'conexaoPreload.js'),
-        contextIsolation: true, sandbox: true, nodeIntegration: false, webviewTag: false,
+        preload: path.join(__dirname, 'offlinePreload.js'),
+        contextIsolation: true, sandbox: true, nodeIntegration: false, webviewTag: true,
       },
     });
     connWindow.removeMenu?.();
-    // Página local e fixa: nada de navegar pra outro lugar ou abrir janelas.
+    // Página local e fixa: nada de navegar pra outro lugar ou abrir janelas
+    // (as abas do navegador e a Praça vivem em <webview>, não na janela).
     connWindow.webContents.on('will-navigate', (e) => e.preventDefault());
     connWindow.webContents.setWindowOpenHandler(() => ({ action: 'deny' }));
-    connWindow.loadFile(path.join(__dirname, 'conexao', 'index.html'));
+    if (shell) shell.attach(connWindow);
+    if (shell && typeof shell.pageUrl === 'function') connWindow.loadURL(shell.pageUrl('index.html'));
+    else connWindow.loadFile(path.join(__dirname, 'offline', 'index.html'));
     connWindow.once('ready-to-show', () => { if (mainWasVisible && connWindow && !connWindow.isDestroyed()) connWindow.show(); });
     connWindow.on('closed', () => { connWindow = null; });
   }
@@ -151,7 +164,9 @@ function createConnectionGuard({ appUrl, isAppUrl, icon }) {
     await tick();
     return { reason: lastReason };
   });
+  ipcMain.on('conexao:restore', (event) => { if (fromConn(event) && active) restore(); });
   ipcMain.on('conexao:minimize', (event) => { if (fromConn(event)) connWindow.minimize(); });
+  ipcMain.on('conexao:maximize', (event) => { if (fromConn(event)) { if (connWindow.isMaximized?.()) connWindow.unmaximize(); else connWindow.maximize?.(); } });
   // Fechar não encerra o app: some pra bandeja e continua testando.
   ipcMain.on('conexao:hide', (event) => { if (fromConn(event)) { mainWasVisible = false; connWindow.hide(); } });
 

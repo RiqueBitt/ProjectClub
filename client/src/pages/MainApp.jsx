@@ -156,6 +156,13 @@ const LojaCriadoresPage = lazy(() => import('./LojaCriadoresPage.jsx'));
 // que deve ter somente os 7 itens pedidos.
 export default function MainApp() {
   const { user } = useAuth();
+  // Modo offline do app de computador: o app guarda quem está logado pra
+  // abrir a tela offline já com a conta (nome, @, avatar). Sem o app, nada.
+  useEffect(() => {
+    const b = window.electronAPI?.offline;
+    if (!user?.id || typeof b?.setAccount !== 'function') return;
+    b.setAccount({ id: user.id, username: user.username, displayName: user.displayName || user.username, avatarUrl: user.avatarUrl || null }).catch?.(() => {});
+  }, [user?.id, user?.username, user?.displayName, user?.avatarUrl]);
   // Tempo real: re-sincroniza comunidade/conta/conversas/amigos a cada 11s.
   useGlobalLiveRefresh();
   // Gestos do celular: gaveta de canais e segurar mensagem (ver useMobileGestures.js).

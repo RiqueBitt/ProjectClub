@@ -316,6 +316,8 @@ async function connect(configText, server) {
     if (routes) sanitized = { ...sanitized, config: `${sanitized.config.replace(/\s*$/, '')}\n# Project Club fora da VPN (túnel dividido)\n${routes}\n` };
   } catch { /* sem as rotas extras a VPN funciona igual */ }
   userStopped = false;
+  // modo offline: guarda a configuração usada (reconectar sem o servidor)
+  try { opts.onConnect?.(server, configText); } catch { /* ok */ }
   const firstTime = process.platform === 'win32' && windowsNeedsInstall();
   setState({
     status: 'connecting', error: null, ip: null, since: null, bytesIn: 0, bytesOut: 0, firstTime,
