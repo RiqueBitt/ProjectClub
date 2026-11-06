@@ -1,0 +1,3 @@
+celular › abrir trava deitado; Sair destrava e volta pra lista (portrait)
+celular › abrir trava deitado; Sair destrava e volta pra lista (landscape)
+celular › voltar do Android/navegador também sai do jogo e destrava
