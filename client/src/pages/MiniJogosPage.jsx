@@ -434,7 +434,10 @@ export default function MiniJogosPage() {
   const navigate = useNavigate();
   // Os mini-jogos do Club Penguin abrem DENTRO do jogo (Praça); aqui só fica
   // o player dos que não existem lá.
-  const inPraca = (g) => !!g?.cp && isFeatureEnabled('plaza');
+  // `?local=1` abre o jogo no player antigo mesmo assim (testes de tela e
+  // quem não consegue carregar a ilha).
+  const forceLocal = params.get('local') === '1';
+  const inPraca = (g) => !!g?.cp && isFeatureEnabled('plaza') && !forceLocal;
   const asked = findMinijogo(params.get('jogo'));
   const current = inPraca(asked) ? null : asked;
   useEffect(() => {
@@ -446,7 +449,7 @@ export default function MiniJogosPage() {
   const openedHere = useRef(false);
   const openGame = (slug) => {
     if (inPraca(findMinijogo(slug))) { navigate(pracaGameUrl(slug)); return; }
-    openedHere.current = true; setParams({ jogo: slug });
+    openedHere.current = true; setParams(forceLocal ? { jogo: slug, local: '1' } : { jogo: slug });
   };
   const closeGame = useCallback(() => {
     if (openedHere.current) { openedHere.current = false; navigate(-1); return; }

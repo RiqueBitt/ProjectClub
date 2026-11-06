@@ -74,8 +74,11 @@ async function installRecorder(frame) {
 const readLog = (frame) => frame.evaluate(() => window.__pcLog.slice());
 const clearLog = (frame) => frame.evaluate(() => { window.__pcLog.length = 0; });
 
+// Os mini-jogos do Club Penguin abrem dentro da Praça (MiniJogosPage manda
+// pra /praca?jogo=…); `local=1` força o player antigo, que é o que estes
+// testes de controle na tela cobrem.
 async function openGame(page, slug) {
-  await page.goto(`/minijogos?jogo=${slug}`);
+  await page.goto(`/minijogos?jogo=${slug}&local=1`);
   await expect(page.locator('.mj-player')).toBeVisible({ timeout: 30_000 });
   await expect(page.locator('.mj-player-loading')).toHaveCount(0, { timeout: 45_000 });
 }
@@ -88,6 +91,13 @@ async function centerOf(locator) {
   const b = await locator.boundingBox();
   return { x: b.x + b.width / 2, y: b.y + b.height / 2, w: b.width, h: b.height };
 }
+
+test.describe('mini-jogos do Club Penguin abrem na Praça', () => {
+  test('sem local=1, /minijogos?jogo=beancounters vai pra /praca?jogo=beancounters', async ({ page }) => {
+    await page.goto('/minijogos?jogo=beancounters');
+    await expect(page).toHaveURL(/\/praca\?jogo=beancounters/, { timeout: 15_000 });
+  });
+});
 
 test.describe('celular (Pixel 7)', () => {
   test.skip(({ isMobile }) => !isMobile, 'só no celular');
