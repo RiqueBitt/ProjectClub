@@ -637,6 +637,7 @@ export default function PracaPage({ embedded = false, background = false, onClos
             <h1>Club Penguin</h1>
             <span className="praca-sub">
               {cfg ? <>Você é <strong>{cfg.penguin.name}</strong>{cfg.penguin.member ? ' · membro' : ''}</> : 'A Praça do Project Club'}
+              {' · '}<a className="praca-credit" href="https://archives.clubpenguinwiki.info/wiki/Main_Page" target="_blank" rel="noreferrer" title="Arquivos do jogo preservados pela Club Penguin Archives">arquivos: CP Archives</a>
             </span>
           </div>
         </div>

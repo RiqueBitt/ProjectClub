@@ -182,10 +182,17 @@ function apply(force = false) {
     next = null;
   }
   active = next;
+  // arquivos da Club Penguin Archives ligados pela staff (assets.js) ficam
+  // por cima de tudo — com ou sem festa
+  let extra = { rooms: {}, routes: {}, musicFiles: {}, any: false };
+  try { extra = require('./assets').overlay(); } catch { /* sem assets */ }
   if (next) {
     const m = merged(next.slugs);
-    w.gameData.setPartyOverlay(m.name, m.rooms, m.music, m.musicFiles, m.routes);
-    console.log(`[festas] na ilha: ${next.slugs.map((s) => bySlug.get(s).name).join(' + ')} (${next.source === 'staff' ? 'ligada pela staff' : 'rodízio'})`);
+    w.gameData.setPartyOverlay(m.name, { ...m.rooms, ...extra.rooms }, m.music, { ...m.musicFiles, ...extra.musicFiles }, { ...m.routes, ...extra.routes });
+    console.log(`[festas] na ilha: ${next.slugs.map((s) => bySlug.get(s).name).join(' + ')} (${next.source === 'staff' ? 'ligada pela staff' : 'rodízio'})${extra.any ? ' + arquivos da Archives' : ''}`);
+  } else if (extra.any) {
+    w.gameData.setPartyOverlay('Arquivos da Archives', extra.rooms, {}, extra.musicFiles, extra.routes);
+    if (prev || force) console.log('[festas] só arquivos da Archives por cima da ilha');
   } else {
     w.gameData.setPartyOverlay(null);
     if (prev) console.log('[festas] camada de festa desligada');
@@ -386,4 +393,4 @@ function downloadEntries(slug) {
 /** Testes: troca a checagem de arquivo no disco. */
 function _setFileCheck(fn) { fileExists = fn; }
 
-module.exports = { attach, list, status, setManual, labelOf, rotationYear, wanted, covers, merged, downloadEntries, _data: DATA, _setFileCheck };
+module.exports = { attach, apply, list, status, setManual, labelOf, rotationYear, wanted, covers, merged, downloadEntries, _data: DATA, _setFileCheck };

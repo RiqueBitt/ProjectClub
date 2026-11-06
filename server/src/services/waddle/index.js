@@ -126,6 +126,8 @@ async function boot() {
   }, 4000).unref?.();
   // festas de 2013-2017 (rodízio de anos + festas ligadas pela staff)
   try { require('./parties').attach(w); } catch (err) { console.warn('[festas] não iniciou:', err?.message || err); }
+  // arquivos da Club Penguin Archives ligados pela staff (assets.js) — por cima da festa
+  require('./assets').reload().then((n) => { if (n) console.log(`[praça] ${n} arquivo(s) da Archives na ilha`); }).catch(() => {});
   // Eventos da Praça: quests, moeda de evento, códigos, mascotes… (events.js)
   try { require('./events').attach(w, { store, waddle: module.exports, admin: require('./admin') }); } catch (err) { console.warn('[eventos] não iniciou:', err?.message || err); }
   // mensagens da EPF no telefone espião (escritas pela staff)

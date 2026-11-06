@@ -4713,6 +4713,7 @@ model PlazaEventPurchase {
   eventId   String
   shopKey   String     @db.VarChar(60)
   price     Int
+  qty       Int        @default(1) // compras repetidas do mesmo item (limite por item)
   createdAt DateTime   @default(now())
   event     PlazaEvent @relation(fields: [eventId], references: [id], onDelete: Cascade)
 
@@ -4769,6 +4770,7 @@ model PlazaMascotVisit {
   coins            Int      @default(0)
   eventCoins       Int      @default(0)
   note             String   @default("") @db.VarChar(200)
+  surprise         Boolean  @default(false) // visita surpresa: só aparece na agenda quando começa
   createdAt        DateTime @default(now())
   meets            PlazaMascotMeet[]
 
@@ -4793,4 +4795,112 @@ model PlazaAdventClaim {
   createdAt DateTime @default(now())
 
   @@unique([userId, year, day])
+}
+
+// Concursos da Praça (iglu, arte pro Mural, fantasia…): quem participa manda
+// uma imagem; a comunidade vota; a staff escolhe os vencedores e o prêmio
+// (itens originais do jogo + moedas) é entregue na hora.
+model PlazaContest {
+  id           String   @id @default(uuid())
+  kind         String   @default("igloo") @db.VarChar(20) // igloo | arte | fantasia | outro
+  title        String   @db.VarChar(100)
+  description  String   @default("") @db.VarChar(500)
+  theme        String   @default("") @db.VarChar(120)
+  startsAt     DateTime
+  endsAt       DateTime // fim das inscrições
+  votingEndsAt DateTime
+  prizeItems   String   @default("[]") @db.Text // JSON [itemId]
+  prizeCoins   Int      @default(0)
+  maxWinners   Int      @default(3)
+  active       Boolean  @default(true)
+  createdAt    DateTime @default(now())
+  entries      PlazaContestEntry[]
+  votes        PlazaContestVote[]
+
+  @@index([active, startsAt, votingEndsAt])
+}
+
+model PlazaContestEntry {
+  id        String       @id @default(uuid())
+  contestId String
+  userId    String
+  imageUrl  String       @db.VarChar(500)
+  caption   String       @default("") @db.VarChar(200)
+  votes     Int          @default(0)
+  winner    Boolean      @default(false)
+  hidden    Boolean      @default(false) // escondida pela staff
+  createdAt DateTime     @default(now())
+  contest   PlazaContest @relation(fields: [contestId], references: [id], onDelete: Cascade)
+  ballots   PlazaContestVote[]
+
+  @@unique([contestId, userId])
+  @@index([contestId, votes])
+}
+
+model PlazaContestVote {
+  id        String            @id @default(uuid())
+  contestId String
+  entryId   String
+  userId    String
+  createdAt DateTime          @default(now())
+  contest   PlazaContest      @relation(fields: [contestId], references: [id], onDelete: Cascade)
+  entry     PlazaContestEntry @relation(fields: [entryId], references: [id], onDelete: Cascade)
+
+  @@unique([contestId, userId])
+}
+
+// Jigsaw Jam (modelo do CP Journey): quebra-cabeças com artes da comunidade.
+model PlazaPuzzle {
+  id        String   @id @default(uuid())
+  title     String   @db.VarChar(80)
+  imageUrl  String   @db.VarChar(500)
+  authorId  String?
+  approved  Boolean  @default(false)
+  active    Boolean  @default(true)
+  solves    Int      @default(0)
+  createdAt DateTime @default(now())
+  solved    PlazaPuzzleSolve[]
+
+  @@index([approved, active])
+}
+
+model PlazaPuzzleSolve {
+  id        String      @id @default(uuid())
+  puzzleId  String
+  userId    String
+  mode      String      @db.VarChar(10) // facil | dificil
+  seconds   Int         @default(0)
+  createdAt DateTime    @default(now())
+  puzzle    PlazaPuzzle @relation(fields: [puzzleId], references: [id], onDelete: Cascade)
+
+  @@unique([puzzleId, userId, mode])
+  @@index([userId])
+}
+
+model PlazaPuzzleCompletion {
+  userId    String   @id
+  createdAt DateTime @default(now())
+}
+
+// Configurações soltas da Praça (ex.: prêmios do Jigsaw Jam) — JSON por chave.
+model PlazaSetting {
+  key       String   @id @db.VarChar(40)
+  value     String   @db.Text
+  updatedAt DateTime @updatedAt
+}
+
+// Arquivos vindos da Club Penguin Archives (archives.clubpenguinwiki.info)
+// ligados na ilha por cima da festa atual: salas (chave da sala → SWF) ou
+// qualquer rota do jogo (play/v2/content/…). Baixados pela staff no painel.
+model PlazaAsset {
+  id        String   @id @default(uuid())
+  kind      String   @db.VarChar(10) // room | route | music
+  target    String   @db.VarChar(200) // chave da sala, rota do jogo ou id da música
+  file      String   @db.VarChar(200) // caminho relativo em media/pcarchives
+  label     String   @default("") @db.VarChar(120)
+  source    String   @default("") @db.VarChar(500)
+  enabled   Boolean  @default(true)
+  createdAt DateTime @default(now())
+
+  @@index([enabled])
 }

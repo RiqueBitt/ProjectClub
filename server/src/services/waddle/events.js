@@ -56,16 +56,38 @@ function roomInfo(id) {
 }
 const ids = (arr) => (Array.isArray(arr) ? arr.map(Number).filter((n) => Number.isInteger(n) && n > 0) : []);
 
-function parseConfig(ev) {
+function parseConfig(ev, now = new Date()) {
   let c = {};
   try { c = JSON.parse(ev.config || '{}') || {}; } catch { c = {}; }
+  const quests = Array.isArray(c.quests) ? c.quests.filter((q) => q && q.key && q.type) : [];
+  // Rodízio (ex.: "pin da semana", modelo dos CPPS): a cada N dias entra a
+  // próxima quest da lista, com chave própria por ciclo (quem pegou o pin da
+  // semana 1 pode pegar o da semana 2).
+  let rotation = null;
+  if (c.rotation && Array.isArray(c.rotation.quests) && c.rotation.quests.length) {
+    const everyDays = Math.max(1, num(c.rotation.everyDays) || 7);
+    const list = c.rotation.quests.filter((q) => q && q.key && q.type);
+    if (list.length) {
+      const start = new Date(ev.startsAt).getTime();
+      const cycle = Math.max(0, Math.floor((now.getTime() - start) / (everyDays * 86400000)));
+      const cur = list[cycle % list.length];
+      const endsAt = new Date(start + (cycle + 1) * everyDays * 86400000);
+      rotation = { everyDays, cycle, endsAt, label: String(c.rotation.label || 'Da semana'), quests: list };
+      quests.push({ ...cur, key: `${cur.key}-r${cycle}`, rotated: true, rotationEndsAt: endsAt });
+    }
+  }
   return {
-    quests: Array.isArray(c.quests) ? c.quests.filter((q) => q && q.key && q.type) : [],
+    quests,
+    rotation,
     shop: Array.isArray(c.shop) ? c.shop.filter((s) => s && s.key) : [],
+    shopMax: Math.max(0, num(c.shopMax)), // 0 = sem limite de itens diferentes por pinguim
     advent: Array.isArray(c.advent) ? c.advent.filter((a) => a && a.day >= 1 && a.day <= 25) : [],
     cfc: c.cfc && typeof c.cfc === 'object' ? { goals: Array.isArray(c.cfc.goals) ? c.cfc.goals.filter((g) => g && num(g.amount) > 0) : [] } : null,
     // prêmio por completar TODAS as quests (modelo das Island Quests do CP Legacy)
     completion: c.completion && typeof c.completion === 'object' ? { coins: num(c.completion.coins), eventCoins: num(c.completion.eventCoins), items: ids(c.completion.items), label: String(c.completion.label || '') } : null,
+    // Party Pass (modelo do CP Legacy): pontos por quest concluída (os da
+    // dificuldade) desbloqueiam níveis com prêmio.
+    pass: c.pass && Array.isArray(c.pass.levels) && c.pass.levels.length ? { levels: c.pass.levels.filter((l) => l && num(l.points) > 0).sort((a, b) => num(a.points) - num(b.points)) } : null,
   };
 }
 
@@ -341,13 +363,68 @@ function questReward(q) {
   return { coins, eventCoins: num(r.eventCoins), items: ids(r.items) };
 }
 
+/** Quests fixas do evento (sem as do rodízio) — pro prêmio final e pro passe. */
+const baseQuests = (ev) => ev.cfg.quests.filter((q) => !q.rotated);
+
+/** Pontos do quest pro Party Pass: os da dificuldade (ou `points` da quest). */
+function questPoints(q) {
+  if (q.points !== undefined && q.points !== null && q.points !== '') return Math.max(0, num(q.points));
+  return DIFFICULTY[DIFF_KEYS.includes(q.difficulty) ? q.difficulty : 'facil'];
+}
+
+/** Trivia (modelo dos TourBots do CP Journey): responder a pergunta — na sala do bot, se a quest pedir. */
+async function answerTrivia(userId, slug, key, answerRaw) {
+  const ev = (await activeEvents()).find((e) => e.slug === slug);
+  if (!ev) throw new Error('Esse evento não está rolando.');
+  const q = ev.cfg.quests.find((x) => x.key === key && x.type === 'trivia');
+  if (!q) throw new Error('Pergunta desconhecida.');
+  const cur = (await getProgress(userId, ev.id, key)) || { progress: 0, done: false, data: null };
+  if (cur.done) throw new Error('Você já respondeu essa.');
+  const rooms = ids(q.rooms);
+  if (rooms.length) {
+    const here = waddle.roomOfUser ? waddle.roomOfUser(userId) : null;
+    if (here === null || here === undefined || !rooms.includes(Number(here))) throw new Error(`Vá até ${rooms.map((r) => roomInfo(r).name).join(' ou ')} pra falar com o TourBot.`);
+  }
+  const answer = Number(answerRaw);
+  const options = Array.isArray(q.options) ? q.options : [];
+  if (!Number.isInteger(answer) || answer < 0 || answer >= options.length) throw new Error('Escolha uma resposta.');
+  const tries = num(cur.data?.tries) + 1;
+  const correct = answer === num(q.answer);
+  await setProgress(userId, ev.id, key, { progress: correct ? 1 : 0, done: correct, data: { tries, wrong: correct ? [] : [...new Set([...(Array.isArray(cur.data?.wrong) ? cur.data.wrong : []), answer])] } });
+  return { correct, tries };
+}
+
+/** Party Pass: pontos (quests concluídas) e níveis com prêmio. */
+async function passStatus(ev, userId, progress = null, bought = null) {
+  if (!ev.cfg.pass) return null;
+  const prog = progress || await loadProgress(userId, ev.id);
+  const points = baseQuests(ev).reduce((s, q) => s + (prog.get(q.key)?.done ? questPoints(q) : 0), 0);
+  const total = baseQuests(ev).reduce((s, q) => s + questPoints(q), 0);
+  const claimed = bought || new Set((await prisma.plazaEventPurchase.findMany({ where: { userId, eventId: ev.id, shopKey: { startsWith: 'pass:' } }, select: { shopKey: true } })).map((p) => p.shopKey));
+  return {
+    points, total,
+    levels: ev.cfg.pass.levels.map((l, i) => ({ index: i, points: num(l.points), label: l.label || `Nível ${i + 1}`, coins: num(l.coins), eventCoins: num(l.eventCoins), items: ids(l.items), reached: points >= num(l.points), claimed: claimed.has(`pass:${i}`) })),
+  };
+}
+
+async function claimPass(userId, slug, index) {
+  const ev = (await activeEvents()).find((e) => e.slug === slug);
+  if (!ev || !ev.cfg.pass) throw new Error('Esse evento não tem passe.');
+  const st = await passStatus(ev, userId);
+  const l = st.levels[Number(index)];
+  if (!l) throw new Error('Nível desconhecido.');
+  if (!l.reached) throw new Error(`Faltam ${l.points - st.points} pontos: complete mais quests.`);
+  try { await prisma.plazaEventPurchase.create({ data: { userId, eventId: ev.id, shopKey: `pass:${l.index}`, price: 0 } }); } catch { throw new Error('Você já pegou esse nível.'); }
+  return grant(userId, { coins: l.coins, eventCoins: l.eventCoins, items: l.items, eventId: ev.id });
+}
+
 /** Prêmio por completar todas as quests do evento (uma vez). */
 async function claimCompletion(userId, slug) {
   const ev = (await activeEvents()).find((e) => e.slug === slug);
   if (!ev) throw new Error('Esse evento não está rolando.');
   if (!ev.cfg.completion || !ev.cfg.quests.length) throw new Error('Esse evento não tem prêmio final.');
   const progress = await loadProgress(userId, ev.id);
-  const allDone = ev.cfg.quests.every((q) => progress.get(q.key)?.done);
+  const allDone = baseQuests(ev).every((q) => progress.get(q.key)?.done);
   if (!allDone) throw new Error('Complete todas as quests primeiro.');
   try { await prisma.plazaEventPurchase.create({ data: { userId, eventId: ev.id, shopKey: COMPLETION_KEY, price: 0 } }); } catch { throw new Error('Você já pegou o prêmio final.'); }
   const c = ev.cfg.completion;
@@ -360,13 +437,19 @@ async function buy(userId, slug, shopKey) {
   const s = ev.cfg.shop.find((x) => x.key === shopKey);
   if (!s) throw new Error('Esse item não está na loja.');
   const price = num(s.price);
+  const limit = Math.max(1, num(s.limit) || 1);
   const result = await prisma.$transaction(async (tx) => {
     const wallet = await tx.plazaEventWallet.findUnique({ where: { userId_eventId: { userId, eventId: ev.id } } });
     if (!wallet || wallet.balance < price) throw new Error(`Faltam ${ev.currencyName}: você tem ${wallet?.balance || 0} e custa ${price}.`);
     const already = await tx.plazaEventPurchase.findUnique({ where: { userId_eventId_shopKey: { userId, eventId: ev.id, shopKey } } });
-    if (already) throw new Error('Você já comprou isso.');
+    if (already && num(already.qty || 1) >= limit) throw new Error(limit > 1 ? `Você já comprou isso ${limit} vezes (o máximo).` : 'Você já comprou isso.');
+    if (!already && ev.cfg.shopMax) {
+      const distinct = (await tx.plazaEventPurchase.findMany({ where: { userId, eventId: ev.id }, select: { shopKey: true } })).filter((p) => !p.shopKey.includes(':') && !p.shopKey.startsWith('__')).length;
+      if (distinct >= ev.cfg.shopMax) throw new Error(`Nesta festa dá pra levar no máximo ${ev.cfg.shopMax} itens diferentes da loja.`);
+    }
     const next = wallet.balance - price;
-    await tx.plazaEventPurchase.create({ data: { userId, eventId: ev.id, shopKey, price } });
+    if (already) await tx.plazaEventPurchase.update({ where: { id: already.id }, data: { qty: { increment: 1 } } });
+    else await tx.plazaEventPurchase.create({ data: { userId, eventId: ev.id, shopKey, price, qty: 1 } });
     await tx.plazaEventWallet.update({ where: { id: wallet.id }, data: { balance: { decrement: price } } });
     return next;
   });
@@ -466,24 +549,32 @@ async function playerState(userId) {
   const events = await activeEvents();
   const d = new Date();
   const [visits, friendsOnline] = await Promise.all([
-    prisma.plazaMascotVisit.findMany({ where: { endsAt: { gte: d } }, orderBy: { startsAt: 'asc' }, take: 20 }),
+    prisma.plazaMascotVisit.findMany({ where: { endsAt: { gte: d } }, orderBy: { startsAt: 'asc' }, take: 30 }).then((rows) => rows.filter((v) => !v.surprise || v.startsAt <= d).slice(0, 20)),
     friendsOnIsland(userId),
   ]);
   const out = { events: [], mascots: [], friends: friendsOnline, now: d.toISOString() };
   for (const ev of events) {
     const progress = await loadProgress(userId, ev.id);
     const wallet = await prisma.plazaEventWallet.findUnique({ where: { userId_eventId: { userId, eventId: ev.id } } });
-    const bought = new Set((await prisma.plazaEventPurchase.findMany({ where: { userId, eventId: ev.id }, select: { shopKey: true } })).map((p) => p.shopKey));
+    const purchases = await prisma.plazaEventPurchase.findMany({ where: { userId, eventId: ev.id }, select: { shopKey: true, qty: true } });
+    const bought = new Set(purchases.map((p) => p.shopKey));
+    const qtyOf = (k) => num(purchases.find((p) => p.shopKey === k)?.qty || 0);
+    const distinctBought = purchases.filter((p) => !p.shopKey.includes(':') && !p.shopKey.startsWith('__')).length;
     out.events.push({
       slug: ev.slug, name: ev.name, currencyName: ev.currencyName, party: ev.party, startsAt: ev.startsAt, endsAt: ev.endsAt,
       wallet: { balance: wallet?.balance || 0, earned: wallet?.earned || 0 },
       quests: ev.cfg.quests.map((q) => {
         const p = progress.get(q.key);
         const target = ['visit', 'dance', 'walk_puffle'].includes(q.type) ? Math.max(1, ids(q.rooms).length) : q.type === 'gather' ? num(q.count || 5) : q.type === 'online' ? num(q.minutes || 10) : q.type === 'donate' ? num(q.count || 100) : 1;
-        return { key: q.key, title: q.title || q.key, desc: q.desc || '', type: q.type, difficulty: DIFF_KEYS.includes(q.difficulty) ? q.difficulty : null, rooms: ids(q.rooms).map((id) => ({ id, ...roomInfo(id) })), items: ids(q.items), target, progress: Math.min(target, p?.progress || 0), done: !!p?.done, claimed: !!p?.claimedAt, reward: questReward(q) };
+        const base = { key: q.key, title: q.title || q.key, desc: q.desc || '', hint: q.hint ? String(q.hint) : '', type: q.type, difficulty: DIFF_KEYS.includes(q.difficulty) ? q.difficulty : null, points: questPoints(q), rooms: ids(q.rooms).map((id) => ({ id, ...roomInfo(id) })), items: ids(q.items), target, progress: Math.min(target, p?.progress || 0), done: !!p?.done, claimed: !!p?.claimedAt, reward: questReward(q), rotated: !!q.rotated, rotationEndsAt: q.rotationEndsAt || null };
+        if (q.type === 'trivia') { base.question = String(q.question || ''); base.options = (Array.isArray(q.options) ? q.options : []).map(String); base.wrong = Array.isArray(p?.data?.wrong) ? p.data.wrong : []; }
+        return base;
       }),
-      completion: ev.cfg.completion ? { ...ev.cfg.completion, allDone: ev.cfg.quests.length > 0 && ev.cfg.quests.every((q) => progress.get(q.key)?.done), claimed: bought.has(COMPLETION_KEY) } : null,
-      shop: ev.cfg.shop.map((s) => ({ key: s.key, label: s.label || s.key, itemIds: ids(s.itemIds), price: num(s.price), bought: bought.has(s.key) })),
+      rotation: ev.cfg.rotation ? { label: ev.cfg.rotation.label, everyDays: ev.cfg.rotation.everyDays, endsAt: ev.cfg.rotation.endsAt } : null,
+      completion: ev.cfg.completion ? { ...ev.cfg.completion, allDone: baseQuests(ev).length > 0 && baseQuests(ev).every((q) => progress.get(q.key)?.done), claimed: bought.has(COMPLETION_KEY) } : null,
+      pass: await passStatus(ev, userId, progress, bought),
+      shopMax: ev.cfg.shopMax, shopBought: distinctBought,
+      shop: ev.cfg.shop.map((s) => ({ key: s.key, label: s.label || s.key, seller: s.seller ? String(s.seller) : '', itemIds: ids(s.itemIds), price: num(s.price), limit: Math.max(1, num(s.limit) || 1), qty: qtyOf(s.key), bought: qtyOf(s.key) >= Math.max(1, num(s.limit) || 1) })),
       advent: await adventStatus(ev, userId),
       cfc: await cfcStatus(ev, userId),
     });
@@ -515,11 +606,14 @@ async function friendsOnIsland(userId) {
 // Staff
 // ---------------------------------------------------------------------------
 function cleanQuest(q) {
-  const types = ['visit', 'gather', 'wear', 'online', 'mascot', 'donate', 'dance', 'walk_puffle'];
+  const types = ['visit', 'gather', 'wear', 'online', 'mascot', 'donate', 'dance', 'walk_puffle', 'trivia'];
   const coins = q.reward?.coins;
+  const options = (Array.isArray(q.options) ? q.options : []).map((o) => String(o || '').slice(0, 80)).filter(Boolean).slice(0, 6);
   return {
     key: String(q.key || '').toLowerCase().replace(/[^a-z0-9_-]/g, '').slice(0, 40),
-    title: String(q.title || '').slice(0, 80), desc: String(q.desc || '').slice(0, 300),
+    title: String(q.title || '').slice(0, 80), desc: String(q.desc || '').slice(0, 300), hint: String(q.hint || '').slice(0, 200),
+    points: q.points === undefined || q.points === null || q.points === '' ? null : Math.max(0, Math.min(10000, num(q.points))),
+    question: String(q.question || '').slice(0, 300), options, answer: Math.max(0, Math.min(Math.max(0, options.length - 1), num(q.answer))),
     type: types.includes(q.type) ? q.type : 'visit',
     difficulty: DIFF_KEYS.includes(q.difficulty) ? q.difficulty : 'facil',
     rooms: ids(q.rooms), items: ids(q.items), puffles: Array.isArray(q.puffles) ? q.puffles.map(Number).filter((n) => Number.isInteger(n) && n >= 0) : [], frames: ids(q.frames),
@@ -533,10 +627,15 @@ function cleanQuest(q) {
 function cleanConfig(c = {}) {
   const quests = (Array.isArray(c.quests) ? c.quests : []).map(cleanQuest).filter((q) => q.key);
   const keys = new Set();
-  for (const q of quests) { if (keys.has(q.key)) throw new Error(`Quest repetida: ${q.key}`); keys.add(q.key); }
+  for (const q of quests) { if (keys.has(q.key)) throw new Error(`Quest repetida: ${q.key}`); keys.add(q.key); if (q.type === 'trivia' && (!q.question || q.options.length < 2)) throw new Error(`Trivia "${q.key}": precisa de pergunta e pelo menos 2 opções.`); }
+  const rotQuests = (c.rotation && Array.isArray(c.rotation.quests) ? c.rotation.quests : []).map(cleanQuest).filter((q) => q.key);
+  for (const q of rotQuests) { if (keys.has(q.key)) throw new Error(`Quest repetida no rodízio: ${q.key}`); keys.add(q.key); }
   return {
     quests,
-    shop: (Array.isArray(c.shop) ? c.shop : []).map((s) => ({ key: String(s.key || '').toLowerCase().replace(/[^a-z0-9_-]/g, '').slice(0, 40), label: String(s.label || '').slice(0, 80), itemIds: ids(s.itemIds), price: Math.max(0, Math.min(MAX_EVENT_COINS, num(s.price))) })).filter((s) => s.key && s.itemIds.length),
+    rotation: rotQuests.length ? { everyDays: Math.max(1, Math.min(60, num(c.rotation.everyDays) || 7)), label: String(c.rotation.label || 'Da semana').slice(0, 40), quests: rotQuests } : null,
+    shop: (Array.isArray(c.shop) ? c.shop : []).map((s) => ({ key: String(s.key || '').toLowerCase().replace(/[^a-z0-9_-]/g, '').slice(0, 40), label: String(s.label || '').slice(0, 80), seller: String(s.seller || '').slice(0, 40), itemIds: ids(s.itemIds), price: Math.max(0, Math.min(MAX_EVENT_COINS, num(s.price))), limit: Math.max(1, Math.min(99, num(s.limit) || 1)) })).filter((s) => s.key && s.itemIds.length),
+    shopMax: Math.max(0, Math.min(99, num(c.shopMax))),
+    pass: c.pass && Array.isArray(c.pass.levels) && c.pass.levels.length ? { levels: c.pass.levels.map((l) => ({ points: Math.max(1, num(l.points)), label: String(l.label || '').slice(0, 80), coins: Math.max(0, num(l.coins)), eventCoins: Math.max(0, Math.min(MAX_EVENT_COINS, num(l.eventCoins))), items: ids(l.items) })).sort((a, b) => a.points - b.points) } : null,
     advent: (Array.isArray(c.advent) ? c.advent : []).map((a) => ({ day: num(a.day), coins: Math.max(0, num(a.coins)), eventCoins: Math.max(0, num(a.eventCoins)), items: ids(a.items) })).filter((a) => a.day >= 1 && a.day <= 25),
     cfc: c.cfc && Array.isArray(c.cfc.goals) && c.cfc.goals.length ? { goals: c.cfc.goals.map((g) => ({ amount: Math.max(1, num(g.amount)), label: String(g.label || '').slice(0, 80), items: ids(g.items), coins: Math.max(0, num(g.coins)) })) } : null,
     completion: c.completion && (num(c.completion.coins) || num(c.completion.eventCoins) || ids(c.completion.items).length) ? { coins: Math.max(0, num(c.completion.coins)), eventCoins: Math.max(0, num(c.completion.eventCoins)), items: ids(c.completion.items), label: String(c.completion.label || '').slice(0, 80) } : null,
@@ -583,7 +682,7 @@ async function listVisits() {
 async function saveVisit(body) {
   const startsAt = new Date(body.startsAt); const endsAt = new Date(body.endsAt);
   if (Number.isNaN(+startsAt) || Number.isNaN(+endsAt) || endsAt <= startsAt) throw new Error('Datas inválidas.');
-  const data = { mascotKey: String(body.mascotKey || 'pingu').toLowerCase().replace(/[^a-z0-9_-]/g, '').slice(0, 40) || 'pingu', name: String(body.name || 'Pingu').slice(0, 60), mascotUserId: body.mascotUserId ? String(body.mascotUserId) : null, room: Math.max(1, num(body.room) || 100), startsAt, endsAt, backgroundItemId: body.backgroundItemId ? num(body.backgroundItemId) : null, itemIds: JSON.stringify(ids(body.itemIds)), coins: Math.max(0, num(body.coins)), eventCoins: Math.max(0, num(body.eventCoins)), note: String(body.note || '').slice(0, 200) };
+  const data = { mascotKey: String(body.mascotKey || 'pingu').toLowerCase().replace(/[^a-z0-9_-]/g, '').slice(0, 40) || 'pingu', name: String(body.name || 'Pingu').slice(0, 60), mascotUserId: body.mascotUserId ? String(body.mascotUserId) : null, room: Math.max(1, num(body.room) || 100), startsAt, endsAt, backgroundItemId: body.backgroundItemId ? num(body.backgroundItemId) : null, itemIds: JSON.stringify(ids(body.itemIds)), coins: Math.max(0, num(body.coins)), eventCoins: Math.max(0, num(body.eventCoins)), note: String(body.note || '').slice(0, 200), surprise: !!body.surprise };
   visitsCache.at = 0;
   if (body.id) return prisma.plazaMascotVisit.update({ where: { id: String(body.id) }, data });
   return prisma.plazaMascotVisit.create({ data });
@@ -630,7 +729,7 @@ function attach(instance, deps) {
 function setIo(socketIo) { io = socketIo; }
 
 module.exports = {
-  roomInfo, attach, setIo, activeEvents, playerState, claimQuest, claimCompletion, questReward, DIFFICULTY, buy, redeemCode, donate, claimCfc, claimAdvent, friendsOnIsland,
+  roomInfo, attach, setIo, activeEvents, playerState, claimQuest, claimCompletion, questReward, questPoints, DIFFICULTY, buy, redeemCode, donate, claimCfc, claimAdvent, friendsOnIsland, answerTrivia, claimPass, grant, onlineUsers,
   listEvents, saveEvent, deleteEvent, listCodes, saveCode, deleteCode, listVisits, saveVisit, deleteVisit, templateForParty, cleanConfig, parseConfig,
   _test: { evaluate, setProgress, getProgress, grant },
 };

@@ -49,7 +49,7 @@ const store = {
 const granted = [];
 const admin = { updatePenguin: async (_w, _s, pid, ops) => { granted.push({ pid, ops }); return { changes: ['+item'] }; } };
 const listeners = [];
-const waddle = { roomPlayers: (room) => presence.filter((p) => p.room === room), onRoomChange: (fn) => listeners.push(fn), userOfPenguin: (id) => (id === 1000 ? 'u1' : null), roomOfUser: () => null };
+const waddle = { roomPlayers: (room) => presence.filter((p) => p.room === room), onRoomChange: (fn) => listeners.push(fn), userOfPenguin: (id) => (id === 1000 ? 'u1' : null), roomOfUser: (uid) => presence.find((p) => waddle.userOfPenguin(p.id) === uid)?.room ?? null };
 events.attach(w, { store, waddle, admin });
 
 const now = Date.now();
@@ -169,4 +169,59 @@ test('modelos prontos: todos passam na limpeza e têm só ids de itens do catál
     assert.equal(typeof body.slug, 'string');
     events.cleanConfig(body.config); // não pode lançar
   }
+});
+
+test('trivia (TourBot), Party Pass, loja com limite e rodízio semanal', async () => {
+  const start = new Date(now - 8 * 86400000); // começou há 8 dias → 2º ciclo do rodízio
+  db.events.push({ id: 'ev3', slug: 'anv', name: 'Aniversário', currencyName: 'Fatias', active: true, startsAt: start, endsAt: new Date(now + 86400000), config: JSON.stringify(events.cleanConfig({
+    quests: [
+      { key: 'bot', title: 'TourBot', type: 'trivia', difficulty: 'media', rooms: [100], question: 'Mascote?', options: ['Rockhopper', 'Pingu'], answer: 1 },
+      { key: 'chapeu', title: 'Chapéu', type: 'wear', difficulty: 'facil', items: [413], hint: 'Na loja.' },
+    ],
+    pass: { levels: [{ points: 100, label: 'N1', coins: 10 }, { points: 170, label: 'N2', items: [171] }] },
+    shopMax: 1,
+    shop: [{ key: 'balao', label: 'Balão', itemIds: [554], price: 1, limit: 2 }, { key: 'lei', label: 'Colar', itemIds: [171], price: 1 }],
+    rotation: { everyDays: 7, quests: [{ key: 'pin-a', title: 'Pin A', type: 'visit', rooms: [110], reward: { items: [550] } }, { key: 'pin-b', title: 'Pin B', type: 'visit', rooms: [120], reward: { items: [551] } }] },
+  })) });
+  const ev = (await events.activeEvents(true)).find((e) => e.slug === 'anv');
+  // rodízio: ciclo 1 → pin-b, chave própria por ciclo
+  const rot = ev.cfg.quests.find((q) => q.rotated);
+  assert.equal(rot.key, 'pin-b-r1'); assert.deepEqual(rot.rooms, [120]);
+  // trivia: precisa estar na sala do bot; errar não conclui; acertar conclui
+  presence.length = 0; presence.push({ id: 1000, name: 'Rique', room: 300, x: 0, y: 0 });
+  await assert.rejects(() => events.answerTrivia('u1', 'anv', 'bot', 1), /TourBot/);
+  presence[0].room = 100;
+  assert.equal((await events.answerTrivia('u1', 'anv', 'bot', 0)).correct, false);
+  assert.equal((await events.answerTrivia('u1', 'anv', 'bot', 1)).correct, true);
+  await assert.rejects(() => events.answerTrivia('u1', 'anv', 'bot', 1), /já respondeu/);
+  // passe: trivia média = 120 pontos → nível 1 sim, nível 2 (170) não
+  let st = await events.playerState('u1');
+  let e3 = st.events.find((e) => e.slug === 'anv');
+  assert.equal(e3.pass.points, 120); assert.equal(e3.pass.levels[0].reached, true); assert.equal(e3.pass.levels[1].reached, false);
+  assert.equal(e3.quests.find((q) => q.key === 'chapeu').hint, 'Na loja.');
+  assert.equal(e3.quests.find((q) => q.key === 'bot').options.length, 2); assert.equal(e3.quests.find((q) => q.key === 'bot').answer, undefined, 'resposta não vaza');
+  const n1 = await events.claimPass('u1', 'anv', 0); assert.equal(n1.coins, 10);
+  await assert.rejects(() => events.claimPass('u1', 'anv', 0), /já pegou/);
+  await assert.rejects(() => events.claimPass('u1', 'anv', 1), /Faltam 50 pontos/);
+  // o rodízio não conta pro prêmio final/passe, e a quest fixa 'chapeu' soma depois
+  live.get(1000).inventory.head = 413;
+  await events._test.evaluate('u1', 100, live.get(1000), [ev]);
+  st = await events.playerState('u1'); e3 = st.events.find((e) => e.slug === 'anv');
+  assert.equal(e3.pass.points, 170); assert.equal(e3.pass.levels[1].reached, true);
+  // loja: limite 2 no balão; shopMax 1 → o colar não entra
+  await events._test.grant('u1', { eventCoins: 10, eventId: 'ev3' });
+  await events.buy('u1', 'anv', 'balao'); await events.buy('u1', 'anv', 'balao');
+  await assert.rejects(() => events.buy('u1', 'anv', 'balao'), /2 vezes/);
+  await assert.rejects(() => events.buy('u1', 'anv', 'lei'), /no máximo 1 itens/);
+  st = await events.playerState('u1'); e3 = st.events.find((e) => e.slug === 'anv');
+  assert.equal(e3.shop[0].qty, 2); assert.equal(e3.shop[0].bought, true); assert.equal(e3.shopBought, 1);
+  // cleanConfig recusa trivia sem opções
+  assert.throws(() => events.cleanConfig({ quests: [{ key: 't', type: 'trivia', question: 'x', options: ['a'] }] }), /2 opções/);
+});
+
+test('visita surpresa só aparece na agenda quando começa', async () => {
+  db.visits.push({ id: 'v1', mascotKey: 'pingu', name: 'Pingu', mascotUserId: null, room: 100, startsAt: new Date(now + 3600000), endsAt: new Date(now + 7200000), itemIds: '[]', coins: 0, eventCoins: 0, surprise: true });
+  db.visits.push({ id: 'v2', mascotKey: 'pingu', name: 'Pingu agora', mascotUserId: null, room: 100, startsAt: new Date(now - 60000), endsAt: new Date(now + 7200000), itemIds: '[]', coins: 0, eventCoins: 0, surprise: true });
+  const st = await events.playerState('u1');
+  assert.deepEqual(st.mascots.map((m) => m.id), ['v2']);
 });

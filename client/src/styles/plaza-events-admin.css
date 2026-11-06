@@ -25,3 +25,13 @@
 .pea-results button:hover { background: var(--bg-modifier-hover); }
 .pea-results small { color: var(--text-muted); }
 .pea-actions { margin-top: 8px; }
+
+/* galerias (participações de concurso, artes do Jigsaw) */
+.pea-gallery { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 10px; }
+.pea-entry { display: flex; flex-direction: column; gap: 4px; padding: 6px; border-radius: 10px; border: 1px solid var(--border, #2a2f3a); background: var(--bg-2, rgba(255,255,255,.03)); font-size: 12px; }
+.pea-entry img { width: 100%; aspect-ratio: 1; object-fit: cover; border-radius: 6px; background: #111; }
+.pea-entry small { opacity: .7; }
+.pea-entry.is-winner { border-color: #f5b116; }
+.pea-entry.is-pending { border-color: #4c9aff; }
+.pea-entry.is-hidden { opacity: .5; }
+.pea-entry .stg-parties-bar { flex-wrap: wrap; gap: 4px; }

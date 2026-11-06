@@ -58,3 +58,47 @@
 .cpf-diff.is-media { background: #fff0c2; color: #8a5200; }
 .cpf-diff.is-dificil { background: #ffd9d9; color: #a11b1b; }
 .cpf-diff.is-extrema { background: #2b1a4a; color: #e8d4ff; }
+
+/* ---- quests: dica, trivia (TourBot), rodízio ---- */
+.cpf-diff.is-bot { background: #e4dcff; color: #4a2bb3; margin-left: 0; margin-right: 6px; }
+.cpf-q-main b .cpf-diff.is-bot + * { margin-left: 0; }
+.cpf-diff.is-rot { background: #ffe3a6; color: #7a4a00; margin-left: 0; margin-right: 6px; }
+.cpf-hint { color: #7a4a00 !important; background: #fff6d6; border-radius: 8px; padding: 3px 7px; white-space: normal; }
+.cpf-quest.is-rot { border-style: dashed; }
+.cpf-trivia { display: flex; flex-direction: column; gap: 4px; }
+.cpf-trivia > small { white-space: normal; color: var(--cp-ink); }
+.cpf-trivia-opts { display: flex; flex-wrap: wrap; gap: 4px; }
+.cpf-trivia-opts .cpjb-pill.is-wrong { opacity: .45; text-decoration: line-through; }
+.cpf-prog-big { height: 12px; margin: 4px 0 8px; }
+
+/* ---- Jigsaw Jam ---- */
+.cpf-jig-head { display: flex; align-items: center; gap: 8px; margin-bottom: 6px; }
+.cpf-jig-head b { font-size: 14px; }
+.cpf-jig-head span { flex: 1; font-size: 12px; color: #4a6f9a; }
+.cpf-jig-wrap { display: flex; gap: 10px; align-items: flex-start; }
+.cpf-jig-board { display: grid; gap: 1px; background: var(--cp-line); border: 3px solid var(--cp-line); border-radius: 8px; overflow: hidden; flex: none; }
+.cpf-jig-board.is-solved { border-color: #3f8d1a; box-shadow: 0 0 0 3px #6bcb3b; }
+.cpf-jig-tile { padding: 0; border: 0; cursor: pointer; background-color: #fff; background-repeat: no-repeat; outline: none; transition: transform .12s; }
+.cpf-jig-tile.is-pick { transform: scale(.9); box-shadow: inset 0 0 0 3px #f5b116; filter: brightness(1.15); }
+.cpf-jig-tile.is-ok { cursor: default; }
+.cpf-jig-side { display: flex; flex-direction: column; gap: 6px; min-width: 0; flex: 1; }
+.cpf-jig-preview { width: 90px; height: 90px; object-fit: cover; border-radius: 8px; border: 2px solid var(--cp-paper-line); background: #fff; }
+.cpf-jig-side small { font-size: 11px; color: #4a6f9a; }
+.cpf-jig-done { color: #3f8d1a; font-size: 15px; }
+.cpf-jig-modes { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; margin-bottom: 8px; font-size: 12px; color: #4a6f9a; }
+.cpf-jig-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(96px, 1fr)); gap: 8px; margin-bottom: 8px; }
+.cpf-jig-card { position: relative; display: flex; flex-direction: column; gap: 3px; padding: 4px; border-radius: 10px; border: 2px solid var(--cp-paper-line); background: #fff; color: var(--cp-ink); font-family: inherit; font-size: 11px; cursor: pointer; text-align: left; }
+.cpf-jig-card img { width: 100%; aspect-ratio: 1; object-fit: cover; border-radius: 6px; background: #d6e9fa; }
+.cpf-jig-card span { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.cpf-jig-card em { font-style: normal; font-size: 11px; color: #2a6db3; }
+.cpf-jig-card.is-done { border-color: #6bcb3b; }
+.cpf-jig-card.is-done > em { position: absolute; top: 6px; right: 6px; background: #6bcb3b; color: #fff; border-radius: 99px; padding: 0 6px; }
+.cpf-jig-send input[type="file"] { font-size: 11px; max-width: 100%; }
+
+/* ---- Concursos ---- */
+.cpf-contest h3 { margin: 0 0 4px; font-size: 15px; }
+.cpf-entries .cpf-entry { cursor: default; }
+.cpf-entry.is-winner { border-color: #f5b116; background: #fff6d6; }
+.cpf-entry.is-voted { border-color: #2a6db3; box-shadow: 0 0 0 2px #d6e9fa; }
+.cpf-entry a { display: block; }
+.cpf-entry .cpjb-pill { align-self: flex-start; }

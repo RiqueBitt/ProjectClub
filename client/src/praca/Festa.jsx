@@ -7,6 +7,7 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { api } from '../api/client.js';
 import { useSocket } from '../context/SocketContext.jsx';
+import Jigsaw from './Jigsaw.jsx';
 import '../styles/jukebox.css';
 import '../styles/festa.css';
 
@@ -57,6 +58,7 @@ export default function Festa({ active, stageRef, playerRef, user, isStaff }) {
   const [open, setOpen] = useState(false);
   const [tab, setTab] = useState('quests');
   const [data, setData] = useState(null);
+  const [contests, setContests] = useState(null);
   const [busy, setBusy] = useState('');
   const [notice, setNotice] = useState(null);
   const [pos, setPos] = useState({ x: (STAGE_W - WIN_W) / 2, y: 30 });
@@ -65,6 +67,7 @@ export default function Festa({ active, stageRef, playerRef, user, isStaff }) {
 
   const load = useCallback(async () => {
     try { const { data: d } = await api.get('/plaza/events'); setData(d); } catch { /* sem festa ou offline */ }
+    try { const { data: c } = await api.get('/plaza/contests'); setContests(c); } catch { /* sem concursos */ }
   }, []);
   useEffect(() => { if (active) load(); }, [active, load]);
   useEffect(() => {
@@ -117,6 +120,8 @@ export default function Festa({ active, stageRef, playerRef, user, isStaff }) {
       n += ev.quests.filter((q) => q.done && !q.claimed).length;
       n += (ev.cfc?.goals || []).filter((g) => g.claimable).length;
       n += (ev.advent?.days || []).filter((d) => d.open && !d.claimed).length;
+      n += (ev.pass?.levels || []).filter((l) => l.reached && !l.claimed).length;
+      if (ev.completion?.allDone && !ev.completion.claimed) n += 1;
     }
     return n;
   }, [data]);
@@ -132,7 +137,8 @@ export default function Festa({ active, stageRef, playerRef, user, isStaff }) {
   const winStyle = zoom > 1 ? { left: (STAGE_W - WIN_W * zoom) / 2, top: (STAGE_H - WIN_H * zoom) / 2, transform: `scale(${zoom})`, transformOrigin: '0 0' } : { left: pos.x, top: pos.y };
   const hasEvents = !!data?.events?.length;
   const tabs = [
-    ['quests', 'Quests'], ['loja', 'Loja'], ['mascotes', 'Mascotes'], ['amigos', 'Amigos'], ['codigo', 'Código'],
+    ['quests', 'Quests'], ...(data?.events?.some((e) => e.pass) ? [['passe', 'Passe']] : []), ['loja', 'Loja'], ['mascotes', 'Mascotes'], ['amigos', 'Amigos'],
+    ...(contests?.length ? [['concursos', 'Concursos']] : []), ['jigsaw', 'Jigsaw'], ['codigo', 'Código'],
     ...(data?.events?.some((e) => e.advent) ? [['advento', 'Advento']] : []),
     ...(data?.events?.some((e) => e.cfc) ? [['cfc', 'Doações']] : []),
   ];
@@ -185,16 +191,25 @@ export default function Festa({ active, stageRef, playerRef, user, isStaff }) {
                   )}
                   <ul className="cpf-list">
                     {ev.quests.map((q) => (
-                      <li key={q.key} className={`cpf-quest${q.claimed ? ' is-claimed' : q.done ? ' is-done' : ''}`}>
+                      <li key={q.key} className={`cpf-quest${q.claimed ? ' is-claimed' : q.done ? ' is-done' : ''}${q.rotated ? ' is-rot' : ''}`}>
                         <span className="cpf-q-main">
-                          <b>{q.title}{q.difficulty && <em className={`cpf-diff is-${q.difficulty}`}>{DIFF_LABEL[q.difficulty]}</em>}</b>
-                          <small>{q.desc}{['visit', 'dance', 'walk_puffle'].includes(q.type) && q.rooms.length ? ` (${q.rooms.map((r) => r.name).join(', ')})` : ''}</small>
-                          <span className="cpf-prog"><i style={{ width: `${Math.round((q.progress / q.target) * 100)}%` }} /></span>
-                          <small className="cpf-reward">{q.progress}/{q.target} · {rewardText(q.reward)}</small>
+                          <b>{q.rotated && <em className="cpf-diff is-rot">{ev.rotation?.label || 'da semana'}</em>}{q.title}{q.difficulty && <em className={`cpf-diff is-${q.difficulty}`}>{DIFF_LABEL[q.difficulty]}</em>}{q.type === 'trivia' && <em className="cpf-diff is-bot">TourBot</em>}</b>
+                          <small>{q.desc}{['visit', 'dance', 'walk_puffle'].includes(q.type) && q.rooms.length && !q.hint ? ` (${q.rooms.map((r) => r.name).join(', ')})` : ''}{q.rotated && q.rotationEndsAt ? ` · até ${new Date(q.rotationEndsAt).toLocaleDateString('pt-BR')}` : ''}</small>
+                          {q.hint && !q.done && <small className="cpf-hint">💡 {q.hint}</small>}
+                          {q.type === 'trivia' && !q.done && (
+                            <span className="cpf-trivia">
+                              <small>{q.rooms.length ? `${q.rooms.map((r) => r.name).join(' ou ')}: ` : ''}{q.question}</small>
+                              <span className="cpf-trivia-opts">
+                                {q.options.map((o, oi) => <button key={oi} type="button" className={`cpjb-pill is-small${q.wrong.includes(oi) ? ' is-wrong' : ''}`} disabled={busy === `${q.key}-t` || q.wrong.includes(oi)} onClick={() => call(`${q.key}-t`, () => api.post(`/plaza/events/${ev.slug}/trivia/${q.key}`, { answer: oi }), (r) => (r.correct ? 'Acertou! Pegue a recompensa.' : 'Errou… tente outra.'))}>{o}</button>)}
+                              </span>
+                            </span>
+                          )}
+                          {q.type !== 'trivia' && <span className="cpf-prog"><i style={{ width: `${Math.round((q.progress / q.target) * 100)}%` }} /></span>}
+                          <small className="cpf-reward">{q.type === 'trivia' ? (q.done ? 'respondida' : 'responda na sala do bot') : `${q.progress}/${q.target}`} · {rewardText(q.reward)}{ev.pass ? ` · ${q.points} pts` : ''}</small>
                         </span>
                         {q.claimed ? <span className="cpf-ok"><Icon d={I.check} size={16} /></span>
                           : q.done ? <button type="button" className="cpjb-pill is-green is-small" disabled={busy === q.key} onClick={() => call(q.key, () => api.post(`/plaza/events/${ev.slug}/quests/${q.key}/claim`), (r) => `Recompensa: ${rewardText(r)}!`)}>Pegar</button>
-                            : ['visit', 'dance', 'walk_puffle', 'gather'].includes(q.type) && q.rooms.length ? <button type="button" className="cpjb-mini" title="Ir até a sala" onClick={() => goTo(q.rooms.find((r) => r.key)?.key)}><Icon d={I.go} size={14} /></button> : null}
+                            : ['visit', 'dance', 'walk_puffle', 'gather', 'trivia'].includes(q.type) && q.rooms.length && !q.hint ? <button type="button" className="cpjb-mini" title="Ir até a sala" onClick={() => goTo(q.rooms.find((r) => r.key)?.key)}><Icon d={I.go} size={14} /></button> : null}
                       </li>
                     ))}
                   </ul>
@@ -205,12 +220,12 @@ export default function Festa({ active, stageRef, playerRef, user, isStaff }) {
             {tab === 'loja' && (
               !hasEvents ? <Empty text="A loja só abre durante uma festa." /> : data.events.map((ev) => (
                 <div key={ev.slug} className="cpf-block">
-                  <p className="cpjb-hint">Você tem <b>{ev.wallet.balance} {ev.currencyName}</b> (ganhou {ev.wallet.earned} nesta festa). Ganhe mais completando quests.</p>
+                  <p className="cpjb-hint">Você tem <b>{ev.wallet.balance} {ev.currencyName}</b> (ganhou {ev.wallet.earned} nesta festa). Ganhe mais completando quests.{ev.shopMax ? ` Nesta festa dá pra levar até ${ev.shopMax} itens diferentes (${ev.shopBought}/${ev.shopMax}).` : ''}</p>
                   {!ev.shop.length && <Empty text="A loja desta festa ainda está vazia." />}
                   <ul className="cpf-list">
                     {ev.shop.map((s) => (
                       <li key={s.key} className={`cpf-shop${s.bought ? ' is-claimed' : ''}`}>
-                        <span className="cpf-q-main"><b>{s.label}</b><small>{s.itemIds.length} {s.itemIds.length === 1 ? 'item' : 'itens'} · {s.price} {ev.currencyName}</small></span>
+                        <span className="cpf-q-main"><b>{s.label}{s.seller && <em className="cpf-diff is-bot">{s.seller}</em>}</b><small>{s.itemIds.length} {s.itemIds.length === 1 ? 'item' : 'itens'} · {s.price} {ev.currencyName}{s.limit > 1 ? ` · ${s.qty}/${s.limit}` : ''}</small></span>
                         {s.bought ? <span className="cpf-ok"><Icon d={I.check} size={16} /></span>
                           : <button type="button" className="cpjb-pill is-yellow is-small" disabled={busy === s.key || ev.wallet.balance < s.price} onClick={() => call(s.key, () => api.post(`/plaza/events/${ev.slug}/shop/${s.key}`), 'Comprado! Já está no seu inventário.')}>Comprar</button>}
                       </li>
@@ -251,6 +266,27 @@ export default function Festa({ active, stageRef, playerRef, user, isStaff }) {
                 </ul>
               )
             )}
+
+            {tab === 'passe' && data.events.filter((e) => e.pass).map((ev) => (
+              <div key={ev.slug} className="cpf-block">
+                <p className="cpjb-hint">Passe da festa: cada quest concluída vale os pontos da dificuldade. Você tem <b>{ev.pass.points}</b> de {ev.pass.total} pontos.</p>
+                <span className="cpf-prog cpf-prog-big"><i style={{ width: `${Math.min(100, Math.round((ev.pass.points / Math.max(1, ev.pass.levels.at(-1)?.points || 1)) * 100))}%` }} /></span>
+                <ul className="cpf-list">
+                  {ev.pass.levels.map((l) => (
+                    <li key={l.index} className={`cpf-quest${l.claimed ? ' is-claimed' : l.reached ? ' is-done' : ''}`}>
+                      <span className="cpf-q-main"><b>{l.label}</b><small>{l.points} pontos · {rewardText(l)}</small></span>
+                      {l.claimed ? <span className="cpf-ok"><Icon d={I.check} size={16} /></span>
+                        : l.reached ? <button type="button" className="cpjb-pill is-green is-small" disabled={busy === `pass${l.index}`} onClick={() => call(`pass${l.index}`, () => api.post(`/plaza/events/${ev.slug}/pass/${l.index}/claim`), (r) => `Nível: ${rewardText(r)}!`)}>Pegar</button>
+                          : <small className="cpf-reward">faltam {l.points - ev.pass.points}</small>}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            ))}
+
+            {tab === 'concursos' && (contests || []).map((c) => <Contest key={c.id} c={c} user={user} busy={busy} call={call} say={say} onChange={load} />)}
+
+            {tab === 'jigsaw' && <Jigsaw busy={busy} call={call} rewardText={rewardText} say={say} />}
 
             {tab === 'codigo' && <CodeForm busy={busy === 'code'} onRedeem={(code) => call('code', () => api.post('/plaza/codes/redeem', { code }), (r) => `Código resgatado: ${rewardText(r)}!`)} />}
 
@@ -318,5 +354,49 @@ function DonateForm({ busy, onDonate }) {
       </span>
       <button type="submit" className="cpjb-pill is-yellow" disabled={busy || amount < 1}>Doar moedas</button>
     </form>
+  );
+}
+
+function Contest({ c, user, busy, call, say, onChange }) {
+  const fileRef = useRef(null);
+  const [caption, setCaption] = useState('');
+  const [sending, setSending] = useState(false);
+  const phaseText = { soon: `inscrições abrem ${when(c.startsAt)}`, open: `inscrições até ${when(c.endsAt)}`, voting: `votação até ${when(c.votingEndsAt)}`, ended: 'encerrado', off: 'desligado' }[c.phase] || '';
+  const prize = [c.prizeCoins ? `${c.prizeCoins} moedas` : null, c.prizeItems.length ? `${c.prizeItems.length} ${c.prizeItems.length === 1 ? 'item exclusivo' : 'itens exclusivos'}` : null].filter(Boolean).join(' + ');
+  const send = async (e) => {
+    e.preventDefault();
+    const f = fileRef.current?.files?.[0];
+    if (!f) { say('Escolha uma imagem (print do iglu, desenho…).', 'error'); return; }
+    setSending(true);
+    try {
+      const fd = new FormData(); fd.append('image', f); fd.append('caption', caption);
+      await api.post(`/plaza/contests/${c.id}/enter`, fd, { headers: { 'Content-Type': 'multipart/form-data' } });
+      say('Participação enviada!'); setCaption(''); if (fileRef.current) fileRef.current.value = ''; onChange();
+    } catch (err) { say(err?.response?.data?.error || 'Não deu pra enviar.', 'error'); }
+    finally { setSending(false); }
+  };
+  return (
+    <div className="cpf-block cpf-contest">
+      <h3>{c.kindLabel === 'Concurso' ? c.title : `${c.kindLabel}: ${c.title}`}</h3>
+      <p className="cpjb-hint">{c.description}{c.theme ? ` Tema: ${c.theme}.` : ''} {phaseText}.{prize ? ` Prêmio: ${prize} (até ${c.maxWinners} ${c.maxWinners === 1 ? 'vencedor' : 'vencedores'}).` : ''}</p>
+      {c.phase === 'open' && (
+        <form className="cpjb-search cpf-code cpf-jig-send" onSubmit={send}>
+          <span className="cpjb-field"><input value={caption} onChange={(e) => setCaption(e.target.value)} placeholder="Legenda (opcional)" maxLength={200} onKeyDown={(e) => { if (e.key !== 'Escape') e.stopPropagation(); }} /></span>
+          <input ref={fileRef} type="file" accept="image/png,image/jpeg,image/webp,image/gif" aria-label="Imagem da participação" />
+          <button type="submit" className="cpjb-pill is-green" disabled={sending}>{c.mine ? 'Trocar minha imagem' : 'Participar'}</button>
+        </form>
+      )}
+      {!c.entries.length && <Empty text="Ninguém participou ainda. Seja o primeiro!" />}
+      <div className="cpf-jig-grid cpf-entries">
+        {c.entries.map((e) => (
+          <div key={e.id} className={`cpf-jig-card cpf-entry${e.winner ? ' is-winner' : ''}${c.myVote === e.id ? ' is-voted' : ''}`}>
+            <a href={e.imageUrl} target="_blank" rel="noreferrer"><img src={e.imageUrl} alt="" loading="lazy" /></a>
+            <span>{e.user?.displayName || '?'}{e.caption ? ` — ${e.caption}` : ''}</span>
+            <em>{e.winner ? '🏆 ' : ''}{e.votes} {e.votes === 1 ? 'voto' : 'votos'}</em>
+            {c.phase === 'voting' && e.userId !== user?.id && c.myVote !== e.id && <button type="button" className="cpjb-pill is-yellow is-small" disabled={busy === `vote${e.id}`} onClick={() => call(`vote${e.id}`, () => api.post(`/plaza/contests/${c.id}/vote/${e.id}`), 'Voto registrado!')}>Votar</button>}
+          </div>
+        ))}
+      </div>
+    </div>
   );
 }

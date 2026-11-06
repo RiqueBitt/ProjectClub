@@ -160,3 +160,17 @@ moeda do evento. Código em `server/src/services/waddle/events.js`; modelos
 - **Advento** — presentes por dia de 1 a 25 de dezembro (fuso do Brasil).
 - **Coins for Change** — doações em moedas do Project Club; a cada meta
   batida quem doou pega a recompensa.
+
+### Segunda leva (modelo dos CPPS: Journey, Legacy, Rewritten, NewCP, Zero)
+
+- **Trivia / TourBots** — quest `trivia` com pergunta, opções e resposta; se tiver sala, só responde lá (`POST /api/plaza/events/:slug/trivia/:key`). A resposta certa nunca vai pro cliente.
+- **Dica (rima/pista)** — campo `hint` em qualquer quest; na janela Festa a dica aparece no lugar do nome da sala (caça aos ovos do CP Legacy).
+- **Rodízio** — `config.rotation = { everyDays, label, quests[] }`: a cada N dias entra a próxima quest, com chave `<key>-r<ciclo>`. Modelo pronto "Pin da semana" com 12 pins originais escondidos em salas. O rodízio não conta pro prêmio final nem pro passe.
+- **Party Pass** — `config.pass.levels[]` (pontos, prêmio). Pontos = dificuldade das quests concluídas (ou `points` da quest). `POST …/pass/:index/claim`.
+- **Loja** — `limit` por item (compras repetidas, `PlazaEventPurchase.qty`), `seller` (mascote vendedor) e `config.shopMax` (itens diferentes por pinguim — o CP Journey usa 3).
+- **Visita surpresa** — `PlazaMascotVisit.surprise`: só aparece na agenda quando começa.
+- **Concursos** (`contests.js`, `PlazaContest*`) — iglu, Mural de Arte, fantasia: imagem enviada pela janela Festa (upload normal do site), um voto por pinguim (pode trocar), staff marca vencedores e o prêmio cai na hora. Painel → Eventos da Praça → Concursos.
+- **Jigsaw Jam** (`puzzles.js`, `PlazaPuzzle*`, `PlazaSetting.jigsaw`) — quebra-cabeças 3×3/5×5 com artes da comunidade (aprovadas pela staff); moedas por arte/modo e prêmio por montar todas. Janela Festa → Jigsaw.
+- **Arquivos da Club Penguin Archives** (`assets.js`, `PlazaAsset`) — a staff cola o link de um arquivo da Archives (página `File:` ou nome) e ele entra na ilha por cima da festa: sala, rota do jogo ou música. Fica em `media/pcarchives/`; `parties.apply` reaplica a camada na hora. Só aceita a Archives e confere os bytes (SWF/MP3/PNG…).
+
+Testes: `node --test server/test/praca-eventos.test.js server/test/praca-concursos.test.js`.
