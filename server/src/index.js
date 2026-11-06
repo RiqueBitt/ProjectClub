@@ -45,6 +45,7 @@ if (require('./config/features').isFeatureEnabled('plaza')) {
   const waddle = require('./services/waddle');
   waddle.attachUpgrade(httpServer);
   waddle.setIo(io); // chat de texto + voz por proximidade (praca:presence / praca:chat)
+  require('./services/waddle/jukebox').init(io); // música do YouTube na Danceteria
   waddle.getWaddle().catch(() => { /* já logado em services/waddle */ });
 }
 require('./services/runtimeMetrics').startRuntimeMetrics({ io });

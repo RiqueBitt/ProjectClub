@@ -753,6 +753,24 @@ const getStore = () => store;
 let io = null;
 let presenceTimer = null;
 const lastPresence = new Map(); // userId -> json enviado por último
+const lastRoom = new Map(); // userId -> sala em que estava no último tique
+const roomListeners = new Set(); // fn(userId, deSala, praSala) — ex.: jukebox da Danceteria
+
+/** Avisa quando alguém troca de sala (ou sai do jogo: praSala = null). */
+function onRoomChange(fn) { roomListeners.add(fn); return () => roomListeners.delete(fn); }
+function emitRoomChange(userId, from, to) {
+  for (const fn of roomListeners) { try { fn(userId, from, to); } catch (err) { console.error('[praça] troca de sala:', err?.message || err); } }
+}
+
+/** Quem está na sala agora: [{ penguinId, userId, name, x, y }]. */
+function roomPlayers(room) {
+  return presenceByRoom().get(Number(room)) || [];
+}
+/** Sala do jogador da conta (ou null fora do jogo). */
+function roomOfUser(userId) {
+  for (const [room, players] of presenceByRoom()) if (players.some((p) => p.userId === userId)) return room;
+  return null;
+}
 
 function setIo(socketIo) {
   io = socketIo;
@@ -781,12 +799,23 @@ function tickPresence() {
     for (const me of players) {
       if (!me.userId) continue;
       seen.add(me.userId);
+      if (lastRoom.get(me.userId) !== room) {
+        const from = lastRoom.has(me.userId) ? lastRoom.get(me.userId) : null;
+        lastRoom.set(me.userId, room);
+        emitRoomChange(me.userId, from, room);
+      }
       const payload = { room, me: me.penguinId, players };
       const json = JSON.stringify(payload);
       if (lastPresence.get(me.userId) === json) continue;
       lastPresence.set(me.userId, json);
       io.to(`user:${me.userId}`).emit('praca:presence', payload);
     }
+  }
+  for (const userId of [...lastRoom.keys()]) {
+    if (seen.has(userId)) continue;
+    const from = lastRoom.get(userId);
+    lastRoom.delete(userId);
+    emitRoomChange(userId, from, null);
   }
   for (const userId of [...lastPresence.keys()]) {
     if (seen.has(userId)) continue;
@@ -795,4 +824,4 @@ function tickPresence() {
   }
 }
 
-module.exports = { getWaddle, mountHttp, attachUpgrade, getConfig, getStatus, ensurePenguin, cachedRouter, streamPack, listPacks, packUrls, streamNamedPack, getStore, setIo };
+module.exports = { getWaddle, mountHttp, attachUpgrade, getConfig, getStatus, ensurePenguin, cachedRouter, streamPack, listPacks, packUrls, streamNamedPack, getStore, setIo, onRoomChange, roomPlayers, roomOfUser };

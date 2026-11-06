@@ -15,6 +15,7 @@ const voiceUsage = require('../services/voiceUsage');
 const gamePlaytime = require('../services/gamePlaytime');
 const { steamAppIdOf } = require('../utils/steamCover');
 const ytWatch = require('./ytWatch');
+const cpJukebox = require('./cpJukebox');
 const { initSledRacing } = require('./sledRacing');
 const { visibleStatus, installSocketMasking } = require('../utils/presenceVisibility');
 const { createTokenBucket } = require('../utils/tokenBucket');
@@ -971,6 +972,8 @@ function initSockets(httpServer) {
 
     // YouTube "Assistir juntos" na chamada (yt:open/play/pause/seek/next/close/queue:add) — ver ytWatch.js.
     ytWatch.register(io, socket, userId);
+    // Jukebox do YouTube na Danceteria do Club Penguin — ver cpJukebox.js.
+    cpJukebox.register(socket, userId);
     // Sala de estudos (Pomodoro compartilhado na call) — ver focusRoom.js.
     require('./focusRoom').register(io, socket, userId);
 

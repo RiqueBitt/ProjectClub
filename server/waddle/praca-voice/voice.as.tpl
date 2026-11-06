@@ -943,6 +943,22 @@ if(pcvEI.available)
       shell.sendJoinPlayerIgloo(id);
       return true;
    });
+   // Jukebox do YouTube na Danceteria: a página desliga a música da sala
+   // enquanto toca o YouTube e liga de volta quando a fila acaba.
+   // Devolve a música que o jogo está tocando agora ("" = nenhuma);
+   // "?" só consulta.
+   pcvEI.addCallback("pracaRoomMusic", null, function(on)
+   {
+      if(on == true)
+      {
+         shell.startRoomMusic();
+      }
+      else if(on != "?")
+      {
+         shell.stopMusic();
+      }
+      return String(shell.MUSIC.currentURL);
+   });
 }
 
 // Tirar a roupa clicando no item de novo: na interface de 2012 o único jeito

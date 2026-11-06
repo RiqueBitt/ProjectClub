@@ -324,8 +324,95 @@ async function suggest(q) {
   return parseSuggest(body);
 }
 
+
+// ---------- dados de UM vídeo (título, duração, se toca embutido) ----------
+
+/** Pura: ytInitialPlayerResponse → { title, channel, durationSec, live, playable, reason }. */
+function parsePlayerResponse(pr, videoId) {
+  if (!pr || typeof pr !== 'object') return null;
+  const d = pr.videoDetails || {};
+  if (d.videoId && d.videoId !== videoId) return null;
+  const ps = pr.playabilityStatus || {};
+  const status = String(ps.status || '');
+  const reason = clean(ps.reason || txt(ps.errorScreen?.playerErrorMessageRenderer?.reason) || '', 160);
+  // "Sign in to confirm you're not a bot": o YouTube desconfiou do SERVIDOR,
+  // não é problema do vídeo — quem decide é o player de quem ouve.
+  const botCheck = status === 'LOGIN_REQUIRED' && /bot/i.test(reason);
+  const len = Number(d.lengthSeconds);
+  return {
+    videoId,
+    title: clean(d.title) || null,
+    channel: clean(d.author, 100) || null,
+    durationSec: Number.isFinite(len) && len > 0 ? len : null,
+    live: !!(d.isLive || (d.isLiveContent && !(len > 0))),
+    playable: botCheck ? null : (status === 'OK' ? ps.playableInEmbed !== false : false),
+    reason: botCheck ? null : (status === 'OK' ? null : (reason || status || null)),
+  };
+}
+
+async function oembed(videoId) {
+  const resp = await fetch(`https://www.youtube.com/oembed?format=json&url=${encodeURIComponent(`https://www.youtube.com/watch?v=${videoId}`)}`, {
+    headers: { 'User-Agent': UA }, signal: AbortSignal.timeout(TIMEOUT_MS),
+  });
+  // 401/403: dono desligou a incorporação; 404: não existe / privado
+  if (resp.status === 401 || resp.status === 403) return { videoId, title: null, channel: null, durationSec: null, live: false, playable: false, reason: 'O dono do vídeo não deixa tocar fora do YouTube.' };
+  if (resp.status === 404 || resp.status === 400) return { videoId, title: null, channel: null, durationSec: null, live: false, playable: false, reason: 'Vídeo não encontrado (apagado ou privado).' };
+  if (!resp.ok) throw new Error(`youtube oembed ${resp.status}`);
+  const j = await resp.json();
+  return { videoId, title: clean(j.title) || null, channel: clean(j.author_name, 100) || null, durationSec: null, live: false, playable: null, reason: null };
+}
+
+const infoCache = new Map(); // videoId -> { at, info }
+const INFO_TTL_MS = 6 * 60 * 60 * 1000;
+
+/**
+ * Título/duração/se dá pra tocar de um vídeo. `playable` null = não deu pra
+ * saber daqui (o player de quem ouve avisa se der erro).
+ */
+async function videoInfo(videoId) {
+  if (!ID_RE.test(videoId || '')) return null;
+  const hit = infoCache.get(videoId);
+  if (hit && Date.now() - hit.at < INFO_TTL_MS) return hit.info;
+  let info = null;
+  if (apiKey()) {
+    try {
+      const d = await apiGet('videos', { part: 'snippet,contentDetails,status', id: videoId });
+      const v = d.items?.[0];
+      if (!v) info = { videoId, title: null, channel: null, durationSec: null, live: false, playable: false, reason: 'Vídeo não encontrado (apagado ou privado).' };
+      else {
+        const m = String(v.contentDetails?.duration || '').match(/P(?:(\d+)D)?T?(?:(\d+)H)?(?:(\d+)M)?(?:(\d+)S)?/) || [];
+        const sec = (Number(m[1] || 0) * 86400) + (Number(m[2] || 0) * 3600) + (Number(m[3] || 0) * 60) + Number(m[4] || 0);
+        info = {
+          videoId, title: clean(v.snippet?.title) || null, channel: clean(v.snippet?.channelTitle, 100) || null,
+          durationSec: sec > 0 ? sec : null, live: v.snippet?.liveBroadcastContent === 'live',
+          playable: v.status?.embeddable !== false && v.status?.privacyStatus !== 'private',
+          reason: v.status?.embeddable === false ? 'O dono do vídeo não deixa tocar fora do YouTube.' : null,
+        };
+      }
+    } catch { info = null; }
+  }
+  if (!info) {
+    try {
+      const html = await get(`https://www.youtube.com/watch?v=${videoId}&hl=pt&gl=BR`);
+      info = parsePlayerResponse(extractJsonAfter(html, 'var ytInitialPlayerResponse =') || extractJsonAfter(html, 'ytInitialPlayerResponse ='), videoId);
+    } catch { info = null; }
+  }
+  if (!info || (!info.title && info.playable !== false)) {
+    try {
+      const o = await oembed(videoId);
+      info = info ? { ...info, title: info.title || o.title, channel: info.channel || o.channel, playable: o.playable === false ? false : info.playable, reason: info.reason || o.reason } : o;
+    } catch { /* sem rede: fica o que tiver */ }
+  }
+  if (info) {
+    infoCache.set(videoId, { at: Date.now(), info });
+    if (infoCache.size > 2000) infoCache.delete(infoCache.keys().next().value);
+  }
+  return info;
+}
+
 module.exports = {
-  search, trending, related, channelVideos, suggest,
+  search, trending, related, channelVideos, suggest, videoInfo,
+  parsePlayerResponse,
   // exportados pros testes
   extractInitialData, collectVideos, parseSearchHtml, parseWatchHtml, parseSuggest, isoDur, CATEGORY,
 };

@@ -11,6 +11,7 @@ import { usePracaVoice, useInGameVoiceButtons, usePracaCoinCap } from '../praca/
 import { RemoteAudioSinks } from '../components/CallBar.jsx';
 import { findMinijogo } from '../minijogos/catalog.js';
 import DownloadCenter from '../praca/DownloadCenter.jsx';
+import Jukebox from '../praca/Jukebox.jsx';
 import '../styles/praca.css';
 import { useAdaptiveQuality } from '../praca/adaptiveQuality.js';
 
@@ -724,6 +725,8 @@ export default function PracaPage({ embedded = false, background = false, onClos
         {phase === 'playing' && needsTap && (
           <button type="button" className="praca-tap" onClick={resumeAudio}>Toque para ligar o som</button>
         )}
+        {/* música do YouTube que a pista inteira ouve junto (Danceteria) */}
+        <Jukebox room={pracaVoice.room} playerRef={playerRef} gameMuted={muted} active={phase === 'playing' && !background} />
       </div>
       </div>
       {!background && (

@@ -132,6 +132,7 @@ export function usePracaVoice({ myUserId, active }) {
   }, [inVoice, speaking, presence, parts, myUserId]);
 
   return {
+    room: presence.room, // sala do jogo em que o pinguim está (jukebox da Danceteria)
     available: !!voice,
     talk: want.talk, listen: want.listen, inVoice, joining,
     speaking,
