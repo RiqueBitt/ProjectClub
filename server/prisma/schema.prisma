@@ -4738,7 +4738,7 @@ model PlazaCode {
   coins      Int       @default(0)
   eventCoins Int       @default(0)
   eventSlug  String?   @db.VarChar(60)
-  items      String    @default("[]") @db.Text // JSON [itemId]
+  items      String    @default("[]") @db.VarChar(4000) // JSON [itemId] (MySQL não aceita default em TEXT)
   maxUses    Int?
   uses       Int       @default(0)
   expiresAt  DateTime?
@@ -4766,7 +4766,7 @@ model PlazaMascotVisit {
   startsAt         DateTime
   endsAt           DateTime
   backgroundItemId Int?     // fundo de brinde ao encontrar
-  itemIds          String   @default("[]") @db.Text // outros brindes (JSON)
+  itemIds          String   @default("[]") @db.VarChar(4000) // outros brindes (JSON)
   coins            Int      @default(0)
   eventCoins       Int      @default(0)
   note             String   @default("") @db.VarChar(200)
@@ -4809,7 +4809,7 @@ model PlazaContest {
   startsAt     DateTime
   endsAt       DateTime // fim das inscrições
   votingEndsAt DateTime
-  prizeItems   String   @default("[]") @db.Text // JSON [itemId]
+  prizeItems   String   @default("[]") @db.VarChar(4000) // JSON [itemId]
   prizeCoins   Int      @default(0)
   maxWinners   Int      @default(3)
   active       Boolean  @default(true)
