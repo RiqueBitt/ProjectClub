@@ -298,7 +298,7 @@ const orientCalls = (page) => page.evaluate(() => window.__orientCalls.slice());
 
 // Abre pela lista com um toque/clique de verdade (o gesto que libera a tela cheia).
 async function openFromList(page, name, { touch }) {
-  await page.goto('/minijogos');
+  await page.goto('/minijogos?local=1'); // local=1: player antigo (sem ir pra Praça)
   const card = page.locator('.mj-card', { hasText: name });
   await expect(card).toBeVisible({ timeout: 30_000 });
   if (touch) await card.tap(); else await card.click();
