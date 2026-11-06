@@ -1081,3 +1081,228 @@ var pcdTimer = setInterval(function()
       clearInterval(pcdTimer);
    }
 }, 500);
+
+// Sem desconectar por inatividade: o jogo de 2012 derrubava quem ficava
+// 10 min sem mexer (e o "OK" do aviso tentava abrir o site antigo do Club
+// Penguin, então o jogo ficava parado na tela azul). Vale também pro aviso de
+// inatividade que vem da parte AS3 do cliente (comando "dc").
+var pcxShell = _global.getCurrentShell();
+pcxShell.idleDisconnect = function()
+{
+   _global.getCurrentShell().stopPlayerIdleCheck();
+};
+
+// Jukebox da Danceteria: uma jukebox (client/public/praca-ui/jukebox-128.png)
+// em cima da mesinha redonda do canto direito, ao lado dos sofás. Só aparece
+// na Danceteria (sala 120). Clicar abre a janela do DJ
+// (window.pracaJukeboxToggle → praca/Jukebox.jsx). A página avisa se está
+// tocando (pracaJukeboxState): a jukebox balança no ritmo e solta notinhas.
+// A resposta é o ponto do topo da jukebox na tela (pro balão de aviso).
+var PCJ_ROOM = 120;
+var PCJ_SIZE = 66; // quadrado do PNG (a arte ocupa ~78% da largura)
+var PCJ_X = 707; // centro da mesinha
+var PCJ_Y = 394; // onde a jukebox encosta na mesa
+var pcjPlaying = false;
+var pcjOpen = false;
+var pcjBox = undefined;
+function pcjWhere()
+{
+   if(pcjBox == undefined || !pcjBox._visible)
+   {
+      return "";
+   }
+   var p = {x: 0, y: - PCJ_SIZE + 4};
+   pcjBox.localToGlobal(p);
+   return Math.round(p.x) + "," + Math.round(p.y);
+}
+function pcjNote(parent, name, depth, col)
+{
+   var n = parent.createEmptyMovieClip(name, depth);
+   n.lineStyle(2, 0x0A3A70, 100);
+   n.beginFill(col, 100);
+   n.moveTo(-4, 0);
+   n.curveTo(-4, -3, 0, -3);
+   n.curveTo(4, -3, 4, 0);
+   n.curveTo(4, 3, 0, 3);
+   n.curveTo(-4, 3, -4, 0);
+   n.endFill();
+   n.lineStyle(2, 0x0A3A70, 100);
+   n.moveTo(3.5, 0);
+   n.lineTo(3.5, -13);
+   n.lineTo(9, -10);
+   n._visible = false;
+   return n;
+}
+function pcjMake()
+{
+   if(DOCK == undefined)
+   {
+      return false;
+   }
+   var host = DOCK._parent;
+   if(host.pcjb_mc != undefined)
+   {
+      return true;
+   }
+   // camada logo abaixo da barra: cartões e janelas do jogo ficam por cima
+   var b = host.createEmptyMovieClip("pcjb_mc", host.getNextHighestDepth());
+   pcjBox = b;
+   b._x = PCJ_X;
+   b._y = PCJ_Y;
+   b._visible = false;
+   var shadow = b.createEmptyMovieClip("shadow_mc", 1);
+   shadow.beginFill(0x000000, 22);
+   shadow.moveTo(-20, 0);
+   shadow.curveTo(-20, -6, 0, -6);
+   shadow.curveTo(20, -6, 20, 0);
+   shadow.curveTo(20, 6, 0, 6);
+   shadow.curveTo(-20, 6, -20, 0);
+   shadow.endFill();
+   // a arte cresce/balança a partir da base (em cima da mesa)
+   var art = b.createEmptyMovieClip("art_mc", 2);
+   var holder = art.createEmptyMovieClip("img_mc", 1);
+   var l = new MovieClipLoader();
+   var lis = {};
+   lis.onLoadInit = function(t)
+   {
+      t.forceSmoothing = true;
+      t._width = PCJ_SIZE;
+      t._height = PCJ_SIZE;
+      t._x = - PCJ_SIZE / 2;
+      t._y = - PCJ_SIZE + 2;
+   };
+   l.addListener(lis);
+   l.loadClip("/praca-ui/jukebox-128.png", holder);
+   var notes = b.createEmptyMovieClip("notes_mc", 3);
+   var cols = [0xFF4FD8, 0x3EE6FF, 0xFFE240];
+   var i = 0;
+   while(i < 3)
+   {
+      var n = pcjNote(notes, "n" + i, i + 1, cols[i]);
+      n.pcjPhase = i * 16;
+      i++;
+   }
+   // área de clique: a jukebox inteira (o PNG tem bordas transparentes)
+   var hit = b.createEmptyMovieClip("hit_mc", 4);
+   hit.beginFill(0xFFFFFF, 0);
+   hit.moveTo(-26, 2);
+   hit.lineTo(26, 2);
+   hit.lineTo(26, - PCJ_SIZE + 6);
+   hit.lineTo(-26, - PCJ_SIZE + 6);
+   hit.lineTo(-26, 2);
+   hit.endFill();
+   b.hitArea = hit;
+   b.pcjT = 0;
+   b.onEnterFrame = function()
+   {
+      var here = _global.getCurrentShell().getCurrentRoomId() == PCJ_ROOM;
+      if(this._visible != here)
+      {
+         this._visible = here;
+         if(!here)
+         {
+            closeHint();
+         }
+      }
+      if(!here)
+      {
+         return undefined;
+      }
+      this.pcjT++;
+      // a janela da página cobre o jogo e o mouse "some" pro jogo: confere
+      // de verdade se ainda está em cima da jukebox
+      if(this.pcjHover && (pcjOpen || !this.hitTest(_level0._xmouse, _level0._ymouse, false)))
+      {
+         this.pcjHover = false;
+         closeHint();
+      }
+      var a = this.art_mc;
+      var j = 0;
+      if(pcjPlaying)
+      {
+         // pula no ritmo (~120 bpm a 24 quadros/s), achatando ao "pousar"
+         var k = Math.abs(Math.sin(this.pcjT * Math.PI / 12));
+         a._y = -3 * k;
+         a._xscale = (this.pcjHover ? 108 : 100) + 4 * (1 - k);
+         a._yscale = (this.pcjHover ? 108 : 100) - 4 * (1 - k) + 2 * k;
+         a._rotation = 3 * Math.sin(this.pcjT * Math.PI / 24);
+         if(flash.filters.GlowFilter != undefined)
+         {
+            var s = 5 + 5 * k;
+            a.filters = [new flash.filters.GlowFilter(pcjOpen ? 0xFFE240 : 0xFF4FD8, 0.85, s, s, 2, 2)];
+         }
+         // notinhas subindo
+         while(j < 3)
+         {
+            var n = this.notes_mc["n" + j];
+            var f = (this.pcjT + n.pcjPhase) % 48;
+            n._visible = true;
+            n._x = (j - 1) * 16 + 6 * Math.sin((this.pcjT + n.pcjPhase) / 7);
+            n._y = - PCJ_SIZE + 6 - f * 0.9;
+            n._alpha = f < 8 ? f * 12 : Math.max(0, 100 - (f - 8) * 2.5);
+            j++;
+         }
+      }
+      else
+      {
+         var hs = this.pcjHover ? 108 : 100;
+         if(a._y != 0 || a._rotation != 0 || a._xscale != hs)
+         {
+            a._y = 0;
+            a._rotation = 0;
+            a._xscale = a._yscale = hs;
+         }
+         a.filters = (pcjOpen || this.pcjHover) && flash.filters.GlowFilter != undefined ? [new flash.filters.GlowFilter(0xFFE240, 0.9, 7, 7, 2, 2)] : [];
+         while(j < 3)
+         {
+            this.notes_mc["n" + j]._visible = false;
+            j++;
+         }
+      }
+   };
+   b.onRollOver = function()
+   {
+      this.pcjHover = true;
+      showHint(this, "Jukebox", 0, - PCJ_SIZE - 6, false);
+   };
+   b.onRollOut = b.onDragOut = function()
+   {
+      this.pcjHover = false;
+      closeHint();
+   };
+   b.onRelease = function()
+   {
+      closeHint();
+      if(chatController != undefined && chatController.handleBlur != undefined)
+      {
+         chatController.handleBlur();
+      }
+      if(pcvEI.available)
+      {
+         pcvEI.call("pracaJukeboxToggle", pcjWhere());
+      }
+   };
+   if(pcvEI.available)
+   {
+      pcvEI.addCallback("pracaJukeboxState", null, function(playing, open)
+      {
+         pcjPlaying = playing == true;
+         if(open == true && !pcjOpen && pcjBox != undefined)
+         {
+            // a janela cobre o jogo: o mouse "saiu" da jukebox
+            pcjBox.pcjHover = false;
+            closeHint();
+         }
+         pcjOpen = open == true;
+         return pcjWhere();
+      });
+   }
+   return true;
+}
+var pcjTimer = setInterval(function()
+{
+   if(pcjMake())
+   {
+      clearInterval(pcjTimer);
+   }
+}, 500);

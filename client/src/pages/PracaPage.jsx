@@ -128,9 +128,34 @@ function installWorldSocketWatch() {
   window.WebSocket = WatchedWebSocket;
 }
 
+// O "OK" dos avisos de conexão do jogo (inatividade, conexão perdida, saiu)
+// manda abrir o site antigo do Club Penguin (getURL "_self"), que não existe
+// mais — e o jogo ficava parado na tela azul até recarregar a página. Com
+// openUrlMode 'confirm' o Ruffle pergunta pela window.confirm antes de abrir
+// qualquer endereço; aqui a página responde: endereço de "voltar pro jogo" →
+// reinicia o jogo sem sair do Project Club; o resto (links mortos do site
+// antigo) é ignorado. A página nunca é trocada.
+const GAME_RESTART_URL = /^https?:\/\/(play|www)\.clubpenguin\.com\/?$|^https?:\/\/(support|www)\.clubpenguin\.com\/help\/.*(connect|connection)/i;
+function installNavigationGuard() {
+  if (window.__pcNavGuard) return;
+  window.__pcNavGuard = true;
+  const orig = window.confirm;
+  window.confirm = function pcConfirm(message) {
+    const m = /^The SWF file wants to open the website ([\s\S]+)$/.exec(String(message ?? ''));
+    if (!m) return orig.call(window, message);
+    const url = m[1].trim();
+    if (GAME_RESTART_URL.test(url)) {
+      console.info('[praça] o jogo pediu pra recomeçar — reiniciando');
+      setTimeout(() => window.dispatchEvent(new CustomEvent('praca:world-closed', { detail: { code: 'restart' } })), 0);
+    } else console.info('[praça] o jogo tentou abrir', url, '(ignorado)');
+    return false;
+  };
+}
+
 function loadRuffle() {
   installFreshFetch();
   installWorldSocketWatch();
+  installNavigationGuard();
   if (window.RufflePlayer?.newest) return Promise.resolve(window.RufflePlayer);
   if (!rufflePromise) {
     rufflePromise = new Promise((resolve, reject) => {
@@ -344,7 +369,7 @@ export default function PracaPage({ embedded = false, background = false, onClos
         contextMenu: 'off',
         allowScriptAccess: true, // o cliente moderno (AS3) usa ExternalInterface pra ler a URL da página
         allowNetworking: 'all',
-        openUrlMode: 'deny',
+        openUrlMode: 'confirm', // ver installNavigationGuard: a página decide (nunca sai do site)
         logLevel: 'error',
         locale: 'pt-BR',
         publicPath: '/ruffle/',
@@ -725,8 +750,8 @@ export default function PracaPage({ embedded = false, background = false, onClos
         {phase === 'playing' && needsTap && (
           <button type="button" className="praca-tap" onClick={resumeAudio}>Toque para ligar o som</button>
         )}
-        {/* música do YouTube que a pista inteira ouve junto (Danceteria) */}
-        <Jukebox room={pracaVoice.room} playerRef={playerRef} gameMuted={muted} active={phase === 'playing' && !background} />
+        {/* Jukebox da Danceteria: botão dentro do jogo + janela por cima da tela do jogo */}
+        <Jukebox room={pracaVoice.room} playerRef={playerRef} stageRef={stageRef} gameMuted={muted} active={phase === 'playing' && !background} />
       </div>
       </div>
       {!background && (
