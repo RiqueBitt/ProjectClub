@@ -43,6 +43,7 @@ const FILES = {
     shop: 'static/images/archives/6/68/RoomsShop-May2015.swf',
     forts: 'static/images/archives/b/bd/RoomsForts-February2016.swf',
     village: 'static/images/archives/e/e3/RoomsVillage-January2016.swf',
+    dock: 'static/images/archives/e/ee/RoomsDock-January2016.swf', // última versão normal da Doca
     lodge: 'static/images/archives/5/53/RoomsLodge-September2015.swf',
     attic: 'static/images/archives/5/5b/RoomsAttic-May2015.swf',
     mtn: 'static/images/archives/7/75/RoomsMtn-May2015.swf',
