@@ -50,6 +50,8 @@ const config = {
   // Discord); o limite REAL de cada canal é checado no backend (getJoin).
   maxPeersPerRoom: num(env.MEDIA_MAX_PEERS_PER_ROOM, 99),
   maxProducersPerPeer: num(env.MEDIA_MAX_PRODUCERS_PER_PEER, 4), // mic + câmera + tela + áudio da tela
+  // Telas ao mesmo tempo numa chamada (pedido do dono, nov/2026): a 4ª é recusada.
+  maxScreenSharesPerRoom: num(env.MEDIA_MAX_SCREEN_SHARES_PER_ROOM, 3),
   maxRooms: num(env.MEDIA_MAX_ROOMS, 500),
   // send + recv, com folga pra uma renegociação; cada transport sem
   // WebRtcServer ocupa uma porta UDP/TCP — sem teto um cliente esgotaria a faixa.

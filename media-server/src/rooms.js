@@ -173,6 +173,7 @@ class Peer {
     this.producers = new Map();  // id -> Producer
     this.consumers = new Map();  // id -> Consumer
     this.pendingProduce = 0;
+    this.pendingScreen = false; // publicando a tela agora (conta no limite de telas da sala)
     this.rtpCapabilities = null;
     this.joinedAt = Date.now();
     this.closed = false;
@@ -255,6 +256,14 @@ class Room {
   }
 
   get size() { return this.peers.size; }
+  /** Quantas telas estão no ar na sala (uma por pessoa; inclui publicações em andamento). */
+  screenShareCount() {
+    let n = 0;
+    for (const p of this.peers.values()) {
+      if ([...p.producers.values()].some((pr) => pr.appData?.source === 'screen' && !pr.closed) || p.pendingScreen) n += 1;
+    }
+    return n;
+  }
 
   // Acha um producer (e quem publica) em qualquer peer da sala.
   _findProducer(producerId) {
@@ -385,12 +394,17 @@ class Room {
     const hasScreen = [...peer.producers.values()].some((p) => p.appData?.source === 'screen' && !p.closed);
     const denied = perm.checkProduce(peer.perms, { kind, source, hasScreen });
     if (denied) throw perm.forbiddenError(denied);
+    // Limite de telas por chamada (conta as dos outros + as em andamento).
+    if (source === 'screen' && !hasScreen && this.screenShareCount() >= config.maxScreenSharesPerRoom) {
+      throw Object.assign(new Error(`limit:screen — a chamada já tem ${config.maxScreenSharesPerRoom} telas sendo transmitidas`), { code: 'screenLimit' });
+    }
     // Nasce pausado: o cliente pediu (estava mudo — nada de "vazar" o
     // começo da fala) ou o servidor manda (mudo da moderação).
     const clientPaused = appData?.paused === true;
     const forced = !clientPaused && perm.forcePausedOnProduce(peer.perms, { kind, source });
     const paused = clientPaused || forced;
     peer.pendingProduce += 1;
+    if (source === 'screen') peer.pendingScreen = true;
     let producer;
     try {
       producer = await transport.produce({
@@ -402,6 +416,7 @@ class Room {
       });
     } finally {
       peer.pendingProduce -= 1;
+      if (source === 'screen') peer.pendingScreen = false;
     }
     if (!this._alive(peer)) { try { producer.close(); } catch { /* ok */ } throw goneError(); }
     producer.observer.on('close', () => { peer.producers.delete(producer.id); this._forgetLayers(producer.id); });

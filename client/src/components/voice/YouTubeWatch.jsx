@@ -421,7 +421,9 @@ export function YouTubePicker({ yt, onClose }) {
 }
 
 // Botão "Atividades" do dock + menu.
-export function ActivitiesButton({ onPick }) {
+// `active`: atividade rolando agora ('youtube' | 'music' | null) — só 1 por
+// vez na chamada: a outra opção fica desligada até encerrar a atual.
+export function ActivitiesButton({ onPick, active = null }) {
   const [open, setOpen] = useState(false);
   const ref = useRef(null);
   useEffect(() => {
@@ -443,14 +445,14 @@ export function ActivitiesButton({ onPick }) {
       </button>
       {open && (
         <div className="ytw-act-pop" role="menu" aria-label="Atividades">
-          <p className="ytw-sub">Atividades</p>
-          <button type="button" role="menuitem" className="ytw-act-item" onClick={() => { setOpen(false); onPick('youtube'); }}>
+          <p className="ytw-sub">Atividades{active ? ' · 1 por vez' : ''}</p>
+          <button type="button" role="menuitem" className="ytw-act-item" disabled={!!active && active !== 'youtube'} onClick={() => { setOpen(false); onPick('youtube'); }}>
             <span className="ytw-yt"><YIcon d={P.yt} size={22} /></span>
-            <span><strong>YouTube - Assistir juntos</strong><small>Vídeos sincronizados com a chamada</small></span>
+            <span><strong>YouTube - Assistir juntos</strong><small>{active === 'youtube' ? 'Rolando agora' : (active ? 'Encerre a atividade atual antes' : 'Vídeos sincronizados com a chamada')}</small></span>
           </button>
-          <button type="button" role="menuitem" className="ytw-act-item" onClick={() => { setOpen(false); onPick('music'); }}>
+          <button type="button" role="menuitem" className="ytw-act-item" disabled={!!active && active !== 'music'} onClick={() => { setOpen(false); onPick('music'); }}>
             <span className="ytw-yt ytw-ytm"><YIcon d={MUSIC_ICON} size={22} /></span>
-            <span><strong>YouTube Music - Ouvir juntos</strong><small>Músicas tocando para todo mundo da chamada</small></span>
+            <span><strong>YouTube Music - Ouvir juntos</strong><small>{active === 'music' ? 'Rolando agora' : (active ? 'Encerre a atividade atual antes' : 'Músicas tocando para todo mundo da chamada')}</small></span>
           </button>
         </div>
       )}

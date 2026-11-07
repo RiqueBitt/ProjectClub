@@ -138,6 +138,17 @@
 }
 .vc-screen:hover .vc-fullscreen, .vc-fullscreen:focus-visible { opacity: 1; }
 .video-tile-wrap:fullscreen video { object-fit: contain; }
+/* Tela expandida: nome + volume da transmissão por cima do vídeo (o controle
+   normal fica fora do elemento em tela cheia e sumiria). Aparece ao mexer o
+   mouse, igual ao botão de sair da tela cheia. */
+.video-tile-wrap:fullscreen .vc-fullscreen { opacity: 1; }
+.vc-fs-extras {
+  position: absolute; left: 16px; bottom: 16px; display: flex; align-items: center; gap: 10px;
+  padding: 8px 10px; border-radius: 12px; background: rgba(0, 0, 0, .55); color: #fff; z-index: 2;
+}
+.vc-fs-extras .vc-fs-name { display: inline-flex; align-items: center; gap: 6px; font-size: 13px; font-weight: 600; }
+.vc-fs-extras .vc-vol { position: static; }
+.vc-fs-extras .vc-vol-pop { bottom: calc(100% + 8px); top: auto; }
 
 /* Destaque: tela transmitida grande + pessoas numa faixa embaixo */
 .vc-stage.is-spotlight { padding-bottom: 96px; }

@@ -64,6 +64,7 @@ export function mediaErrorInfo(err, kind = 'camera') {
     return { reason: kind === 'screen' ? 'Você não tem permissão para transmitir neste canal.' : 'Você não tem permissão para usar vídeo neste canal.', cancelled: false, code: 'forbidden' };
   }
   if (kind === 'screen') {
+    if (/^limit:screen/.test(msg)) return { reason: 'A chamada já tem 3 telas sendo transmitidas. Espere alguém parar para transmitir a sua.', cancelled: false, code: 'limit' };
     if (name === 'NotAllowedError' || name === 'AbortError') return { reason: null, cancelled: true, code: 'cancelled' };
     if (name === 'NotReadableError') return { reason: 'Não foi possível capturar a tela agora — tente de novo.', cancelled: false, code: 'busy' };
     if (name === 'NotSupportedError' || name === 'TypeError') return { reason: 'Este navegador não suporta compartilhar a tela.', cancelled: false, code: 'unsupported' };

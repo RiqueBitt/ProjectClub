@@ -224,33 +224,34 @@ export default function VoiceChannelView({ channel }) {
           <>
             <div className={`vc-screens vc-screens-${Math.min(screens.length + (yt.active ? 1 : 0), 2)}`}>
               {yt.active && <YouTubeStage yt={yt} viewers={viewers} onAdd={(kind) => setYtPicker(kind || 'youtube')} />}
-              {screens.map((s) => (
-                <div key={s.key} className="vc-screen">
-                  {/* Sem tela cheia na própria tela: evita o "espelho infinito". */}
-                  <VideoTile stream={s.stream} muted allowFullscreen={!s.mine} uid={s.mine ? null : s.uid} kind="screen" report={voice.reportVideoViewport} />
-                  <span className="vc-label"><Icon name="screen" size={14} /> {s.mine ? 'Sua tela' : (memberFor(s.uid)?.displayName || 'Tela')}</span>
-                  {/* Volume desta transmissão (0–200%): o SOM DA TELA tem volume
-                      próprio, separado da voz (igual ao Discord). Sem faixa
-                      de som da tela: vale o volume da pessoa. */}
-                  {!s.mine && (voice.remoteScreenAudioStreams?.[s.uid] ? (
-                    <VolumeControl
-                      className="vc-vol-stream"
-                      name={memberFor(s.uid)?.displayName || 'transmissão'}
-                      volume={voice.streamVolumes?.[s.uid] ?? 1}
-                      onVolume={(v) => voice.setStreamVolume(s.uid, v)}
-                      label="Volume da transmissão"
+              {screens.map((s) => {
+                // Volume desta transmissão (0–200%): o SOM DA TELA tem volume
+                // próprio, separado da voz (igual ao Discord). Sem faixa de som
+                // da tela: vale o volume da pessoa. O mesmo controle aparece
+                // por cima do vídeo quando a tela está expandida (tela cheia).
+                const streamName = memberFor(s.uid)?.displayName || 'transmissão';
+                const volumeCtl = s.mine ? null : (voice.remoteScreenAudioStreams?.[s.uid] ? (
+                  <VolumeControl className="vc-vol-stream" name={streamName} volume={voice.streamVolumes?.[s.uid] ?? 1} onVolume={(v) => voice.setStreamVolume(s.uid, v)} label="Volume da transmissão" />
+                ) : (
+                  <VolumeControl className="vc-vol-stream" name={streamName} volume={volumes[s.uid] ?? 1} onVolume={(v) => voice.setParticipantVolume(s.uid, v)} label="Volume da transmissão" />
+                ));
+                return (
+                  <div key={s.key} className="vc-screen">
+                    {/* Sem tela cheia na própria tela: evita o "espelho infinito". */}
+                    <VideoTile
+                      stream={s.stream} muted allowFullscreen={!s.mine} uid={s.mine ? null : s.uid} kind="screen" report={voice.reportVideoViewport}
+                      fullscreenExtras={volumeCtl && (
+                        <>
+                          <span className="vc-fs-name"><Icon name="screen" size={14} /> {streamName}</span>
+                          {volumeCtl}
+                        </>
+                      )}
                     />
-                  ) : (
-                    <VolumeControl
-                      className="vc-vol-stream"
-                      name={memberFor(s.uid)?.displayName || 'transmissão'}
-                      volume={volumes[s.uid] ?? 1}
-                      onVolume={(v) => voice.setParticipantVolume(s.uid, v)}
-                      label="Volume da transmissão"
-                    />
-                  ))}
-                </div>
-              ))}
+                    <span className="vc-label"><Icon name="screen" size={14} /> {s.mine ? 'Sua tela' : streamName}</span>
+                    {volumeCtl}
+                  </div>
+                );
+              })}
             </div>
             <div className="vc-strip">{tiles}</div>
           </>
@@ -264,7 +265,18 @@ export default function VoiceChannelView({ channel }) {
       </div>
       <MicSilentWarning voice={voice} />
       <YouTubeToast yt={yt} />
-      <VoiceCallControls voice={voice} micLocked={false} onActivity={(kind) => setYtPicker(kind || 'youtube')} />
+      <VoiceCallControls
+        voice={voice} micLocked={false}
+        screenLimitReached={!screenOn && Object.keys(remoteScreenStreams).length >= MAX_SCREEN_SHARES}
+        onActivity={(kind) => {
+          // Só 1 atividade por vez na chamada: com uma rolando, abrir outra
+          // diferente não dá (encerre a atual antes).
+          const current = yt.active ? (yt.state?.mode === 'music' ? 'music' : 'youtube') : null;
+          if (current && current !== (kind || 'youtube')) { yt.setError?.(`Já tem uma atividade na chamada (${current === 'music' ? 'YouTube Music' : 'YouTube - Assistir juntos'}). Encerre antes de abrir outra.`); return; }
+          setYtPicker(kind || 'youtube');
+        }}
+        activeActivity={yt.active ? (yt.state?.mode === 'music' ? 'music' : 'youtube') : null}
+      />
       {ytPicker === 'music' && <CallMusicPicker yt={yt} onClose={closeYtPicker} />}
       {ytPicker && ytPicker !== 'music' && <YouTubePicker yt={yt} onClose={closeYtPicker} />}
     </div>
@@ -474,7 +486,10 @@ function ControlButton({ icon, label, onClick, disabled, active, danger, title }
   );
 }
 
-function VoiceCallControls({ voice, micLocked, onActivity }) {
+// Telas ao mesmo tempo numa chamada (o servidor de mídia recusa a 4ª).
+const MAX_SCREEN_SHARES = 3;
+
+function VoiceCallControls({ voice, micLocked, onActivity, screenLimitReached = false, activeActivity = null }) {
   const { muted, micMissing, deafened, cameraOn, screenOn } = voice;
   const [showScreenShareMenu, setShowScreenShareMenu] = useState(false);
   const isNativeApp = typeof window !== 'undefined' && !!window.Capacitor?.isNativePlatform?.();
@@ -501,19 +516,20 @@ function VoiceCallControls({ voice, micLocked, onActivity }) {
           onClick={voice.toggleCamera} disabled={micLocked} active={cameraOn}
         />
         <ControlButton
-          icon="screen" label={screenOn ? 'Parar tela' : 'Transmitir tela'}
+          icon="screen" label={screenOn ? 'Parar tela' : (screenLimitReached ? 'Limite de telas' : 'Transmitir tela')}
+          title={screenLimitReached ? `A chamada já tem ${MAX_SCREEN_SHARES} telas sendo transmitidas` : undefined}
           title={micLocked ? lockedTitle
             : !screenShareSupported ? (isNativeApp ? 'Transmitir tela ainda não funciona no app Android: use o navegador' : 'Este navegador não permite transmitir a tela')
               : undefined}
           onClick={() => (screenOn ? voice.toggleScreenShare() : setShowScreenShareMenu(true))}
-          disabled={micLocked || !screenShareSupported} active={screenOn}
+          disabled={micLocked || !screenShareSupported || screenLimitReached} active={screenOn}
         />
         {/* Transmitindo: troca 720p/1080p e 15/30/60 FPS sem parar. */}
         {screenOn && <ScreenQualityMenu voice={voice} className="vc-sqm" />}
         {!micLocked && <ReactionBar voice={voice} />}
         {!micLocked && voice?.call?.channelId && <SoundboardButton channelId={voice.call.channelId} />}
         {voice?.call?.channelId && <FocusButton channelId={voice.call.channelId} />}
-        {onActivity && <ActivitiesButton onPick={onActivity} />}
+        {onActivity && <ActivitiesButton onPick={onActivity} active={activeActivity} />}
         {!micLocked && <RecordButton voice={voice} />}
         <span className="vc-dock-sep" aria-hidden="true" />
         <button type="button" className="vc-ctrl vc-leave" onClick={voice.leaveChannel} aria-label="Sair da chamada" title="Sair da chamada">
@@ -533,7 +549,10 @@ function VoiceCallControls({ voice, micLocked, onActivity }) {
 
 // uid/kind/report: vídeo REMOTO — conta pro engine se está visível e o
 // tamanho (pausa o que ninguém vê; camada do simulcast pelo tamanho).
-function VideoTile({ stream, muted, allowFullscreen, uid = null, kind = 'camera', report = null }) {
+// `fullscreenExtras`: controles que precisam continuar à mão com a tela
+// expandida (o volume da transmissão fica FORA do elemento que vai pra tela
+// cheia, então sumia) — entram por cima do vídeo só nesse modo.
+function VideoTile({ stream, muted, allowFullscreen, uid = null, kind = 'camera', report = null, fullscreenExtras = null }) {
   const ref = useRef(null);
   const wrapRef = useRef(null);
   const [isFullscreen, setIsFullscreen] = useState(false);
@@ -561,6 +580,7 @@ function VideoTile({ stream, muted, allowFullscreen, uid = null, kind = 'camera'
   return (
     <div ref={wrapRef} className="video-tile-wrap vc-video">
       <video ref={ref} autoPlay playsInline muted={muted} />
+      {isFullscreen && fullscreenExtras && <div className="vc-fs-extras">{fullscreenExtras}</div>}
       {allowFullscreen && (
         <button
           type="button" className="vc-fullscreen" onClick={toggleFullscreen}
