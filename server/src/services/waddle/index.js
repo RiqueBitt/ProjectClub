@@ -378,7 +378,7 @@ function realParty(w) {
 }
 function layerCode() {
   let code = '';
-  try { if (require('./island').overlay().any) code += '15'; } catch { /* ok */ }
+  try { const island = require('./island'); if (island.overlay().any) code += island.code(); } catch { /* ok */ }
   try { if (require('./assets').overlay().any) code += '77'; } catch { /* ok */ }
   return code;
 }

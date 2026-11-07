@@ -166,6 +166,9 @@ async function ensureFiles(log = () => {}) {
   return state;
 }
 
+/** Código da camada pra contentVersion: muda quando a lista de arquivos muda (fura o cache de 30 dias). */
+function code() { return `15${String(Object.keys(FILES.rooms).length + Object.keys(FILES.music).length).padStart(2, '0')}`; }
+
 /** Camada pra parties.apply (vazia se desligada ou sem arquivos). */
 function overlay() {
   const out = { rooms: {}, music: {}, musicFiles: {}, routes: {}, any: false };
@@ -192,4 +195,4 @@ function attach() {
   setInterval(() => { if (!ready()) ensureFiles(() => {}).catch(() => {}); }, 10 * 60_000).unref?.();
 }
 
-module.exports = { attach, overlay, status, setEnabled, ensureFiles, roomName, MAP_ROUTE, FILES };
+module.exports = { attach, overlay, status, setEnabled, ensureFiles, roomName, code, MAP_ROUTE, FILES };
