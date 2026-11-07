@@ -40,6 +40,10 @@ class WorldServer {
         this.init();
     }
     // ---- Painel da equipe (Project Club) ----
+    /** Ações dos pinguins (emote, bola de neve, piada, fala) — quests da Praça. */
+    onAction(fn) {
+        this._world.onAction(fn);
+    }
     /** Pinguim conectado agora (undefined se offline). */
     getOnline(penguinId) {
         return this._world.getById(penguinId);
@@ -69,8 +73,8 @@ class WorldServer {
      * Quem está em qual sala e onde (pro chat de texto e a voz por
      * proximidade do Project Club). Pinguim em minijogo/sem sala fica de fora.
      */
-    /** Ações dos pinguins (emote, bola de neve, piada, fala) — quests da Praça. */
-    onAction(fn) { this._world.onAction(fn); }
+    // frame = animação atual (26 = dançando, 27 = acenando…); walking = puffle
+    // passeando (tipo). Usados pelas quests da Praça (Project Club).
     getPresence() {
         const out = [];
         for (const p of this._world.players) {
@@ -86,7 +90,6 @@ class WorldServer {
             }
             if (st === undefined)
                 continue;
-            // frame = animação atual (26 = dançando); walking = tipo do puffle passeando (quests da Praça)
             let walking = null;
             try {
                 const w = p.puffle.getWalking();

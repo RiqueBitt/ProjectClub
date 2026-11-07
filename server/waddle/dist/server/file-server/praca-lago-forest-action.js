@@ -1,0 +1,8 @@
+"use strict";
+Object.defineProperty(exports, "__esModule", { value: true });
+exports.PRACA_LAGO_FOREST_DOACTION = void 0;
+/**
+ * GERADO (Project Club) — não editar à mão.
+ * Tag DoAction (AVM1) que põe na Floresta o gatilho pra entrar no Lago andando (laguinho da cachoeira).\n * Fonte: server/waddle/praca-lago/forest.as (compilada com o JPEXS FFDec);\n * inserida no 1º quadro do forest.swf por swf-patches.ts.
+ */
+exports.PRACA_LAGO_FOREST_DOACTION = Buffer.from('PwMnAgAAiKsADwBfX3BjTGFnb1N0YXJ0AHN0YXJ0Um9vbQB0AHRyaWdnZXJzX21jAGdldE5leHRIaWdoZXN0RGVwdGgAbGFnb19tYwBjcmVhdGVFbXB0eU1vdmllQ2xpcABiZWdpbkZpbGwAbW92ZVRvAGxpbmVUbwBlbmRGaWxsAHRyaWdnZXJGdW5jdGlvbgBsYWdvAGdldEN1cnJlbnRTaGVsbABzZW5kSm9pblJvb20AlgIACACWAgAIARw8lgIACAGbBQAAAABeAZYFAAcAAAAAlgIACAA9F5YCAAgClgUABwAAAACWAgAIAxyWAgAIBFKWAgAIBZYFAAcCAAAAlgIACAMclgIACAZSPJYFAAcyAAAAlgUABwD/AACWBQAHAgAAAJYCAAgCHJYCAAgHUheWBQAHsAAAAJYFAAeIAQAAlgUABwIAAACWAgAIAhyWAgAICFIXlgUAB7AAAACWBQAH6gEAAJYFAAcCAAAAlgIACAIclgIACAlSF5YFAAfIAAAAlgUAB+oBAACWBQAHAgAAAJYCAAgCHJYCAAgJUheWBQAHyAAAAJYFAAeIAQAAlgUABwIAAACWAgAIAhyWAgAICVIXlgUABwAAAACWAgAIAhyWAgAIClIXlgIACAIclgIACAuOCAAAAAACKgE3AJYFAAeWAAAAlgUAB3gAAACWAgAIDJYFAAcDAAAAlgUABwAAAACWAgAEAZYCAAgNUpYCAAgOUhdPHQA=', 'base64');

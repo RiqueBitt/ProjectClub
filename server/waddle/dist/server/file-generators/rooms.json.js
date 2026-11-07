@@ -554,6 +554,20 @@ function getRoomsJson(d, s) {
             "required_item": null,
             "short_name": "Puffle Wild"
         },
+        "438": {
+            "room_id": 438,
+            "room_key": "lago",
+            "name": "Lago",
+            "display_name": "Lago",
+            "music_id": 0,
+            "is_member": 0,
+            "path": "lago.swf",
+            "max_users": 80,
+            "jump_enabled": false,
+            "jump_disabled": true,
+            "required_item": null,
+            "short_name": "Lago"
+        },
         "437": {
             "room_id": 437,
             "room_key": "ufo",

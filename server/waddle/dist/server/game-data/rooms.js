@@ -198,6 +198,7 @@ exports.ROOMS = {
     'park': { id: 434, name: 'Puffle Park', preCpipName: null },
     'skatepark': { id: 435, name: 'Skatepark', preCpipName: null },
     'pufflewild': { id: 436, name: 'Puffle Wild', preCpipName: null },
+    'lago': { id: 438, name: 'Lago', preCpipName: null },
     'beach': {
         id: 400,
         name: 'Beach',

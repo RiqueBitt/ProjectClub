@@ -33,6 +33,11 @@ exports.isPatchedRoute = isPatchedRoute;
  * editor do iglu, um painel com o móvel em cada direção (antes só dava pra
  * girar com as setas do teclado enquanto arrastava) — praca-igloo-action.ts.
  *
+ * map.swf, forest.swf, cove.swf: a sala "Lago" (server/waddle/praca-lago/, arte
+ * do dono). No mapa entram o ícone do lago (símbolo exportado) e um DoAction
+ * que o põe clicável em MAP.id_0; na Floresta e na Enseada um DoAction a mais
+ * cria o gatilho pra entrar no Lago andando — praca-lago-*.ts.
+ *
  * catalog_viewer.swf (AS3): ao mostrar uma página o catálogo faz
  * `closeButton.buttonMode = true`; no Catálogo de Puffles o botão de fechar é
  * um SimpleButton (que não tem buttonMode) → erro #1056 no meio da função e
@@ -44,6 +49,9 @@ const zlib_1 = __importDefault(require("zlib"));
 const praca_voice_action_1 = require("./praca-voice-action");
 const praca_shell_action_1 = require("./praca-shell-action");
 const praca_igloo_action_1 = require("./praca-igloo-action");
+const praca_lago_map_tags_1 = require("./praca-lago-map-tags");
+const praca_lago_forest_action_1 = require("./praca-lago-forest-action");
+const praca_lago_cove_action_1 = require("./praca-lago-cove-action");
 const swf_coins_1 = require("./swf-coins");
 const PATCHES = [
     {
@@ -73,6 +81,21 @@ const PATCHES = [
         test: (route) => /(^|\/)play\/v2\/client\/shell\.swf$/.test(route),
         patches: [],
         frame1Tags: [praca_shell_action_1.PRACA_SHELL_DOACTION],
+    },
+    {
+        test: (route) => /(^|\/)play\/v2\/content\/global\/content\/map\.swf$/.test(route),
+        patches: [],
+        frame1Tags: [praca_lago_map_tags_1.PRACA_LAGO_MAP_TAGS],
+    },
+    {
+        test: (route) => /(^|\/)play\/v2\/content\/global\/rooms\/forest\.swf$/.test(route),
+        patches: [],
+        frame1Tags: [praca_lago_forest_action_1.PRACA_LAGO_FOREST_DOACTION],
+    },
+    {
+        test: (route) => /(^|\/)play\/v2\/content\/global\/rooms\/cove\.swf$/.test(route),
+        patches: [],
+        frame1Tags: [praca_lago_cove_action_1.PRACA_LAGO_COVE_DOACTION],
     },
 ];
 /** Insere `tags` no fim do 1º quadro da linha do tempo principal (antes do 1º ShowFrame). */

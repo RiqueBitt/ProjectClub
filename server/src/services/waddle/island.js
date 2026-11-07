@@ -76,7 +76,30 @@ const FILES = {
 };
 const ROOM_MUSIC = { hotellobby: 362, hotelspa: 361, hotelroof: 360, park: 658, pufflewild: 897, eco: 436, town: 950, lounge: 674, dojo: 403, pizza: 676, beacon: 583, boiler: 667, light: 588 };
 // nomes em português pras quests/janela Festa (roomInfo em events.js)
-const ROOM_NAMES = { hotellobby: 'Saguão do Hotel dos Puffles', hotelspa: 'Spa do Hotel dos Puffles', hotelroof: 'Terraço do Hotel dos Puffles', park: 'Parque dos Puffles', pufflewild: 'Puffle Wild', skatepark: 'Skatepark', eco: 'Escola' };
+const ROOM_NAMES = { hotellobby: 'Saguão do Hotel dos Puffles', hotelspa: 'Spa do Hotel dos Puffles', hotelroof: 'Terraço do Hotel dos Puffles', park: 'Parque dos Puffles', pufflewild: 'Puffle Wild', skatepark: 'Skatepark', eco: 'Escola', lago: 'Lago' };
+
+// Lago — sala própria do Project Club, com a arte do dono (server/waddle/praca-lago/).
+// O arquivo vem do repositório (não da Archives): é copiado pra media/pcisland/ e
+// entra na ilha junto com as salas de 2015; no mapa e na Floresta/Enseada o
+// file-server do WF injeta o ícone e os gatilhos (swf-patches.ts). A música é a
+// do Parque dos Puffles (658), que já faz parte desta camada.
+const LAGO_SRC = path.join(__dirname, '..', '..', '..', 'waddle', 'praca-lago', 'lago.swf');
+const LAGO_MUSIC = 658;
+// textos do jogo que o Lago precisa (dica do ícone no mapa)
+const STRINGS = { 'w.map.lago': 'Lago' };
+function ensureLago() {
+  try {
+    const src = fs.statSync(LAGO_SRC);
+    const dst = local('lago.swf');
+    let have = null;
+    try { have = fs.statSync(dst); } catch { /* ainda não copiado */ }
+    if (!have || have.size !== src.size || have.mtimeMs < src.mtimeMs) {
+      fs.mkdirSync(dir(), { recursive: true });
+      fs.copyFileSync(LAGO_SRC, dst);
+    }
+    return true;
+  } catch { return false; }
+}
 
 // Os ícones do mapa de 2015 (Parque, Puffle Wild, Skatepark, hotel…) vêm do
 // map_triggers.json do jogo; o de 2012 não tem essas entradas, então o
@@ -129,7 +152,7 @@ async function setEnabled(on) {
 }
 
 function status() {
-  return { enabled, ready: ready(), files: state, rooms: Object.keys(FILES.rooms), map: '2015' };
+  return { enabled, ready: ready(), files: state, rooms: Object.keys(FILES.rooms), map: '2015', lago: ensureLago() };
 }
 
 async function fetchOne(rel) {
@@ -167,11 +190,20 @@ async function ensureFiles(log = () => {}) {
 }
 
 /** Código da camada pra contentVersion: muda quando a lista de arquivos muda (fura o cache de 30 dias). */
-function code() { return `15${String(Object.keys(FILES.rooms).length + Object.keys(FILES.music).length).padStart(2, '0')}`; }
+function code() {
+  // o lago.swf entra na conta (bytes em kB mod 100) pra trocar a versão quando a sala muda
+  let lago = 0;
+  try { lago = Math.floor(fs.statSync(LAGO_SRC).size / 1024) % 100; } catch { /* sem lago */ }
+  return `15${String(Object.keys(FILES.rooms).length + Object.keys(FILES.music).length).padStart(2, '0')}${String(lago).padStart(2, '0')}`;
+}
 
 /** Camada pra parties.apply (vazia se desligada ou sem arquivos). */
 function overlay() {
   const out = { rooms: {}, music: {}, musicFiles: {}, routes: {}, any: false };
+  if (ensureLago()) {
+    out.rooms.lago = `${SUBDIR}/lago.swf`; out.any = true;
+    if (onDisk(FILES.music[LAGO_MUSIC])) { out.music.lago = LAGO_MUSIC; out.musicFiles[LAGO_MUSIC] = `${SUBDIR}/${path.basename(FILES.music[LAGO_MUSIC])}`; }
+  }
   if (!enabled) return out;
   if (onDisk(FILES.map)) {
     out.routes[MAP_ROUTE] = `${SUBDIR}/${path.basename(FILES.map)}`; out.any = true;
@@ -195,4 +227,4 @@ function attach() {
   setInterval(() => { if (!ready()) ensureFiles(() => {}).catch(() => {}); }, 10 * 60_000).unref?.();
 }
 
-module.exports = { attach, overlay, status, setEnabled, ensureFiles, roomName, code, MAP_ROUTE, FILES };
+module.exports = { attach, overlay, status, setEnabled, ensureFiles, roomName, code, MAP_ROUTE, FILES, STRINGS };

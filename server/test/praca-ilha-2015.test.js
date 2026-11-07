@@ -17,8 +17,10 @@ let applied = 0;
 stub('services/waddle/parties.js', { apply: () => { applied++; } });
 const island = require(src('services/waddle/island.js'));
 
-test('sem arquivos no disco a camada fica vazia; com os arquivos entra mapa, salas e músicas', async () => {
-  assert.equal(island.overlay().any, false);
+test('sem arquivos no disco só o Lago (sala do repositório) entra; com os arquivos entra mapa, salas e músicas', async () => {
+  const empty = island.overlay();
+  assert.deepEqual(Object.keys(empty.rooms), ['lago'], 'o Lago vem do repositório, não da Archives');
+  assert.equal(empty.routes[island.MAP_ROUTE], undefined);
   assert.equal(island.status().ready, false);
   fs.mkdirSync(path.join(media, 'pcisland'), { recursive: true });
   const fake = (rel) => fs.writeFileSync(path.join(media, 'pcisland', path.basename(rel)), Buffer.alloc(2000, 1));
@@ -48,7 +50,8 @@ test('liga/desliga pelo painel e reaplica a camada; nomes em português', async 
   assert.equal(island.roomName('town'), null);
   const st = await island.setEnabled(false);
   assert.equal(st.enabled, false); assert.equal(applied, 1);
-  assert.equal(island.overlay().any, false);
+  assert.equal(island.overlay().routes[island.MAP_ROUTE], undefined, 'desligada, o mapa de 2015 sai');
+  assert.deepEqual(Object.keys(island.overlay().rooms), ['lago'], 'o Lago fica mesmo com a ilha 2015 desligada');
   assert.equal(island.roomName('eco'), null, 'desligada, a sala 122 volta a ser a Usina');
   await island.setEnabled(true);
   assert.equal(island.overlay().any, true);

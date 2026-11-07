@@ -26,6 +26,11 @@
  * editor do iglu, um painel com o móvel em cada direção (antes só dava pra
  * girar com as setas do teclado enquanto arrastava) — praca-igloo-action.ts.
  *
+ * map.swf, forest.swf, cove.swf: a sala "Lago" (server/waddle/praca-lago/, arte
+ * do dono). No mapa entram o ícone do lago (símbolo exportado) e um DoAction
+ * que o põe clicável em MAP.id_0; na Floresta e na Enseada um DoAction a mais
+ * cria o gatilho pra entrar no Lago andando — praca-lago-*.ts.
+ *
  * catalog_viewer.swf (AS3): ao mostrar uma página o catálogo faz
  * `closeButton.buttonMode = true`; no Catálogo de Puffles o botão de fechar é
  * um SimpleButton (que não tem buttonMode) → erro #1056 no meio da função e
@@ -37,6 +42,9 @@ import zlib from 'zlib';
 import { PRACA_VOICE_DOACTION } from './praca-voice-action';
 import { PRACA_SHELL_DOACTION } from './praca-shell-action';
 import { PRACA_IGLOO_DOACTION } from './praca-igloo-action';
+import { PRACA_LAGO_MAP_TAGS } from './praca-lago-map-tags';
+import { PRACA_LAGO_FOREST_DOACTION } from './praca-lago-forest-action';
+import { PRACA_LAGO_COVE_DOACTION } from './praca-lago-cove-action';
 import { replaceCoins } from './swf-coins';
 
 type Patch = { from: string; to: string };
@@ -69,6 +77,21 @@ const PATCHES: Array<{ test: (route: string) => boolean; patches: Patch[]; frame
     test: (route) => /(^|\/)play\/v2\/client\/shell\.swf$/.test(route),
     patches: [],
     frame1Tags: [PRACA_SHELL_DOACTION],
+  },
+  {
+    test: (route) => /(^|\/)play\/v2\/content\/global\/content\/map\.swf$/.test(route),
+    patches: [],
+    frame1Tags: [PRACA_LAGO_MAP_TAGS],
+  },
+  {
+    test: (route) => /(^|\/)play\/v2\/content\/global\/rooms\/forest\.swf$/.test(route),
+    patches: [],
+    frame1Tags: [PRACA_LAGO_FOREST_DOACTION],
+  },
+  {
+    test: (route) => /(^|\/)play\/v2\/content\/global\/rooms\/cove\.swf$/.test(route),
+    patches: [],
+    frame1Tags: [PRACA_LAGO_COVE_DOACTION],
   },
 ];
 

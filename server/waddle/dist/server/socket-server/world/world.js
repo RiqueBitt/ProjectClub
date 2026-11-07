@@ -15,10 +15,6 @@ const fire_1 = require("./fire");
 const games_1 = require("../../game-data/games.js");
 class World {
     gameData;
-    // Project Club: ações dos pinguins pras quests da Praça
-    _actionListeners = [];
-    onAction(fn) { this._actionListeners.push(fn); }
-    emitAction(a) { for (const fn of this._actionListeners) { try { fn(a); } catch { /* ok */ } } }
     penguins = new Map();
     states = new Map;
     rooms = new Map();
@@ -30,6 +26,18 @@ class World {
     _puckPosition = new utils_1.Vector(0, 0);
     _puckPositionParty = new utils_1.Vector(0, 0);
     _teamsScore = [0, 0];
+    // ---- Project Club: ações dos pinguins (emote, bola de neve, piada, fala)
+    // pras quests da Praça (server/src/services/waddle/events.js) ----
+    _actionListeners = [];
+    onAction(fn) { this._actionListeners.push(fn); }
+    emitAction(a) {
+        for (const fn of this._actionListeners) {
+            try {
+                fn(a);
+            }
+            catch { /* ouvinte com erro não derruba o jogo */ }
+        }
+    }
     constructor(gameData) {
         this.gameData = gameData;
         this.init();

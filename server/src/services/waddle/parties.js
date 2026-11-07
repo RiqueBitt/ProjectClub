@@ -315,7 +315,10 @@ function attach(w) {
   // sem os textos, as telas de fala mostrariam a chave no balão: ficam de fora
   const noDialogue = (obj) => Object.fromEntries(Object.entries(obj || {}).filter(([, v]) => Object.keys(STRINGS).length || !String(v).includes('character_dialogue')));
   try { w.gameData.setExtraPaths?.(noDialogue(PATHS.global), noDialogue(PATHS.local)); } catch { /* WF antigo */ }
-  if (Object.keys(STRINGS).length) { try { w.gameData.setExtraStrings?.(STRINGS); } catch { /* WF antigo */ } }
+  let islandStrings = {};
+  try { islandStrings = require('./island').STRINGS || {}; } catch { /* sem ilha */ }
+  const allStrings = { ...islandStrings, ...STRINGS };
+  if (Object.keys(allStrings).length) { try { w.gameData.setExtraStrings?.(allStrings); } catch { /* WF antigo */ } }
   apply();
   const download = () => ensureFiles().then(() => ensureUiFiles()).then(() => apply(true)).catch(() => {});
   download();

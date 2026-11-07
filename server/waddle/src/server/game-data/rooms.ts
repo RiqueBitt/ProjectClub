@@ -88,7 +88,8 @@ export type RoomName = 'town' |
   'hotelroof' |
   'park' |
   'pufflewild' |
-  'skatepark';
+  'skatepark' |
+  'lago'; // sala própria do Project Club (server/waddle/praca-lago/)
 
 
 export type RoomMap<T> = Partial<Record<RoomName, T>>;
@@ -291,6 +292,7 @@ export const ROOMS: Record<RoomName, Room> = {
   'park': { id: 434, name: 'Puffle Park', preCpipName: null },
   'skatepark': { id: 435, name: 'Skatepark', preCpipName: null },
   'pufflewild': { id: 436, name: 'Puffle Wild', preCpipName: null },
+  'lago': { id: 438, name: 'Lago', preCpipName: null },
   'beach': {
     id: 400,
     name: 'Beach',
