@@ -1,0 +1,1133 @@
+/* Fontes extras dos estilos (o resto já vem do index.html). */
+@import url('https://fonts.googleapis.com/css2?family=VT323&family=Special+Elite&family=Cinzel:wght@500;700&family=Rye&family=Nosifer&family=Silkscreen&family=Audiowide&family=Comfortaa:wght@500;700&family=Amatic+SC:wght@700&family=Black+Ops+One&family=Cormorant+Garamond:wght@500;700&family=Shadows+Into+Light&family=Mountains+of+Christmas:wght@700&family=Butcherman&family=Share+Tech+Mono&display=swap');
+
+/* =====================================================================
+   Estilos de perfil da Loja (User.profileStyle)
+   Mudam o visual inteiro do perfil completo, do miniperfil e da prévia
+   da Loja. Contêineres: .profile-modal-box, .mini-profile-card e
+   .shop-mock, sempre com .pstyle + .pstyle-<chave>.
+
+   Cada estilo só define variáveis (cores, fontes, cantos, botões,
+   barras, faixa do topo, enfeite do banner, camada por cima, prefixo
+   dos títulos...) e, quando precisa, alguns enfeites próprios. O bloco
+   "base" é quem aplica tudo nos elementos do perfil.
+   ===================================================================== */
+
+/* ---------- Base ---------- */
+/* Seletor triplo de propósito: o perfil com cor própria
+   (.profile-modal-accented / .mini-profile-accented) redefine fundo,
+   borda e cores de texto com 2 classes + !important — sem isso o estilo
+   perdia pra eles e o perfil ficava metade num visual, metade no outro. */
+.pstyle.pstyle.pstyle {
+  --ps-accent2: var(--ps-accent);
+  --header-primary: var(--ps-head);
+  --text-normal: var(--ps-text);
+  --text-muted: var(--ps-muted);
+  --pf-card-bg: var(--ps-section-bg);
+  --pf-card-border: var(--ps-section-border);
+  --pf-accent: var(--ps-accent);
+  --pf-accent-soft: color-mix(in srgb, var(--ps-accent) 20%, transparent);
+  --brand: var(--ps-accent);
+  /* Textos secundários (legenda do mural etc.) seguem o estilo, não o tema. */
+  --header-secondary: var(--ps-muted);
+  --interactive-normal: var(--ps-text);
+  /* A cor/degradê de perfil da pessoa continua aparecendo: entra como um
+     brilho por cima do fundo do estilo (forte no topo, sumindo pra baixo). */
+  background:
+    linear-gradient(180deg,
+      color-mix(in srgb, var(--profile-accent-start, transparent) var(--ps-tint, 34%), transparent) 0%,
+      color-mix(in srgb, var(--profile-accent-end, var(--profile-accent-start, transparent)) var(--ps-tint-end, 16%), transparent) 45%,
+      transparent 75%),
+    var(--ps-bg) !important;
+  background-attachment: local !important;
+  border: var(--ps-border, 1px solid var(--ps-section-border)) !important;
+  border-radius: var(--ps-card-radius, 16px) !important;
+  box-shadow: var(--ps-shadow, 0 18px 50px rgba(0, 0, 0, .45)) !important;
+  color: var(--ps-text);
+  font-family: var(--ps-font);
+  isolation: isolate;
+}
+.mini-profile-card.pstyle,
+.shop-mock.pstyle { position: relative; overflow-x: hidden; }
+.pstyle .mini-profile-body,
+.pstyle .profile-modal-body { background: transparent !important; position: relative; }
+
+/* Banner e foto de perfil são da pessoa: o estilo NUNCA mexe neles (sem
+   filtro, sem desenho por cima, sem trocar o formato). Ficam acima das
+   camadas de enfeite do estilo pra nada passar por cima deles. */
+.pstyle .mini-profile-banner,
+.pstyle .profile-banner,
+.pstyle .shop-mock-banner { filter: none !important; }
+/* O conteúdo fica acima das camadas de enfeite (pétalas, chuva, névoa...),
+   que aparecem só no fundo, por trás dos cartões. */
+.pstyle .mini-profile-body,
+.pstyle .profile-modal-body,
+.pstyle .profile-top-row,
+.pstyle .shop-mock-body { position: relative; z-index: 33; }
+.pstyle .mini-profile-avatar,
+.pstyle .shop-mock-avatar { filter: none !important; }
+
+/* Nome. */
+.pstyle .mini-profile-name > span:first-child,
+.pstyle .profile-display-name,
+.pstyle .profile-display-name > span:first-child,
+.pstyle .shop-mock-body strong {
+  color: var(--ps-name-color, var(--ps-head)) !important;
+  font-family: var(--ps-name-font, inherit);
+  text-shadow: var(--ps-name-shadow, none) !important;
+  text-transform: var(--ps-name-case, none);
+  letter-spacing: var(--ps-name-spacing, normal);
+  animation: var(--ps-name-anim, none);
+  -webkit-text-fill-color: var(--ps-name-fill, currentColor);
+  background: var(--ps-name-bg, none);
+  -webkit-background-clip: var(--ps-name-clip, border-box); background-clip: var(--ps-name-clip, border-box);
+  background-size: 200% 100%;
+}
+.pstyle .mini-profile-name,
+.pstyle .profile-display-name { color: var(--ps-head); }
+.pstyle .mini-profile-handle,
+.pstyle .profile-username,
+.pstyle .shop-mock-body small { color: var(--ps-muted) !important; font-family: var(--ps-font); }
+
+/* Seções (cartões). */
+.pstyle .mini-profile-section,
+.pstyle .pf-card,
+.pstyle .pf-onepage-section,
+.pstyle .profile-section-body,
+.pstyle .shop-mock-lines {
+  position: relative;
+  background: var(--ps-section-bg) !important;
+  border: var(--ps-section-borderw, 1px) var(--ps-section-borderstyle, solid) var(--ps-section-border) !important;
+  border-radius: var(--ps-radius) !important;
+  box-shadow: var(--ps-section-shadow, none);
+  backdrop-filter: var(--ps-section-blur, none);
+}
+.pstyle .mini-profile-section { padding: 10px 12px; margin-top: 10px; }
+.pstyle .shop-mock-lines { padding: 6px; }
+.pstyle .shop-mock-lines span { background: var(--ps-muted) !important; opacity: .45; border-radius: var(--ps-chip-radius, 4px); }
+.pstyle .mini-profile-section::after,
+.pstyle .pf-card::after {
+  content: ''; position: absolute; pointer-events: none; z-index: 1;
+  inset: var(--ps-sec-deco-inset, auto auto -1px -1px); width: var(--ps-sec-deco-w, 0); height: var(--ps-sec-deco-h, 0);
+  background: var(--ps-sec-deco, none); background-size: 100% 100%;
+}
+.pstyle .mini-profile-section-label,
+.pstyle .pf-card-title,
+.pstyle .pf-onepage-title {
+  color: var(--ps-label-color, var(--ps-head)) !important;
+  font-family: var(--ps-title-font, inherit) !important;
+  letter-spacing: var(--ps-label-spacing, inherit);
+  text-shadow: var(--ps-label-shadow, none);
+}
+.pstyle .mini-profile-section-label::before,
+.pstyle .pf-card-title::before { content: var(--ps-label-prefix, ''); color: var(--ps-accent); margin-right: var(--ps-label-gap, 0); }
+.pstyle .mini-profile-bio { color: var(--ps-text) !important; font-family: var(--ps-body-font, inherit); }
+
+/* Botões. */
+.pstyle .btn-primary,
+.pstyle .btn-secondary,
+.pstyle .pf-btn,
+.pstyle .pf-send,
+.pstyle .pf-stat-btn,
+.pstyle .profile-role-add {
+  background: var(--ps-btn-bg) !important;
+  color: var(--ps-btn-text) !important;
+  border: var(--ps-btn-border) !important;
+  border-radius: var(--ps-btn-radius) !important;
+  box-shadow: var(--ps-btn-shadow, none) !important;
+  font-family: var(--ps-btn-font, inherit) !important;
+  text-transform: var(--ps-btn-case, none);
+  letter-spacing: var(--ps-btn-spacing, normal);
+  text-shadow: var(--ps-btn-text-shadow, none);
+  transition: transform .12s ease, filter .12s ease, box-shadow .12s ease;
+}
+.pstyle .btn-primary:hover,
+.pstyle .pf-btn:hover { filter: brightness(1.1); transform: var(--ps-btn-hover, translateY(-1px)); }
+.pstyle .btn-primary:active,
+.pstyle .pf-btn:active { box-shadow: var(--ps-btn-shadow-active, var(--ps-btn-shadow, none)) !important; transform: var(--ps-btn-press, translateY(1px)); }
+
+/* Abas, chips, status, barra de nível. */
+.pstyle .pf-tabs { background: var(--ps-section-bg); border-radius: var(--ps-radius); border: 1px solid var(--ps-section-border); }
+.pstyle .pf-tab { color: var(--ps-muted); border-radius: var(--ps-btn-radius); font-family: var(--ps-btn-font, inherit); }
+.pstyle .pf-tab.active,
+.pstyle .pf-tab[aria-selected='true'] { background: var(--ps-btn-bg); color: var(--ps-btn-text); }
+.pstyle .mini-profile-status-bubble,
+.pstyle .profile-custom-status-balloon {
+  background: var(--ps-bubble-bg, var(--ps-section-bg)) !important; color: var(--ps-text) !important;
+  border: 1px solid var(--ps-section-border) !important; border-radius: var(--ps-bubble-radius, var(--ps-radius)) !important;
+  font-family: var(--ps-body-font, inherit);
+}
+.pstyle .mini-profile-badge,
+.pstyle .role-chip,
+.pstyle .profile-role-chip,
+.pstyle .mini-profile-level-badge,
+.pstyle .pf-stat,
+.pstyle .pf-tile {
+  background: var(--ps-chip-bg, var(--ps-section-bg)) !important;
+  border-color: var(--ps-section-border) !important;
+  color: var(--ps-text) !important;
+  border-radius: var(--ps-chip-radius, var(--ps-radius)) !important;
+}
+.pstyle .profile-level-progress-track { background: var(--ps-track-bg, rgba(0, 0, 0, .3)) !important; border-radius: var(--ps-bar-radius, 999px) !important; }
+.pstyle .profile-level-progress-fill { background: var(--ps-bar-fill, var(--ps-accent)) !important; border-radius: var(--ps-bar-radius, 999px) !important; }
+.pstyle ::-webkit-scrollbar-thumb { background: var(--ps-scroll-thumb, var(--ps-section-border)); border-radius: var(--ps-scroll-radius, 8px); }
+.pstyle ::-webkit-scrollbar-track { background: var(--ps-scroll-track, transparent); }
+.pstyle ::selection { background: var(--ps-accent); color: var(--ps-btn-text); }
+
+/* Camadas que repetem em faixas (pétalas, neve, bolhas, brasas, código). */
+.pstyle-anime::after, .pstyle-oceano::after, .pstyle-sakura::after, .pstyle-inverno::after, .pstyle-lava::after,
+.pstyle-matrix::after, .pstyle-natal::after, .pstyle-holografico::after, .pstyle-mensageiro::after { background-size: var(--ps-overlay-size) !important; }
+
+/* Faixa do topo (barra de título, fita, letreiro...). */
+.pstyle::before {
+  content: var(--ps-top-text, none); position: relative; z-index: 31; display: var(--ps-top-display, none); align-items: center;
+  height: var(--ps-top-h, 22px); padding: var(--ps-top-pad, 0 8px); box-sizing: border-box;
+  font: var(--ps-top-font, 700 12px system-ui); color: var(--ps-top-color, #fff); letter-spacing: var(--ps-top-spacing, normal);
+  background: var(--ps-top-bg, none); border-bottom: var(--ps-top-border, 0);
+  white-space: nowrap; overflow: hidden;
+}
+/* Camada por cima de tudo (partículas, chuva, ruído, vinheta...). */
+.pstyle::after {
+  content: ''; position: absolute; inset: 0; pointer-events: none; z-index: 30; border-radius: inherit;
+  background: var(--ps-overlay, none);
+  mix-blend-mode: var(--ps-overlay-blend, normal); opacity: var(--ps-overlay-opacity, 1);
+  animation: var(--ps-overlay-anim, none);
+}
+
+/* ===================================================================
+   1) Windows 2000 — "Propriedades do perfil"
+   =================================================================== */
+.pstyle-win2000 {
+  --ps-bg: #d4d0c8; --ps-bg-solid: #d4d0c8;
+  --ps-text: #000; --ps-muted: #404040; --ps-head: #000; --ps-accent: #0a246a;
+  --ps-font: Tahoma, 'MS Sans Serif', Verdana, Geneva, sans-serif;
+  --ps-name-font: Tahoma, Verdana, sans-serif; --ps-name-shadow: 1px 1px 0 #fff;
+  --ps-title-font: Tahoma, Verdana, sans-serif;
+  --ps-section-bg: #fff; --ps-section-border: #808080; --ps-section-borderw: 2px; --ps-section-borderstyle: inset;
+  --ps-section-shadow: none; --ps-radius: 0;
+  --ps-btn-bg: #d4d0c8; --ps-btn-text: #000; --ps-btn-border: 1px solid #000; --ps-btn-radius: 0;
+  --ps-btn-shadow: inset 1px 1px 0 #fff, inset -1px -1px 0 #404040, inset -2px -2px 0 #808080, inset 2px 2px 0 #dfdfdf;
+  --ps-btn-shadow-active: inset 1px 1px 0 #404040, inset -1px -1px 0 #fff, inset 2px 2px 0 #808080;
+  --ps-btn-hover: none; --ps-btn-press: translate(1px, 1px);
+  --ps-btn-font: Tahoma, Verdana, sans-serif;
+  --ps-chip-bg: #d4d0c8; --ps-chip-radius: 0; --ps-bubble-bg: #ffffe1; --ps-bubble-radius: 0;
+  --ps-track-bg: #fff; --ps-bar-radius: 0;
+  --ps-bar-fill: repeating-linear-gradient(90deg, #0a246a 0 8px, transparent 8px 10px);
+  --ps-label-prefix: '▸ '; --ps-label-color: #0a246a;
+  --ps-scroll-thumb: #d4d0c8; --ps-scroll-track: repeating-conic-gradient(#c0c0c0 0 25%, #fff 0 50%) 0 0 / 2px 2px; --ps-scroll-radius: 0;
+  --ps-border: 2px outset #efefef; --ps-card-radius: 0;
+  --ps-shadow: 1px 1px 0 #000, 6px 6px 0 rgba(0, 0, 0, .25);
+  --ps-top-display: flex; --ps-top-text: '🖥️  Propriedades do perfil'; --ps-top-h: 24px; --ps-top-pad: 0 70px 0 6px;
+  --ps-top-font: 700 12px Tahoma, Verdana, sans-serif;
+  /* Os botõezinhos _ □ ✕ e os desenhos de dentro ficam TODOS na própria
+     barra de título (antes os desenhos iam numa camada do perfil inteiro e
+     saíam pra fora das caixinhas quando o perfil tinha espaçamento em cima,
+     no PC e no celular). Medidas relativas à barra (24px de altura). */
+  --ps-top-bg:
+    /* ✕ */
+    linear-gradient(45deg, transparent 43%, #000 43% 57%, transparent 57%) right 8px top 8px / 8px 8px no-repeat,
+    linear-gradient(-45deg, transparent 43%, #000 43% 57%, transparent 57%) right 8px top 8px / 8px 8px no-repeat,
+    /* □ */
+    linear-gradient(#000, #000) right 26px top 8px / 8px 2px no-repeat,
+    linear-gradient(#000, #000) right 26px top 15px / 8px 1px no-repeat,
+    linear-gradient(#000, #000) right 26px top 8px / 1px 8px no-repeat,
+    linear-gradient(#000, #000) right 33px top 8px / 1px 8px no-repeat,
+    /* _ */
+    linear-gradient(#000, #000) right 43px top 14px / 6px 2px no-repeat,
+    /* caixinhas em relevo (cinza por cima, sombra escura embaixo/direita) */
+    linear-gradient(#d4d0c8, #d4d0c8) right 5px top 5px / 15px 13px no-repeat,
+    linear-gradient(#d4d0c8, #d4d0c8) right 23px top 5px / 15px 13px no-repeat,
+    linear-gradient(#d4d0c8, #d4d0c8) right 39px top 5px / 15px 13px no-repeat,
+    linear-gradient(#404040, #404040) right 4px top 5px / 16px 14px no-repeat,
+    linear-gradient(#404040, #404040) right 22px top 5px / 16px 14px no-repeat,
+    linear-gradient(#404040, #404040) right 38px top 5px / 16px 14px no-repeat,
+    linear-gradient(90deg, #0a246a, #3a6ea5 55%, #a6caf0);
+  border-color: #fff #404040 #404040 #fff !important;
+}
+/* A barra de título fica sempre dentro do cartão (sem vazar no celular). */
+.pstyle-win2000::before { width: 100%; max-width: 100%; min-width: 0; }
+.pstyle-win2000::after { background: none !important; }
+.pstyle-win2000 .mini-profile-section { padding-top: 14px; margin-top: 16px; }
+/* "Group box": título encaixado na borda, igual às caixas do Windows. */
+.pstyle-win2000 .mini-profile-section-label,
+.pstyle-win2000 .pf-card-title {
+  position: absolute; top: -9px; left: 8px; padding: 0 4px; background: #fff;
+  font: 400 11px Tahoma, Verdana, sans-serif !important; text-transform: none !important; letter-spacing: 0 !important;
+}
+.pstyle-win2000 .mini-profile-section-label::before { content: '' !important; }
+.pstyle-win2000 .btn-primary:focus-visible { outline: 1px dotted #000; outline-offset: -5px; }
+.pstyle-win2000 .mini-profile-status-bubble { box-shadow: 1px 1px 0 #000; }
+
+/* ===================================================================
+   2) Anime — abertura de anime, sakura caindo e brilho
+   =================================================================== */
+.pstyle-anime {
+  --ps-bg:
+    radial-gradient(circle at 12% 18%, rgba(255, 255, 255, .95) 0 2px, transparent 3px),
+    radial-gradient(circle at 78% 30%, rgba(255, 255, 255, .85) 0 1.5px, transparent 2.5px),
+    radial-gradient(circle at 40% 72%, rgba(255, 255, 255, .8) 0 2px, transparent 3px),
+    radial-gradient(circle at 90% 84%, rgba(255, 255, 255, .85) 0 1.5px, transparent 2.5px),
+    radial-gradient(120% 60% at 50% 0%, #fff0f7 0%, transparent 60%),
+    linear-gradient(165deg, #ffd1e8 0%, #e6d6ff 45%, #cdeeff 100%);
+  --ps-bg-solid: #ffe3f1;
+  --ps-text: #4a2a5e; --ps-muted: #8a6aa0; --ps-head: #3a1650; --ps-accent: #ff4f9f; --ps-accent2: #8b6dff;
+  --ps-font: 'Comfortaa', 'Fredoka One', system-ui, sans-serif;
+  --ps-name-font: 'Fredoka One', system-ui, sans-serif;
+  --ps-name-color: #ff4f9f;
+  --ps-name-shadow: 2px 2px 0 #fff, -2px -2px 0 #fff, 2px -2px 0 #fff, -2px 2px 0 #fff, 4px 4px 0 #8b6dff, 0 0 18px rgba(255, 79, 159, .55);
+  --ps-name-anim: ps-bounce 2.8s ease-in-out infinite;
+  --ps-title-font: 'Fredoka One', system-ui, sans-serif;
+  --ps-section-bg: rgba(255, 255, 255, .72); --ps-section-border: #ffb3d6;
+  --ps-section-borderstyle: dashed; --ps-section-borderw: 2px; --ps-section-blur: blur(4px);
+  --ps-section-shadow: 0 8px 20px -12px rgba(255, 79, 159, .6), inset 0 0 0 3px rgba(255, 255, 255, .7);
+  --ps-radius: 22px;
+  --ps-btn-bg: linear-gradient(90deg, #ff6fb1, #c56dff, #7ab8ff); --ps-btn-text: #fff;
+  --ps-btn-border: 3px solid #fff; --ps-btn-radius: 999px; --ps-btn-font: 'Fredoka One', system-ui, sans-serif;
+  --ps-btn-shadow: 0 6px 0 #d43c86, 0 10px 18px -6px rgba(176, 124, 255, .9);
+  --ps-btn-shadow-active: 0 2px 0 #d43c86; --ps-btn-press: translateY(4px);
+  --ps-btn-text-shadow: 0 2px 0 rgba(0, 0, 0, .15);
+  --ps-chip-bg: rgba(255, 255, 255, .85); --ps-chip-radius: 999px; --ps-bubble-bg: #fff; --ps-bubble-radius: 18px 18px 18px 4px;
+  --ps-track-bg: rgba(255, 255, 255, .8); --ps-bar-fill: linear-gradient(90deg, #ff8ac0, #c79bff, #8fd3ff);
+
+
+  /* Linhas de velocidade de mangá no banner. */
+
+  --ps-label-prefix: '✿ '; --ps-label-color: #d43c86;
+  /* Pétalas de sakura caindo. */
+  --ps-overlay:
+    radial-gradient(5px 3px at 10% 10%, #ffb7d5 98%, transparent),
+    radial-gradient(4px 3px at 32% 30%, #ffc9e0 98%, transparent),
+    radial-gradient(5px 3px at 58% 6%, #ff9fc8 98%, transparent),
+    radial-gradient(4px 3px at 76% 40%, #ffd3e6 98%, transparent),
+    radial-gradient(5px 3px at 90% 16%, #ffb0d2 98%, transparent),
+    radial-gradient(4px 2px at 22% 62%, #ffc4dd 98%, transparent),
+    radial-gradient(5px 3px at 66% 70%, #ffa8cd 98%, transparent),
+    radial-gradient(1.5px 1.5px at 46% 46%, #fff 98%, transparent),
+    radial-gradient(1.5px 1.5px at 84% 64%, #fff 98%, transparent);
+  --ps-overlay-size: 100% 220px;
+  --ps-overlay-anim: ps-petals 9s linear infinite;
+  --ps-scroll-thumb: #ffb3d6;
+  --ps-border: 3px solid #fff; --ps-card-radius: 28px;
+  --ps-shadow: 0 0 0 3px #ffb3d6, 0 20px 50px -10px rgba(255, 79, 159, .5);
+  --ps-top-display: flex; --ps-top-text: '✧ ･ﾟ: *✧ PERFIL ✧*:･ﾟ✧'; --ps-top-h: 26px; --ps-top-pad: 0 12px;
+  --ps-top-font: 700 12px 'Fredoka One', system-ui, sans-serif; --ps-top-spacing: 2px;
+  --ps-top-bg: linear-gradient(90deg, #ff6fb1, #c56dff, #7ab8ff); --ps-top-color: #fff;
+}
+.pstyle-anime .mini-profile-section::before,
+.pstyle-anime .pf-card::before {
+  content: '♡'; position: absolute; top: -12px; right: 12px; width: 24px; height: 24px; display: grid; place-items: center;
+  border-radius: 50%; background: #ff6fb1; color: #fff; font-size: 13px; box-shadow: 0 0 0 3px #fff; z-index: 2;
+}
+.pstyle-anime .mini-profile-badge { box-shadow: 0 0 0 2px #fff, 0 4px 10px -4px rgba(255, 79, 159, .6); }
+
+/* ===================================================================
+   3) Terror — sangue, névoa, vela e arranhões
+   =================================================================== */
+.pstyle-terror {
+  --ps-bg:
+    radial-gradient(70% 40% at 50% -5%, rgba(170, 0, 0, .55), transparent 65%),
+    radial-gradient(60% 50% at 50% 115%, rgba(80, 0, 0, .75), transparent 70%),
+    repeating-linear-gradient(115deg, transparent 0 46px, rgba(120, 0, 0, .05) 46px 48px),
+    #060202;
+  --ps-bg-solid: #0b0303;
+  --ps-text: #dccaca; --ps-muted: #8f7070; --ps-head: #f3dede; --ps-accent: #c1001f; --ps-accent2: #ff2b2b;
+  --ps-font: 'Special Elite', Georgia, 'Times New Roman', serif;
+  --ps-name-font: 'Nosifer', 'Creepster', Georgia, serif;
+  --ps-name-color: #e0122e;
+  --ps-name-shadow: 0 0 6px rgba(255, 0, 30, .8), 0 0 22px rgba(160, 0, 20, .7), 0 3px 0 #2a0000;
+  --ps-name-anim: ps-shiver 3.5s infinite; --ps-name-spacing: 1px;
+  --ps-title-font: 'Butcherman', 'Creepster', Georgia, serif; --ps-label-spacing: 2px;
+  --ps-section-bg: linear-gradient(180deg, rgba(30, 0, 0, .82), rgba(10, 0, 0, .9));
+  --ps-section-border: #5a0a0a;
+  --ps-section-shadow: inset 0 0 22px rgba(193, 0, 31, .28), 0 0 0 1px rgba(0, 0, 0, .8);
+  --ps-radius: 3px;
+  --ps-btn-bg: linear-gradient(180deg, #3a0000, #140000); --ps-btn-text: #ff3b3b;
+  --ps-btn-border: 1px solid #8a0000; --ps-btn-radius: 2px;
+  --ps-btn-shadow: 0 0 14px rgba(193, 0, 31, .5), inset 0 0 10px rgba(0, 0, 0, .85), inset 0 -8px 12px -8px #8a0000;
+  --ps-btn-font: 'Butcherman', 'Creepster', Georgia, serif; --ps-btn-spacing: 1.5px;
+  --ps-btn-text-shadow: 0 0 8px rgba(255, 30, 30, .7);
+  --ps-chip-bg: rgba(40, 0, 0, .85); --ps-bubble-bg: rgba(25, 0, 0, .9);
+  --ps-track-bg: #1a0000; --ps-bar-fill: linear-gradient(90deg, #3a0000, #c1001f 70%, #ff2b2b);
+
+
+
+
+  /* Arranhões no banner. */
+  --ps-label-prefix: '✝ ';
+  /* Névoa passando + vinheta + tremor de vela. */
+  --ps-overlay:
+    radial-gradient(85% 75% at 50% 45%, transparent 48%, rgba(0, 0, 0, .82)),
+    radial-gradient(40% 18% at 20% 85%, rgba(180, 180, 180, .10), transparent 70%),
+    radial-gradient(45% 16% at 75% 70%, rgba(180, 180, 180, .08), transparent 70%);
+  --ps-overlay-anim: ps-candle 4.5s steps(1) infinite, ps-fog 14s ease-in-out infinite alternate;
+  --ps-scroll-thumb: #5a0a0a;
+  --ps-border: 1px solid #3a0000; --ps-card-radius: 6px;
+  --ps-shadow: 0 0 40px rgba(193, 0, 31, .4), 0 24px 60px rgba(0, 0, 0, .8);
+}
+/* Sangue escorrendo logo abaixo do banner (as gotas descem devagar). */
+.pstyle-terror .mini-profile-body::before,
+.pstyle-terror .profile-modal-body::before {
+  content: ''; position: absolute; left: 0; right: 0; top: 0; height: 48px; z-index: -1; pointer-events: none; display: block;
+  background:
+    radial-gradient(5px 9px at 50% 100%, #8a0000 97%, transparent) 7% 22px / 10px 14px no-repeat,
+    linear-gradient(#8a0000, #8a0000) calc(7% + 3px) 0 / 4px 24px no-repeat,
+    radial-gradient(6px 10px at 50% 100%, #a10000 97%, transparent) 24% 32px / 12px 16px no-repeat,
+    linear-gradient(#a10000, #a10000) calc(24% + 4px) 0 / 5px 36px no-repeat,
+    radial-gradient(4px 7px at 50% 100%, #7a0000 97%, transparent) 43% 12px / 8px 12px no-repeat,
+    linear-gradient(#7a0000, #7a0000) calc(43% + 2px) 0 / 3px 14px no-repeat,
+    radial-gradient(6px 11px at 50% 100%, #9a0000 97%, transparent) 61% 28px / 12px 16px no-repeat,
+    linear-gradient(#9a0000, #9a0000) calc(61% + 4px) 0 / 5px 32px no-repeat,
+    radial-gradient(5px 8px at 50% 100%, #850000 97%, transparent) 79% 16px / 10px 14px no-repeat,
+    linear-gradient(#850000, #850000) calc(79% + 3px) 0 / 4px 18px no-repeat,
+    radial-gradient(6px 10px at 50% 100%, #a00000 97%, transparent) 93% 26px / 12px 16px no-repeat,
+    linear-gradient(#a00000, #a00000) calc(93% + 4px) 0 / 5px 30px no-repeat,
+    linear-gradient(#7a0000, #b00000) top / 100% 6px no-repeat;
+  filter: drop-shadow(0 2px 2px rgba(0, 0, 0, .7)); transform-origin: top; animation: ps-drip 7s ease-in-out infinite;
+}
+/* Olhos que piscam no escuro, no canto das seções. */
+.pstyle-terror .mini-profile-section::before,
+.pstyle-terror .pf-card::before {
+  content: ''; position: absolute; right: 10px; top: 8px; width: 22px; height: 6px; pointer-events: none;
+  background: radial-gradient(3px 2px at 4px 3px, #ff1a1a 98%, transparent), radial-gradient(3px 2px at 18px 3px, #ff1a1a 98%, transparent);
+  filter: drop-shadow(0 0 4px #ff0000); animation: ps-eyes 6s infinite;
+}
+
+/* ===================================================================
+   4) Bugado — glitch digital
+   =================================================================== */
+.pstyle-bugado {
+  --ps-bg: repeating-linear-gradient(90deg, rgba(0, 255, 240, .025) 0 1px, transparent 1px 4px), linear-gradient(180deg, #05060f, #0b0b1d 60%, #050510);
+  --ps-bg-solid: #05060f;
+  --ps-text: #c8fff4; --ps-muted: #6fb6c9; --ps-head: #fff; --ps-accent: #00fff0; --ps-accent2: #ff004c;
+  --ps-font: 'Share Tech Mono', 'VT323', ui-monospace, monospace;
+  --ps-name-font: 'Orbitron', ui-monospace, monospace;
+  --ps-name-shadow: 2px 0 #ff004c, -2px 0 #00fff0; --ps-name-anim: ps-glitch 3.2s infinite; --ps-name-case: uppercase;
+  --ps-title-font: 'Share Tech Mono', ui-monospace, monospace;
+  --ps-section-bg: rgba(0, 255, 240, .05); --ps-section-border: #00fff0; --ps-section-borderstyle: dashed;
+  --ps-section-shadow: 3px 0 0 rgba(255, 0, 76, .55), -3px 0 0 rgba(0, 255, 240, .35); --ps-radius: 0;
+  --ps-btn-bg: #05060f; --ps-btn-text: #00fff0; --ps-btn-border: 1px solid #00fff0; --ps-btn-radius: 0;
+  --ps-btn-shadow: 3px 3px 0 #ff004c, -2px -2px 0 rgba(0, 255, 240, .5);
+  --ps-btn-shadow-active: -3px -3px 0 #ff004c, 2px 2px 0 rgba(0, 255, 240, .5);
+  --ps-btn-font: 'Share Tech Mono', ui-monospace, monospace; --ps-btn-case: uppercase;
+  --ps-chip-bg: rgba(255, 0, 76, .12); --ps-chip-radius: 0;
+  --ps-track-bg: #10102a; --ps-bar-fill: repeating-linear-gradient(90deg, #00fff0 0 6px, #ff004c 6px 8px); --ps-bar-radius: 0;
+  --ps-label-prefix: '> '; --ps-overlay: repeating-linear-gradient(0deg, rgba(0, 0, 0, .3) 0 1px, transparent 1px 3px);
+  --ps-overlay-anim: ps-scan 7s linear infinite;
+  --ps-scroll-thumb: #ff004c; --ps-scroll-radius: 0;
+  --ps-border: 1px solid #00fff0; --ps-card-radius: 0;
+  --ps-shadow: 4px 0 0 rgba(255, 0, 76, .6), -4px 0 0 rgba(0, 255, 240, .4);
+  --ps-top-display: flex; --ps-top-text: 'ERR_0x7F · SINAL INSTÁVEL ▓▒░'; --ps-top-h: 20px;
+  --ps-top-font: 700 11px 'Share Tech Mono', ui-monospace, monospace; --ps-top-color: #05060f; --ps-top-bg: #00fff0;
+  animation: ps-jitter 5.5s infinite;
+}
+.pstyle-bugado .mini-profile-section-label::after { content: '_'; animation: ps-blink 1s steps(1) infinite; }
+
+/* ===================================================================
+   5) Nostalgia — álbum de fotos antigo
+   =================================================================== */
+.pstyle-nostalgia {
+  --ps-bg: repeating-linear-gradient(0deg, rgba(120, 90, 50, .035) 0 1px, transparent 1px 3px), radial-gradient(120% 90% at 50% 40%, #f6ecd6 55%, #e3cfa6 100%);
+  --ps-bg-solid: #f1e4c8;
+  --ps-text: #4b3621; --ps-muted: #8a6d4c; --ps-head: #3a2614; --ps-accent: #a0522d;
+  --ps-font: 'Cormorant Garamond', 'Playfair Display', Georgia, serif; --ps-body-font: 'Caveat', cursive;
+  --ps-name-font: 'Caveat', 'Playfair Display', cursive; --ps-title-font: 'Caveat', Georgia, cursive;
+  --ps-section-bg: #fffaf0; --ps-section-border: #d9c39b; --ps-section-shadow: 2px 3px 0 rgba(120, 90, 50, .18); --ps-radius: 3px;
+  --ps-btn-bg: linear-gradient(#a0623a, #7a4523); --ps-btn-text: #fff6e3; --ps-btn-border: 1px solid #5c3318; --ps-btn-radius: 6px;
+  --ps-btn-shadow: inset 0 1px 0 rgba(255, 255, 255, .25), 0 2px 0 #4a2812;
+  --ps-chip-bg: #f2e3c2; --ps-chip-radius: 3px; --ps-track-bg: #e8d6b0; --ps-bar-fill: linear-gradient(90deg, #c08552, #8b5a2b);
+
+  --ps-overlay: radial-gradient(90% 90% at 50% 50%, transparent 60%, rgba(90, 60, 20, .28));
+  --ps-scroll-thumb: #c9ab78; --ps-border: 1px solid #c9ab78; --ps-card-radius: 6px;
+}
+.pstyle-nostalgia .mini-profile-section::before,
+.pstyle-nostalgia .pf-card::before {
+  content: ''; position: absolute; top: -7px; left: 50%; width: 54px; height: 14px; transform: translateX(-50%) rotate(-2deg);
+  background: rgba(240, 220, 160, .75); box-shadow: 0 1px 2px rgba(0, 0, 0, .12);
+}
+.pstyle-nostalgia .mini-profile-name > span:first-child,
+.pstyle-nostalgia .profile-display-name { font-size: 1.25em; }
+
+/* ===================================================================
+   Estilos novos (30)
+   =================================================================== */
+
+/* 6) Cyberpunk 2099 — neon amarelo e magenta em asfalto molhado */
+.pstyle-cyberpunk {
+  --ps-bg: linear-gradient(180deg, rgba(252, 238, 10, .06), transparent 30%), repeating-linear-gradient(90deg, transparent 0 39px, rgba(0, 240, 255, .06) 39px 40px), repeating-linear-gradient(0deg, transparent 0 39px, rgba(0, 240, 255, .06) 39px 40px), #0a0612;
+  --ps-text: #e6f7ff; --ps-muted: #8aa4b8; --ps-head: #fcee0a; --ps-accent: #fcee0a; --ps-accent2: #ff2a6d;
+  --ps-font: 'Space Grotesk', system-ui, sans-serif; --ps-name-font: 'Audiowide', 'Orbitron', sans-serif; --ps-name-case: uppercase;
+  --ps-name-shadow: 3px 3px 0 #ff2a6d, 0 0 18px rgba(252, 238, 10, .6); --ps-title-font: 'Orbitron', sans-serif; --ps-label-spacing: 2px;
+  --ps-section-bg: linear-gradient(135deg, rgba(255, 42, 109, .10), rgba(5, 217, 232, .06)); --ps-section-border: #ff2a6d;
+  --ps-section-shadow: inset 0 0 0 1px rgba(5, 217, 232, .25), 0 0 16px -6px #ff2a6d; --ps-radius: 0;
+  --ps-btn-bg: #fcee0a; --ps-btn-text: #0a0612; --ps-btn-border: 0; --ps-btn-radius: 0;
+  --ps-btn-shadow: 4px 4px 0 #05d9e8; --ps-btn-font: 'Orbitron', sans-serif; --ps-btn-case: uppercase; --ps-btn-spacing: 1px;
+  --ps-chip-bg: rgba(5, 217, 232, .12); --ps-chip-radius: 0; --ps-track-bg: #1b1030; --ps-bar-fill: linear-gradient(90deg, #ff2a6d, #fcee0a); --ps-bar-radius: 0;
+
+  --ps-label-prefix: '// '; --ps-overlay: repeating-linear-gradient(0deg, rgba(0, 0, 0, .18) 0 1px, transparent 1px 4px);
+  --ps-border: 1px solid #fcee0a; --ps-card-radius: 0; --ps-shadow: 0 0 0 1px #ff2a6d, 0 0 40px -8px rgba(252, 238, 10, .45);
+  --ps-top-display: flex; --ps-top-text: 'NETRUNNER ID ▸ ONLINE'; --ps-top-h: 20px; --ps-top-font: 700 11px 'Orbitron', sans-serif;
+  --ps-top-bg: repeating-linear-gradient(-45deg, #fcee0a 0 10px, #0a0612 10px 20px); --ps-top-color: transparent;
+  clip-path: polygon(0 0, calc(100% - 18px) 0, 100% 18px, 100% 100%, 18px 100%, 0 calc(100% - 18px));
+}
+
+/* 7) Vaporwave — pôr do sol, grade rosa e estátua grega */
+.pstyle-vaporwave {
+  --ps-bg: linear-gradient(180deg, #2b0f54 0%, #6b1d7a 45%, #ff6ec7 100%);
+  --ps-text: #fff0fb; --ps-muted: #ffc3ee; --ps-head: #fff; --ps-accent: #01cdfe; --ps-accent2: #ff71ce;
+  --ps-font: 'Space Grotesk', system-ui, sans-serif; --ps-name-font: 'Monoton', 'Righteous', sans-serif;
+  --ps-name-shadow: 3px 3px 0 #01cdfe, 6px 6px 0 #b967ff; --ps-name-spacing: 2px; --ps-title-font: 'Righteous', sans-serif;
+  --ps-section-bg: rgba(43, 15, 84, .55); --ps-section-border: #01cdfe; --ps-section-shadow: 4px 4px 0 #ff71ce; --ps-radius: 0; --ps-section-blur: blur(3px);
+  --ps-btn-bg: linear-gradient(180deg, #ff71ce, #b967ff); --ps-btn-text: #fff; --ps-btn-border: 2px solid #fff; --ps-btn-radius: 0;
+  --ps-btn-shadow: 4px 4px 0 #01cdfe; --ps-btn-font: 'Righteous', sans-serif;
+  --ps-chip-bg: rgba(1, 205, 254, .18); --ps-chip-radius: 0; --ps-track-bg: rgba(0, 0, 0, .3); --ps-bar-fill: linear-gradient(90deg, #01cdfe, #b967ff, #ff71ce);
+
+  --ps-label-prefix: 'Ａ Ｅ Ｓ ';
+  --ps-overlay: radial-gradient(1px 1px at 20% 15%, #fff 98%, transparent), radial-gradient(1px 1px at 70% 10%, #fff 98%, transparent), radial-gradient(1.5px 1.5px at 85% 30%, #fff 98%, transparent);
+  --ps-border: 2px solid #01cdfe; --ps-card-radius: 0; --ps-shadow: 8px 8px 0 #ff71ce;
+  --ps-top-display: flex; --ps-top-text: 'ｖａｐｏｒ.ｅｘｅ  ✕'; --ps-top-h: 22px; --ps-top-font: 700 11px 'Space Grotesk', sans-serif;
+  --ps-top-bg: linear-gradient(90deg, #ff71ce, #01cdfe); --ps-top-color: #2b0f54;
+}
+
+/* 8) 8-bit — jogo de videogame antigo */
+.pstyle-pixel {
+  --ps-bg: repeating-linear-gradient(0deg, #1d1d3a 0 4px, #222246 4px 8px);
+  --ps-text: #f8f8f8; --ps-muted: #a8a8c8; --ps-head: #fff; --ps-accent: #f8b800; --ps-accent2: #e40058;
+  --ps-font: 'VT323', 'Silkscreen', monospace; --ps-name-font: 'Press Start 2P', monospace; --ps-name-shadow: 3px 3px 0 #e40058;
+  --ps-title-font: 'Silkscreen', 'Press Start 2P', monospace;
+  --ps-section-bg: #000; --ps-section-border: #fff; --ps-section-borderw: 4px; --ps-radius: 0;
+  --ps-section-shadow: 0 0 0 4px #000, 4px 4px 0 4px #3cbcfc;
+  --ps-btn-bg: #e40058; --ps-btn-text: #fff; --ps-btn-border: 4px solid #000; --ps-btn-radius: 0;
+  --ps-btn-shadow: inset -4px -4px 0 #a00040, inset 4px 4px 0 #ff6aa8; --ps-btn-font: 'Press Start 2P', monospace;
+  --ps-chip-bg: #000; --ps-chip-radius: 0; --ps-track-bg: #000; --ps-bar-fill: repeating-linear-gradient(90deg, #00a800 0 6px, #58f898 6px 8px); --ps-bar-radius: 0;
+  --ps-label-prefix: '▶ ';
+  --ps-border: 4px solid #fff; --ps-card-radius: 0; --ps-shadow: 0 0 0 4px #000, 8px 8px 0 4px #000;
+  --ps-top-display: flex; --ps-top-text: '1UP  000420   ★×07   WORLD 1-1'; --ps-top-h: 22px; --ps-top-font: 400 9px 'Press Start 2P', monospace; --ps-top-bg: #000;
+}
+
+/* 9) Oceano Profundo — bolhas e luz entrando na água */
+.pstyle-oceano {
+  --ps-bg: radial-gradient(60% 40% at 30% 0%, rgba(120, 220, 255, .35), transparent 70%), linear-gradient(180deg, #0a4f7a 0%, #06314f 45%, #021626 100%);
+  --ps-text: #d6f3ff; --ps-muted: #7fb4cc; --ps-head: #fff; --ps-accent: #3ee6d0; --ps-accent2: #2a9df4;
+  --ps-font: 'Comfortaa', system-ui, sans-serif; --ps-name-font: 'Righteous', sans-serif; --ps-name-shadow: 0 0 14px rgba(62, 230, 208, .7), 0 2px 0 #021626;
+  --ps-section-bg: rgba(6, 49, 79, .55); --ps-section-border: rgba(62, 230, 208, .35); --ps-section-blur: blur(6px); --ps-radius: 18px;
+  --ps-section-shadow: inset 0 1px 0 rgba(255, 255, 255, .12);
+  --ps-btn-bg: linear-gradient(180deg, #3ee6d0, #1a9bbd); --ps-btn-text: #02263b; --ps-btn-border: 0; --ps-btn-radius: 999px;
+  --ps-btn-shadow: 0 6px 20px -6px rgba(62, 230, 208, .8);
+  --ps-chip-radius: 999px; --ps-track-bg: rgba(0, 0, 0, .3); --ps-bar-fill: linear-gradient(90deg, #2a9df4, #3ee6d0);
+  --ps-label-prefix: '≋ ';
+  --ps-overlay:
+    radial-gradient(circle at 15% 90%, rgba(255, 255, 255, .5) 0 2px, transparent 3px), radial-gradient(circle at 70% 80%, rgba(255, 255, 255, .45) 0 3px, transparent 4px),
+    radial-gradient(circle at 40% 60%, rgba(255, 255, 255, .4) 0 1.5px, transparent 2.5px), radial-gradient(circle at 88% 40%, rgba(255, 255, 255, .35) 0 2px, transparent 3px);
+  --ps-overlay-size: 100% 300px; --ps-overlay-anim: ps-bubbles 10s linear infinite;
+  --ps-border: 1px solid rgba(62, 230, 208, .4); --ps-card-radius: 22px;
+}
+
+/* 10) Floresta Encantada — musgo, folhas e vaga-lumes */
+.pstyle-floresta {
+  --ps-bg: radial-gradient(50% 30% at 50% 0%, rgba(255, 240, 160, .18), transparent), linear-gradient(180deg, #1f3a1f, #142814 60%, #0b180b);
+  --ps-text: #e3f2d8; --ps-muted: #9cbf8c; --ps-head: #f6ffe9; --ps-accent: #b6e36b; --ps-accent2: #f4d35e;
+  --ps-font: 'Cormorant Garamond', Georgia, serif; --ps-name-font: 'MedievalSharp', 'Cinzel', serif; --ps-name-shadow: 0 0 12px rgba(244, 211, 94, .6);
+  --ps-title-font: 'Cinzel', serif;
+  --ps-section-bg: rgba(20, 40, 20, .75); --ps-section-border: #4f7a3a; --ps-radius: 16px 4px 16px 4px;
+  --ps-section-shadow: inset 0 0 0 1px rgba(182, 227, 107, .12), 0 6px 16px -10px #000;
+  --ps-btn-bg: linear-gradient(180deg, #7aa63f, #4f7a2a); --ps-btn-text: #f6ffe9; --ps-btn-border: 1px solid #2c4a18; --ps-btn-radius: 18px 4px 18px 4px;
+  --ps-btn-shadow: 0 3px 0 #2c4a18; --ps-btn-font: 'Cinzel', serif;
+  --ps-chip-bg: rgba(79, 122, 58, .35); --ps-track-bg: #0b180b; --ps-bar-fill: linear-gradient(90deg, #4f7a2a, #b6e36b);
+  --ps-label-prefix: '❦ ';
+  --ps-overlay:
+    radial-gradient(3px 3px at 15% 30%, #f4ff8a 98%, transparent), radial-gradient(2px 2px at 65% 55%, #f4ff8a 98%, transparent),
+    radial-gradient(3px 3px at 82% 20%, #f4ff8a 98%, transparent), radial-gradient(2px 2px at 35% 78%, #f4ff8a 98%, transparent);
+  --ps-overlay-anim: ps-fireflies 5s ease-in-out infinite alternate;
+  --ps-border: 1px solid #4f7a3a; --ps-card-radius: 20px 6px 20px 6px;
+}
+
+/* 11) Galáxia — nebulosa e estrelas */
+.pstyle-galaxia {
+  --ps-bg:
+    radial-gradient(1px 1px at 10% 20%, #fff 98%, transparent), radial-gradient(1px 1px at 30% 70%, #fff 98%, transparent), radial-gradient(1.5px 1.5px at 60% 30%, #fff 98%, transparent),
+    radial-gradient(1px 1px at 80% 80%, #fff 98%, transparent), radial-gradient(1px 1px at 90% 10%, #fff 98%, transparent),
+    radial-gradient(60% 40% at 20% 30%, rgba(170, 60, 255, .45), transparent 70%), radial-gradient(50% 40% at 85% 70%, rgba(40, 140, 255, .4), transparent 70%), #07031a;
+  --ps-text: #e8e2ff; --ps-muted: #a49ad0; --ps-head: #fff; --ps-accent: #b58bff; --ps-accent2: #4fc3ff;
+  --ps-font: 'Space Grotesk', sans-serif; --ps-name-font: 'Audiowide', sans-serif;
+  --ps-name-bg: linear-gradient(90deg, #b58bff, #4fc3ff, #ff8bd8, #b58bff); --ps-name-clip: text; --ps-name-fill: transparent; --ps-name-anim: ps-shift 6s linear infinite;
+  --ps-section-bg: rgba(20, 10, 50, .6); --ps-section-border: rgba(181, 139, 255, .45); --ps-section-blur: blur(6px); --ps-radius: 16px;
+  --ps-btn-bg: linear-gradient(90deg, #7a4dff, #2a8cff); --ps-btn-text: #fff; --ps-btn-border: 1px solid rgba(255, 255, 255, .3); --ps-btn-radius: 12px;
+  --ps-btn-shadow: 0 0 20px -4px rgba(122, 77, 255, .9);
+  --ps-track-bg: rgba(255, 255, 255, .08); --ps-bar-fill: linear-gradient(90deg, #7a4dff, #4fc3ff);
+
+  --ps-label-prefix: '✦ ';
+  --ps-overlay: radial-gradient(1.5px 1.5px at 25% 40%, #fff 98%, transparent), radial-gradient(1px 1px at 75% 55%, #fff 98%, transparent), radial-gradient(1.5px 1.5px at 50% 85%, #fff 98%, transparent);
+  --ps-overlay-anim: ps-twinkle 3s ease-in-out infinite;
+  --ps-border: 1px solid rgba(181, 139, 255, .4); --ps-card-radius: 20px; --ps-shadow: 0 0 60px -10px rgba(122, 77, 255, .6);
+}
+
+/* 12) Sakura — jardim japonês claro */
+.pstyle-sakura {
+  --ps-bg: radial-gradient(70% 40% at 80% 0%, #ffe3ee, transparent 70%), linear-gradient(180deg, #fff6f9, #fde7ef);
+  --ps-text: #5a3a45; --ps-muted: #a07a86; --ps-head: #3d222b; --ps-accent: #e8597f; --ps-accent2: #2b2b2b;
+  --ps-font: 'Cormorant Garamond', Georgia, serif; --ps-name-font: 'Cormorant Garamond', serif; --ps-name-spacing: 1px;
+  --ps-name-color: #3d222b; --ps-title-font: 'Cinzel', serif; --ps-label-spacing: 3px;
+  --ps-section-bg: rgba(255, 255, 255, .8); --ps-section-border: #f3c4d3; --ps-radius: 4px; --ps-section-shadow: 0 2px 0 #f3c4d3;
+  --ps-btn-bg: #e8597f; --ps-btn-text: #fff; --ps-btn-border: 0; --ps-btn-radius: 4px; --ps-btn-shadow: inset 0 -3px 0 #c43c63; --ps-btn-font: 'Cinzel', serif;
+  --ps-chip-bg: #fff0f5; --ps-track-bg: #f8d5e0; --ps-bar-fill: linear-gradient(90deg, #f7a8c1, #e8597f);
+  --ps-label-prefix: '❀ ';
+  --ps-overlay: radial-gradient(5px 3px at 12% 12%, #f7a8c1 98%, transparent), radial-gradient(4px 3px at 55% 4%, #ffc0d4 98%, transparent), radial-gradient(5px 3px at 85% 30%, #f7a8c1 98%, transparent), radial-gradient(4px 2px at 30% 58%, #ffd0de 98%, transparent);
+  --ps-overlay-size: 100% 240px; --ps-overlay-anim: ps-petals 12s linear infinite;
+  --ps-border: 1px solid #f3c4d3; --ps-card-radius: 8px; --ps-shadow: 0 16px 40px -14px rgba(232, 89, 127, .4);
+}
+
+/* 13) Inverno — neve caindo e gelo */
+.pstyle-inverno {
+  --ps-bg: linear-gradient(180deg, #e8f4ff 0%, #cfe6fb 50%, #b7d6f3 100%);
+  --ps-text: #23415c; --ps-muted: #5d7d99; --ps-head: #102a43; --ps-accent: #2f80ed; --ps-accent2: #9ad1ff;
+  --ps-font: 'Comfortaa', sans-serif; --ps-name-font: 'Mountains of Christmas', 'Comfortaa', serif; --ps-name-shadow: 0 2px 0 #fff, 0 0 12px rgba(47, 128, 237, .4);
+  --ps-section-bg: rgba(255, 255, 255, .65); --ps-section-border: #fff; --ps-section-blur: blur(6px); --ps-radius: 14px;
+  --ps-section-shadow: inset 0 1px 0 #fff, 0 6px 18px -10px rgba(16, 42, 67, .4);
+  --ps-btn-bg: linear-gradient(180deg, #66b3ff, #2f80ed); --ps-btn-text: #fff; --ps-btn-border: 2px solid rgba(255, 255, 255, .8); --ps-btn-radius: 12px;
+  --ps-btn-shadow: 0 4px 12px -4px rgba(47, 128, 237, .7);
+  --ps-chip-bg: rgba(255, 255, 255, .8); --ps-track-bg: rgba(255, 255, 255, .7); --ps-bar-fill: linear-gradient(90deg, #9ad1ff, #2f80ed);
+  --ps-label-prefix: '❄ ';
+  --ps-overlay: radial-gradient(2px 2px at 10% 10%, #fff 98%, transparent), radial-gradient(3px 3px at 30% 40%, #fff 98%, transparent), radial-gradient(2px 2px at 55% 20%, #fff 98%, transparent), radial-gradient(3px 3px at 78% 55%, #fff 98%, transparent), radial-gradient(2px 2px at 90% 15%, #fff 98%, transparent), radial-gradient(2px 2px at 45% 75%, #fff 98%, transparent);
+  --ps-overlay-size: 100% 200px; --ps-overlay-anim: ps-snow 8s linear infinite;
+  --ps-border: 2px solid #fff; --ps-card-radius: 18px; --ps-shadow: 0 18px 40px -12px rgba(16, 42, 67, .35);
+}
+
+/* 14) Vulcão — lava e brasas */
+.pstyle-lava {
+  --ps-bg: radial-gradient(70% 40% at 50% 110%, rgba(255, 90, 0, .55), transparent 70%), linear-gradient(180deg, #1a0a06, #2a0d05 60%, #3d1104);
+  --ps-text: #ffe2cc; --ps-muted: #c9907a; --ps-head: #fff3e6; --ps-accent: #ff6a00; --ps-accent2: #ffd000;
+  --ps-font: 'Space Grotesk', sans-serif; --ps-name-font: 'Bungee', sans-serif;
+  --ps-name-bg: linear-gradient(0deg, #ff3d00, #ffb300, #ffe57a); --ps-name-clip: text; --ps-name-fill: transparent; --ps-name-anim: ps-shift 3s linear infinite;
+  --ps-title-font: 'Bungee', sans-serif;
+  --ps-section-bg: rgba(40, 12, 4, .8); --ps-section-border: #7a2a08; --ps-radius: 8px; --ps-section-shadow: inset 0 -12px 20px -14px #ff6a00;
+  --ps-btn-bg: linear-gradient(180deg, #ffb300, #ff3d00); --ps-btn-text: #2a0d05; --ps-btn-border: 0; --ps-btn-radius: 8px;
+  --ps-btn-shadow: 0 0 22px -4px #ff6a00, inset 0 -3px 0 #a52a00; --ps-btn-font: 'Bungee', sans-serif;
+  --ps-track-bg: #1a0a06; --ps-bar-fill: linear-gradient(90deg, #a52a00, #ff6a00, #ffd000);
+
+  --ps-label-prefix: '🔥 ';
+  --ps-overlay: radial-gradient(2px 2px at 20% 90%, #ffb300 98%, transparent), radial-gradient(2px 2px at 60% 95%, #ff6a00 98%, transparent), radial-gradient(1.5px 1.5px at 80% 85%, #ffd000 98%, transparent), radial-gradient(2px 2px at 40% 80%, #ff8a00 98%, transparent);
+  --ps-overlay-size: 100% 260px; --ps-overlay-anim: ps-embers 6s linear infinite;
+  --ps-border: 1px solid #7a2a08; --ps-card-radius: 12px; --ps-shadow: 0 0 50px -10px rgba(255, 106, 0, .6);
+}
+
+/* 15) Realeza — preto e ouro */
+.pstyle-realeza {
+  --ps-bg: repeating-linear-gradient(45deg, rgba(212, 175, 55, .04) 0 2px, transparent 2px 14px), linear-gradient(180deg, #121212, #0a0a0a);
+  --ps-text: #efe6cf; --ps-muted: #a8976b; --ps-head: #f6e7b4; --ps-accent: #d4af37; --ps-accent2: #fff1b8;
+  --ps-font: 'Cormorant Garamond', Georgia, serif; --ps-name-font: 'Cinzel', serif; --ps-name-case: uppercase; --ps-name-spacing: 3px;
+  --ps-name-bg: linear-gradient(90deg, #b8902a, #fff1b8, #d4af37, #fff1b8, #b8902a); --ps-name-clip: text; --ps-name-fill: transparent; --ps-name-anim: ps-shift 5s linear infinite;
+  --ps-title-font: 'Cinzel', serif; --ps-label-spacing: 3px;
+  --ps-section-bg: linear-gradient(180deg, #161616, #0f0f0f); --ps-section-border: #8a6d1e; --ps-radius: 2px;
+  --ps-section-shadow: inset 0 0 0 3px #0a0a0a, inset 0 0 0 4px rgba(212, 175, 55, .35);
+  --ps-btn-bg: linear-gradient(180deg, #f6e7b4, #d4af37 50%, #a88520); --ps-btn-text: #1a1406; --ps-btn-border: 1px solid #f6e7b4; --ps-btn-radius: 2px;
+  --ps-btn-shadow: 0 6px 18px -6px rgba(212, 175, 55, .6); --ps-btn-font: 'Cinzel', serif; --ps-btn-case: uppercase; --ps-btn-spacing: 2px;
+  --ps-chip-bg: #161616; --ps-track-bg: #1d1d1d; --ps-bar-fill: linear-gradient(90deg, #a88520, #fff1b8, #d4af37);
+  --ps-label-prefix: '♛ ';
+  --ps-sec-deco: linear-gradient(135deg, #d4af37 0 2px, transparent 2px), linear-gradient(-135deg, #d4af37 0 2px, transparent 2px);
+  --ps-border: 1px solid #8a6d1e; --ps-card-radius: 4px; --ps-shadow: 0 0 0 4px #0a0a0a, 0 0 0 5px #d4af37, 0 24px 60px rgba(0, 0, 0, .7);
+}
+
+/* 16) Matrix — código caindo */
+.pstyle-matrix {
+  --ps-bg: repeating-linear-gradient(90deg, rgba(0, 255, 70, .05) 0 12px, transparent 12px 24px), #010a03;
+  --ps-text: #9dffb0; --ps-muted: #3fae5b; --ps-head: #d4ffdc; --ps-accent: #00ff46; --ps-accent2: #00b830;
+  --ps-font: 'Share Tech Mono', 'VT323', monospace; --ps-name-font: 'VT323', monospace; --ps-name-shadow: 0 0 10px #00ff46, 0 0 2px #fff; --ps-name-anim: ps-flicker-text 4s infinite;
+  --ps-title-font: 'Share Tech Mono', monospace;
+  --ps-section-bg: rgba(0, 20, 6, .85); --ps-section-border: #00b830; --ps-radius: 0; --ps-section-shadow: 0 0 12px -4px #00ff46;
+  --ps-btn-bg: #010a03; --ps-btn-text: #00ff46; --ps-btn-border: 1px solid #00ff46; --ps-btn-radius: 0; --ps-btn-shadow: 0 0 12px -2px #00ff46, inset 0 0 8px rgba(0, 255, 70, .25);
+  --ps-btn-font: 'Share Tech Mono', monospace; --ps-btn-case: uppercase;
+  --ps-chip-bg: rgba(0, 255, 70, .08); --ps-chip-radius: 0; --ps-track-bg: #021405; --ps-bar-fill: #00ff46; --ps-bar-radius: 0;
+
+  --ps-label-prefix: '$ ';
+  --ps-overlay: repeating-linear-gradient(180deg, rgba(0, 255, 70, .0) 0 10px, rgba(0, 255, 70, .18) 10px 12px, rgba(0, 255, 70, 0) 12px 22px);
+  --ps-overlay-size: 9px 160px; --ps-overlay-anim: ps-rain 3s linear infinite; --ps-overlay-opacity: .55;
+  --ps-border: 1px solid #00b830; --ps-card-radius: 0; --ps-shadow: 0 0 40px -10px #00ff46;
+  --ps-top-display: flex; --ps-top-text: 'root@projectclub:~$ whoami ▌'; --ps-top-h: 20px; --ps-top-font: 400 12px 'Share Tech Mono', monospace; --ps-top-color: #00ff46; --ps-top-bg: #000; --ps-top-border: 1px solid #00b830;
+}
+
+/* 17) Caderno escolar — folha pautada, caneta e clipe */
+.pstyle-caderno {
+  --ps-bg: linear-gradient(90deg, transparent 38px, #f28b82 38px 40px, transparent 40px), repeating-linear-gradient(180deg, #fffef8 0 23px, #b8d4f0 23px 24px);
+  --ps-text: #1c3d7a; --ps-muted: #5a73a3; --ps-head: #0f2a5e; --ps-accent: #e53935; --ps-accent2: #1c3d7a;
+  --ps-font: 'Shadows Into Light', 'Caveat', cursive; --ps-name-font: 'Permanent Marker', cursive; --ps-name-color: #e53935;
+  --ps-title-font: 'Permanent Marker', cursive; --ps-body-font: 'Shadows Into Light', cursive;
+  --ps-section-bg: rgba(255, 249, 196, .9); --ps-section-border: #e0d27a; --ps-radius: 2px; --ps-section-shadow: 2px 3px 6px -2px rgba(0, 0, 0, .25);
+  --ps-btn-bg: #fff; --ps-btn-text: #1c3d7a; --ps-btn-border: 2px solid #1c3d7a; --ps-btn-radius: 255px 15px 225px 15px / 15px 225px 15px 255px;
+  --ps-btn-shadow: 2px 3px 0 #1c3d7a; --ps-btn-font: 'Permanent Marker', cursive;
+  --ps-chip-bg: #fff; --ps-chip-radius: 4px; --ps-bubble-bg: #fff9c4; --ps-track-bg: #e3edf9; --ps-bar-fill: repeating-linear-gradient(45deg, #e53935 0 6px, #ef5350 6px 12px);
+
+  --ps-label-prefix: '✎ ';
+  --ps-border: 1px solid #c9d6e8; --ps-card-radius: 4px; --ps-shadow: 4px 6px 0 rgba(28, 61, 122, .15), 0 14px 30px -12px rgba(0, 0, 0, .3);
+}
+.pstyle-caderno .mini-profile-section::before,
+.pstyle-caderno .pf-card::before {
+  content: ''; position: absolute; top: -10px; right: 14px; width: 12px; height: 30px; border: 3px solid #9aa4b0; border-radius: 8px; border-bottom-color: transparent; transform: rotate(8deg);
+}
+
+/* 18) Steampunk — latão, engrenagens e vapor */
+.pstyle-steampunk {
+  --ps-bg: radial-gradient(circle at 100% 0, transparent 26px, rgba(0, 0, 0, .25) 27px 30px, transparent 31px) , linear-gradient(180deg, #3b2a1a, #2a1d11);
+  --ps-text: #f1dcb4; --ps-muted: #b8956a; --ps-head: #ffe9bf; --ps-accent: #c9a24a; --ps-accent2: #8c5a2b;
+  --ps-font: 'Special Elite', Georgia, serif; --ps-name-font: 'Rye', serif; --ps-name-shadow: 0 2px 0 #1a1008, 0 0 10px rgba(201, 162, 74, .5);
+  --ps-title-font: 'Rye', serif;
+  --ps-section-bg: linear-gradient(180deg, #4a3522, #3a2918); --ps-section-border: #c9a24a; --ps-section-borderw: 2px; --ps-radius: 6px;
+  --ps-section-shadow: inset 0 0 0 2px #2a1d11, inset 0 0 14px rgba(0, 0, 0, .5);
+  --ps-btn-bg: linear-gradient(180deg, #e6c278, #c9a24a 45%, #8c6a2b); --ps-btn-text: #2a1d11; --ps-btn-border: 2px solid #5a3f1a; --ps-btn-radius: 999px;
+  --ps-btn-shadow: inset 0 2px 0 rgba(255, 255, 255, .4), 0 3px 0 #2a1d11; --ps-btn-font: 'Rye', serif;
+  --ps-chip-bg: #2a1d11; --ps-track-bg: #1a1008; --ps-bar-fill: repeating-linear-gradient(90deg, #c9a24a 0 10px, #8c6a2b 10px 12px);
+
+  --ps-label-prefix: '⚙ ';
+  --ps-overlay: radial-gradient(30% 12% at 15% 100%, rgba(255, 255, 255, .12), transparent 70%), radial-gradient(25% 10% at 80% 100%, rgba(255, 255, 255, .1), transparent 70%);
+  --ps-overlay-anim: ps-fog 9s ease-in-out infinite alternate;
+  --ps-border: 3px double #c9a24a; --ps-card-radius: 10px;
+}
+
+/* 19) Gótico — vitral, cruz e veludo roxo */
+.pstyle-gotico {
+  --ps-bg: radial-gradient(60% 30% at 50% 0%, rgba(120, 40, 160, .4), transparent 70%), linear-gradient(180deg, #120a18, #0a060e);
+  --ps-text: #e3d6ee; --ps-muted: #9a86ad; --ps-head: #f4ecff; --ps-accent: #9b4dca; --ps-accent2: #c41e3a;
+  --ps-font: 'Cormorant Garamond', serif; --ps-name-font: 'Cinzel', serif; --ps-name-spacing: 2px; --ps-name-shadow: 0 0 14px rgba(155, 77, 202, .7);
+  --ps-title-font: 'Cinzel', serif;
+  --ps-section-bg: rgba(30, 14, 40, .8); --ps-section-border: #5a2d7a; --ps-radius: 40px 40px 4px 4px;
+  --ps-section-shadow: inset 0 0 0 1px rgba(155, 77, 202, .3);
+  --ps-btn-bg: linear-gradient(180deg, #5a1f7a, #3a0f52); --ps-btn-text: #f4ecff; --ps-btn-border: 1px solid #9b4dca; --ps-btn-radius: 18px 18px 2px 2px;
+  --ps-btn-shadow: 0 0 16px -4px #9b4dca; --ps-btn-font: 'Cinzel', serif;
+  --ps-track-bg: #1a0e22; --ps-bar-fill: linear-gradient(90deg, #c41e3a, #9b4dca);
+  --ps-label-prefix: '✠ ';
+  --ps-overlay: radial-gradient(80% 80% at 50% 40%, transparent 55%, rgba(0, 0, 0, .7));
+  --ps-border: 1px solid #5a2d7a; --ps-card-radius: 60px 60px 8px 8px;
+}
+
+/* 20) Arcade 80 — fliperama */
+.pstyle-arcade {
+  --ps-bg: repeating-linear-gradient(0deg, transparent 0 2px, rgba(0, 0, 0, .25) 2px 3px), radial-gradient(70% 40% at 50% 0, rgba(255, 0, 170, .35), transparent 70%), #0b0b22;
+  --ps-text: #e6e6ff; --ps-muted: #8b8bc4; --ps-head: #fff; --ps-accent: #00e5ff; --ps-accent2: #ff00aa;
+  --ps-font: 'VT323', monospace; --ps-name-font: 'Bungee', sans-serif; --ps-name-shadow: 0 0 4px #fff, 0 0 12px #00e5ff, 0 0 24px #00e5ff; --ps-name-color: #e6fdff;
+  --ps-title-font: 'Press Start 2P', monospace;
+  --ps-section-bg: #12123a; --ps-section-border: #ff00aa; --ps-section-borderw: 2px; --ps-radius: 6px;
+  --ps-section-shadow: 0 0 12px -2px #ff00aa, inset 0 0 12px -4px #ff00aa;
+  --ps-btn-bg: radial-gradient(circle at 50% 35%, #ff6ad5, #ff00aa 60%, #a3006c); --ps-btn-text: #fff; --ps-btn-border: 3px solid #0b0b22; --ps-btn-radius: 999px;
+  --ps-btn-shadow: 0 5px 0 #6a0047, 0 0 0 3px #ff00aa; --ps-btn-shadow-active: 0 1px 0 #6a0047, 0 0 0 3px #ff00aa; --ps-btn-press: translateY(4px);
+  --ps-btn-font: 'Press Start 2P', monospace;
+  --ps-chip-bg: #0b0b22; --ps-track-bg: #000; --ps-bar-fill: linear-gradient(90deg, #00e5ff, #ff00aa); --ps-bar-radius: 0;
+
+  --ps-label-prefix: '★ ';
+  --ps-overlay: radial-gradient(90% 90% at 50% 50%, transparent 60%, rgba(0, 0, 0, .55));
+  --ps-border: 3px solid #00e5ff; --ps-card-radius: 14px; --ps-shadow: 0 0 0 3px #0b0b22, 0 0 0 5px #ff00aa, 0 0 40px -6px #00e5ff;
+  --ps-top-display: flex; --ps-top-text: 'INSERT COIN ● HI-SCORE 999990'; --ps-top-h: 22px; --ps-top-font: 400 9px 'Press Start 2P', monospace; --ps-top-color: #ffeb3b; --ps-top-bg: #000;
+}
+.pstyle-arcade::before { animation: ps-blink 1.2s steps(1) infinite; }
+
+/* 21) Pôr do sol — praia ao entardecer */
+.pstyle-sunset {
+  --ps-bg: linear-gradient(180deg, #ff7e5f 0%, #feb47b 35%, #7b4397 75%, #2c1650 100%);
+  --ps-text: #fff3ea; --ps-muted: #ffd9c4; --ps-head: #fff; --ps-accent: #ffcd6b; --ps-accent2: #ff5e62;
+  --ps-font: 'Comfortaa', sans-serif; --ps-name-font: 'Pacifico', cursive; --ps-name-shadow: 0 3px 0 rgba(123, 67, 151, .6), 0 0 18px rgba(255, 205, 107, .6);
+  --ps-section-bg: rgba(44, 22, 80, .35); --ps-section-border: rgba(255, 255, 255, .35); --ps-section-blur: blur(8px); --ps-radius: 18px;
+  --ps-btn-bg: linear-gradient(90deg, #ff5e62, #ff9966); --ps-btn-text: #fff; --ps-btn-border: 0; --ps-btn-radius: 999px; --ps-btn-shadow: 0 8px 20px -8px rgba(255, 94, 98, .9);
+  --ps-chip-radius: 999px; --ps-track-bg: rgba(0, 0, 0, .2); --ps-bar-fill: linear-gradient(90deg, #ff5e62, #ffcd6b);
+
+  --ps-label-prefix: '☀ ';
+  --ps-border: 1px solid rgba(255, 255, 255, .35); --ps-card-radius: 24px; --ps-shadow: 0 24px 50px -16px rgba(123, 67, 151, .8);
+}
+
+/* 22) Doceria — doces, granulado e listras */
+.pstyle-candy {
+  --ps-bg:
+    radial-gradient(3px 1.5px at 10% 20%, #ff6b9d 98%, transparent), radial-gradient(3px 1.5px at 40% 60%, #6bcBff 98%, transparent), radial-gradient(3px 1.5px at 75% 30%, #ffd56b 98%, transparent), radial-gradient(3px 1.5px at 60% 85%, #9bff6b 98%, transparent),
+    linear-gradient(180deg, #fff0f6, #ffe1ef);
+  --ps-text: #7a2e52; --ps-muted: #c06a92; --ps-head: #5a1638; --ps-accent: #ff4fa0; --ps-accent2: #59c9ff;
+  --ps-font: 'Fredoka One', 'Comfortaa', sans-serif; --ps-name-font: 'Lobster', cursive; --ps-name-color: #ff4fa0; --ps-name-shadow: 2px 2px 0 #fff, 4px 4px 0 #59c9ff;
+  --ps-title-font: 'Fredoka One', sans-serif;
+  --ps-section-bg: #fff; --ps-section-border: #ffb6d5; --ps-section-borderw: 3px; --ps-radius: 20px; --ps-section-shadow: 0 5px 0 #ffb6d5;
+  --ps-btn-bg: repeating-linear-gradient(-45deg, #ff4fa0 0 10px, #ff7cbb 10px 20px); --ps-btn-text: #fff; --ps-btn-border: 3px solid #fff; --ps-btn-radius: 999px;
+  --ps-btn-shadow: 0 5px 0 #c9286e; --ps-btn-shadow-active: 0 1px 0 #c9286e; --ps-btn-press: translateY(4px); --ps-btn-font: 'Fredoka One', sans-serif; --ps-btn-text-shadow: 0 1px 0 rgba(0, 0, 0, .2);
+  --ps-chip-bg: #fff; --ps-chip-radius: 999px; --ps-track-bg: #ffe1ef; --ps-bar-fill: repeating-linear-gradient(-45deg, #59c9ff 0 8px, #9be3ff 8px 16px);
+
+  --ps-label-prefix: '🍬 ';
+  --ps-border: 4px solid #fff; --ps-card-radius: 26px; --ps-shadow: 0 0 0 4px #ffb6d5, 0 20px 40px -14px rgba(255, 79, 160, .5);
+}
+
+/* 23) Aurora Boreal — cortinas de luz no céu */
+.pstyle-aurora {
+  --ps-bg: radial-gradient(80% 40% at 30% 0%, rgba(0, 255, 170, .35), transparent 70%), radial-gradient(70% 40% at 80% 10%, rgba(120, 80, 255, .35), transparent 70%), linear-gradient(180deg, #04121f, #020a12);
+  --ps-text: #dff9ff; --ps-muted: #84b5c4; --ps-head: #fff; --ps-accent: #3dffc0; --ps-accent2: #8a6bff;
+  --ps-font: 'Comfortaa', sans-serif; --ps-name-font: 'Righteous', sans-serif;
+  --ps-name-bg: linear-gradient(90deg, #3dffc0, #8a6bff, #3dd5ff, #3dffc0); --ps-name-clip: text; --ps-name-fill: transparent; --ps-name-anim: ps-shift 7s linear infinite;
+  --ps-section-bg: rgba(4, 18, 31, .6); --ps-section-border: rgba(61, 255, 192, .3); --ps-section-blur: blur(8px); --ps-radius: 16px;
+  --ps-btn-bg: linear-gradient(90deg, #3dffc0, #3dd5ff, #8a6bff); --ps-btn-text: #04121f; --ps-btn-border: 0; --ps-btn-radius: 12px; --ps-btn-shadow: 0 0 22px -6px #3dffc0;
+  --ps-track-bg: rgba(255, 255, 255, .08); --ps-bar-fill: linear-gradient(90deg, #3dffc0, #8a6bff);
+  --ps-label-prefix: '✧ ';
+  --ps-overlay: radial-gradient(1px 1px at 20% 30%, #fff 98%, transparent), radial-gradient(1px 1px at 70% 15%, #fff 98%, transparent), radial-gradient(1.5px 1.5px at 85% 60%, #fff 98%, transparent);
+  --ps-overlay-anim: ps-twinkle 4s ease-in-out infinite;
+  --ps-border: 1px solid rgba(61, 255, 192, .35); --ps-card-radius: 20px; --ps-shadow: 0 0 60px -14px rgba(61, 255, 192, .55);
+}
+
+/* 24) Deserto — dunas, areia e calor */
+.pstyle-deserto {
+  --ps-bg: radial-gradient(120% 50% at 30% 110%, #c98a4b 0 40%, transparent 41%), radial-gradient(120% 50% at 90% 115%, #b8763a 0 42%, transparent 43%), linear-gradient(180deg, #f6d8a8, #eab676);
+  --ps-text: #4a2d14; --ps-muted: #8a5e36; --ps-head: #3a200b; --ps-accent: #c0582b; --ps-accent2: #2b7a78;
+  --ps-font: 'Comfortaa', sans-serif; --ps-name-font: 'Rye', serif; --ps-name-shadow: 2px 2px 0 rgba(255, 255, 255, .4);
+  --ps-title-font: 'Rye', serif;
+  --ps-section-bg: rgba(255, 240, 214, .82); --ps-section-border: #c98a4b; --ps-radius: 10px; --ps-section-shadow: 0 3px 0 #c98a4b;
+  --ps-btn-bg: linear-gradient(180deg, #d9733f, #b04a1f); --ps-btn-text: #fff6e8; --ps-btn-border: 0; --ps-btn-radius: 10px; --ps-btn-shadow: 0 4px 0 #7a2f10;
+  --ps-btn-font: 'Rye', serif;
+  --ps-chip-bg: #fff0d6; --ps-track-bg: #f0d2a4; --ps-bar-fill: linear-gradient(90deg, #2b7a78, #3fb0a8);
+  --ps-label-prefix: '☼ ';
+  --ps-overlay: repeating-linear-gradient(180deg, transparent 0 6px, rgba(255, 255, 255, .03) 6px 7px);
+  --ps-overlay-anim: ps-heat 3s ease-in-out infinite alternate;
+  --ps-border: 1px solid #c98a4b; --ps-card-radius: 14px;
+}
+
+/* 25) Halloween — abóbora, roxo e morcegos */
+.pstyle-halloween {
+  --ps-bg: radial-gradient(30% 22% at 82% 12%, #ffe8a3 0 40%, rgba(255, 232, 163, .15) 41% 60%, transparent 61%), linear-gradient(180deg, #2a0f3d, #170824 60%, #0d0516);
+  --ps-text: #ffe7cc; --ps-muted: #c49ad6; --ps-head: #fff; --ps-accent: #ff7518; --ps-accent2: #8fd14f;
+  --ps-font: 'Special Elite', serif; --ps-name-font: 'Creepster', cursive; --ps-name-color: #ff7518; --ps-name-shadow: 0 0 14px rgba(255, 117, 24, .8), 3px 3px 0 #2a0f3d;
+  --ps-name-spacing: 2px; --ps-title-font: 'Creepster', cursive; --ps-label-spacing: 2px;
+  --ps-section-bg: rgba(42, 15, 61, .8); --ps-section-border: #ff7518; --ps-section-borderstyle: dashed; --ps-radius: 12px;
+  --ps-btn-bg: radial-gradient(120% 120% at 50% 0%, #ffa149, #ff7518 50%, #c74f00); --ps-btn-text: #1a0a00; --ps-btn-border: 2px solid #2a0f3d; --ps-btn-radius: 40% 40% 30% 30% / 60% 60% 40% 40%;
+  --ps-btn-shadow: 0 0 18px -4px #ff7518, inset 0 -4px 0 rgba(0, 0, 0, .2); --ps-btn-font: 'Creepster', cursive; --ps-btn-spacing: 1px;
+  --ps-track-bg: #170824; --ps-bar-fill: linear-gradient(90deg, #8fd14f, #ff7518);
+  --ps-label-prefix: '🎃 ';
+  --ps-overlay: radial-gradient(9px 4px at 18% 22%, #0d0516 98%, transparent), radial-gradient(9px 4px at 62% 12%, #0d0516 98%, transparent), radial-gradient(7px 3px at 82% 38%, #0d0516 98%, transparent);
+  --ps-overlay-anim: ps-bats 7s ease-in-out infinite alternate;
+  --ps-border: 2px solid #ff7518; --ps-card-radius: 16px; --ps-shadow: 0 0 40px -10px rgba(255, 117, 24, .6);
+}
+
+/* 26) Natal — vermelho, verde, luzinhas e neve */
+.pstyle-natal {
+  --ps-bg: repeating-linear-gradient(45deg, rgba(255, 255, 255, .03) 0 10px, transparent 10px 20px), linear-gradient(180deg, #0f3d24, #0a2a18);
+  --ps-text: #f4fff6; --ps-muted: #a8d4b4; --ps-head: #fff; --ps-accent: #e53935; --ps-accent2: #ffd54f;
+  --ps-font: 'Comfortaa', sans-serif; --ps-name-font: 'Mountains of Christmas', 'Lobster', serif; --ps-name-shadow: 0 2px 0 #7a0f0f, 0 0 14px rgba(255, 213, 79, .6);
+  --ps-title-font: 'Mountains of Christmas', serif;
+  --ps-section-bg: rgba(255, 255, 255, .08); --ps-section-border: #e53935; --ps-section-borderw: 2px; --ps-radius: 12px;
+  --ps-section-shadow: inset 0 0 0 4px rgba(255, 255, 255, .06);
+  --ps-btn-bg: repeating-linear-gradient(-45deg, #e53935 0 10px, #fff 10px 20px); --ps-btn-text: #7a0f0f; --ps-btn-border: 2px solid #fff; --ps-btn-radius: 12px;
+  --ps-btn-shadow: 0 4px 0 #7a0f0f; --ps-btn-font: 'Fredoka One', sans-serif; --ps-btn-text-shadow: 0 0 4px #fff, 0 0 4px #fff;
+  --ps-chip-bg: rgba(229, 57, 53, .2); --ps-track-bg: rgba(0, 0, 0, .3); --ps-bar-fill: repeating-linear-gradient(-45deg, #e53935 0 8px, #fff 8px 16px);
+  --ps-label-prefix: '🎄 ';
+  --ps-overlay: radial-gradient(2px 2px at 15% 10%, #fff 98%, transparent), radial-gradient(3px 3px at 45% 35%, #fff 98%, transparent), radial-gradient(2px 2px at 75% 20%, #fff 98%, transparent), radial-gradient(2px 2px at 88% 65%, #fff 98%, transparent);
+  --ps-overlay-size: 100% 200px; --ps-overlay-anim: ps-snow 9s linear infinite;
+  --ps-border: 3px solid #e53935; --ps-card-radius: 16px; --ps-shadow: 0 0 0 3px #fff, 0 20px 40px -14px #000;
+}
+
+/* 27) Lo-fi Chill — quarto à noite, chuva na janela */
+.pstyle-lofi {
+  --ps-bg: linear-gradient(180deg, #2d2a4a, #3d3360 55%, #4b3b6b);
+  --ps-text: #ece6ff; --ps-muted: #b0a6d6; --ps-head: #fff; --ps-accent: #ffb88c; --ps-accent2: #8ad1c2;
+  --ps-font: 'Comfortaa', sans-serif; --ps-name-font: 'Caveat', cursive; --ps-name-shadow: 0 0 16px rgba(255, 184, 140, .5);
+  --ps-title-font: 'Comfortaa', sans-serif; --ps-label-spacing: 1px;
+  --ps-section-bg: rgba(255, 255, 255, .06); --ps-section-border: rgba(255, 255, 255, .14); --ps-section-blur: blur(6px); --ps-radius: 14px;
+  --ps-btn-bg: #ffb88c; --ps-btn-text: #2d2a4a; --ps-btn-border: 0; --ps-btn-radius: 14px; --ps-btn-shadow: 0 6px 18px -8px rgba(255, 184, 140, .9);
+  --ps-chip-bg: rgba(255, 255, 255, .08); --ps-track-bg: rgba(0, 0, 0, .25); --ps-bar-fill: linear-gradient(90deg, #8ad1c2, #ffb88c);
+  --ps-label-prefix: '☕ ';
+  --ps-overlay: repeating-radial-gradient(circle at 30% 30%, rgba(255, 255, 255, .02) 0 1px, transparent 1px 3px);
+  --ps-overlay-opacity: .9;
+  --ps-border: 1px solid rgba(255, 255, 255, .14); --ps-card-radius: 20px;
+}
+
+/* 28) Holográfico — iridescente e cromado */
+.pstyle-holografico {
+  --ps-bg: linear-gradient(125deg, #e8f0ff 0%, #ffe5f7 22%, #e5fff6 44%, #fff8dc 66%, #e5ecff 88%);
+  --ps-text: #2a2f45; --ps-muted: #6a7092; --ps-head: #141830; --ps-accent: #7a5cff; --ps-accent2: #00c2ff;
+  --ps-font: 'Space Grotesk', sans-serif; --ps-name-font: 'Audiowide', sans-serif;
+  --ps-name-bg: linear-gradient(90deg, #7a5cff, #00c2ff, #ff5cd6, #ffd65c, #7a5cff); --ps-name-clip: text; --ps-name-fill: transparent; --ps-name-anim: ps-shift 4s linear infinite;
+  --ps-section-bg: rgba(255, 255, 255, .55); --ps-section-border: rgba(255, 255, 255, .9); --ps-section-blur: blur(10px); --ps-radius: 18px;
+  --ps-section-shadow: inset 0 1px 0 #fff, 0 10px 30px -18px rgba(122, 92, 255, .7);
+  --ps-btn-bg: linear-gradient(90deg, #a68bff, #6fe3ff, #ff9be8, #ffe08a); --ps-btn-text: #141830; --ps-btn-border: 1px solid #fff; --ps-btn-radius: 14px;
+  --ps-btn-shadow: inset 0 1px 0 rgba(255, 255, 255, .8), 0 8px 20px -10px rgba(122, 92, 255, .8);
+  --ps-chip-bg: rgba(255, 255, 255, .7); --ps-track-bg: rgba(255, 255, 255, .6); --ps-bar-fill: linear-gradient(90deg, #a68bff, #6fe3ff, #ff9be8);
+
+  --ps-label-prefix: '◈ ';
+  --ps-overlay: linear-gradient(115deg, transparent 30%, rgba(255, 255, 255, .55) 45%, transparent 60%); --ps-overlay-size: 300% 100%;
+  --ps-overlay-anim: ps-shine 5s ease-in-out infinite;
+  --ps-border: 1px solid #fff; --ps-card-radius: 22px; --ps-shadow: 0 20px 50px -20px rgba(122, 92, 255, .7);
+}
+
+/* 29) Tático — camuflado militar */
+.pstyle-militar {
+  --ps-bg:
+    radial-gradient(30% 22% at 20% 30%, #4a5a32 98%, transparent), radial-gradient(26% 18% at 70% 20%, #2f3a1f 98%, transparent), radial-gradient(32% 20% at 60% 70%, #5d6b3d 98%, transparent),
+    radial-gradient(22% 16% at 15% 80%, #2f3a1f 98%, transparent), #3b4727;
+  --ps-text: #e6ecd2; --ps-muted: #aab48c; --ps-head: #f3f7e4; --ps-accent: #d4c35a; --ps-accent2: #c0392b;
+  --ps-font: 'Share Tech Mono', monospace; --ps-name-font: 'Black Ops One', 'Bebas Neue', sans-serif; --ps-name-case: uppercase; --ps-name-spacing: 2px;
+  --ps-name-shadow: 2px 2px 0 #1c2410; --ps-title-font: 'Black Ops One', sans-serif;
+  --ps-section-bg: rgba(28, 36, 16, .85); --ps-section-border: #8a9460; --ps-radius: 2px;
+  --ps-section-shadow: inset 0 0 0 1px rgba(0, 0, 0, .5);
+  --ps-btn-bg: #d4c35a; --ps-btn-text: #1c2410; --ps-btn-border: 2px solid #1c2410; --ps-btn-radius: 2px; --ps-btn-shadow: 3px 3px 0 #1c2410;
+  --ps-btn-font: 'Black Ops One', sans-serif; --ps-btn-case: uppercase; --ps-btn-spacing: 1px;
+  --ps-chip-bg: #1c2410; --ps-chip-radius: 2px; --ps-track-bg: #1c2410; --ps-bar-fill: repeating-linear-gradient(90deg, #d4c35a 0 10px, #1c2410 10px 12px); --ps-bar-radius: 0;
+  --ps-label-prefix: '▣ ';
+  --ps-border: 2px solid #1c2410; --ps-card-radius: 4px;
+  --ps-top-display: flex; --ps-top-text: 'ID: OPERADOR · NÍVEL DE ACESSO: CONFIDENCIAL'; --ps-top-h: 20px; --ps-top-font: 400 10px 'Share Tech Mono', monospace; --ps-top-color: #1c2410;
+  --ps-top-bg: repeating-linear-gradient(-45deg, #d4c35a 0 12px, #1c2410 12px 24px); --ps-top-spacing: 1px;
+}
+
+/* 30) Faroeste — saloon, couro e "PROCURADO" */
+.pstyle-faroeste {
+  --ps-bg: radial-gradient(90% 70% at 50% 45%, transparent 60%, rgba(120, 70, 30, .35)), repeating-linear-gradient(0deg, rgba(120, 80, 40, .04) 0 1px, transparent 1px 4px), linear-gradient(180deg, #f1dcae, #e2c48c);
+  --ps-text: #3a220e; --ps-muted: #6e4a2a; --ps-head: #2a1708; --ps-accent: #a33b20; --ps-accent2: #d9a441;
+  --ps-font: 'Special Elite', serif; --ps-name-font: 'Rye', serif; --ps-name-case: uppercase; --ps-name-color: #2a1708;
+  --ps-title-font: 'Rye', serif;
+  --ps-section-bg: #efdcb5; --ps-section-border: #8a5a32; --ps-radius: 2px; --ps-section-shadow: 2px 3px 0 rgba(0, 0, 0, .3);
+  --ps-btn-bg: linear-gradient(180deg, #a33b20, #7a2812); --ps-btn-text: #f6e6c4; --ps-btn-border: 2px solid #3a1608; --ps-btn-radius: 4px;
+  --ps-btn-shadow: inset 0 0 0 2px rgba(255, 255, 255, .15), 0 3px 0 #3a1608; --ps-btn-font: 'Rye', serif; --ps-btn-case: uppercase;
+  --ps-chip-bg: #f6e6c4; --ps-track-bg: #c9a77a; --ps-bar-fill: linear-gradient(90deg, #d9a441, #a33b20);
+  --ps-label-prefix: '★ ';
+  --ps-border: 8px solid #6e4424; --ps-card-radius: 6px;
+  --ps-top-display: flex; --ps-top-text: '★ PROCURADO ★  RECOMPENSA: $10.000'; --ps-top-h: 26px; --ps-top-font: 400 13px 'Rye', serif; --ps-top-color: #2a1708; --ps-top-bg: #efdcb5;
+  --ps-top-border: 3px double #3a1608; --ps-top-pad: 0 12px; --ps-top-spacing: 1px;
+}
+
+/* 31) Pergaminho Medieval — iluminura e lacre */
+.pstyle-medieval {
+  --ps-bg: radial-gradient(120% 80% at 50% 50%, #f3e2b8 55%, #d9b97a 100%);
+  --ps-text: #3d2a12; --ps-muted: #7a5a30; --ps-head: #2a1a08; --ps-accent: #8c1c13; --ps-accent2: #2a4d8f;
+  --ps-font: 'Cormorant Garamond', serif; --ps-name-font: 'MedievalSharp', 'Cinzel', serif; --ps-name-color: #8c1c13;
+  --ps-title-font: 'Cinzel', serif; --ps-body-font: 'Cormorant Garamond', serif;
+  --ps-section-bg: rgba(255, 246, 220, .7); --ps-section-border: #8c6a30; --ps-radius: 2px; --ps-section-shadow: inset 0 0 0 3px rgba(255, 246, 220, .7), inset 0 0 0 4px #c9a25a;
+  --ps-btn-bg: radial-gradient(circle at 40% 35%, #c0392b, #8c1c13 60%, #5a0e08); --ps-btn-text: #f3e2b8; --ps-btn-border: 0; --ps-btn-radius: 999px;
+  --ps-btn-shadow: 0 3px 6px rgba(0, 0, 0, .35), inset 0 -2px 4px rgba(0, 0, 0, .3); --ps-btn-font: 'Cinzel', serif;
+  --ps-chip-bg: #fff6dc; --ps-track-bg: #e8d3a0; --ps-bar-fill: linear-gradient(90deg, #2a4d8f, #8c1c13);
+  --ps-label-prefix: '❧ ';
+  --ps-overlay: radial-gradient(100% 100% at 50% 50%, transparent 65%, rgba(120, 80, 30, .3));
+  --ps-border: 1px solid #8c6a30; --ps-card-radius: 4px;
+}
+.pstyle-medieval .mini-profile-bio::first-letter { float: left; font: 700 2.4em/0.9 'Cinzel', serif; color: #8c1c13; margin: 2px 6px 0 0; }
+
+/* 32) Cafeteria — madeira, café e quadro-negro */
+.pstyle-cafe {
+  --ps-bg: repeating-linear-gradient(90deg, rgba(0, 0, 0, .05) 0 3px, transparent 3px 60px), linear-gradient(180deg, #5b3a24, #3e2716);
+  --ps-text: #f3e6d8; --ps-muted: #c4a68a; --ps-head: #fff7ee; --ps-accent: #e0b384; --ps-accent2: #7cc3a5;
+  --ps-font: 'Comfortaa', sans-serif; --ps-name-font: 'Pacifico', cursive; --ps-name-shadow: 0 2px 0 #2a190d;
+  --ps-title-font: 'Amatic SC', cursive; --ps-label-spacing: 2px;
+  --ps-section-bg: #2b2b2b; --ps-section-border: #8a6240; --ps-section-borderw: 6px; --ps-radius: 4px;
+  --ps-section-shadow: inset 0 0 18px rgba(255, 255, 255, .06), 0 4px 10px rgba(0, 0, 0, .4);
+  --ps-btn-bg: #e0b384; --ps-btn-text: #3e2716; --ps-btn-border: 0; --ps-btn-radius: 999px; --ps-btn-shadow: 0 4px 0 #8a6240;
+  --ps-chip-bg: rgba(0, 0, 0, .25); --ps-track-bg: #2b2b2b; --ps-bar-fill: linear-gradient(90deg, #8a6240, #e0b384);
+  --ps-label-prefix: '☕ ';
+  --ps-overlay: radial-gradient(12% 30% at 85% 30%, rgba(255, 255, 255, .08), transparent 70%); --ps-overlay-anim: ps-steam 5s ease-in-out infinite;
+  --ps-border: 1px solid #8a6240; --ps-card-radius: 14px;
+}
+.pstyle-cafe .mini-profile-section-label,
+.pstyle-cafe .pf-card-title { font-size: 1.35em !important; color: #f3e6d8 !important; }
+.pstyle-cafe .mini-profile-bio { font-family: 'Shadows Into Light', cursive !important; color: #f3e6d8 !important; }
+
+/* 33) Grafite Urbano — muro de tijolo e spray */
+.pstyle-grafite {
+  --ps-bg:
+    linear-gradient(rgba(0, 0, 0, .25), rgba(0, 0, 0, .25)),
+    repeating-linear-gradient(0deg, #5a5a5a 0 2px, transparent 2px 24px),
+    repeating-linear-gradient(90deg, #5a5a5a 0 2px, transparent 2px 48px),
+    #7a3a2a;
+  --ps-text: #fff; --ps-muted: #f0d0c0; --ps-head: #fff; --ps-accent: #39ff14; --ps-accent2: #ff2bd6;
+  --ps-font: 'Space Grotesk', sans-serif; --ps-name-font: 'Permanent Marker', cursive; --ps-name-color: #39ff14;
+  --ps-name-shadow: 3px 3px 0 #ff2bd6, -2px -2px 0 #000, 0 0 16px rgba(57, 255, 20, .6); --ps-name-case: uppercase;
+  --ps-title-font: 'Permanent Marker', cursive;
+  --ps-section-bg: rgba(0, 0, 0, .6); --ps-section-border: #ff2bd6; --ps-section-borderw: 3px; --ps-radius: 12px 2px 14px 3px;
+  --ps-btn-bg: #39ff14; --ps-btn-text: #000; --ps-btn-border: 3px solid #000; --ps-btn-radius: 12px 3px 10px 4px;
+  --ps-btn-shadow: 4px 4px 0 #ff2bd6; --ps-btn-font: 'Permanent Marker', cursive; --ps-btn-case: uppercase;
+  --ps-chip-bg: #000; --ps-track-bg: #000; --ps-bar-fill: linear-gradient(90deg, #ff2bd6, #39ff14);
+
+  --ps-label-prefix: '✸ ';
+  --ps-overlay: radial-gradient(1px 1px at 30% 40%, rgba(255, 255, 255, .5) 98%, transparent) 0 0 / 7px 7px;
+  --ps-overlay-opacity: .25;
+  --ps-border: 3px solid #000; --ps-card-radius: 14px;
+}
+
+/* 34) Mármore Minimal — mármore branco e dourado */
+.pstyle-marmore {
+  --ps-bg:
+    linear-gradient(115deg, transparent 30%, rgba(160, 160, 170, .18) 31%, transparent 33%),
+    linear-gradient(65deg, transparent 55%, rgba(160, 160, 170, .14) 56%, transparent 58%),
+    linear-gradient(150deg, transparent 70%, rgba(180, 150, 90, .18) 71%, transparent 72%),
+    linear-gradient(180deg, #fbfbfa, #eeedea);
+  --ps-text: #2b2b2b; --ps-muted: #8a8780; --ps-head: #111; --ps-accent: #b8955a; --ps-accent2: #111;
+  --ps-font: 'Inter', system-ui, sans-serif; --ps-name-font: 'Cormorant Garamond', serif; --ps-name-spacing: 1px;
+  --ps-title-font: 'Inter', sans-serif; --ps-label-spacing: 3px;
+  --ps-section-bg: rgba(255, 255, 255, .75); --ps-section-border: #e3e0d9; --ps-radius: 0; --ps-section-shadow: none;
+  --ps-btn-bg: #111; --ps-btn-text: #fff; --ps-btn-border: 0; --ps-btn-radius: 0; --ps-btn-shadow: none; --ps-btn-case: uppercase; --ps-btn-spacing: 3px; --ps-btn-font: 'Inter', sans-serif;
+  --ps-chip-bg: #fff; --ps-chip-radius: 0; --ps-track-bg: #e3e0d9; --ps-bar-fill: #b8955a; --ps-bar-radius: 0;
+  --ps-label-prefix: '— ';
+  --ps-border: 1px solid #e3e0d9; --ps-card-radius: 0; --ps-shadow: 0 30px 60px -30px rgba(0, 0, 0, .35);
+}
+.pstyle-marmore .mini-profile-section-label,
+.pstyle-marmore .pf-card-title { font-size: 10.5px !important; text-transform: uppercase; font-weight: 600 !important; }
+
+/* 35) Filme Noir — preto e branco, grão de filme */
+.pstyle-noir {
+  --ps-bg: repeating-linear-gradient(105deg, rgba(255, 255, 255, .04) 0 18px, transparent 18px 46px), linear-gradient(180deg, #1a1a1a, #0b0b0b);
+  --ps-text: #e6e6e6; --ps-muted: #9a9a9a; --ps-head: #fff; --ps-accent: #e6e6e6; --ps-accent2: #b00020;
+  --ps-font: 'Special Elite', serif; --ps-name-font: 'Playfair Display', serif; --ps-name-spacing: 1px; --ps-name-shadow: 0 2px 10px rgba(0, 0, 0, .9);
+  --ps-title-font: 'Bebas Neue', sans-serif; --ps-label-spacing: 3px;
+  --ps-section-bg: rgba(0, 0, 0, .55); --ps-section-border: #3a3a3a; --ps-radius: 0;
+  --ps-btn-bg: #e6e6e6; --ps-btn-text: #0b0b0b; --ps-btn-border: 0; --ps-btn-radius: 0; --ps-btn-shadow: 0 0 0 1px #0b0b0b, 0 0 0 2px #e6e6e6;
+  --ps-btn-font: 'Bebas Neue', sans-serif; --ps-btn-spacing: 2px;
+  --ps-chip-bg: #111; --ps-chip-radius: 0; --ps-track-bg: #222; --ps-bar-fill: #e6e6e6; --ps-bar-radius: 0;
+  --ps-label-prefix: '◆ ';
+  --ps-overlay: radial-gradient(1px 1px at 20% 30%, rgba(255, 255, 255, .35) 98%, transparent) 0 0 / 5px 5px, radial-gradient(90% 90% at 50% 45%, transparent 55%, rgba(0, 0, 0, .7));
+  --ps-overlay-anim: ps-grain .8s steps(3) infinite;
+  --ps-border: 1px solid #3a3a3a; --ps-card-radius: 0;
+  --ps-top-display: flex; --ps-top-text: 'CASO Nº 1947 — ARQUIVO CONFIDENCIAL'; --ps-top-h: 22px; --ps-top-font: 400 13px 'Bebas Neue', sans-serif; --ps-top-color: #0b0b0b; --ps-top-bg: #e6e6e6; --ps-top-spacing: 3px;
+}
+
+/* 36) Mensageiro 2005 — janela de bate-papo dos anos 2000 (vidro azul) */
+.pstyle-mensageiro {
+  --ps-bg:
+    radial-gradient(140% 55% at 50% -8%, rgba(255, 255, 255, .95) 0 30%, transparent 62%),
+    radial-gradient(60% 30% at 85% 100%, rgba(120, 220, 90, .35), transparent 70%),
+    linear-gradient(180deg, #7cc4ff 0%, #cfebff 42%, #f4fbff 100%);
+  --ps-text: #16324f; --ps-muted: #4f7194; --ps-head: #0b4f9c; --ps-accent: #2e9bea; --ps-accent2: #39c21a;
+  --ps-font: 'Trebuchet MS', Tahoma, Verdana, system-ui, sans-serif;
+  --ps-name-font: 'Trebuchet MS', Tahoma, Verdana, sans-serif; --ps-name-color: #0b4f9c;
+  --ps-name-shadow: 0 1px 0 #fff, 0 0 10px rgba(255, 255, 255, .95);
+  --ps-name-anim: ps-nudge 9s ease-in-out infinite;
+  --ps-title-font: 'Trebuchet MS', Tahoma, Verdana, sans-serif;
+  --ps-section-bg: linear-gradient(180deg, rgba(255, 255, 255, .92), rgba(236, 247, 255, .86));
+  --ps-section-border: #8cc8f0; --ps-radius: 12px;
+  --ps-section-shadow: inset 0 1px 0 #fff, 0 4px 14px rgba(27, 111, 181, .18);
+  --ps-btn-bg: linear-gradient(180deg, #a9dcff 0%, #4fb3f5 48%, #1f86dc 52%, #1667b8 100%);
+  --ps-btn-text: #fff; --ps-btn-border: 1px solid #1a6fb5; --ps-btn-radius: 999px;
+  --ps-btn-shadow: inset 0 1px 0 rgba(255, 255, 255, .9), 0 2px 6px rgba(27, 111, 181, .35);
+  --ps-btn-text-shadow: 0 1px 1px rgba(10, 60, 120, .55);
+  --ps-btn-font: 'Trebuchet MS', Tahoma, sans-serif;
+  --ps-chip-bg: linear-gradient(180deg, #ffffff, #e2f2ff); --ps-chip-radius: 999px;
+  --ps-bubble-bg: #fff; --ps-bubble-radius: 14px;
+  --ps-track-bg: #d6ebfa; --ps-bar-fill: linear-gradient(180deg, #b4f39a 0%, #5fd23a 50%, #39b51a 51%, #7ee05a 100%);
+  --ps-label-prefix: '● '; --ps-label-color: #0b4f9c;
+  --ps-scroll-thumb: linear-gradient(90deg, #8fd3ff, #3fa9f5);
+  --ps-border: 1px solid #5aa7e3; --ps-card-radius: 14px;
+  --ps-shadow: 0 0 0 1px rgba(255, 255, 255, .7) inset, 0 18px 46px rgba(16, 70, 140, .35);
+  --ps-overlay:
+    radial-gradient(circle at 12% 88%, rgba(255, 255, 255, .95) 0 1.5px, rgba(255, 255, 255, .3) 2px 6px, rgba(90, 170, 240, .55) 6.5px, transparent 7.5px),
+    radial-gradient(circle at 74% 70%, rgba(255, 255, 255, .95) 0 1px, rgba(255, 255, 255, .3) 1.5px 4px, rgba(90, 170, 240, .55) 4.5px, transparent 5.5px),
+    radial-gradient(circle at 46% 40%, rgba(255, 255, 255, .95) 0 2px, rgba(255, 255, 255, .3) 2.5px 8px, rgba(90, 170, 240, .5) 8.5px, transparent 9.5px),
+    radial-gradient(circle at 90% 20%, rgba(255, 255, 255, .95) 0 1px, rgba(255, 255, 255, .3) 1.5px 3.5px, rgba(90, 170, 240, .55) 4px, transparent 5px);
+  --ps-overlay-size: 100% 300px;
+  --ps-overlay-anim: ps-bubbles 14s linear infinite; --ps-overlay-opacity: .8;
+  --ps-top-display: flex; --ps-top-text: '●  Disponível  —  Mensageiro'; --ps-top-h: 30px; --ps-top-pad: 0 84px 0 14px;
+  --ps-top-font: 700 13px 'Trebuchet MS', Tahoma, sans-serif; --ps-top-color: #fff;
+  --ps-top-bg: linear-gradient(180deg, rgba(255, 255, 255, .45), rgba(255, 255, 255, 0) 55%), linear-gradient(90deg, #2f7fd8, #5fb2f0 60%, #a9dcff);
+  --ps-top-border: 1px solid #1a6fb5;
+}
+.pstyle-mensageiro .mini-profile-name > span:first-child,
+.pstyle-mensageiro .profile-display-name > span:first-child { display: inline-block; }
+.pstyle-mensageiro::before { text-shadow: 0 1px 1px rgba(10, 60, 120, .6); }
+.pstyle-mensageiro .mini-profile-section-label,
+.pstyle-mensageiro .pf-card-title { font-weight: 700 !important; }
+.pstyle-mensageiro .mini-profile-section-label::before,
+.pstyle-mensageiro .pf-card-title::before { color: #39c21a; text-shadow: 0 0 6px rgba(57, 194, 26, .7); }
+.pstyle-mensageiro .mini-profile-status-bubble,
+.pstyle-mensageiro .profile-custom-status-balloon { box-shadow: 0 2px 8px rgba(27, 111, 181, .25); }
+/* Insígnias/conquistas viravam ovais com o canto 999px dos chips. */
+.pstyle-mensageiro .pf-tile { border-radius: 14px !important; }
+
+/* =====================================================================
+   Acertos do perfil completo com estilo (revisão Windows 2000 / Mensageiro)
+   ===================================================================== */
+/* Barra de título fica presa no topo ao rolar (igual janela de verdade) e
+   o X / engrenagem do modal ficam DENTRO dela — antes ficavam por cima da
+   barra (Win2000 mostrava dois X) ou boiando em cima do conteúdo. */
+.profile-modal-fullscreen.pstyle::before { position: sticky; top: 0; z-index: 40; }
+.profile-modal-fullscreen.pstyle :is(.profile-modal-close, .profile-modal-edit) { z-index: 41; }
+.profile-modal-fullscreen:is(.pstyle-anime, .pstyle-arcade, .pstyle-bugado, .pstyle-cyberpunk, .pstyle-faroeste, .pstyle-matrix,
+  .pstyle-mensageiro, .pstyle-militar, .pstyle-noir, .pstyle-pixel, .pstyle-vaporwave) :is(.profile-modal-close, .profile-modal-edit) {
+  top: calc((var(--ps-top-h, 22px) - 22px) / 2); width: 22px; height: 22px; min-width: 0; padding: 0; border-radius: 6px;
+  background: rgba(0, 0, 0, .28); color: #fff;
+}
+.profile-modal-fullscreen:is(.pstyle-anime, .pstyle-arcade, .pstyle-bugado, .pstyle-cyberpunk, .pstyle-faroeste, .pstyle-matrix,
+  .pstyle-mensageiro, .pstyle-militar, .pstyle-noir, .pstyle-pixel, .pstyle-vaporwave) .profile-modal-close { right: 8px; }
+.profile-modal-fullscreen:is(.pstyle-anime, .pstyle-arcade, .pstyle-bugado, .pstyle-cyberpunk, .pstyle-faroeste, .pstyle-matrix,
+  .pstyle-mensageiro, .pstyle-militar, .pstyle-noir, .pstyle-pixel, .pstyle-vaporwave) .profile-modal-edit { right: 36px; }
+.profile-modal-fullscreen:is(.pstyle-anime, .pstyle-arcade, .pstyle-bugado, .pstyle-cyberpunk, .pstyle-faroeste, .pstyle-matrix,
+  .pstyle-mensageiro, .pstyle-militar, .pstyle-noir, .pstyle-pixel, .pstyle-vaporwave) :is(.profile-modal-close, .profile-modal-edit) :is(svg, img) { width: 14px; height: 14px; }
+.profile-modal-fullscreen.pstyle-mensageiro :is(.profile-modal-close, .profile-modal-edit) {
+  border-radius: 999px; border: 1px solid rgba(255, 255, 255, .7);
+  background: linear-gradient(180deg, #9fd4ff 0%, #4fa6ea 48%, #1f75cf 52%, #2a86dc 100%);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, .6), 0 1px 3px rgba(10, 60, 120, .35);
+}
+.profile-modal-fullscreen.pstyle-mensageiro .profile-modal-close:hover { background: linear-gradient(180deg, #ffb3a8, #e2463a 55%, #b8261c); }
+/* Win2000: o X de verdade fica invisível exatamente em cima do ✕ desenhado
+   na barra (clicar no ✕ da "janela" fecha o perfil). A engrenagem vai pra
+   baixo da barra, no canto. */
+.profile-modal-fullscreen.pstyle-win2000 .profile-modal-close {
+  top: 3px; right: 3px; width: 18px; height: 16px; min-width: 0; padding: 0; border-radius: 0; opacity: 0;
+}
+.profile-modal-fullscreen.pstyle-win2000 .profile-modal-close:focus-visible { opacity: 1; background: transparent; outline: 1px dotted #fff; color: transparent; }
+.profile-modal-fullscreen.pstyle-win2000 .profile-modal-edit { top: calc(var(--ps-top-h) + 8px); right: 12px; border-radius: 0; background: #d4d0c8; color: #000; box-shadow: var(--ps-btn-shadow); }
+
+/* Cartão do topo segue o canto do estilo (Win2000 reto, nada de 20px). */
+.modal-overlay .modal-box.profile-modal-fullscreen.pstyle .profile-top-row { border-radius: var(--ps-card-radius, 20px); }
+/* Grupo de voto (like/dislike) no visual do estilo, não um quadrado branco. */
+.pstyle .profile-vote-group {
+  background: var(--ps-chip-bg, var(--ps-section-bg)) !important; border: 1px solid var(--ps-section-border);
+  border-radius: var(--ps-chip-radius, 8px);
+}
+/* Barra "Este é o seu perfil": texto escuro em fundo azul-marinho ficava ilegível. */
+.pstyle .pfe-ownbar {
+  background: var(--ps-section-bg) !important; box-shadow: var(--ps-section-shadow, none);
+  border: var(--ps-section-borderw, 1px) var(--ps-section-borderstyle, solid) var(--ps-section-border) !important;
+  border-radius: var(--ps-radius) !important;
+}
+.pstyle .pfe-ownbar-text { color: var(--ps-text) !important; }
+.pstyle .pfe-ownbar-icon { color: var(--ps-accent); background: color-mix(in srgb, var(--ps-accent) 16%, transparent); border-radius: var(--ps-chip-radius, 9px); }
+/* Texto do "Sobre" encostava na borda da caixinha. */
+.pstyle .pf-card .profile-section-body { padding: 10px 12px; }
+.pstyle-win2000 .pf-card .profile-section-body { padding: 4px 6px; }
+
+/* Win2000 — "group box" do perfil completo: o título entra no fluxo em cima
+   da borda. Com position:absolute (como no miniperfil) o Chrome não
+   conseguia dividir as colunas e jogava todos os cartões na metade esquerda. */
+.pstyle-win2000 .pf-card { padding-top: 16px; }
+.pstyle-win2000 .pf-card-head { margin: -25px 0 8px -4px; min-height: 0; gap: 6px; }
+.pstyle-win2000 .pf-card-icon { display: none; }
+.pstyle-win2000 .pf-card-title { position: static !important; font-size: 11px !important; line-height: 16px; }
+.pstyle-win2000 :is(.pf-card-action, .pf-card-count) { background: #fff; padding: 0 4px; font-size: 11px; }
+.pstyle-win2000 .pf-card-count { color: #000 !important; border-radius: 0 !important; padding: 0 2px !important; font-weight: 400; }
+.pstyle-win2000 .pf-card-count::before { content: '('; }
+.pstyle-win2000 .pf-card-count::after { content: ')'; }
+.pstyle-win2000 :is(.pf-composer input, .pf-composer textarea, textarea.pxn-text) {
+  background: #fff !important; color: #000 !important; border: 2px inset #d4d0c8 !important; border-radius: 0 !important;
+  font-family: Tahoma, Verdana, sans-serif;
+}
+
+/* ---------- Animações ---------- */
+@keyframes ps-twinkle { 0%, 100% { opacity: .35; } 50% { opacity: 1; } }
+@keyframes ps-candle { 0%, 100% { opacity: 1; } 91% { opacity: 1; } 92% { opacity: .7; } 93% { opacity: 1; } 96% { opacity: .82; } }
+@keyframes ps-fog { from { background-position: 0 0, -40px 0, 40px 0; } to { background-position: 0 0, 40px -6px, -40px 6px; } }
+@keyframes ps-drip { 0%, 100% { transform: scaleY(1); } 50% { transform: scaleY(1.18); } }
+@keyframes ps-eyes { 0%, 40%, 44%, 80%, 100% { opacity: 1; } 42%, 82% { opacity: 0; } 60%, 70% { opacity: .2; } }
+@keyframes ps-shiver { 0%, 94%, 100% { transform: none; } 95% { transform: translateX(-1px) skewX(-3deg); } 97% { transform: translateX(1px) skewX(2deg); } }
+@keyframes ps-bounce { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-2px); } }
+@keyframes ps-petals { from { background-position: 0 -220px; } to { background-position: 40px 220px; } }
+@keyframes ps-snow { from { background-position: 0 -200px; } to { background-position: 20px 200px; } }
+@keyframes ps-bubbles { from { background-position: 0 300px; } to { background-position: 0 -300px; } }
+@keyframes ps-embers { from { background-position: 0 260px; } to { background-position: 10px -260px; } }
+@keyframes ps-rain { from { background-position: 0 -160px; } to { background-position: 0 160px; } }
+@keyframes ps-rain-window { from { background-position: 0 0, 0 -30px; } to { background-position: 0 0, -12px 30px; } }
+@keyframes ps-scan { from { background-position: 0 0; } to { background-position: 0 120px; } }
+@keyframes ps-sway { from { transform: translateX(-4%); } to { transform: translateX(4%); } }
+@keyframes ps-fireflies { 0% { opacity: .2; transform: translate(0, 0); } 50% { opacity: 1; } 100% { opacity: .4; transform: translate(6px, -8px); } }
+@keyframes ps-shift { from { background-position: 0% 50%; } to { background-position: 200% 50%; } }
+@keyframes ps-shine { 0% { background-position: 150% 0; } 60%, 100% { background-position: -50% 0; } }
+@keyframes ps-heat { from { transform: translateY(0); } to { transform: translateY(2px); } }
+@keyframes ps-bats { from { transform: translate(0, 0); } to { transform: translate(18px, -10px); } }
+@keyframes ps-steam { 0%, 100% { opacity: .3; transform: translateY(0); } 50% { opacity: 1; transform: translateY(-8px); } }
+@keyframes ps-grain { 0% { transform: translate(0, 0); } 33% { transform: translate(-1px, 1px); } 66% { transform: translate(1px, -1px); } }
+@keyframes ps-flicker-text { 0%, 100% { opacity: 1; } 47% { opacity: 1; } 48% { opacity: .5; } 49% { opacity: 1; } }
+@keyframes ps-jitter { 0%, 96%, 100% { transform: none; filter: none; } 97% { transform: translate(2px, -1px); filter: hue-rotate(40deg); } 98% { transform: translate(-2px, 1px); } }
+@keyframes ps-glitch {
+  0%, 90%, 100% { clip-path: none; transform: none; }
+  91% { clip-path: inset(10% 0 55% 0); transform: translateX(-3px); }
+  93% { clip-path: inset(60% 0 8% 0); transform: translateX(3px); }
+  95% { clip-path: inset(35% 0 35% 0); transform: translateX(-1px); }
+}
+@keyframes ps-slice { 0%, 92%, 100% { transform: none; } 93% { transform: translateX(4px); } 95% { transform: translateX(-3px); } }
+@keyframes ps-blink { 50% { opacity: 0; } }
+/* "Chamar a atenção" do bate-papo: o nome treme rapidinho de vez em quando. */
+@keyframes ps-nudge { 0%, 93%, 100% { transform: none; } 94% { transform: translate(-3px, 1px); } 95% { transform: translate(3px, -1px); } 96% { transform: translate(-2px, -1px); } 97% { transform: translate(2px, 1px); } 98% { transform: translate(-1px, 0); } }
+
+@media (prefers-reduced-motion: reduce) {
+  .pstyle, .pstyle *, .pstyle::before, .pstyle::after, .pstyle *::before, .pstyle *::after { animation: none !important; }
+}

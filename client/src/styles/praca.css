@@ -1,0 +1,235 @@
+/* Praça — Club Penguin (Waddle Forever) embutido no Project Club.
+   Só variáveis de tema do global.css (claro/escuro/amoled funcionam). */
+
+.praca-page {
+  display: flex; flex-direction: column; height: 100%; min-height: 0;
+  background: var(--bg-primary); color: var(--text-normal);
+}
+
+/* ---- barra de cima (identidade do Project Club) ---- */
+.praca-bar {
+  display: flex; align-items: center; gap: 12px; flex-wrap: wrap;
+  padding: 10px 16px; border-bottom: 1px solid var(--border);
+  background: var(--bg-secondary);
+}
+.praca-title { display: flex; align-items: center; gap: 10px; min-width: 0; }
+.praca-logo {
+  display: grid; place-items: center; width: 38px; height: 38px; border-radius: 12px; color: #fff;
+  background: linear-gradient(135deg, var(--brand), color-mix(in srgb, var(--brand) 55%, #1c3f70));
+  box-shadow: 0 4px 14px color-mix(in srgb, var(--brand) 35%, transparent);
+}
+.praca-title h1 { margin: 0; font-size: 17px; line-height: 1.1; color: var(--header-primary); }
+.praca-sub { display: block; font-size: 12px; color: var(--text-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.praca-sub strong { color: var(--header-primary); font-weight: 600; }
+.praca-credit { color: inherit; text-decoration: underline dotted; }
+.praca-credit:hover { color: var(--header-primary); }
+.praca-stats { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+.praca-chip {
+  display: inline-flex; align-items: center; gap: 6px; padding: 4px 10px; border-radius: 999px;
+  font-size: 12px; font-weight: 600; color: var(--text-normal);
+  background: var(--bg-modifier-hover); border: 1px solid var(--border);
+}
+.praca-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--green); box-shadow: 0 0 0 3px color-mix(in srgb, var(--green) 25%, transparent); }
+.praca-coins { color: #d9a400; }
+.praca-year { color: var(--text-muted); font-variant-numeric: tabular-nums; }
+.praca-actions { margin-left: auto; display: flex; gap: 6px; }
+.praca-icon-btn {
+  display: grid; place-items: center; width: 36px; height: 36px; border-radius: 10px; cursor: pointer;
+  border: 1px solid var(--border); background: var(--bg-elevated, var(--bg-secondary)); color: var(--text-normal);
+  transition: background .15s, color .15s, transform .15s var(--ease-smooth, ease);
+}
+.praca-icon-btn:hover { background: var(--bg-modifier-hover); color: var(--header-primary); }
+.praca-icon-btn:active { transform: scale(.94); }
+.praca-icon-btn[aria-pressed="true"] { background: var(--brand); color: #fff; border-color: transparent; }
+
+/* ---- arena: o palco 760x480 escalado pra caber ---- */
+.praca-arena {
+  position: relative; flex: 1; min-height: 240px; overflow: hidden;
+  background:
+    radial-gradient(ellipse at 50% 0%, color-mix(in srgb, var(--brand) 22%, transparent), transparent 60%),
+    linear-gradient(180deg, #0b2a4a, #061a30);
+}
+.praca-stage {
+  position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%);
+  border-radius: 10px; overflow: hidden;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, .45), 0 0 0 1px rgba(255, 255, 255, .06);
+  background: #0b2a4a;
+}
+.praca-player, .praca-stage ruffle-player, .praca-stage ruffle-object, .praca-stage ruffle-embed {
+  display: block; width: 100%; height: 100%;
+}
+
+/* ---- carregando / erro ---- */
+.praca-overlay {
+  position: absolute; inset: 0; z-index: 2; display: flex; flex-direction: column; align-items: center; justify-content: center;
+  gap: 8px; padding: 24px; text-align: center; color: #eaf3ff;
+  background: linear-gradient(180deg, rgba(11, 42, 74, .92), rgba(6, 26, 48, .96));
+}
+.praca-overlay > strong { font-size: 18px; }
+.praca-overlay span { max-width: 420px; font-size: 13px; color: rgba(234, 243, 255, .75); }
+.praca-overlay.is-error { color: #fff; }
+.praca-overlay.is-entering { background: linear-gradient(180deg, rgba(11, 42, 74, .97), rgba(6, 26, 48, .98)); transition: opacity .5s; }
+.praca-overlay.is-entering.is-done { opacity: 0; pointer-events: none; }
+.praca-overlay .pet-btn { margin-top: 8px; }
+.praca-loader {
+  width: 44px; height: 44px; border-radius: 50%; margin-bottom: 8px;
+  border: 4px solid rgba(255, 255, 255, .18); border-top-color: #fff;
+  animation: praca-spin .9s linear infinite;
+}
+@keyframes praca-spin { to { transform: rotate(360deg); } }
+.praca-progress { width: min(360px, 80%); height: 8px; margin-top: 6px; border-radius: 99px; background: rgba(255, 255, 255, .15); overflow: hidden; }
+.praca-progress span { display: block; height: 100%; background: #fff; border-radius: inherit; transition: width .4s; }
+.praca-tap {
+  position: absolute; left: 50%; bottom: 18px; z-index: 3; transform: translateX(-50%);
+  padding: 10px 18px; border: 0; border-radius: 999px; cursor: pointer;
+  background: rgba(0, 0, 0, .65); color: #fff; font: 700 14px/1.2 inherit;
+  animation: praca-pulse 1.6s ease-in-out infinite;
+}
+@keyframes praca-pulse { 50% { transform: translateX(-50%) scale(1.05); } }
+
+/* ---- dica ---- */
+.praca-hint {
+  display: flex; align-items: center; gap: 12px; padding: 8px 16px; font-size: 12.5px; color: var(--text-muted);
+  border-top: 1px solid var(--border); background: var(--bg-secondary);
+}
+.praca-hint strong { color: var(--header-primary); }
+.praca-hint-close { margin-left: auto; border: 0; background: none; color: var(--text-muted); cursor: pointer; font-size: 13px; padding: 4px 6px; border-radius: 6px; }
+.praca-hint-close:hover { background: var(--bg-modifier-hover); color: var(--header-primary); }
+
+/* ---- tela cheia ---- */
+.praca-page.is-full { position: fixed; inset: 0; z-index: 1000; background: #061a30; }
+.praca-page.is-full .praca-bar {
+  position: absolute; top: 0; left: 0; right: 0; z-index: 4; border: 0;
+  background: linear-gradient(180deg, rgba(0, 0, 0, .55), transparent); color: #fff;
+  opacity: 0; transition: opacity .25s;
+}
+.praca-page.is-full .praca-bar:hover, .praca-page.is-full .praca-bar:focus-within, .praca-page.is-full.show-bar .praca-bar { opacity: 1; }
+.praca-page.is-full .praca-bar { pointer-events: none; }
+.praca-page.is-full .praca-bar:hover, .praca-page.is-full.show-bar .praca-bar { pointer-events: auto; }
+.praca-page.is-full .praca-bar h1, .praca-page.is-full .praca-sub strong { color: #fff; }
+.praca-page.is-full .praca-chip { background: rgba(255, 255, 255, .12); border-color: rgba(255, 255, 255, .15); color: #fff; }
+.praca-page.is-full .praca-icon-btn { background: rgba(255, 255, 255, .12); border-color: rgba(255, 255, 255, .15); color: #fff; }
+.praca-page.is-full .praca-stage { border-radius: 0; box-shadow: none; }
+.praca-page.is-full .praca-hint { display: none; }
+
+/* faixa invisível no topo da tela cheia: tocar mostra a barra */
+.praca-peek {
+  position: absolute; top: 8px; right: 8px; width: 40px; height: 40px; z-index: 3; border: 0; border-radius: 12px; cursor: pointer;
+  background: rgba(0, 0, 0, .35) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='white' stroke-width='2' stroke-linecap='round'%3E%3Cpath d='M4 7h16M4 12h16M4 17h16'/%3E%3C/svg%3E") center / 20px no-repeat;
+  opacity: .55;
+}
+.praca-page.is-full.show-bar .praca-peek { pointer-events: none; }
+
+/* ---- celular ---- */
+@media (max-width: 720px) {
+  .praca-bar { padding: 8px 10px; gap: 8px; }
+  .praca-title h1 { font-size: 15px; }
+  .praca-sub { max-width: 46vw; }
+  .praca-year { display: none; }
+  .praca-hint { font-size: 12px; padding: 8px 10px; }
+}
+@media (max-width: 720px) and (orientation: portrait) {
+  /* em pé: palco encostado no topo (o resto da arena é só fundo) */
+  .praca-arena { min-height: 56vw; }
+  .praca-page:not(.is-full) .praca-stage { top: 12px; transform: translate(-50%, 0); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .praca-loader, .praca-tap { animation: none; }
+}
+
+/* instalação do jogo base / pacote de evento */
+.praca-progress-label { opacity: .75; font-size: .8rem; font-variant-numeric: tabular-nums; }
+.praca-overlay-actions { display: flex; gap: 10px; margin-top: 10px; flex-wrap: wrap; justify-content: center; }
+.praca-overlay.is-ask strong { font-size: 1.25rem; }
+.praca-overlay.is-ask > span { max-width: 420px; line-height: 1.45; }
+.praca-dl-icon { display: inline-flex; width: 72px; height: 72px; align-items: center; justify-content: center; border-radius: 50%; margin-bottom: 4px; color: #fff; background: linear-gradient(135deg, #3b7bff, #1f3a93); box-shadow: 0 10px 30px -10px rgba(59,123,255,.8); }
+.praca-dl-btn { font-weight: 800; padding-inline: 22px; }
+
+/* App Android nativo (WebView): só o jogo, ocupando a tela inteira */
+.praca-page.is-embedded { position: fixed; inset: 0; height: 100dvh; z-index: 10; }
+.praca-page.is-embedded .praca-bar { padding-block: 6px; }
+.praca-page.is-embedded .praca-hint { display: none; }
+@media (orientation: landscape) and (max-height: 500px) {
+  .praca-page.is-embedded .praca-bar { display: none; }
+}
+
+/* ---- modo jogo no celular (tela cheia ou app): o jogo ocupa a tela toda ---- */
+.praca-page.is-game.is-touch { background: #061a30; }
+.praca-page.is-game.is-touch .praca-bar { display: none; }
+.praca-page.is-game.is-touch .praca-arena { position: absolute; inset: 0; min-height: 0; background: #061a30; }
+.praca-page.is-game.is-touch .praca-stage { border-radius: 0; box-shadow: none; transform-origin: center; }
+.praca-page.is-game.is-touch .praca-hint { display: none; }
+/* As faixas laterais (celular mais largo que o palco) seguem o céu do jogo:
+   o palco "continua" até as bordas, sem esticar a imagem */
+.praca-page.is-game.is-touch .praca-arena {
+  background:
+    radial-gradient(ellipse at 50% 30%, rgba(90, 170, 255, .25), transparent 60%),
+    linear-gradient(180deg, #1d6fb8 0%, #0b3f7a 55%, #061a30 100%);
+}
+
+/* HUD flutuante do celular: som, preencher/ajustar e sair — sempre visível,
+   fora do caminho (canto superior direito, respeitando o recorte da tela) */
+.praca-hud {
+  position: absolute; z-index: 6; display: flex; gap: 6px; padding: 4px;
+  top: max(8px, env(safe-area-inset-top)); right: max(8px, env(safe-area-inset-right));
+  border-radius: 999px; background: rgba(6, 26, 48, .55); backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px);
+  box-shadow: 0 4px 18px rgba(0, 0, 0, .35), inset 0 0 0 1px rgba(255, 255, 255, .12);
+  opacity: .85; transition: opacity .2s;
+}
+.praca-hud:hover, .praca-hud:focus-within { opacity: 1; }
+.praca-hud-btn {
+  display: grid; place-items: center; width: 40px; height: 40px; border-radius: 50%; border: 0; cursor: pointer;
+  background: rgba(255, 255, 255, .12); color: #fff; touch-action: manipulation; -webkit-tap-highlight-color: transparent;
+}
+.praca-hud-btn:active { transform: scale(.92); background: rgba(255, 255, 255, .22); }
+.praca-hud-btn[aria-pressed="true"] { background: var(--brand, #3b7bff); }
+.praca-hud-exit { background: rgba(237, 66, 69, .55); }
+@media (orientation: portrait) {
+  /* em pé: o jogo é deitado — HUD embaixo pra não cobrir o palco no topo */
+  .praca-page.is-game.is-touch .praca-stage { top: 0; transform: translate(-50%, 0); }
+  .praca-hud { top: auto; bottom: max(12px, env(safe-area-inset-bottom)); right: 50%; transform: translateX(50%); }
+}
+
+/* =================== Voz por proximidade (botões dentro do jogo) =================== */
+.praca-main { position: relative; flex: 1; min-height: 0; display: flex; }
+.praca-main > .praca-arena { flex: 1; min-width: 0; }
+.praca-page.is-game.is-touch .praca-main { position: absolute; inset: 0; }
+
+/* ---- segundo plano: o jogo segue conectado, sem desenhar nada ---- */
+.praca-page.is-background {
+  position: fixed; left: 0; top: 0; width: 1px; height: 1px; min-height: 0;
+  overflow: hidden; opacity: 0; pointer-events: none; z-index: -1; contain: strict;
+}
+.praca-bg-pill {
+  position: fixed; right: 16px; bottom: 16px; z-index: 900;
+  display: flex; align-items: center; gap: 4px; padding: 4px;
+  border-radius: 999px; background: var(--bg-secondary); color: var(--text-normal);
+  border: 1px solid var(--border); box-shadow: var(--shadow-pop, 0 6px 24px rgba(0, 0, 0, .25));
+  animation: praca-bg-in .2s ease-out;
+}
+.praca-bg-open {
+  display: flex; align-items: center; gap: 8px; padding: 4px 10px 4px 4px;
+  border: 0; border-radius: 999px; background: transparent; color: inherit; cursor: pointer; text-align: left;
+}
+.praca-bg-open:hover { background: var(--bg-modifier-hover); }
+.praca-bg-logo {
+  display: grid; place-items: center; width: 32px; height: 32px; border-radius: 50%;
+  background: #1c67b5; color: #0b2a4a; position: relative;
+}
+.praca-bg-logo::after {
+  content: ""; position: absolute; right: -1px; bottom: -1px; width: 10px; height: 10px; border-radius: 50%;
+  background: #3ba55d; border: 2px solid var(--bg-secondary);
+}
+.praca-bg-text { display: flex; flex-direction: column; line-height: 1.2; min-width: 0; }
+.praca-bg-text strong { font-size: 13px; }
+.praca-bg-text small { font-size: 11.5px; color: var(--text-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 260px; }
+.praca-bg-close {
+  display: grid; place-items: center; width: 30px; height: 30px; border: 0; border-radius: 50%;
+  background: transparent; color: var(--text-muted); cursor: pointer;
+}
+.praca-bg-close:hover { background: var(--bg-modifier-hover); color: var(--text-normal); }
+@keyframes praca-bg-in { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
+@media (max-width: 768px) {
+  .praca-bg-pill { right: 12px; bottom: calc(76px + env(safe-area-inset-bottom, 0px)); }
+}
+@media (prefers-reduced-motion: reduce) { .praca-bg-pill { animation: none; } }

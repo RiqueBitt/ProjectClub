@@ -1,0 +1,63 @@
+name: Mídia da Praça (release waddle-media)
+
+# Publica os arquivos do jogo da Praça (Club Penguin / Waddle Forever) como
+# assets da release "waddle-media" deste repositório — um .tar por pasta
+# (default ≈1,1 GB, clothing ≈650 MB) + manifesto + SHA256SUMS. O servidor
+# baixa e extrai isso sozinho na primeira inicialização
+# (server/waddle/src/common/media-store.ts). Nada vai pro Git: releases
+# aceitam arquivos de até 2 GB sem pesar o clone.
+#
+# Rode manualmente (Actions → este workflow → Run workflow) quando quiser
+# regenerar a partir do Waddle Forever. Não é disparado por push.
+on:
+  workflow_dispatch:
+    inputs:
+      ref:
+        description: 'Branch do Waddle-Forever (padrão: main)'
+        default: 'main'
+        required: false
+
+permissions:
+  contents: write
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+      - name: Baixar a mídia do Waddle Forever (só a pasta media)
+        run: |
+          git clone --depth 1 --filter=blob:none --sparse --branch "${{ github.event.inputs.ref || 'main' }}" https://github.com/nhaar/Waddle-Forever wf
+          cd wf && git sparse-checkout set media && cd ..
+          echo "arquivos: $(find wf/media -type f -not -name .DS_Store | wc -l) · $(du -sh wf/media | cut -f1)"
+      - name: Conferir contra o manifesto do repositório
+        run: |
+          node -e '
+            const fs=require("fs"),path=require("path");
+            const m=JSON.parse(fs.readFileSync("server/waddle/media-manifest.json","utf8")).files;
+            const miss=m.filter(f=>!fs.existsSync(path.join("wf/media",f)));
+            console.log(`manifesto: ${m.length} · faltando na mídia baixada: ${miss.length}`);
+            miss.slice(0,20).forEach(f=>console.log("  -",f));
+            if (miss.length) process.exit(1);
+          '
+      - name: Empacotar
+        run: |
+          mkdir -p out
+          cd wf/media
+          for d in */; do d=${d%/}; tar cf "../../out/media-$d.tar" --exclude='.DS_Store' "$d"; done
+          cd ../../out
+          cp ../server/waddle/media-manifest.json .
+          sha256sum *.tar media-manifest.json > SHA256SUMS.txt
+          ls -la
+      - name: Publicar na release waddle-media
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          if ! gh release view waddle-media >/dev/null 2>&1; then
+            gh release create waddle-media --title "Mídia da Praça (Club Penguin / Waddle Forever)" --latest=false \
+              --notes "Arquivos do jogo (SWFs) usados pela Praça do Project Club — arquivo histórico distribuído pelo Waddle Forever (MIT). O servidor baixa e extrai estes pacotes sozinho na primeira inicialização (ver docs/praca-club-penguin.md). Não é uma versão do app."
+          fi
+          gh release upload waddle-media out/* --clobber
+          gh release view waddle-media --json assets --jq '.assets[] | "\(.name) \(.size)"'

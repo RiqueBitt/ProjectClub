@@ -1,0 +1,43 @@
+/* Soundboard das calls */
+.sb-wrap { position: relative; }
+.sb-ctrl-emoji { font-size: 20px; line-height: 1; }
+.sb-pop {
+  position: absolute; bottom: calc(100% + 10px); left: 50%; transform: translateX(-50%); z-index: 40;
+  width: min(340px, calc(100vw - 32px)); max-height: 60vh; overflow: auto; padding: 12px; border-radius: 12px;
+  background: var(--bg-floating, #1e1f22); color: var(--text-normal, #f2f3f5);
+  box-shadow: 0 10px 30px rgba(0,0,0,.35); border: 1px solid var(--border-subtle, rgba(127,127,127,.2));
+}
+.sb-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; }
+.sb-link { font: inherit; font-size: 12px; background: none; border: 0; color: var(--text-link, #5aa9ff); cursor: pointer; }
+.sb-empty { font-size: 13px; opacity: .75; margin: 6px 0; }
+.sb-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(96px, 1fr)); gap: 6px; }
+.sb-item { position: relative; }
+.sb-play {
+  width: 100%; display: flex; flex-direction: column; align-items: center; gap: 4px; padding: 8px 4px; border-radius: 8px;
+  font: inherit; font-size: 12px; cursor: pointer; border: 0; color: inherit;
+  background: var(--bg-modifier-hover, rgba(127,127,127,.14));
+}
+.sb-play span:first-child { font-size: 22px; line-height: 1; }
+.sb-play:hover { background: var(--bg-modifier-active, rgba(127,127,127,.26)); }
+.sb-play:active { transform: scale(.97); }
+.sb-name { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.sb-del {
+  position: absolute; top: -6px; right: -6px; width: 20px; height: 20px; border-radius: 50%; border: 0; cursor: pointer;
+  background: var(--danger, #e5484d); color: #fff; font-size: 14px; line-height: 20px; padding: 0;
+}
+.sb-add { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px; padding-top: 10px; border-top: 1px solid var(--border-subtle, rgba(127,127,127,.2)); }
+.sb-add input { font: inherit; font-size: 13px; padding: 5px 8px; border-radius: 6px; border: 1px solid var(--border-subtle, rgba(127,127,127,.3)); background: transparent; color: inherit; flex: 1 1 120px; min-width: 0; }
+.sb-add .sb-add-emoji { flex: 0 0 48px; text-align: center; }
+.sb-add-file { font-size: 12px; padding: 5px 8px; border-radius: 6px; cursor: pointer; border: 1px dashed currentColor; opacity: .85; }
+.sb-add button { font: inherit; font-size: 13px; font-weight: 600; padding: 5px 12px; border-radius: 6px; border: 0; cursor: pointer; background: var(--brand, #5865f2); color: #fff; }
+.sb-add button:disabled { opacity: .55; cursor: default; }
+.sb-err { flex-basis: 100%; font-size: 12px; color: var(--danger, #e5484d); margin: 6px 0 0; }
+
+/* Sala de estudos (Pomodoro) */
+.focus-clock { font-size: 40px; font-weight: 800; text-align: center; margin: 4px 0; font-variant-numeric: tabular-nums; }
+.focus-now { display: grid; justify-items: center; gap: 6px; }
+.focus-start { display: grid; gap: 6px; }
+.focus-preset { flex-direction: row; justify-content: center; padding: 10px; font-size: 13px; }
+.focus-rank ol { margin: 6px 0 0; padding-left: 20px; display: grid; gap: 4px; font-size: 13px; }
+.focus-rank li span { margin-right: 8px; }
+.focus-rank li strong { float: right; }

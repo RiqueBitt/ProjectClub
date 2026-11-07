@@ -1,0 +1,742 @@
+// ProjectMC — módulo opcional de launcher de Minecraft do Project Club.
+//
+// Item pedido: "o ProjectMC NÃO deve ser criado como um novo aplicativo
+// independente... deve funcionar como um complemento opcional do próprio
+// Project Club... os arquivos necessários devem ser adicionados dentro da
+// própria pasta de instalação do Project Club."
+//
+// O ProjectMC em si (o launcher de Minecraft — build gerado a partir do
+// projeto goldapple-launcher, um fork do X Minecraft Launcher) é um
+// aplicativo Electron GRANDE E COMPLEXO por conta própria (múltiplos
+// pacotes, build próprio) — reescrever/embutir o código-fonte dele
+// DENTRO do processo do Project Club não é viável nem desejável (ele
+// precisa do próprio processo principal Electron pra funcionar). O que
+// este módulo faz de verdade é o que o pedido descreve: gerenciar a
+// PRESENÇA dele dentro da pasta de instalação do Project Club — baixar,
+// atualizar, abrir e remover — como se fosse "só mais uma pasta" dentro
+// da instalação, nunca um instalador/atalho separado.
+//
+// Item pedido (depois de uma sequência longa de bugs "Invalid package
+// app.asar", todos causados direta ou indiretamente pela complexidade de
+// baixar+extrair+verificar um zip com centenas de arquivos do lado de
+// fora): "criar uma pasta com o .exe do launcher... em vez de baixar
+// vários arquivos, baixar o .exe... quando clicar em jogar ele abre o
+// .exe". O pacote publicado agora é um ÚNICO arquivo por plataforma —
+// um .exe portátil no Windows (target 'portable' do electron-builder, se
+// auto-extrai sozinho usando o próprio mecanismo do NSIS toda vez que
+// roda) e um .AppImage no Linux (já era um arquivo único por natureza).
+// Este módulo não extrai, não verifica estrutura de pacote nenhuma — só
+// baixa o arquivo e roda ele, exatamente como abrir qualquer outro
+// programa instalado no PC.
+//
+// Item pedido: "a arquitetura deve ser preparada para que futuramente
+// outros jogos ou aplicativos também possam ser adicionados da mesma
+// forma" — por isso quase tudo aqui recebe um `id` de módulo (MODULES
+// abaixo) em vez de ter "projectmc" hardcoded em cada função; adicionar
+// um segundo jogo/app no futuro é só adicionar uma entrada nova nesse
+// catálogo, com seu próprio manifestUrl/exeName.
+const { app } = require('electron');
+const path = require('path');
+const fs = require('fs');
+const https = require('https');
+const { spawn, execSync, execFileSync } = require('child_process');
+const extractZip = require('extract-zip');
+
+// Item pedido: "os arquivos necessários devem ser adicionados dentro da
+// própria pasta de instalação do Project Club... Project Club → arquivos
+// principais → pasta/arquivos do ProjectMC → executável" — a instalação
+// NSIS "por usuário" (o padrão deste projeto, ver desktop/package.json)
+// grava em %LOCALAPPDATA%\Programs\..., que é gravável sem elevar
+// permissão nenhuma, então dá pra criar uma subpasta "modules" ali
+// dentro de verdade. Se por algum motivo a pasta de instalação NÃO for
+// gravável (ex: instalação "por máquina", feita como administrador no
+// Windows, ou um AppImage no Linux — que roda a partir de um ponto de
+// montagem squashfs SOMENTE LEITURA, nunca gravável), cai pros dados do
+// próprio usuário (userData) em vez de falhar silenciosamente — só muda
+// ONDE fica, nunca quebra.
+function canWriteTo(dir) {
+  try {
+    fs.mkdirSync(dir, { recursive: true });
+    const probe = path.join(dir, `.write-test-${process.pid}`);
+    fs.writeFileSync(probe, '');
+    fs.unlinkSync(probe);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+// No Windows, só considera a pasta de instalação (Program Files ou
+// similar) gravável se o processo estiver REALMENTE elevado agora — não
+// basta "conseguir escrever um arquivo de teste ali", já que o Windows
+// pode silenciosamente redirecionar essa escrita pra
+// %LocalAppData%\VirtualStore\... (UAC Virtualization) sem avisar nada,
+// de um jeito que só o PRÓPRIO processo que escreveu enxerga de volta —
+// outros processos (como o próprio .exe do ProjectMC rodando depois)
+// podem não ver a mesma coisa. "net session" só tem sucesso rodando
+// elevado de verdade (falha com "access is denied" caso contrário).
+function isElevatedOnWindows() {
+  if (process.platform !== 'win32') return true; // n/a fora do Windows
+  try {
+    execSync('net session', { stdio: 'ignore' });
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+function resolveModulesRoot() {
+  const installDir = path.dirname(app.getPath('exe'));
+  const canUseInstallDir = isElevatedOnWindows() && canWriteTo(installDir);
+  return canUseInstallDir ? path.join(installDir, 'modules') : path.join(app.getPath('userData'), 'modules');
+}
+
+// Catálogo dos módulos "jogo/app" que o Project Club sabe gerenciar.
+// Cada app baixa as versões das releases do PRÓPRIO repositório do código
+// (RiqueBitt/<Nome>/releases). Os antigos repositórios "-releases"
+// (goldapple-launcher-releases, PhotoProject_releases-, HyProject-releases,
+// DaVinci-Project-releases) foram arquivados depois que todas as versões
+// foram copiadas para os repositórios de código.
+const MODULES = {
+  projectmc: {
+    displayName: 'ProjectMC',
+    description: 'Launcher de Minecraft do Project Club',
+    folder: 'ProjectMC',
+    manifestUrl: 'https://api.github.com/repos/RiqueBitt/ProjectMC/releases',
+    packageType: 'single-file',
+    exeName: { win32: 'ProjectMC.exe', linux: 'ProjectMC.AppImage' },
+  },
+  // Item pedido: "adicione esse projeto aqui, ele é um tipo de editor
+  // de imagem chamado PhotoProject... adicione ele na aba aplicativo
+  // Windows e Linux" — diferente do ProjectMC (Electron, empacotado
+  // como um único .exe/.AppImage portátil), o PhotoProject é um app
+  // Qt/C++ nativo — o pacote publicado é um .zip (Windows, gerado com
+  // windeployqt: o binário + as DLLs do Qt do lado) ou .tar.gz (Linux:
+  // o binário + as bibliotecas do Qt + um script "photoproject.sh" que
+  // ajusta LD_LIBRARY_PATH/QT_PLUGIN_PATH antes de rodar o binário
+  // real) — precisa extrair pra uma pasta, não dá pra rodar um único
+  // arquivo solto. packageType 'archive' abaixo é o que diferencia
+  // esse fluxo do 'single-file' do ProjectMC.
+  photoproject: {
+    displayName: 'PhotoProject',
+    description: 'Editor de imagem do Project Club',
+    folder: 'PhotoProject',
+    manifestUrl: 'https://api.github.com/repos/RiqueBitt/PhotoProject/releases',
+    // Item pedido: "adicione suporte para gerar uma versão .AppImage
+    // de cada projeto... mantenha as versões atuais para Windows
+    // funcionando normalmente" — Windows continua 'archive' (o .exe
+    // vem dentro de um .zip com DLLs); Linux passa de 'archive'
+    // (.tar.gz + script launcher) pra 'single-file' (.AppImage,
+    // autocontido, sem nada pra extrair nem script auxiliar).
+    packageType: { win32: 'archive', linux: 'single-file' },
+    assetExt: { win32: '.zip' },
+    exeName: { win32: 'PhotoProject.exe', linux: 'PhotoProject.AppImage' },
+  },
+  // Item pedido: "crie o HyProject para o novo app, um launcher do
+  // jogo Hytale" — igual ao ProjectMC (.exe/.AppImage portátil de um
+  // arquivo só, sem extração), diferente do PhotoProject.
+  hyproject: {
+    displayName: 'HyProject',
+    description: 'Launcher de Hytale do Project Club',
+    folder: 'HyProject',
+    manifestUrl: 'https://api.github.com/repos/RiqueBitt/HyProject/releases',
+    packageType: 'single-file',
+    exeName: { win32: 'HyProject.exe', linux: 'HyProject.AppImage' },
+  },
+  // Editor de vídeo (antes "DaVinci Project", agora CutProject), empacotado como .zip/.tar.gz com o executável dentro (igual
+  // ao PhotoProject, precisa extrair — diferente do ProjectMC/
+  // HyProject, que são um arquivo único portátil só).
+  // O id continua "davinciproject" (é a chave do catálogo da aba Apps e
+  // de quem já instalou), mas o app agora se chama CutProject. Quem tinha
+  // a versão antiga instalada (pasta DaVinciProject, DaVinciProject.exe)
+  // continua vendo o app como instalado — legacyFolders/legacyExeNames
+  // abaixo — e a próxima atualização já traz o CutProject.exe.
+  davinciproject: {
+    displayName: 'CutProject',
+    description: 'Editor de vídeo do Project Club',
+    folder: 'CutProject',
+    legacyFolders: ['DaVinciProject'],
+    manifestUrl: 'https://api.github.com/repos/RiqueBitt/CutProject/releases',
+    // Mesmo motivo do PhotoProject acima.
+    packageType: { win32: 'archive', linux: 'single-file' },
+    assetExt: { win32: '.zip' },
+    exeName: { win32: 'CutProject.exe', linux: 'CutProject.AppImage' },
+    legacyExeNames: { win32: ['DaVinciProject.exe'], linux: ['DaVinciProject.AppImage'] },
+  },
+  // Apps criativos do Project Club (cada um no próprio repositório, com
+  // as releases lá mesmo). Windows: .zip com o executável dentro da
+  // pasta indicada em exeName; Linux: .AppImage de arquivo único.
+  waveproject: {
+    displayName: 'WaveProject',
+    description: 'Editor de áudio do Project Club',
+    folder: 'WaveProject',
+    manifestUrl: 'https://api.github.com/repos/RiqueBitt/WaveProject/releases',
+    packageType: { win32: 'archive', linux: 'single-file' },
+    assetExt: { win32: '.zip' },
+    exeName: { win32: 'bin/WaveProject.exe', linux: 'WaveProject.AppImage' },
+  },
+  texelproject: {
+    displayName: 'TexelProject',
+    description: 'Pintura de texturas 3D do Project Club',
+    folder: 'TexelProject',
+    manifestUrl: 'https://api.github.com/repos/RiqueBitt/TexelProject/releases',
+    packageType: { win32: 'archive', linux: 'single-file' },
+    assetExt: { win32: '.zip' },
+    exeName: { win32: 'TexelProject.exe', linux: 'TexelProject.AppImage' },
+  },
+  forgeproject: {
+    displayName: 'ForgeProject',
+    description: 'Modelagem, animação e render 3D do Project Club',
+    folder: 'ForgeProject',
+    manifestUrl: 'https://api.github.com/repos/RiqueBitt/ForgeProject/releases',
+    packageType: { win32: 'archive', linux: 'single-file' },
+    assetExt: { win32: '.zip' },
+    exeName: { win32: 'ForgeProject.exe', linux: 'ForgeProject.AppImage' },
+  },
+  gameproject: {
+    displayName: 'GameProject',
+    description: 'Criação de jogos 2D e 3D do Project Club',
+    folder: 'GameProject',
+    manifestUrl: 'https://api.github.com/repos/RiqueBitt/GameProject/releases',
+    packageType: { win32: 'archive', linux: 'single-file' },
+    assetExt: { win32: '.zip' },
+    exeName: { win32: 'GameProject.exe', linux: 'GameProject.AppImage' },
+  },
+  canvasproject: {
+    displayName: 'CanvasProject',
+    description: 'Pintura digital e ilustração do Project Club',
+    folder: 'CanvasProject',
+    manifestUrl: 'https://api.github.com/repos/RiqueBitt/CanvasProject/releases',
+    packageType: { win32: 'archive', linux: 'single-file' },
+    assetExt: { win32: '.zip' },
+    exeName: { win32: 'bin/CanvasProject.exe', linux: 'CanvasProject.AppImage' },
+  },
+};
+
+function getModule(id) {
+  const mod = MODULES[id];
+  if (!mod) throw new Error(`Módulo desconhecido: ${id}`);
+  return mod;
+}
+
+// Resolve o nome de arquivo certo pra plataforma atual. Sem entrada pra
+// plataforma atual (ex: macOS, que este projeto não distribui) — erro
+// claro em vez de tentar rodar um binário que não existe.
+//
+// Item pedido: "o pacote baixado de PhotoProject não contém patchy.exe"
+// — acontecia quando o app do Project Club instalado (com o nome
+// configurado antigo) tentava instalar um release novo (empacotado com
+// outro nome de arquivo) sem ter atualizado o próprio código ainda —
+// uma corrida natural entre "o pacote publicado mudou de nome" e "o
+// app que instala ainda não sabe disso". Se `id` for passado e o
+// módulo já estiver instalado com um nome real diferente do
+// configurado (gravado em .exe-name na hora da instalação — ver
+// installArchivePackage), usa esse nome real em vez do configurado,
+// sem precisar reinstalar nada.
+function getExeName(mod, id) {
+  if (id) {
+    try {
+      const override = fs.readFileSync(path.join(moduleDir(id), '.exe-name'), 'utf-8').trim();
+      if (override) return override;
+    } catch { /* sem override — segue com o nome configurado normalmente */ }
+  }
+  const name = mod.exeName[process.platform];
+  if (!name) throw new Error(`${mod.displayName} não tem um pacote disponível para esta plataforma (${process.platform}).`);
+  // App renomeado (ex.: DaVinci Project → CutProject): enquanto a versão
+  // instalada ainda for a antiga, o executável dela tem o nome antigo.
+  if (id && !fs.existsSync(path.join(moduleDir(id), name))) {
+    const legacy = (mod.legacyExeNames?.[process.platform] || []).find((n) => fs.existsSync(path.join(moduleDir(id), n)));
+    if (legacy) return legacy;
+  }
+  return name;
+}
+
+// Pasta de instalação do módulo. Se o app mudou de nome e a pessoa ainda
+// tem a pasta antiga (legacyFolders), ela é renomeada para a nova na
+// primeira vez que o Project Club olhar para o app — sem reinstalar nada.
+// Se a renomeação falhar (arquivo em uso, permissão), continua usando a
+// pasta antiga até a próxima tentativa.
+function moduleDir(id) {
+  const mod = getModule(id);
+  const root = resolveModulesRoot();
+  const dir = path.join(root, mod.folder);
+  if (mod.legacyFolders?.length && !fs.existsSync(dir)) {
+    for (const old of mod.legacyFolders) {
+      const oldDir = path.join(root, old);
+      if (!fs.existsSync(oldDir)) continue;
+      try {
+        fs.renameSync(oldDir, dir);
+        return dir;
+      } catch {
+        return oldDir;
+      }
+    }
+  }
+  return dir;
+}
+
+// Depois de instalar a versão com o nome novo, apaga o executável antigo
+// que tenha sobrado na pasta (só acontece em pacotes de arquivo único).
+function removeLegacyExecutables(mod, dir) {
+  for (const n of mod.legacyExeNames?.[process.platform] || []) {
+    try { fs.rmSync(path.join(dir, n), { force: true }); } catch { /* segue */ }
+  }
+}
+
+function versionFilePath(id) {
+  return path.join(moduleDir(id), '.version');
+}
+
+function getInstalledVersion(id) {
+  try {
+    return fs.readFileSync(versionFilePath(id), 'utf-8').trim() || null;
+  } catch {
+    return null;
+  }
+}
+
+function isInstalled(id) {
+  const mod = getModule(id);
+  try {
+    return fs.existsSync(path.join(moduleDir(id), getExeName(mod, id)));
+  } catch {
+    return false;
+  }
+}
+
+function getStatus(id) {
+  const mod = getModule(id);
+  return {
+    id,
+    displayName: mod.displayName,
+    description: mod.description,
+    installed: isInstalled(id),
+    version: getInstalledVersion(id),
+  };
+}
+
+// GET https simples com suporte a redirecionamento — usado tanto pra ler
+// o manifest (JSON pequeno, a resposta da API de releases do GitHub)
+// quanto pra baixar o pacote em si — sem precisar de nenhuma biblioteca
+// nova além do "https" nativo do Node.
+//
+// Confere bytes recebidos contra Content-Length antes de resolver — se a
+// conexão cair no meio (rede instável, timeout, proxy cortando cedo), o
+// evento 'end' de um stream HTTP ainda assim dispara, e sem essa
+// checagem o download "truncado" passaria como sucesso silenciosamente.
+function httpsGet(url, { asJson = false, onProgress } = {}, redirectsLeft = 5) {
+  return new Promise((resolve, reject) => {
+    https.get(url, { headers: { 'User-Agent': 'ProjectClub-App' } }, (res) => {
+      if ([301, 302, 303, 307, 308].includes(res.statusCode) && res.headers.location && redirectsLeft > 0) {
+        res.resume();
+        httpsGet(res.headers.location, { asJson, onProgress }, redirectsLeft - 1).then(resolve, reject);
+        return;
+      }
+      if (res.statusCode !== 200) {
+        reject(new Error(`HTTP ${res.statusCode} ao acessar ${url}`));
+        res.resume();
+        return;
+      }
+      res.on('error', (err) => reject(new Error(`Conexão interrompida durante o download: ${err.message}`)));
+      if (asJson) {
+        let body = '';
+        res.on('data', (c) => { body += c; });
+        res.on('end', () => {
+          try { resolve(JSON.parse(body)); } catch (err) { reject(err); }
+        });
+        return;
+      }
+      const total = Number(res.headers['content-length'] || 0);
+      let received = 0;
+      const chunks = [];
+      res.on('data', (c) => {
+        received += c.length;
+        chunks.push(c);
+        if (onProgress && total) onProgress(Math.round((received / total) * 100));
+      });
+      res.on('end', () => {
+        if (total && received !== total) {
+          reject(new Error(`Download incompleto: recebidos ${received} de ${total} bytes esperados — a conexão pode ter caído no meio. Tente instalar de novo.`));
+          return;
+        }
+        resolve(Buffer.concat(chunks));
+      });
+    }).on('error', reject);
+  });
+}
+
+// Traduz a resposta da API de releases do GitHub num formato simples e
+// neutro (version/downloadUrl). Se o manifest de origem mudar de lugar
+// no futuro (um domínio próprio, por exemplo), só esta função precisa
+// mudar — o resto do módulo não sabe nem se importa de onde isso veio.
+//
+// O repositório do ProjectMC recebe releases de DOIS processos
+// diferentes: build-projectmc-release.yml (tags "v1.1.0" — formato
+// semântico, com pontos, o que o Project Club usa) e a build automática
+// do launcher a cada push (tags "v37" — só um número, sem pontos, usadas
+// pela atualização automática do próprio launcher). Filtra só tags no formato semântico (com pontos)
+// — o formato que só este projeto usa — pegando a mais recente dentre
+// essas, ignorando qualquer release "v37"-like publicada por outro
+// processo.
+function isSemverTag(tagName) {
+  return /^v?\d+\.\d+\.\d+$/i.test(tagName || '');
+}
+
+// Item pedido: "adicione suporte para gerar uma versão .AppImage...
+// mantenha as versões atuais para Windows funcionando normalmente" —
+// packageType agora pode ser diferente por plataforma (Windows
+// continua precisando de 'archive', já que o .exe vem dentro de um
+// .zip junto com DLLs; Linux passa a ser 'single-file', já que um
+// .AppImage já é autocontido, sem nada pra extrair) — mantém
+// compatibilidade com módulos que só usam uma string simples
+// (ProjectMC/HyProject, iguais nas duas plataformas).
+function getPackageType(mod) {
+  return typeof mod.packageType === 'string' ? mod.packageType : mod.packageType[process.platform];
+}
+
+// Escolhe o asset certo pra plataforma atual — agora um arquivo único
+// (.exe no Windows, .AppImage no Linux), não mais um .zip pra extrair.
+function pickAssetForPlatform(assets, mod) {
+  // Item pedido: PhotoProject usa packageType 'archive' — o asset
+  // publicado é um .zip/.tar.gz (assetExt), não o mesmo arquivo do
+  // executável final (exeName), que só existe DEPOIS de extrair.
+  const ext = getPackageType(mod) === 'archive'
+    ? mod.assetExt[process.platform]
+    : path.extname(getExeName(mod).toLowerCase()); // '.exe' ou '.appimage'
+  if (!ext) throw new Error(`${mod.displayName} não tem um pacote disponível para esta plataforma (${process.platform}).`);
+  return assets.find((a) => a.name.toLowerCase().endsWith(ext.toLowerCase())) || null;
+}
+
+// A lista de releases vem do servidor do Project Club (que guarda uma cópia
+// e consulta o GitHub no máximo a cada 10 minutos). Chamar a API do GitHub
+// direto do PC esbarra no limite de 60 consultas por hora por IP e dá
+// HTTP 403. O GitHub direto fica só como plano B, e o resultado fica
+// guardado em memória por alguns minutos para não repetir a consulta.
+const RELEASES_SERVER = (/squareweb\.app|squarecloud/i.test(process.env.PROJECT_CLUB_URL || '') ? '' : (process.env.PROJECT_CLUB_URL || '')).replace(/\/$/, '') || 'https://projectclub.shardweb.app';
+const RELEASES_TTL_MS = 5 * 60 * 1000;
+const releasesCache = new Map(); // manifestUrl -> { at, data }
+
+function repoFromManifestUrl(url) {
+  const m = /api\.github\.com\/repos\/[^/]+\/([^/]+)\/releases/.exec(url || '');
+  return m ? m[1] : null;
+}
+
+async function fetchReleases(mod) {
+  const hit = releasesCache.get(mod.manifestUrl);
+  if (hit && Date.now() - hit.at < RELEASES_TTL_MS) return hit.data;
+  const repo = repoFromManifestUrl(mod.manifestUrl);
+  const sources = [];
+  if (repo) sources.push(`${RELEASES_SERVER}/api/app-catalog/releases/${repo}`);
+  sources.push(`${mod.manifestUrl}${mod.manifestUrl.includes('?') ? '&' : '?'}per_page=100`);
+  let lastErr;
+  for (const url of sources) {
+    try {
+      const data = await httpsGet(url, { asJson: true });
+      if (!Array.isArray(data)) throw new Error(`Resposta inesperada de ${url}`);
+      releasesCache.set(mod.manifestUrl, { at: Date.now(), data });
+      return data;
+    } catch (err) {
+      lastErr = err;
+    }
+  }
+  if (hit) return hit.data; // última cópia boa, mesmo que antiga
+  if (/HTTP 403/.test(String(lastErr && lastErr.message))) {
+    throw new Error(`Não foi possível consultar as versões de ${mod.displayName} agora (limite do GitHub atingido). Tente de novo em alguns minutos.`);
+  }
+  throw lastErr;
+}
+
+async function fetchLatestRelease(id) {
+  const mod = getModule(id);
+  const releases = await fetchReleases(mod);
+  const release = (Array.isArray(releases) ? releases : [])
+    .filter((r) => isSemverTag(r.tag_name))
+    .sort((a, b) => new Date(b.published_at) - new Date(a.published_at))[0];
+  if (!release) throw new Error(`Nenhuma versão de ${mod.displayName} publicada no formato esperado (vX.Y.Z) foi encontrada.`);
+  const asset = pickAssetForPlatform(release.assets || [], mod);
+  if (!asset) throw new Error(`A versão mais recente de ${mod.displayName} não tem um pacote publicado para esta plataforma (${process.platform}).`);
+  return { version: (release.tag_name || '').replace(/^v/i, ''), downloadUrl: asset.browser_download_url };
+}
+
+async function checkForUpdate(id) {
+  const installed = getInstalledVersion(id);
+  const latest = await fetchLatestRelease(id);
+  return {
+    installed,
+    latest: latest.version,
+    updateAvailable: !installed || installed !== latest.version,
+  };
+}
+
+// Mata qualquer processo do módulo que ainda esteja rodando — usado
+// antes de reinstalar/desinstalar, pra nunca tentar mexer num arquivo
+// que o próprio ProjectMC ainda está usando (o Windows trava exclusão/
+// substituição de um .exe em uso; fechar a janela dele não necessariamente
+// mata o processo por completo, então isso não é incomum de acontecer).
+function killRunningProcess(exeName) {
+  try {
+    if (process.platform === 'win32') {
+      execSync(`taskkill /IM "${exeName}" /F`, { stdio: 'ignore' });
+    } else {
+      execSync(`pkill -f "${exeName}"`, { stdio: 'ignore' });
+    }
+  } catch {
+    // Não achou nenhum processo rodando com esse nome — situação normal
+    // (mais comum até), não um erro de verdade.
+  }
+}
+
+// Instalar ou atualizar agora é: baixar o arquivo único (.exe/.AppImage)
+// pra um nome temporário do lado, confirmar que baixou por completo
+// (httpsGet acima já garante isso), matar qualquer processo antigo que
+// ainda esteja rodando, e só então trocar pelo nome final — nunca
+// escreve direto em cima do arquivo em uso, então nunca fica um estado
+// "pela metade" visível mesmo se algo falhar no meio do caminho.
+async function installOrUpdate(id, onProgress) {
+  const mod = getModule(id);
+  const { version, downloadUrl } = await fetchLatestRelease(id);
+
+  onProgress?.({ phase: 'downloading', percent: 0 });
+  const data = await httpsGet(downloadUrl, {
+    onProgress: (percent) => onProgress?.({ phase: 'downloading', percent }),
+  });
+
+  const dir = moduleDir(id);
+  fs.mkdirSync(dir, { recursive: true });
+
+  if (getPackageType(mod) === 'archive') {
+    await installArchivePackage(mod, id, dir, data, version, onProgress);
+  } else {
+    await installSingleFilePackage(mod, dir, data, version);
+  }
+
+  onProgress?.({ phase: 'done', percent: 100 });
+  return { version };
+}
+
+// Fluxo original do ProjectMC — um único arquivo (.exe/.AppImage) já
+// pronto pra rodar, sem nenhuma extração.
+async function installSingleFilePackage(mod, dir, data, version) {
+  const finalExePath = path.join(dir, getExeName(mod));
+  const tmpExePath = `${finalExePath}.downloading-${Date.now()}`;
+
+  fs.writeFileSync(tmpExePath, data);
+  if (process.platform !== 'win32') {
+    // Item pedido: "Fassa funcionar no Linux" — sem isso, o AppImage
+    // baixado fica sem permissão de execução na maioria dos casos (o
+    // Linux não tem um equivalente confiável ao "clicar duas vezes pra
+    // rodar" do Windows quando falta esse bit).
+    try { fs.chmodSync(tmpExePath, 0o755); } catch { /* segue — launch() reporta o erro de verdade se isso importar */ }
+  }
+
+  killRunningProcess(getExeName(mod));
+  try {
+    fs.renameSync(tmpExePath, finalExePath);
+  } catch {
+    // O .exe antigo ainda travado mesmo depois de matar o processo —
+    // raro, mas possível (antivírus escaneando, por exemplo). Espera só
+    // um instante e tenta mais uma vez antes de desistir.
+    await new Promise((r) => setTimeout(r, 500));
+    fs.renameSync(tmpExePath, finalExePath);
+  }
+  fs.writeFileSync(path.join(dir, '.version'), version, 'utf-8');
+  removeLegacyExecutables(mod, dir);
+}
+
+// Item pedido: "adicione esse projeto... editor de imagem chamado
+// PhotoProject" — pacote publicado como .zip (Windows) ou .tar.gz
+// (Linux), precisa extrair pra pasta em vez de rodar direto. Mesmo
+// padrão "instalar do lado, trocar depois" já comprovado com o
+// ProjectMC (ver histórico do arquivo) — nunca mexe na instalação em
+// uso até tudo já ter sido baixado e extraído com sucesso numa pasta
+// separada.
+async function installArchivePackage(mod, id, finalDir, data, version, onProgress) {
+  const tmpArchivePath = path.join(app.getPath('temp'), `${mod.folder}-${version}-${process.platform}-${Date.now()}${mod.assetExt[process.platform]}`);
+  fs.writeFileSync(tmpArchivePath, data);
+
+  const stagingDir = `${finalDir}.installing-${Date.now()}`;
+  fs.mkdirSync(stagingDir, { recursive: true });
+  onProgress?.({ phase: 'extracting', percent: 0 });
+  try {
+    if (process.platform === 'win32') {
+      await extractZip(tmpArchivePath, { dir: stagingDir });
+    } else {
+      // tar já vem instalado em qualquer distribuição Linux normal —
+      // sem precisar de nenhuma biblioteca npm extra só pra isso.
+      execFileSync('tar', ['-xzf', tmpArchivePath, '-C', stagingDir]);
+    }
+  } finally {
+    fs.unlink(tmpArchivePath, () => {});
+  }
+
+  const exePath = path.join(stagingDir, getExeName(mod));
+  let finalExeName = getExeName(mod);
+  // Pacote publicado antes de o app mudar de nome (ex.: CutProject v1.0.2
+  // ainda traz DaVinciProject.exe): aceita o nome antigo conhecido.
+  if (!fs.existsSync(exePath)) {
+    const legacy = (mod.legacyExeNames?.[process.platform] || []).find((n) => fs.existsSync(path.join(stagingDir, n)));
+    if (legacy) finalExeName = legacy;
+  }
+  if (!fs.existsSync(path.join(stagingDir, finalExeName))) {
+    // Item pedido: "corrija para aceitar mesmo assim" — em vez de
+    // falhar direto quando o nome configurado não bate com o que veio
+    // no pacote (normalmente porque o app do Project Club instalado
+    // ainda não atualizou pro nome novo publicado), procura por um
+    // candidato razoável dentro do pacote antes de desistir: no
+    // Windows, o único .exe na raiz; no Linux, o único script/binário
+    // executável na raiz. Só aceita quando há exatamente UM candidato
+    // (ambíguo com mais de um é melhor falhar com um erro claro do
+    // que adivinhar errado e abrir o app errado depois).
+    const candidates = fs.readdirSync(stagingDir).filter((name) => {
+      const full = path.join(stagingDir, name);
+      if (!fs.statSync(full).isFile()) return false;
+      return process.platform === 'win32' ? name.toLowerCase().endsWith('.exe') : name.toLowerCase().endsWith('.sh');
+    });
+    if (candidates.length !== 1) {
+      fs.rmSync(stagingDir, { recursive: true, force: true });
+      throw new Error(`O pacote baixado de ${mod.displayName} não contém "${getExeName(mod)}" — o release publicado pode não estar empacotado no formato esperado.`);
+    }
+    finalExeName = candidates[0];
+  }
+  const resolvedExePath = path.join(stagingDir, finalExeName);
+  if (process.platform !== 'win32') {
+    try { fs.chmodSync(resolvedExePath, 0o755); } catch { /* segue */ }
+  }
+  fs.writeFileSync(path.join(stagingDir, '.version'), version, 'utf-8');
+  // Só grava o override quando o nome real difere do configurado —
+  // deixa o caso normal (sem override) mais simples de auditar depois.
+  if (finalExeName !== getExeName(mod)) {
+    fs.writeFileSync(path.join(stagingDir, '.exe-name'), finalExeName, 'utf-8');
+  }
+
+  onProgress?.({ phase: 'finishing', percent: 100 });
+  killRunningProcess(finalExeName);
+  const oldDir = `${finalDir}.old-${Date.now()}`;
+  if (fs.existsSync(finalDir)) {
+    try {
+      fs.renameSync(finalDir, oldDir);
+    } catch {
+      await new Promise((r) => setTimeout(r, 500));
+      fs.renameSync(finalDir, oldDir);
+    }
+  }
+  fs.renameSync(stagingDir, finalDir);
+  fs.rmSync(oldDir, { recursive: true, force: true });
+}
+
+// Item pedido: "o launcher também deve poder ser iniciado separadamente
+// através do próprio Project Club... quando clicar em jogar ele abre o
+// .exe" — processo do sistema operacional desanexado (detached +
+// unref), não uma segunda janela do MESMO Electron: o ProjectMC é, por
+// si só, outro app Electron com seu próprio processo principal — é
+// assim que ele roda de qualquer jeito, exatamente como abrir qualquer
+// outro programa instalado no PC. Fechar o Project Club depois não
+// derruba o ProjectMC junto (nem vice-versa).
+function launch(id) {
+  const mod = getModule(id);
+  const exe = path.join(moduleDir(id), getExeName(mod, id));
+  if (!fs.existsSync(exe)) throw new Error(`${mod.displayName} não está instalado.`);
+  const child = spawn(exe, [], { detached: true, stdio: 'ignore', cwd: path.dirname(exe) });
+  child.unref();
+}
+
+function uninstall(id) {
+  const mod = getModule(id);
+  killRunningProcess(getExeName(mod, id));
+  const dir = moduleDir(id);
+  if (fs.existsSync(dir)) fs.rmSync(dir, { recursive: true, force: true });
+}
+
+// Item pedido: "faça atualizações em segundo plano do Project Club e/ou
+// outros apps que tiver baixados junto com o Project Club, deixe ele
+// atualizando em segundo plano que o usuário não fica vendo para não
+// atrapalhar ele" — checa e atualiza sozinho, sem nenhum indicador
+// visual (sem barra de progresso na tela, sem notificação), TODOS os
+// módulos do catálogo (MODULES acima) que a pessoa JÁ tem instalado —
+// nunca instala algo do zero sozinho (só quem clica em "Instalar" faz
+// isso de propósito), só mantém o que já existe atualizado. Chamado
+// periodicamente pelo main.js, do mesmo jeito que o autoUpdater do
+// próprio Project Club já roda em segundo plano.
+async function checkAndUpdateInstalledModules() {
+  loadRemoteModules();
+  for (const id of Object.keys(MODULES)) {
+    try {
+      if (!isInstalled(id)) continue; // nunca instala algo que a pessoa nunca baixou
+      const { updateAvailable } = await checkForUpdate(id);
+      if (!updateAvailable) continue;
+      await installOrUpdate(id);
+    } catch (err) {
+      // Rede instável, release fora do ar, etc. — normal, sem alarde
+      // nenhum; a próxima checagem periódica tenta de novo sozinha.
+      console.error(`[atualização de apps] falha ao atualizar ${id} em segundo plano:`, err?.message || err);
+    }
+  }
+}
+
+// ---------- Apps novos sem atualizar o Project Club ----------
+// Um app que entrou no catálogo depois desta versão do Project Club não
+// está em MODULES. Em vez de dar "Módulo desconhecido", pergunta ao
+// servidor o nome e o repositório dele e monta a definição no padrão
+// de todos os apps novos (zip no Windows, AppImage no Linux). A
+// definição fica salva em disco para funcionar também sem internet.
+const REMOTE_MODULES_FILE = () => path.join(app.getPath('userData'), 'remote-modules.json');
+let remoteLoaded = false;
+
+function moduleFromRemote(id, info) {
+  const name = String(info.displayName || '').replace(/[^A-Za-z0-9]/g, '');
+  const repo = String(info.repo || name).replace(/[^A-Za-z0-9_.-]/g, '');
+  if (!name || !repo) return null;
+  return {
+    displayName: info.displayName,
+    description: info.description || '',
+    folder: name,
+    manifestUrl: `https://api.github.com/repos/RiqueBitt/${repo}/releases`,
+    packageType: { win32: 'archive', linux: 'single-file' },
+    assetExt: { win32: '.zip' },
+    exeName: { win32: info.exeWin || `${name}.exe`, linux: `${name}.AppImage` },
+    remote: true,
+  };
+}
+
+function loadRemoteModules() {
+  if (remoteLoaded) return;
+  remoteLoaded = true;
+  try {
+    const saved = JSON.parse(fs.readFileSync(REMOTE_MODULES_FILE(), 'utf8'));
+    for (const [id, info] of Object.entries(saved || {})) {
+      if (!MODULES[id]) { const mod = moduleFromRemote(id, info); if (mod) MODULES[id] = mod; }
+    }
+  } catch { /* ainda não tem nenhum salvo */ }
+}
+
+async function ensureModule(id) {
+  loadRemoteModules();
+  if (MODULES[id]) return;
+  if (!/^[a-z0-9-]{2,40}$/.test(String(id))) throw new Error(`Módulo desconhecido: ${id}`);
+  let info;
+  try {
+    info = await httpsGet(`${RELEASES_SERVER}/api/app-catalog/module/${id}`, { asJson: true });
+  } catch {
+    throw new Error('Este app é novo e não foi possível buscar os dados dele agora. Verifique a internet ou atualize o Project Club.');
+  }
+  const mod = moduleFromRemote(id, info || {});
+  if (!mod) throw new Error(`Módulo desconhecido: ${id}`);
+  MODULES[id] = mod;
+  try {
+    let saved = {};
+    try { saved = JSON.parse(fs.readFileSync(REMOTE_MODULES_FILE(), 'utf8')) || {}; } catch { /* primeiro */ }
+    saved[id] = info;
+    fs.writeFileSync(REMOTE_MODULES_FILE(), JSON.stringify(saved, null, 2));
+  } catch { /* só um cache */ }
+}
+
+const withModule = (fn) => async (id, ...rest) => { await ensureModule(id); return fn(id, ...rest); };
+
+module.exports = {
+  getStatus: withModule(getStatus),
+  checkForUpdate: withModule(checkForUpdate),
+  installOrUpdate: withModule(installOrUpdate),
+  launch: withModule(launch),
+  uninstall: withModule(uninstall),
+  checkAndUpdateInstalledModules,
+};

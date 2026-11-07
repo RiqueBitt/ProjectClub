@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">Project Club</string>
+    <string name="title_activity_main">Project Club</string>
+    <string name="package_name">com.projectclub.app</string>
+    <string name="custom_url_scheme">com.projectclub.app</string>
+</resources>

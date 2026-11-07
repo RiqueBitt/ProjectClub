@@ -1,0 +1,116 @@
+/* Extras da chamada: reações, gravação, legendas. Combina com o visual
+   já existente dos canais de voz (voice.css / voice-extras.css). */
+
+/* ---------- Reações (I) ---------- */
+.ce-reactbar { position: relative; }
+.ce-reactbar-emoji { font-size: 20px; line-height: 1; }
+.ce-reactbar-pop {
+  position: absolute; bottom: calc(100% + 8px); left: 50%; transform: translateX(-50%);
+  display: flex; gap: 4px; padding: 7px; border-radius: 14px;
+  background: var(--bg-elevated, #1e2029); border: 1px solid var(--border, rgba(255,255,255,.1));
+  box-shadow: 0 12px 32px -8px rgba(0,0,0,.5); z-index: 40;
+}
+.ce-react-pick {
+  width: 42px; height: 42px; border: 0; border-radius: 11px; background: transparent;
+  font-size: 23px; cursor: pointer; transition: transform .12s ease, background .12s ease;
+}
+.ce-react-pick:hover { background: color-mix(in srgb, var(--brand, #5865f2) 22%, transparent); transform: scale(1.18); }
+
+.ce-reactions-layer {
+  position: absolute; inset: 0; pointer-events: none; overflow: hidden; z-index: 30;
+}
+.ce-react-float {
+  position: absolute; bottom: 74px; display: flex; flex-direction: column; align-items: center; gap: 2px;
+  animation: ce-float-up 2.6s ease-out forwards; will-change: transform, opacity;
+}
+.ce-react-float-emoji { font-size: 38px; line-height: 1; filter: drop-shadow(0 3px 6px rgba(0,0,0,.4)); }
+.ce-react-float-name {
+  font-size: 11px; max-width: 90px; padding: 1px 7px; border-radius: 9px;
+  background: rgba(0,0,0,.55); color: #fff;
+}
+@keyframes ce-float-up {
+  0% { opacity: 0; transform: translateY(14px) scale(.6); }
+  12% { opacity: 1; transform: translateY(0) scale(1); }
+  75% { opacity: 1; }
+  100% { opacity: 0; transform: translateY(-190px) scale(1.05); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .ce-react-float { animation-duration: 2.6s; animation-name: ce-float-fade; }
+  @keyframes ce-float-fade { 0% { opacity: 0; } 12% { opacity: 1; } 80% { opacity: 1; } 100% { opacity: 0; } }
+}
+
+/* ---------- Gravação (N) ---------- */
+.ce-rec-dot {
+  width: 11px; height: 11px; border-radius: 50%; background: #ed4245; flex: none;
+  box-shadow: 0 0 0 0 rgba(237,66,69,.6); animation: ce-rec-pulse 1.4s infinite;
+}
+.ce-rec-dot-lg { width: 18px; height: 18px; }
+@keyframes ce-rec-pulse {
+  0% { box-shadow: 0 0 0 0 rgba(237,66,69,.55); }
+  70% { box-shadow: 0 0 0 9px rgba(237,66,69,0); }
+  100% { box-shadow: 0 0 0 0 rgba(237,66,69,0); }
+}
+.ce-recording-banner {
+  position: absolute; top: 12px; left: 50%; transform: translateX(-50%);
+  display: flex; align-items: center; gap: 9px; padding: 7px 13px; z-index: 36;
+  border-radius: 999px; background: rgba(20,10,12,.82); color: #fff;
+  border: 1px solid rgba(237,66,69,.5); box-shadow: 0 8px 24px -8px rgba(0,0,0,.6);
+  font-size: 13px; font-weight: 600; backdrop-filter: blur(6px);
+}
+.ce-rec-stop {
+  border: 0; background: #ed4245; color: #fff; font-weight: 700; font-size: 12px;
+  padding: 3px 11px; border-radius: 999px; cursor: pointer;
+}
+.ce-rec-stop:hover { background: #c93236; }
+
+.ce-consent-overlay {
+  position: fixed; inset: 0; z-index: 2600; display: grid; place-items: center;
+  background: rgba(0,0,0,.6); backdrop-filter: blur(3px); padding: 16px;
+}
+.ce-consent {
+  width: min(400px, 100%); background: var(--bg-elevated, #1e2029); color: var(--text, #fff);
+  border: 1px solid var(--border, rgba(255,255,255,.1)); border-radius: 18px; padding: 24px;
+  text-align: center; box-shadow: 0 24px 60px -12px rgba(0,0,0,.6);
+}
+.ce-consent .ce-rec-dot { margin: 0 auto 10px; }
+.ce-consent h2 { font-size: 18px; margin: 0 0 8px; }
+.ce-consent p { font-size: 14px; color: var(--text-muted, #aab); margin: 0 0 18px; }
+.ce-consent-actions { display: flex; gap: 10px; }
+.ce-consent-actions button { flex: 1; padding: 11px; border-radius: 11px; border: 0; font-weight: 700; cursor: pointer; font-size: 14px; }
+.ce-consent-decline { background: var(--bg-input, #2b2d36); color: var(--text, #fff); }
+.ce-consent-decline:hover { background: #3a3d47; }
+.ce-consent-accept { background: #ed4245; color: #fff; }
+.ce-consent-accept:hover { background: #c93236; }
+
+.ce-record-btn .ce-record-ring {
+  width: 21px; height: 21px; border-radius: 50%; border: 2.4px solid currentColor;
+  display: grid; place-items: center;
+}
+.ce-record-btn .ce-record-ring::after { content: ''; width: 9px; height: 9px; border-radius: 50%; background: #ed4245; }
+.ce-record-btn.is-waiting { opacity: .65; }
+
+/* ---------- Legendas (K) ---------- */
+.ce-captions {
+  position: absolute; bottom: 92px; left: 50%; transform: translateX(-50%);
+  max-width: min(720px, 92%); z-index: 34; padding: 8px 14px; border-radius: 12px;
+  background: rgba(0,0,0,.72); color: #fff; font-size: 16px; line-height: 1.35;
+  text-align: center; backdrop-filter: blur(4px); display: flex; align-items: baseline; gap: 8px;
+  justify-content: center; flex-wrap: wrap;
+}
+.ce-captions-tag {
+  font-size: 10px; text-transform: uppercase; letter-spacing: .06em; opacity: .7;
+  border: 1px solid rgba(255,255,255,.3); border-radius: 6px; padding: 1px 5px; flex: none;
+}
+.ce-captions-note { font-size: 12.5px; color: #ddd; }
+
+/* ---------- Alternador grade/foco (H) ---------- */
+.ce-viewmode {
+  display: inline-flex; gap: 2px; padding: 3px; border-radius: 11px;
+  background: var(--bg-input, rgba(255,255,255,.06)); border: 1px solid var(--border, rgba(255,255,255,.08));
+}
+.ce-viewmode button {
+  border: 0; background: transparent; color: var(--text-muted, #9aa); cursor: pointer;
+  padding: 5px 10px; border-radius: 8px; font-size: 12.5px; font-weight: 600;
+  display: inline-flex; align-items: center; gap: 5px;
+}
+.ce-viewmode button.active { background: var(--brand, #5865f2); color: #fff; }
