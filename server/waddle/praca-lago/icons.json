@@ -1,0 +1,224 @@
+[
+ {
+  "key": "lake",
+  "art": "art/icone.png",
+  "hit": "water",
+  "width": 100,
+  "x": 490,
+  "y": 362,
+  "room": "lake",
+  "spawn": [
+   220,
+   160
+  ],
+  "hint": "w.map.lago"
+ },
+ {
+  "key": "monte1",
+  "x": 278,
+  "y": 178,
+  "room": "monte1",
+  "spawn": [
+   390,
+   325
+  ],
+  "hint": "w.map.monte1",
+  "focus": [
+   380,
+   300
+  ],
+  "zoom": 320
+ },
+ {
+  "key": "monte2",
+  "x": 312,
+  "y": 144,
+  "room": "monte2",
+  "spawn": [
+   157,
+   290
+  ],
+  "hint": "w.map.monte2",
+  "focus": [
+   380,
+   230
+  ],
+  "zoom": 320
+ },
+ {
+  "key": "monte3",
+  "x": 346,
+  "y": 112,
+  "room": "monte3",
+  "spawn": [
+   157,
+   290
+  ],
+  "hint": "w.map.monte3",
+  "focus": [
+   420,
+   230
+  ],
+  "zoom": 320
+ },
+ {
+  "key": "monte4",
+  "x": 380,
+  "y": 82,
+  "room": "monte4",
+  "spawn": [
+   330,
+   375
+  ],
+  "hint": "w.map.monte4",
+  "focus": [
+   300,
+   230
+  ],
+  "zoom": 320
+ },
+ {
+  "key": "monte5",
+  "x": 414,
+  "y": 54,
+  "room": "monte5",
+  "spawn": [
+   400,
+   325
+  ],
+  "hint": "w.map.monte5",
+  "focus": [
+   380,
+   180
+  ],
+  "zoom": 320
+ },
+ {
+  "key": "monte6",
+  "x": 246,
+  "y": 208,
+  "room": "monte6",
+  "spawn": [
+   400,
+   320
+  ],
+  "hint": "w.map.monte6",
+  "focus": [
+   520,
+   300
+  ],
+  "zoom": 320
+ },
+ {
+  "key": "cavex1",
+  "x": 606,
+  "y": 286,
+  "room": "cavex1",
+  "spawn": [
+   95,
+   260
+  ],
+  "hint": "w.map.cavex1",
+  "focus": [
+   380,
+   230
+  ],
+  "zoom": 320
+ },
+ {
+  "key": "cavex2",
+  "x": 644,
+  "y": 266,
+  "room": "cavex2",
+  "spawn": [
+   140,
+   115
+  ],
+  "hint": "w.map.cavex2",
+  "focus": [
+   420,
+   250
+  ],
+  "zoom": 320
+ },
+ {
+  "key": "cavex3",
+  "x": 682,
+  "y": 248,
+  "room": "cavex3",
+  "spawn": [
+   95,
+   260
+  ],
+  "hint": "w.map.cavex3",
+  "focus": [
+   380,
+   240
+  ],
+  "zoom": 320
+ },
+ {
+  "key": "wilder1",
+  "x": 733,
+  "y": 302,
+  "room": "wilder1",
+  "spawn": [
+   197,
+   236
+  ],
+  "hint": "w.map.wilder1",
+  "focus": [
+   380,
+   240
+  ],
+  "zoom": 320
+ },
+ {
+  "key": "jam10",
+  "x": 424,
+  "y": 228,
+  "room": "jam10",
+  "spawn": [
+   375,
+   360
+  ],
+  "hint": "w.map.jam10",
+  "focus": [
+   380,
+   170
+  ],
+  "zoom": 320
+ },
+ {
+  "key": "copas",
+  "x": 546,
+  "y": 294,
+  "room": "copas",
+  "spawn": [
+   355,
+   374
+  ],
+  "hint": "w.map.copas",
+  "focus": [
+   330,
+   240
+  ],
+  "zoom": 320
+ },
+ {
+  "key": "pirata",
+  "x": 62,
+  "y": 384,
+  "room": "pirata",
+  "spawn": [
+   170,
+   223
+  ],
+  "hint": "w.map.pirata",
+  "focus": [
+   400,
+   230
+  ],
+  "zoom": 320
+ }
+]

@@ -33,10 +33,15 @@ exports.isPatchedRoute = isPatchedRoute;
  * editor do iglu, um painel com o móvel em cada direção (antes só dava pra
  * girar com as setas do teclado enquanto arrastava) — praca-igloo-action.ts.
  *
- * map.swf, forest.swf, cove.swf: a sala "Lago" (server/waddle/praca-lago/, arte
- * do dono). No mapa entram o ícone do lago (símbolo exportado) e um DoAction
- * que o põe clicável em MAP.id_0; na Floresta e na Enseada um DoAction a mais
- * cria o gatilho pra entrar no Lago andando — praca-lago-*.ts.
+ * map.swf: os cenários do Project Club (server/waddle/praca-lago/icons.json) —
+ * no 1º quadro entram os ícones (símbolos exportados) e um DoAction que os põe
+ * clicáveis em MAP.id_0 — praca-lago-map-tags.ts.
+ *
+ * Salas de expedição (monte1-6, cavex1-3, wilder1, jam10, copas, pirata): são as
+ * salas ORIGINAIS de festas de 2010-2011 servidas como cenários fixos
+ * (services/waddle/island.js EXTRA_ROOMS). Dentro delas os gatilhos mandam pra
+ * "party1".."party6"/"party" (chaves que as festas usam); aqui essas strings
+ * viram as chaves novas, do MESMO tamanho, pra cadeia continuar andando.
  *
  * catalog_viewer.swf (AS3): ao mostrar uma página o catálogo faz
  * `closeButton.buttonMode = true`; no Catálogo de Puffles o botão de fechar é
@@ -50,8 +55,6 @@ const praca_voice_action_1 = require("./praca-voice-action");
 const praca_shell_action_1 = require("./praca-shell-action");
 const praca_igloo_action_1 = require("./praca-igloo-action");
 const praca_lago_map_tags_1 = require("./praca-lago-map-tags");
-const praca_lago_forest_action_1 = require("./praca-lago-forest-action");
-const praca_lago_cove_action_1 = require("./praca-lago-cove-action");
 const swf_coins_1 = require("./swf-coins");
 const PATCHES = [
     {
@@ -88,14 +91,44 @@ const PATCHES = [
         frame1Tags: [praca_lago_map_tags_1.PRACA_LAGO_MAP_TAGS],
     },
     {
-        test: (route) => /(^|\/)play\/v2\/content\/global\/rooms\/forest\.swf$/.test(route),
-        patches: [],
-        frame1Tags: [praca_lago_forest_action_1.PRACA_LAGO_FOREST_DOACTION],
+        test: (route) => /(^|\/)play\/v2\/content\/global\/rooms\/monte1\.swf$/.test(route),
+        patches: [{ from: 'party2\0', to: 'monte2\0' }, { from: 'party5\0', to: 'monte5\0' }],
     },
     {
-        test: (route) => /(^|\/)play\/v2\/content\/global\/rooms\/cove\.swf$/.test(route),
-        patches: [],
-        frame1Tags: [praca_lago_cove_action_1.PRACA_LAGO_COVE_DOACTION],
+        test: (route) => /(^|\/)play\/v2\/content\/global\/rooms\/monte2\.swf$/.test(route),
+        patches: [{ from: 'party3\0', to: 'monte3\0' }, { from: 'party1\0', to: 'monte1\0' }],
+    },
+    {
+        test: (route) => /(^|\/)play\/v2\/content\/global\/rooms\/monte3\.swf$/.test(route),
+        patches: [{ from: 'party4\0', to: 'monte4\0' }, { from: 'party2\0', to: 'monte2\0' }],
+    },
+    {
+        test: (route) => /(^|\/)play\/v2\/content\/global\/rooms\/monte4\.swf$/.test(route),
+        patches: [{ from: 'party3\0', to: 'monte3\0' }, { from: 'party6\0', to: 'monte6\0' }, { from: 'party5\0', to: 'monte5\0' }],
+    },
+    {
+        test: (route) => /(^|\/)play\/v2\/content\/global\/rooms\/monte5\.swf$/.test(route),
+        patches: [{ from: 'party4\0', to: 'monte4\0' }],
+    },
+    {
+        test: (route) => /(^|\/)play\/v2\/content\/global\/rooms\/monte6\.swf$/.test(route),
+        patches: [{ from: 'party4\0', to: 'monte4\0' }],
+    },
+    {
+        test: (route) => /(^|\/)play\/v2\/content\/global\/rooms\/cavex1\.swf$/.test(route),
+        patches: [{ from: 'party2\0', to: 'cavex2\0' }],
+    },
+    {
+        test: (route) => /(^|\/)play\/v2\/content\/global\/rooms\/cavex2\.swf$/.test(route),
+        patches: [{ from: 'party1\0', to: 'cavex1\0' }, { from: 'party3\0', to: 'cavex3\0' }],
+    },
+    {
+        test: (route) => /(^|\/)play\/v2\/content\/global\/rooms\/cavex3\.swf$/.test(route),
+        patches: [{ from: 'party2\0', to: 'cavex2\0' }],
+    },
+    {
+        test: (route) => /(^|\/)play\/v2\/content\/global\/rooms\/wilder1\.swf$/.test(route),
+        patches: [{ from: 'party12\0', to: 'wilder1\0' }],
     },
 ];
 /** Insere `tags` no fim do 1º quadro da linha do tempo principal (antes do 1º ShowFrame). */

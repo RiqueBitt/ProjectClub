@@ -1,4 +1,29 @@
-# Lago — sala própria do Project Club (arte do dono)
+# Cenários do Project Club no mapa (e a sala Lago, arte do dono)
+
+Esta pasta gera o **patch do mapa** (`icons.json` → ícones clicáveis em `MAP.id_0`)
+e guarda a sala **Lago** feita da arte do dono (`lago.swf`, hoje fora do ar — o
+ícone do lago no mapa leva ao **Lago Escondido** original de 2015).
+
+## Cenários (salas ORIGINAIS de festas, já na mídia do WF)
+
+`server/src/services/waddle/island.js` → `EXTRA_ROOMS`: Expedição da Montanha 2010
+(`monte1`-`monte6`: Acampamento Base, Caverna de Gelo, Acampamento do Pico, Encosta,
+Topo da Montanha, Gruta do Tesouro), Expedição da Caverna 2010 (`cavex1`-`cavex3`),
+Wilderness 2011 (`wilder1`, Caverna dos Puffles Marrons), Music Jam 2010 (`jam10`,
+Palco Music Maker), Aventura na Ilha 2010 (`copas`, Casa na Árvore; `pirata`, Convés
+do Navio). Dentro das salas os gatilhos usam `partyN`; `swf-patches.ts` troca pelas
+chaves novas (mesmo tamanho) pra cadeia continuar andando. Ícones: `make_icons.py`
+recorta a arte original de cada sala (`art/renders/`) num círculo com borda, estilo
+dos ícones do mapa 2015; posições e salas em `icons.json`.
+
+```sh
+python3 make_icons.py        # art/icon-<key>.png a partir de art/renders/<key>.png (FFDec: -export frame)
+python3 build_map.py         # map.as + build/map-semscript.swf
+java -jar ffdec.jar -importScript build/map-semscript.swf build/map.swf build/map-scripts
+python3 extract.py           # → ../src/server/file-server/praca-lago-map-tags.ts
+```
+
+## Lago — sala própria (arte do dono)
 
 Sala nova do Club Penguin da Praça (`room_key: lago`, id 438), feita a partir da
 arte do dono (`art/cena.png`, 760×480) — não é um arquivo da Disney/Archives.
@@ -15,17 +40,12 @@ arte do dono (`art/cena.png`, 760×480) — não é um arquivo da Disney/Archive
   na neve, na água, no deque e na escada.
 - **`triggers_mc`**: `forest_mc` (topo da escada → Floresta) e `cove_mc`
   (trilha da direita → Enseada). Sai andando.
-- **Entrar andando**: `forest.as` e `cove.as` são DoActions injetados pelo
-  file-server do WF (`swf-patches.ts`) na Floresta (laguinho da cachoeira) e na
-  Enseada (beirada esquerda) que criam o gatilho `lago_mc` no `triggers_mc`.
-- **Mapa**: `map.as` + `art/icone.png` viram o símbolo exportado
-  `pc_lago_icon` (+ `pc_lago_hit`, só a água é clicável) inseridos no 1º quadro
-  do `map.swf`; o script põe o ícone em `MAP.id_0` em cima do laguinho entre as
-  árvores (490, 362), com dica `w.map.lago` e clique → `sendJoinRoomFromMap("lago")`.
+- **Mapa**: `art/icone.png` (arte do dono) é o ícone `lake` em `icons.json`, só a
+  água é clicável, sobre o laguinho entre as árvores (490, 362).
 
-Como entra no jogo: `server/src/services/waddle/island.js` copia `lago.swf` pra
-`media/pcisland/` e põe a sala na camada da ilha (com a música 658); o WF
-registra a sala em `game-data/rooms.ts` e `file-generators/rooms.json.ts`.
+Pra voltar a servir a sala Lago: registrar `lago` (id 438, já em `rooms.ts`) em
+`EXTRA_ROOMS` apontando pra `pcisland/lago.swf` (copiar o arquivo) e trocar o
+`room` do ícone `lake` em `icons.json` pra `lago`.
 
 ## Gerar de novo
 
@@ -41,12 +61,6 @@ python3 build_map.py                                               # build/map-s
 java -jar ffdec.jar -importScript build/map-semscript.swf build/map.swf build/map-scripts
 python3 extract.py                                                 # → ../src/server/file-server/praca-lago-map-tags.ts
 
-# gatilhos de entrada (Floresta/Enseada): template vazio + script
-python3 -c "import swfwriter as S; open('build/template.swf','wb').write(S.swf([S.do_action_empty(), S.show_frame(), S.end()]))"
-for r in forest cove; do mkdir -p build/$r-scripts/frame_1 && cp $r.as build/$r-scripts/frame_1/DoAction.as && \
-  java -jar ffdec.jar -importScript build/template.swf build/$r.swf build/$r-scripts; done
-python3 ../praca-voice/extract.py --swf $PWD/build/forest.swf --out $PWD/../src/server/file-server/praca-lago-forest-action.ts --name PRACA_LAGO_FOREST_DOACTION
-python3 ../praca-voice/extract.py --swf $PWD/build/cove.swf   --out $PWD/../src/server/file-server/praca-lago-cove-action.ts   --name PRACA_LAGO_COVE_DOACTION
 cd ../.. && npm run waddle:build
 ```
 

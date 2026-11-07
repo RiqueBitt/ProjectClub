@@ -89,7 +89,23 @@ export type RoomName = 'town' |
   'park' |
   'pufflewild' |
   'skatepark' |
-  'lago'; // sala própria do Project Club (server/waddle/praca-lago/)
+  'lago' | // sala própria do Project Club (server/waddle/praca-lago/)
+  // Project Club: cenários fixos feitos de salas ORIGINAIS de festas (Expedição da
+  // Montanha e da Caverna 2010, Wilderness 2011, Music Jam 2010, Aventura na Ilha
+  // 2010) — services/waddle/island.js EXTRA_ROOMS
+  'monte1' |
+  'monte2' |
+  'monte3' |
+  'monte4' |
+  'monte5' |
+  'monte6' |
+  'cavex1' |
+  'cavex2' |
+  'cavex3' |
+  'wilder1' |
+  'jam10' |
+  'copas' |
+  'pirata';
 
 
 export type RoomMap<T> = Partial<Record<RoomName, T>>;
@@ -293,6 +309,19 @@ export const ROOMS: Record<RoomName, Room> = {
   'skatepark': { id: 435, name: 'Skatepark', preCpipName: null },
   'pufflewild': { id: 436, name: 'Puffle Wild', preCpipName: null },
   'lago': { id: 438, name: 'Lago', preCpipName: null },
+  'monte1': { id: 440, name: 'Acampamento Base', preCpipName: null },
+  'monte2': { id: 441, name: 'Caverna de Gelo', preCpipName: null },
+  'monte3': { id: 442, name: 'Acampamento do Pico', preCpipName: null },
+  'monte4': { id: 443, name: 'Encosta da Montanha', preCpipName: null },
+  'monte5': { id: 444, name: 'Topo da Montanha', preCpipName: null },
+  'monte6': { id: 445, name: 'Gruta do Tesouro', preCpipName: null },
+  'cavex1': { id: 446, name: 'Escavação da Caverna', preCpipName: null },
+  'cavex2': { id: 447, name: 'Lago da Caverna', preCpipName: null },
+  'cavex3': { id: 448, name: 'Recife Submerso', preCpipName: null },
+  'wilder1': { id: 449, name: 'Caverna dos Puffles Marrons', preCpipName: null },
+  'jam10': { id: 450, name: 'Palco Music Maker', preCpipName: null },
+  'copas': { id: 451, name: 'Casa na Árvore', preCpipName: null },
+  'pirata': { id: 452, name: 'Convés do Navio Pirata', preCpipName: null },
   'beach': {
     id: 400,
     name: 'Beach',

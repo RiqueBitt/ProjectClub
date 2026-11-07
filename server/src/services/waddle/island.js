@@ -76,29 +76,37 @@ const FILES = {
 };
 const ROOM_MUSIC = { hotellobby: 362, hotelspa: 361, hotelroof: 360, park: 658, pufflewild: 897, eco: 436, town: 950, lounge: 674, dojo: 403, pizza: 676, beacon: 583, boiler: 667, light: 588 };
 // nomes em português pras quests/janela Festa (roomInfo em events.js)
-const ROOM_NAMES = { hotellobby: 'Saguão do Hotel dos Puffles', hotelspa: 'Spa do Hotel dos Puffles', hotelroof: 'Terraço do Hotel dos Puffles', park: 'Parque dos Puffles', pufflewild: 'Puffle Wild', skatepark: 'Skatepark', eco: 'Escola', lago: 'Lago' };
+const ROOM_NAMES = { hotellobby: 'Saguão do Hotel dos Puffles', hotelspa: 'Spa do Hotel dos Puffles', hotelroof: 'Terraço do Hotel dos Puffles', park: 'Parque dos Puffles', pufflewild: 'Puffle Wild', skatepark: 'Skatepark', eco: 'Escola', lake: 'Lago Escondido' };
 
-// Lago — sala própria do Project Club, com a arte do dono (server/waddle/praca-lago/).
-// O arquivo vem do repositório (não da Archives): é copiado pra media/pcisland/ e
-// entra na ilha junto com as salas de 2015; no mapa e na Floresta/Enseada o
-// file-server do WF injeta o ícone e os gatilhos (swf-patches.ts). A música é a
-// do Parque dos Puffles (658), que já faz parte desta camada.
-const LAGO_SRC = path.join(__dirname, '..', '..', '..', 'waddle', 'praca-lago', 'lago.swf');
-const LAGO_MUSIC = 658;
-// textos do jogo que o Lago precisa (dica do ícone no mapa)
-const STRINGS = { 'w.map.lago': 'Lago' };
-function ensureLago() {
-  try {
-    const src = fs.statSync(LAGO_SRC);
-    const dst = local('lago.swf');
-    let have = null;
-    try { have = fs.statSync(dst); } catch { /* ainda não copiado */ }
-    if (!have || have.size !== src.size || have.mtimeMs < src.mtimeMs) {
-      fs.mkdirSync(dir(), { recursive: true });
-      fs.copyFileSync(LAGO_SRC, dst);
-    }
-    return true;
-  } catch { return false; }
+// Cenários do Project Club — salas ORIGINAIS de festas do Club Penguin (2010-2011)
+// que já vêm na mídia do Waddle Forever (default/archives/), servidas como salas
+// fixas com ícone no mapa (server/waddle/praca-lago/icons.json → patch do map.swf).
+// Dentro delas os gatilhos usam as chaves "partyN" das festas; o file-server do WF
+// troca essas strings pelas chaves daqui (swf-patches.ts). Música: a da festa.
+const EXTRA_ROOMS = {
+  lake: { file: 'default/archives/RoomsLake-May2015.swf', name: 'Lago Escondido' }, // versão 2015 da sala original (id 814)
+  monte1: { file: 'default/archives/RoomsParty1-MtnExpedition.swf', music: 294, name: 'Acampamento Base' },
+  monte2: { file: 'default/archives/RoomsParty2-MtnExpedition.swf', music: 294, name: 'Caverna de Gelo' },
+  monte3: { file: 'default/archives/RoomsParty3-MtnExpedition.swf', music: 295, name: 'Acampamento do Pico' },
+  monte4: { file: 'default/archives/RoomsParty4-MtnExpedition.swf', music: 295, name: 'Encosta da Montanha' },
+  monte5: { file: 'default/archives/RoomsParty5-MtnExpedition.swf', music: 295, name: 'Topo da Montanha' },
+  monte6: { file: 'default/archives/RoomsParty6-MtnExpedition.swf', music: 256, name: 'Gruta do Tesouro' },
+  cavex1: { file: 'default/archives/RoomsParty1-CaveExpedition.swf', music: 247, name: 'Escavação da Caverna' },
+  cavex2: { file: 'default/archives/RoomsParty2-CaveExpedition.swf', music: 247, name: 'Lago da Caverna' },
+  cavex3: { file: 'default/archives/RoomsParty3-CaveExpedition.swf', music: 247, name: 'Recife Submerso' },
+  wilder1: { file: 'default/archives/RoomsParty13-WildernessExpedition.swf', music: 247, name: 'Caverna dos Puffles Marrons' },
+  jam10: { file: 'default/archives/RoomsParty-MusicJam2010.swf', music: 271, name: 'Palco Music Maker' },
+  copas: { file: 'default/archives/RoomsParty-IslandAdventureParty2010.swf', music: 267, name: 'Casa na Árvore' },
+  pirata: { file: 'default/archives/RoomsParty2-IslandAdventureParty2010.swf', music: 289, name: 'Convés do Navio Pirata' },
+};
+// textos do jogo (dica dos ícones no mapa)
+const STRINGS = { 'w.map.lago': 'Lago Escondido' };
+for (const [k, r] of Object.entries(EXTRA_ROOMS)) STRINGS[`w.map.${k}`] = r.name;
+const extraOnDisk = (rel) => { try { return fs.statSync(path.join(mediaDir(), rel)).size > 1000; } catch { return false; } };
+function extraRooms() {
+  const out = {};
+  for (const [k, r] of Object.entries(EXTRA_ROOMS)) if (extraOnDisk(r.file)) out[k] = r;
+  return out;
 }
 
 // Os ícones do mapa de 2015 (Parque, Puffle Wild, Skatepark, hotel…) vêm do
@@ -152,7 +160,7 @@ async function setEnabled(on) {
 }
 
 function status() {
-  return { enabled, ready: ready(), files: state, rooms: Object.keys(FILES.rooms), map: '2015', lago: ensureLago() };
+  return { enabled, ready: ready(), files: state, rooms: Object.keys(FILES.rooms), map: '2015', extra: Object.keys(extraRooms()) };
 }
 
 async function fetchOne(rel) {
@@ -191,18 +199,16 @@ async function ensureFiles(log = () => {}) {
 
 /** Código da camada pra contentVersion: muda quando a lista de arquivos muda (fura o cache de 30 dias). */
 function code() {
-  // o lago.swf entra na conta (bytes em kB mod 100) pra trocar a versão quando a sala muda
-  let lago = 0;
-  try { lago = Math.floor(fs.statSync(LAGO_SRC).size / 1024) % 100; } catch { /* sem lago */ }
-  return `15${String(Object.keys(FILES.rooms).length + Object.keys(FILES.music).length).padStart(2, '0')}${String(lago).padStart(2, '0')}`;
+  // os cenários extras entram na conta pra trocar a versão (cache) quando a lista muda
+  return `15${String(Object.keys(FILES.rooms).length + Object.keys(FILES.music).length).padStart(2, '0')}${String(Object.keys(extraRooms()).length).padStart(2, '0')}`;
 }
 
 /** Camada pra parties.apply (vazia se desligada ou sem arquivos). */
 function overlay() {
   const out = { rooms: {}, music: {}, musicFiles: {}, routes: {}, any: false };
-  if (ensureLago()) {
-    out.rooms.lago = `${SUBDIR}/lago.swf`; out.any = true;
-    if (onDisk(FILES.music[LAGO_MUSIC])) { out.music.lago = LAGO_MUSIC; out.musicFiles[LAGO_MUSIC] = `${SUBDIR}/${path.basename(FILES.music[LAGO_MUSIC])}`; }
+  for (const [k, r] of Object.entries(extraRooms())) {
+    out.rooms[k] = r.file; out.any = true;
+    if (r.music) out.music[k] = r.music; // músicas de 2010-2011: o WF já tem o arquivo
   }
   if (!enabled) return out;
   if (onDisk(FILES.map)) {
@@ -219,7 +225,10 @@ function overlay() {
 }
 
 /** Nome da sala em português quando a ilha 2015 está ligada (Escola no lugar da Usina). */
-function roomName(key) { return enabled ? ROOM_NAMES[key] || null : (key === 'eco' ? null : ROOM_NAMES[key] || null); }
+function roomName(key) {
+  if (EXTRA_ROOMS[key] && key !== 'lake') return EXTRA_ROOMS[key].name;
+  return enabled ? ROOM_NAMES[key] || null : (key === 'eco' ? null : ROOM_NAMES[key] || null);
+}
 
 function attach() {
   loadSetting().then(() => ensureFiles((m) => console.log(`[praça] ${m}`))).catch((err) => console.warn('[praça] ilha 2015:', err?.message || err));
@@ -227,4 +236,4 @@ function attach() {
   setInterval(() => { if (!ready()) ensureFiles(() => {}).catch(() => {}); }, 10 * 60_000).unref?.();
 }
 
-module.exports = { attach, overlay, status, setEnabled, ensureFiles, roomName, code, MAP_ROUTE, FILES, STRINGS };
+module.exports = { attach, overlay, status, setEnabled, ensureFiles, roomName, code, MAP_ROUTE, FILES, STRINGS, EXTRA_ROOMS };
