@@ -47,6 +47,31 @@ const ROOM_MUSIC = { hotellobby: 362, hotelspa: 361, hotelroof: 360, park: 658, 
 // nomes em português pras quests/janela Festa (roomInfo em events.js)
 const ROOM_NAMES = { hotellobby: 'Saguão do Hotel dos Puffles', hotelspa: 'Spa do Hotel dos Puffles', hotelroof: 'Terraço do Hotel dos Puffles', park: 'Parque dos Puffles', pufflewild: 'Puffle Wild', skatepark: 'Skatepark', eco: 'Escola' };
 
+// Os ícones do mapa de 2015 (Parque, Puffle Wild, Skatepark, hotel…) vêm do
+// map_triggers.json do jogo; o de 2012 não tem essas entradas, então o
+// clique não fazia nada. O WF guarda o map_triggers de 2016 (svanilla): a
+// gente serve uma cópia dele com o Skatepark (sala que não temos) apontando
+// pra Cabana da Mina, que é vizinha.
+const TRIGGERS_ROUTE = 'play/v2/content/global/content/map_triggers.json';
+const TRIGGERS_SRC = 'default/svanilla/media/play/v2/content/global/content/map_triggers.json';
+const TRIGGERS_OUT = 'map_triggers.json';
+const SKATEPARK_FALLBACK = 807; // Cabana da Mina
+function buildTriggers() {
+  try {
+    const src = path.join(mediaDir(), TRIGGERS_SRC);
+    if (!fs.existsSync(src)) return false;
+    const j = JSON.parse(fs.readFileSync(src, 'utf8'));
+    for (const cat of j.categories || []) for (const it of cat.items || []) {
+      if (Number(it.roomid) === 435 || it.label === 'skate_park') it.roomid = SKATEPARK_FALLBACK;
+    }
+    fs.mkdirSync(dir(), { recursive: true });
+    const out = path.join(dir(), TRIGGERS_OUT);
+    const text = JSON.stringify(j);
+    if (!fs.existsSync(out) || fs.readFileSync(out, 'utf8') !== text) fs.writeFileSync(out, text);
+    return true;
+  } catch { return false; }
+}
+
 const SETTING_KEY = 'island';
 let enabled = true; // ligado por padrão (pedido do dono: mapa de 2015 como o normal)
 let state = { state: 'idle', have: 0, total: 0, error: null };
@@ -114,7 +139,10 @@ async function ensureFiles(log = () => {}) {
 function overlay() {
   const out = { rooms: {}, music: {}, musicFiles: {}, routes: {}, any: false };
   if (!enabled) return out;
-  if (onDisk(FILES.map)) { out.routes[MAP_ROUTE] = `${SUBDIR}/${path.basename(FILES.map)}`; out.any = true; }
+  if (onDisk(FILES.map)) {
+    out.routes[MAP_ROUTE] = `${SUBDIR}/${path.basename(FILES.map)}`; out.any = true;
+    if (buildTriggers()) out.routes[TRIGGERS_ROUTE] = `${SUBDIR}/${TRIGGERS_OUT}`;
+  }
   for (const [key, rel] of Object.entries(FILES.rooms)) {
     if (!onDisk(rel)) continue;
     out.rooms[key] = `${SUBDIR}/${path.basename(rel)}`; out.any = true;

@@ -25,8 +25,15 @@ test('sem arquivos no disco a camada fica vazia; com os arquivos entra mapa, sal
   fake(island.FILES.map);
   for (const rel of Object.values(island.FILES.rooms)) fake(rel);
   fake(island.FILES.music[362]);
+  // map_triggers de 2016 (svanilla) vira o do mapa, com o Skatepark (435) indo pra Cabana da Mina
+  const trig = path.join(media, 'default/svanilla/media/play/v2/content/global/content');
+  fs.mkdirSync(trig, { recursive: true });
+  fs.writeFileSync(path.join(trig, 'map_triggers.json'), JSON.stringify({ categories: [{ name: 'places', items: [{ label: 'town', roomid: 100 }, { label: 'skate_park', roomid: 435 }, { label: 'puffle_park', roomid: 434 }] }] }));
   const o = island.overlay();
   assert.equal(o.any, true);
+  assert.equal(o.routes['play/v2/content/global/content/map_triggers.json'], 'pcisland/map_triggers.json');
+  const built = JSON.parse(fs.readFileSync(path.join(media, 'pcisland', 'map_triggers.json'), 'utf8'));
+  assert.deepEqual(built.categories[0].items.map((i) => i.roomid), [100, 807, 434]);
   assert.equal(o.routes[island.MAP_ROUTE], 'pcisland/ContentMapJun2015.swf');
   assert.equal(o.rooms.hotellobby, 'pcisland/RoomsHotelLobby_2.swf');
   assert.equal(o.rooms.eco, 'pcisland/RoomsSchool-May2015.swf', 'Escola no id da Usina');
