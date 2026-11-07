@@ -116,6 +116,9 @@ dependencies {
     implementation("com.squareup.okhttp3:okhttp:4.12.0")
     implementation("io.coil-kt:coil-compose:2.7.0")
     implementation("io.coil-kt:coil-gif:2.7.0")
+    // Player de vídeo (chat, galeria): Media3/ExoPlayer com os controles do PlayerView.
+    implementation("androidx.media3:media3-exoplayer:1.5.1")
+    implementation("androidx.media3:media3-ui:1.5.1")
     implementation("io.socket:socket.io-client:2.1.1") {
         exclude(group = "org.json", module = "json") // o Android já tem org.json
     }

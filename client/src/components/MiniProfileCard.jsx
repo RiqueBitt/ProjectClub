@@ -21,6 +21,7 @@ import ProfileEffectOverlay from './ProfileEffectOverlay.jsx';
 import { profileStyleClass } from '../utils/profileStyle';
 import { cssZoom } from '../utils/cssZoom';
 import { MiniProfilePet } from './pet/ProfilePet.jsx';
+import { isFeatureEnabled } from '../utils/features.js';
 import RoleIcon from './RoleIcon.jsx';
 import PinguHelpPopover from './PinguHelpPopover.jsx';
 import { PINGU_USERNAME } from '../utils/pinguMessage';
@@ -434,7 +435,7 @@ export default function MiniProfileCard() {
             )}
 
             {/* Fase 8: mascote pinguim (só aparece se a pessoa já adotou). */}
-            <MiniProfilePet userId={user.id} />
+            {isFeatureEnabled('profilePet') && <MiniProfilePet userId={user.id} />}
 
             {visibleRoles.length > 0 && (
               <div className="mini-profile-section">

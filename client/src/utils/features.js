@@ -19,6 +19,10 @@ export const FEATURES = Object.freeze({
   // Jigsaw…). DESLIGADO por enquanto (pedido do dono, nov/2026) — o servidor
   // e o painel da staff continuam; só o botão no jogo some.
   plazaFesta: false,
+  // Mascote pinguim do perfil (Fase 8: "Meu pinguim", mascote no perfil grande
+  // e no mini-perfil). DESLIGADO (pedido do dono, nov/2026): some do perfil,
+  // da busca e a rota /meu-pinguim redireciona; a API continua guardada.
+  profilePet: false,
 });
 
 export const isFeatureEnabled = (key) => FEATURES[key] === true;

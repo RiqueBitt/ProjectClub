@@ -14,7 +14,9 @@ Palco Music Maker), Aventura na Ilha 2010 (`copas`, Casa na Árvore; `pirata`, C
 do Navio). Dentro das salas os gatilhos usam `partyN`; `swf-patches.ts` troca pelas
 chaves novas (mesmo tamanho) pra cadeia continuar andando. Ícones: `make_icons.py`
 recorta a arte original de cada sala (`art/renders/`) num círculo com borda, estilo
-dos ícones do mapa 2015; posições e salas em `icons.json`.
+dos ícones do mapa 2015; posições e salas em `icons.json`. **Acesso rápido pelo mapa
+DESLIGADO** (pedido do dono, nov/2026): `icons.json` só tem o lago; a lista completa
+está em `icons.cenarios.json` — pra religar, copie as entradas de volta e regere.
 
 ```sh
 python3 make_icons.py        # art/icon-<key>.png a partir de art/renders/<key>.png (FFDec: -export frame)

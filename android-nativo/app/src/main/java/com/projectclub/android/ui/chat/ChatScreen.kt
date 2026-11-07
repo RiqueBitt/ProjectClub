@@ -109,6 +109,7 @@ import com.projectclub.android.data.ChatLogic
 import com.projectclub.android.data.Message
 import com.projectclub.android.data.Repository
 import com.projectclub.android.data.Room
+import com.projectclub.android.ui.common.InlineVideo
 import com.projectclub.android.ui.common.Avatar
 import com.projectclub.android.ui.common.formatTime
 import com.projectclub.android.ui.common.richText
@@ -473,7 +474,10 @@ private fun MessageItem(
                     )
                 }
             }
-            m.attachments.filter { !(it.isImage && !it.isSpoiler) }.forEach { a -> FileChip(a) { Config.media(a.url)?.let(uri::openUri) } }
+            m.attachments.filter { it.isVideo && !it.isSpoiler }.forEach { a ->
+                Config.media(a.url)?.let { url -> InlineVideo(url, modifier = Modifier.padding(top = 6.dp)) }
+            }
+            m.attachments.filter { !(it.isImage && !it.isSpoiler) && !(it.isVideo && !it.isSpoiler) }.forEach { a -> FileChip(a) { Config.media(a.url)?.let(uri::openUri) } }
             val groups = ChatLogic.groupReactions(m.reactions, myId)
             if (groups.isNotEmpty()) FlowRow(Modifier.padding(top = 4.dp), horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
                 groups.forEach { (emoji, count, mine) ->

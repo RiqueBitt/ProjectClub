@@ -39,6 +39,7 @@ const STAGE = { w: 760, h: 480 };
 const MUTE_KEY = 'pc.praca.muted';
 const BASE_KEY = 'pc.praca.base'; // versão do jogo instalada neste navegador
 const EVENT_KEY = 'pc.praca.event.'; // + chave do evento → pacote baixado
+const SKIP_KEY = 'pc.praca.skip'; // '1' = a pessoa escolheu "Jogar sem baixar": não pergunta mais
 
 const readLS = (k) => { try { return localStorage.getItem(k); } catch { return null; } };
 const writeLS = (k, v) => { try { localStorage.setItem(k, v); } catch { /* ignora */ } };
@@ -266,9 +267,11 @@ export default function PracaPage({ embedded = false, background = false, onClos
   }, []);
 
   // 1b) instalação. Jogo instalado neste navegador → abre direto, sem tela
-  // nenhuma. Senão, mostra o botão "Baixar o jogo completo" (a pessoa decide
-  // quando baixar os ~340 MB) ou "Jogar sem baixar" (vem tudo por demanda).
-  // Durante festa, o pacote do evento é oferecido do mesmo jeito, uma vez.
+  // nenhuma (se a versão mudou, o Centro de downloads oferece a atualização;
+  // antes essa tela voltava a cada mudança de arquivo, pedindo os 340 MB de
+  // novo). Quem nunca baixou vê UMA vez "Baixar o jogo completo" ou "Jogar sem
+  // baixar" — a escolha fica guardada e não pergunta mais. Durante festa, o
+  // pacote do evento é oferecido uma vez, só pra quem tem o jogo baixado.
   const useCacheRef = useRef(false);
   const installAbort = useRef(null);
   useEffect(() => {
@@ -282,12 +285,12 @@ export default function PracaPage({ embedded = false, background = false, onClos
       useCacheRef.current = useCache;
       setCacheOk(useCache);
       const installed = readLS(BASE_KEY);
-      if (installed !== b.version) {
+      if (!installed && readLS(SKIP_KEY) !== '1') {
         setPhase('download');
-        setInstall({ kind: 'base', name: 'Club Penguin 2012', ratio: 0, total: b.base.bytes, update: !!installed, ask: true });
+        setInstall({ kind: 'base', name: 'Club Penguin 2012', ratio: 0, total: b.base.bytes, update: false, ask: true });
         return;
       }
-      if (b.event && readLS(EVENT_KEY + b.event.key) !== '1') {
+      if (installed && b.event && readLS(EVENT_KEY + b.event.key) !== '1') {
         setPhase('event');
         setInstall({ kind: 'event', name: b.event.name, ratio: 0, total: b.event.bytes, ask: true });
         return;
@@ -327,7 +330,7 @@ export default function PracaPage({ embedded = false, background = false, onClos
   }, [cfg]);
   const downloadBase = useCallback(() => runInstall(cfg?.bundles?.base, 'base'), [cfg, runInstall]);
   const downloadEvent = useCallback(() => runInstall(cfg?.bundles?.event, 'event'), [cfg, runInstall]);
-  const skipDownload = useCallback(() => { setReady(cfg); }, [cfg]);
+  const skipDownload = useCallback(() => { writeLS(SKIP_KEY, '1'); setReady(cfg); }, [cfg]);
 
   // 2) sobe o Ruffle com o jogo
   useEffect(() => {

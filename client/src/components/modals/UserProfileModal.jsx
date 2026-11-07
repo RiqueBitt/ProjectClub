@@ -1518,7 +1518,7 @@ export default function UserProfileModal() {
                   </section>
                 ))}
                 {/* Fase 8: mascote pinguim do perfil. */}
-                <ProfilePet userId={user.id} isMe={isMe} onNavigate={closeProfile} />
+                {isFeatureEnabled('profilePet') && <ProfilePet userId={user.id} isMe={isMe} onNavigate={closeProfile} />}
                 <ProfileGamesSection userId={user.id} />
               </div>
 

@@ -550,7 +550,7 @@ export default function MainApp() {
                 <Route path="/loja" element={<LojaPage />} />
                 <Route path="/loja/colecao/:colecao" element={<LojaPage />} />
                 <Route path="/loja/criadores" element={<LojaCriadoresPage />} />
-                <Route path="/meu-pinguim" element={<MeuPinguimPage />} />
+                <Route path="/meu-pinguim" element={isFeatureEnabled('profilePet') ? <MeuPinguimPage /> : <Navigate to="/economia" replace />} />
                 {/* O jogo fica montado fora das rotas (PracaKeepAlive, logo
                     abaixo): continua rodando em segundo plano ao sair daqui. */}
                 <Route path="/praca" element={null} />

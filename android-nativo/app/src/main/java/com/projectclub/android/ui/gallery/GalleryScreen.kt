@@ -65,6 +65,7 @@ import com.projectclub.android.data.GalleryLikesResponse
 import com.projectclub.android.data.GalleryListResponse
 import com.projectclub.android.data.GalleryToggleResponse
 import com.projectclub.android.data.Repository
+import com.projectclub.android.ui.common.VideoPlayer
 import com.projectclub.android.ui.common.Avatar
 import com.projectclub.android.ui.common.Bone
 import com.projectclub.android.ui.common.EmptyState
@@ -195,10 +196,7 @@ private fun Viewer(item: GalleryItem, likes: Int, liked: Boolean, onLike: () -> 
     Dialog(onDismissRequest = onClose, properties = DialogProperties(usePlatformDefaultWidth = false)) {
         Box(Modifier.fillMaxSize().background(Color.Black)) {
             if (item.isVideo) {
-                Column(Modifier.align(Alignment.Center), horizontalAlignment = Alignment.CenterHorizontally) {
-                    Icon(Icons.Outlined.PlayCircle, null, tint = Color.White, modifier = Modifier.size(64.dp))
-                    GhostButton("Abrir onde foi postado", onOpenSource, color = Color.White)
-                }
+                Config.media(item.url)?.let { url -> VideoPlayer(url, Modifier.fillMaxSize().padding(bottom = 72.dp), autoPlay = true) }
             } else AsyncImage(
                 Config.media(item.url), null, imageLoader = loader, contentScale = ContentScale.Fit,
                 modifier = Modifier.fillMaxSize()
