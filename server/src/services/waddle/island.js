@@ -1,7 +1,8 @@
 'use strict';
 // Ilha 2015 — o mapa final do Club Penguin (junho de 2015, o mais bonito) como
-// mapa normal da Praça, com as salas que ele aponta e o Waddle Forever (que
-// para em 2012) não tem: Hotel dos Puffles (saguão, spa, terraço), Parque
+// mapa normal da Praça, TODAS as salas principais na última versão normal
+// (2015-2017) da Archives, e as salas que o mapa aponta e o Waddle Forever
+// (que para em 2012) não tem: Hotel dos Puffles (saguão, spa, terraço), Parque
 // dos Puffles, Puffle Wild e a Escola (no lugar da Usina de Reciclagem, mesmo
 // id 122). A Praça e o Pet Shop entram na versão de 2015 pra ter as portas
 // do hotel e do parque. O Shopping (id 340) continua sendo o Palco.
@@ -33,6 +34,29 @@ const FILES = {
     eco: 'static/images/archives/a/aa/RoomsSchool-May2015.swf', // Escola (id 122)
     plaza: 'static/images/archives/6/62/RoomsPlaza-June2015.swf',
     pet: 'static/images/archives/4/4a/RoomsPet-May2015.swf',
+    // o resto da ilha no visual 2015-2017 (última versão normal de cada sala na Archives)
+    town: 'static/images/archives/6/63/RoomsTown-November2015.swf',
+    coffee: 'static/images/archives/b/bf/RoomsCoffee-May2015.swf',
+    book: 'static/images/archives/d/d5/RoomsBook-May2015.swf',
+    dance: 'static/images/archives/6/64/RoomsDance-May2015.swf',
+    lounge: 'static/images/archives/2/2b/RoomsLounge-May2015.swf',
+    shop: 'static/images/archives/6/68/RoomsShop-May2015.swf',
+    forts: 'static/images/archives/b/bd/RoomsForts-February2016.swf',
+    village: 'static/images/archives/e/e3/RoomsVillage-January2016.swf',
+    lodge: 'static/images/archives/5/53/RoomsLodge-September2015.swf',
+    attic: 'static/images/archives/5/5b/RoomsAttic-May2015.swf',
+    mtn: 'static/images/archives/7/75/RoomsMtn-May2015.swf',
+    dojo: 'static/images/archives/c/c2/RoomsDojo-May2015.swf',
+    dojoext: 'static/images/archives/6/69/RoomsDojoext_6.swf',
+    pizza: 'static/images/archives/e/e2/RoomsPizza-May2015.swf',
+    beach: 'static/images/archives/7/7e/RoomsBeach2.swf',
+    light: 'static/images/archives/b/b1/LightCurrent.swf',
+    beacon: 'static/images/archives/4/47/RoomsBeacon-May2015.swf',
+    forest: 'static/images/archives/d/d7/RoomsForest-June2015.swf',
+    cove: 'static/images/archives/c/cb/RoomsCove-May2015.swf',
+    mine: 'static/images/archives/e/ee/RoomsMine-2015.swf',
+    boiler: 'static/images/archives/b/be/RoomsBoiler-May2015.swf',
+    rink: 'static/images/archives/9/9f/RoomsRink-November2015.swf',
   },
   music: { // id → arquivo (o WF não tem essas)
     362: 'static/images/archives/c/cc/Music362.swf', // saguão do hotel
@@ -41,9 +65,16 @@ const FILES = {
     658: 'static/images/archives/8/8e/Music658.swf', // parque
     897: 'static/images/archives/8/87/Music897.swf', // Puffle Wild
     436: 'static/images/archives/3/34/Music436.swf', // escola
+    950: 'static/images/archives/b/be/Music950.swf', // Centro 2015
+    674: 'static/images/archives/5/55/Music674.swf', // Lounge 2015
+    403: 'static/images/archives/1/16/Music403.swf', // Dojo 2015
+    676: 'static/images/archives/0/0e/Music676.swf', // Pizzaria 2015
+    583: 'static/images/archives/7/71/Music583.swf', // Holofote 2015
+    667: 'static/images/archives/f/f6/Music667.swf', // Caldeira 2015
+    588: 'static/images/archives/e/e4/Music588.swf', // Farol
   },
 };
-const ROOM_MUSIC = { hotellobby: 362, hotelspa: 361, hotelroof: 360, park: 658, pufflewild: 897, eco: 436 };
+const ROOM_MUSIC = { hotellobby: 362, hotelspa: 361, hotelroof: 360, park: 658, pufflewild: 897, eco: 436, town: 950, lounge: 674, dojo: 403, pizza: 676, beacon: 583, boiler: 667, light: 588 };
 // nomes em português pras quests/janela Festa (roomInfo em events.js)
 const ROOM_NAMES = { hotellobby: 'Saguão do Hotel dos Puffles', hotelspa: 'Spa do Hotel dos Puffles', hotelroof: 'Terraço do Hotel dos Puffles', park: 'Parque dos Puffles', pufflewild: 'Puffle Wild', skatepark: 'Skatepark', eco: 'Escola' };
 

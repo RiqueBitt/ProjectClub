@@ -15,6 +15,10 @@ export const FEATURES = Object.freeze({
   // Cartão do servidor de Minecraft no Início. DESLIGADO (pedido do dono, nov/2026);
   // a integração continua no painel (Integrações) e no Pingu.
   minecraftHome: false,
+  // Botão "Festa" dentro do Club Penguin (quests, loja do evento, mascotes,
+  // Jigsaw…). DESLIGADO por enquanto (pedido do dono, nov/2026) — o servidor
+  // e o painel da staff continuam; só o botão no jogo some.
+  plazaFesta: false,
 });
 
 export const isFeatureEnabled = (key) => FEATURES[key] === true;
