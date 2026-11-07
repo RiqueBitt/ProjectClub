@@ -26,6 +26,10 @@
  * editor do iglu, um painel com o móvel em cada direção (antes só dava pra
  * girar com as setas do teclado enquanto arrastava) — praca-igloo-action.ts.
  *
+ * backyard.swf: um DoAction a mais no 1º quadro põe o cenário do LOCAL do
+ * iglu atrás do quintal (a mídia só tem o 1_backyard.swf, então trocar o fundo
+ * do iglu não mudava o quintal) — praca-backyard-action.ts.
+ *
  * map.swf: os cenários do Project Club (server/waddle/praca-lago/icons.json) —
  * no 1º quadro entram os ícones (símbolos exportados) e um DoAction que os põe
  * clicáveis em MAP.id_0 — praca-lago-map-tags.ts.
@@ -47,6 +51,7 @@ import zlib from 'zlib';
 import { PRACA_VOICE_DOACTION } from './praca-voice-action';
 import { PRACA_SHELL_DOACTION } from './praca-shell-action';
 import { PRACA_IGLOO_DOACTION } from './praca-igloo-action';
+import { PRACA_BACKYARD_DOACTION } from './praca-backyard-action';
 import { PRACA_LAGO_MAP_TAGS } from './praca-lago-map-tags';
 import { replaceCoins } from './swf-coins';
 
@@ -75,6 +80,11 @@ const PATCHES: Array<{ test: (route: string) => boolean; patches: Patch[]; frame
     test: (route) => /(^|\/)play\/v2\/client\/igloo\.swf$/.test(route),
     patches: [],
     frame1Tags: [PRACA_IGLOO_DOACTION],
+  },
+  {
+    test: (route) => /(^|\/)play\/v2\/client\/backyard\.swf$/.test(route),
+    patches: [],
+    frame1Tags: [PRACA_BACKYARD_DOACTION],
   },
   {
     test: (route) => /(^|\/)play\/v2\/client\/shell\.swf$/.test(route),

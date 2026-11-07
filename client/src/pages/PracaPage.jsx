@@ -84,7 +84,7 @@ function installSwfAddressShim() {
 // nova a cada versão) e sempre conferindo com o servidor.
 const FRESH_GAME_FILES = [
   /\/play\/v2\/content\/global\/content\/interface\.swf(\?|$)/,
-  /\/play\/v2\/client\/(shell|catalog_viewer|igloo)\.swf(\?|$)/,
+  /\/play\/v2\/client\/(shell|catalog_viewer|igloo|backyard)\.swf(\?|$)/,
   /\/play\/v2\/content\/local\/[a-z]{2}\/(news|catalogues)\//,
 ];
 function freshUrl(url) {
@@ -552,6 +552,13 @@ export default function PracaPage({ embedded = false, background = false, onClos
     window.pracaOpenDownloads = () => { setTimeout(() => setDlOpen(true), 0); return true; };
     return () => { delete window.pracaOpenDownloads; };
   }, [background]);
+
+  // editor do iglu (igloo.swf): o painel "Escolha a direção" só aparece em
+  // tela de toque — no computador gira com as setas do teclado
+  useEffect(() => {
+    window.pracaIsTouch = () => touch;
+    return () => { delete window.pracaIsTouch; };
+  }, [touch]);
 
   // quem está online (a cada 30 s)
   useEffect(() => {

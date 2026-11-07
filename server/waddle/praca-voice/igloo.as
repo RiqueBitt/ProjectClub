@@ -6,13 +6,26 @@
 // (← → giram, ↑ ↓ trocam o modelo) — quase ninguém sabia, e no celular não
 // tem teclado. Agora, ao soltar um móvel que tem outras direções, aparece um
 // painel com a imagem do móvel em cada direção: clicar numa delas gira o
-// móvel (e o iglu salva como sempre).
+// móvel (e o iglu salva como sempre). Só no celular/tablet (tela de toque):
+// no computador dá pra girar com as setas do teclado, então o painel não
+// aparece (a página responde "pracaIsTouch" pelo ExternalInterface).
 var pciDZ = _global.com.clubpenguin.igloo.mediator.iglooEditor.IglooRendererDragZoneMediator;
 var pciPicker = undefined;
 var PCI_THUMB = 40;
 var PCI_GAP = 4;
 var PCI_PAD = 6;
 var PCI_MAX = 8;
+var pciTouch = undefined;
+
+function pciIsTouch()
+{
+   if(pciTouch == undefined)
+   {
+      var r = flash.external.ExternalInterface.call("pracaIsTouch");
+      pciTouch = r == true || r == "true";
+   }
+   return pciTouch;
+}
 
 function pciHidePicker()
 {
@@ -189,7 +202,7 @@ if(pciDZ != undefined && pciDZ.prototype.pciPatched != true)
    {
       var med = this._furnitureMediator;
       pciOrigApply.apply(this, arguments);
-      if(med != undefined && med.hasValidPosition)
+      if(med != undefined && med.hasValidPosition && pciIsTouch())
       {
          pciShowPicker(this, med);
       }
@@ -205,5 +218,51 @@ if(pciDZ != undefined && pciDZ.prototype.pciPatched != true)
    {
       pciHidePicker();
       return pciOrigRemove.apply(this, arguments);
+   };
+}
+
+// Fila de carregamento do editor: trocar o piso (ou o local) enquanto o
+// anterior ainda estava baixando destruía o item no meio do carregamento — a
+// fila (IglooItemViewLoader) ficava esperando um arquivo que nunca chegava e
+// nada mais carregava: o editor "travava". Agora item destruído sai da fila e
+// ela segue pro próximo.
+var pciLoaderClass = _global.com.clubpenguin.igloo.services.IglooItemViewLoader;
+var pciItemClass = _global.com.clubpenguin.igloo.mediator.iglooItems.IglooItemViewMediator;
+if(pciLoaderClass != undefined && pciItemClass != undefined && pciLoaderClass.prototype.pciQueuePatched != true)
+{
+   pciLoaderClass.prototype.pciQueuePatched = true;
+   var pciOrigLoadNext = pciLoaderClass.prototype.loadNext;
+   pciLoaderClass.prototype.loadNext = function()
+   {
+      while(this._queue.length > 0 && this._queue[0].pciDead == true)
+      {
+         this._queue.shift();
+      }
+      if(this._queue.length == 0)
+      {
+         this._isLoading = false;
+         this._currentView = undefined;
+         return;
+      }
+      this._queue[0].pciLoader = this;
+      pciOrigLoadNext.apply(this, arguments);
+   };
+   var pciOrigDestroy = pciItemClass.prototype.destroy;
+   pciItemClass.prototype.destroy = function()
+   {
+      var me = this;
+      var ld = this.pciLoader;
+      this.pciDead = true;
+      pciOrigDestroy.apply(this, arguments);
+      if(ld != undefined && ld._isLoading && ld._currentView == me)
+      {
+         _global.setTimeout(function()
+         {
+            if(ld._isLoading && ld._currentView == me)
+            {
+               ld.onLoadError();
+            }
+         }, 1);
+      }
    };
 }
