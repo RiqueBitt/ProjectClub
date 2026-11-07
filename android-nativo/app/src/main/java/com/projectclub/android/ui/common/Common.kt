@@ -15,6 +15,15 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.drawWithContent
+import androidx.compose.ui.geometry.CornerRadius
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.graphics.BlendMode
+import androidx.compose.ui.graphics.CompositingStrategy
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.zIndex
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.AnnotatedString
@@ -65,23 +74,55 @@ val LocalMobileUsers = androidx.compose.runtime.staticCompositionLocalOf<Set<Str
 /** Avatar redondo (com a bolinha de presença, se [status] vier). */
 @Composable
 fun Avatar(user: User?, size: Dp = 40.dp, status: String? = null, modifier: Modifier = Modifier, decoration: Boolean = true) {
+    // Bolinha de presença: fica DENTRO do quadrado do avatar (nada de offset
+    // pra fora, que era cortado pelo clip do card/linha) e abre um "recorte"
+    // transparente no avatar em volta dela — funciona em qualquer fundo, sem
+    // depender de um anel com a cor do fundo.
+    val dot = (size.value * 0.30f).coerceAtLeast(10f).dp
+    val gap = (size.value * 0.05f).coerceIn(2f, 4f).dp
+    val mobile = status == "ONLINE" && user?.id != null && user.id in LocalMobileUsers.current
+    val phoneW = dot * 0.72f
+    val phoneH = dot * 1.1f
     Box(modifier.size(size), contentAlignment = Alignment.Center) {
-        val url = Config.media(user?.avatarUrl)
-        if (url != null) {
-            AsyncImage(
-                model = url, contentDescription = user?.name,
-                contentScale = ContentScale.Crop,
-                modifier = Modifier.fillMaxSize().clip(CircleShape).background(PC.Surface2),
-            )
-        } else {
-            Box(
-                Modifier.fillMaxSize().clip(CircleShape).background(colorFor(user?.id)),
-                contentAlignment = Alignment.Center,
-            ) {
-                Text(
-                    (user?.name ?: "?").take(1).uppercase(),
-                    color = Color.White, fontWeight = FontWeight.Bold, fontSize = (size.value * 0.42f).sp,
+        val cut = if (status == null) Modifier else Modifier
+            .graphicsLayer { compositingStrategy = CompositingStrategy.Offscreen }
+            .drawWithContent {
+                drawContent()
+                val g = gap.toPx()
+                if (mobile) {
+                    val w = phoneW.toPx() + g * 2; val h = phoneH.toPx() + g * 2
+                    drawRoundRect(
+                        Color.Black, topLeft = Offset(this.size.width - w, this.size.height - h),
+                        size = Size(w, h), cornerRadius = CornerRadius(dot.toPx() * 0.3f + g),
+                        blendMode = BlendMode.Clear,
+                    )
+                } else {
+                    val r = dot.toPx() / 2
+                    drawCircle(
+                        Color.Black, radius = r + g,
+                        center = Offset(this.size.width - r, this.size.height - r),
+                        blendMode = BlendMode.Clear,
+                    )
+                }
+            }
+        Box(Modifier.fillMaxSize().then(cut)) {
+            val url = Config.media(user?.avatarUrl)
+            if (url != null) {
+                AsyncImage(
+                    model = url, contentDescription = user?.name,
+                    contentScale = ContentScale.Crop,
+                    modifier = Modifier.fillMaxSize().clip(CircleShape).background(PC.Surface2),
                 )
+            } else {
+                Box(
+                    Modifier.fillMaxSize().clip(CircleShape).background(colorFor(user?.id)),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Text(
+                        (user?.name ?: "?").take(1).uppercase(),
+                        color = Color.White, fontWeight = FontWeight.Bold, fontSize = (size.value * 0.42f).sp,
+                    )
+                }
             }
         }
         // Moldura da Loja (User.avatarDecoration = JSON {url, s, x, y}): por
@@ -96,24 +137,20 @@ fun Avatar(user: User?, size: Dp = 40.dp, status: String? = null, modifier: Modi
             )
         }
         if (status != null) {
-            val dot = (size.value * 0.32f).dp
-            val mobile = status == "ONLINE" && user?.id != null && user.id in LocalMobileUsers.current
             if (mobile) {
                 // Online só pelo celular: um celularzinho verde no lugar da bolinha.
                 Box(
-                    Modifier.size(width = dot * 0.78f, height = dot * 1.15f).align(Alignment.BottomEnd).offset(1.dp, 1.dp)
-                        .clip(androidx.compose.foundation.shape.RoundedCornerShape(dot * 0.22f)).background(PC.Bg).padding(2.dp)
-                        .clip(androidx.compose.foundation.shape.RoundedCornerShape(dot * 0.16f)).background(PC.presence(status)),
-                    contentAlignment = Alignment.Center,
+                    Modifier.zIndex(2f).align(Alignment.BottomEnd).size(width = phoneW, height = phoneH)
+                        .clip(RoundedCornerShape(dot * 0.22f)).background(PC.presence(status)),
                 ) {
                     Box(
                         Modifier.padding(start = dot * 0.12f, end = dot * 0.12f, top = dot * 0.14f, bottom = dot * 0.26f).fillMaxSize()
-                            .clip(androidx.compose.foundation.shape.RoundedCornerShape(1.dp)).background(PC.Bg),
+                            .clip(RoundedCornerShape(1.dp)).background(PC.Bg),
                     )
                 }
             } else Box(
-                Modifier.size(dot).align(Alignment.BottomEnd).offset(1.dp, 1.dp)
-                    .clip(CircleShape).background(PC.presence(status)).border(2.dp, PC.Bg, CircleShape),
+                Modifier.zIndex(2f).align(Alignment.BottomEnd).size(dot)
+                    .clip(CircleShape).background(PC.presence(status)),
             )
         }
     }
