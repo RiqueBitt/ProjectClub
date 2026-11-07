@@ -72,7 +72,7 @@ export function useYouTubeWatch(channelId) {
     return Math.max(0, (st.positionSec || 0) + (st.playing ? (now - (st.updatedAt || now)) / 1000 : 0));
   }, [state]);
 
-  return { state, error, setError, emit, expectedPos, active: !!state?.videoId };
+  return { state, error, setError, emit, expectedPos, active: !!state?.videoId, channelId };
 }
 
 const MUSIC_ICON = 'M9 18V5l11-2v13M9 18a3 3 0 1 1-3-3 3 3 0 0 1 3 3zM20 16a3 3 0 1 1-3-3 3 3 0 0 1 3 3z';
@@ -115,6 +115,8 @@ function readVol() {
 // Palco do vídeo dentro da chamada.
 export function YouTubeStage({ yt, viewers = [], onAdd }) {
   const { state, emit, expectedPos } = yt;
+  // Avisa o player de fundo (CallActivityBackground) que a tela está aberta.
+  useEffect(() => { markYouTubeStageMounted(yt.channelId, true); return () => markYouTubeStageMounted(yt.channelId, false); }, [yt.channelId]);
   const wrapRef = useRef(null);
   const hostRef = useRef(null);
   const playerRef = useRef(null);
@@ -463,4 +465,93 @@ export function ActivitiesButton({ onPick, active = null }) {
 export function YouTubeToast({ yt }) {
   if (!yt.error) return null;
   return <div className="ytw-toast" role="status">{yt.error}</div>;
+}
+
+// ---------------------------------------------------------------------------
+// Atividade em segundo plano (pedido do dono, nov/2026): a música/vídeo da
+// chamada continua tocando quando a pessoa vai pra outro canal de texto —
+// só para quando ela SAI da call. A tela da chamada (YouTubeStage) é quem
+// toca enquanto está aberta; ao fechar, este player escondido assume no
+// mesmo ponto (mesmo estado do servidor) e some de novo quando a tela volta.
+const ytViewMounted = { id: null, subs: new Set() };
+export function markYouTubeStageMounted(channelId, mounted) {
+  ytViewMounted.id = mounted ? channelId : (ytViewMounted.id === channelId ? null : ytViewMounted.id);
+  for (const fn of ytViewMounted.subs) fn(ytViewMounted.id);
+}
+function useYouTubeStageMountedId() {
+  const [id, setId] = useState(ytViewMounted.id);
+  useEffect(() => { ytViewMounted.subs.add(setId); setId(ytViewMounted.id); return () => { ytViewMounted.subs.delete(setId); }; }, []);
+  return id;
+}
+
+export function CallActivityBackground({ channelId }) {
+  const stageId = useYouTubeStageMountedId();
+  const yt = useYouTubeWatch(channelId);
+  const hidden = !!channelId && stageId !== channelId;
+  if (!yt.active || !hidden) return null;
+  return <YouTubeBackgroundPlayer yt={yt} />;
+}
+
+function YouTubeBackgroundPlayer({ yt }) {
+  const { state, emit, expectedPos } = yt;
+  const hostRef = useRef(null);
+  const playerRef = useRef(null);
+  const readyRef = useRef(false);
+  const loadedIdRef = useRef(null);
+  const stateRef = useRef(state); stateRef.current = state;
+  const expectedRef = useRef(expectedPos); expectedRef.current = expectedPos;
+  const emitRef = useRef(emit); emitRef.current = emit;
+
+  const apply = useCallback(() => {
+    const p = playerRef.current; const st = stateRef.current;
+    if (!p || !readyRef.current || !st?.videoId) return;
+    const want = expectedRef.current(st);
+    if (loadedIdRef.current !== st.videoId) {
+      loadedIdRef.current = st.videoId;
+      if (st.playing) p.loadVideoById({ videoId: st.videoId, startSeconds: want }); else p.cueVideoById({ videoId: st.videoId, startSeconds: want });
+      return;
+    }
+    const ps = p.getPlayerState?.();
+    const now = p.getCurrentTime?.() || 0;
+    if (Math.abs(now - want) > DRIFT_SEC) p.seekTo(want, true);
+    if (st.playing && ps !== 1 && ps !== 3) p.playVideo();
+    if (!st.playing && ps === 1) p.pauseVideo();
+  }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+    loadYouTubeApi().then((YT) => {
+      if (cancelled || !hostRef.current) return;
+      const mount = document.createElement('div');
+      hostRef.current.appendChild(mount);
+      const st = stateRef.current;
+      loadedIdRef.current = st?.videoId || null;
+      playerRef.current = new YT.Player(mount, {
+        host: 'https://www.youtube-nocookie.com',
+        videoId: st?.videoId, width: '1', height: '1',
+        playerVars: { autoplay: st?.playing ? 1 : 0, controls: 0, disablekb: 1, rel: 0, playsinline: 1, iv_load_policy: 3, start: Math.floor(expectedRef.current(st)), origin: window.location.origin },
+        events: {
+          onReady: (e) => { readyRef.current = true; try { e.target.setVolume(readVol()); } catch { /* ignora */ } apply(); },
+          onStateChange: (e) => { const s = stateRef.current; if (e.data === 0 && s?.videoId) emitRef.current('yt:next', { fromVideoId: s.videoId }); },
+        },
+      });
+    }).catch(() => {});
+    return () => {
+      cancelled = true; readyRef.current = false;
+      try { playerRef.current?.destroy?.(); } catch { /* ignora */ }
+      playerRef.current = null;
+      if (hostRef.current) hostRef.current.innerHTML = '';
+    };
+  }, [apply]);
+
+  useEffect(() => { apply(); }, [state, apply]);
+  useEffect(() => { const t = setInterval(apply, 1000); return () => clearInterval(t); }, [apply]);
+  // O volume escolhido na tela da chamada vale aqui também.
+  useEffect(() => {
+    const onStorage = (e) => { if (e.key === 'pc.ytwatch.volume') { try { playerRef.current?.setVolume(readVol()); } catch { /* ignora */ } } };
+    window.addEventListener('storage', onStorage);
+    return () => window.removeEventListener('storage', onStorage);
+  }, []);
+
+  return <div ref={hostRef} className="ytw-bg-player" aria-hidden="true" style={{ position: 'fixed', width: 1, height: 1, left: -10, bottom: -10, opacity: 0.01, pointerEvents: 'none', overflow: 'hidden' }} />;
 }

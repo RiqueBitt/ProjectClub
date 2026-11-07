@@ -17,6 +17,8 @@ import PanelSlot from '../components/PanelSlot.jsx';
 import DMProfilePanel from '../components/DMProfilePanel.jsx';
 import FriendsListPanel from '../components/FriendsListPanel.jsx';
 import CallBar from '../components/CallBar.jsx';
+import { CallActivityBackground } from '../components/voice/YouTubeWatch.jsx';
+import { useVoice } from '../context/VoiceContext.jsx';
 import MobileTabBar from '../components/MobileTabBar.jsx';
 import IncomingCallBanner from '../components/IncomingCallBanner.jsx';
 import NoticeToast from '../components/NoticeToast.jsx';
@@ -154,6 +156,15 @@ const LojaCriadoresPage = lazy(() => import('./LojaCriadoresPage.jsx'));
 // Economia/Casas/Figurinhas/Painel continuam existindo (nada foi
 // apagado do projeto) — só não fazem mais parte da barra principal,
 // que deve ter somente os 7 itens pedidos.
+// Player de fundo da atividade da chamada (YouTube/YouTube Music): só existe
+// enquanto a pessoa está numa call de canal (não na voz da Praça).
+function CallActivityKeepAlive() {
+  const voice = useVoice();
+  const id = voice?.call?.channelId;
+  if (!id || String(id).startsWith('praca:')) return null;
+  return <CallActivityBackground channelId={id} />;
+}
+
 export default function MainApp() {
   const { user } = useAuth();
   // Tempo real: re-sincroniza comunidade/conta/conversas/amigos a cada 11s.
@@ -606,6 +617,8 @@ export default function MainApp() {
 
       <IncomingCallBanner />
       <PanelSlot panelId="callbar"><CallBar /></PanelSlot>
+      {/* Música/vídeo da chamada continua tocando fora da tela da call (para só ao sair da call). */}
+      <CallActivityKeepAlive />
       <MobileTabBar />
       <NoticeToast />
       <UpdateAvailableBanner />

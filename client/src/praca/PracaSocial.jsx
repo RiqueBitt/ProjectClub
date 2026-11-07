@@ -8,9 +8,11 @@
 //   MESMA SALA que você e onde ('praca:presence' → { room, me, players:
 //   [{ penguinId, userId, name, x, y }] }).
 // - Uma sala de voz só pra ilha inteira ('praca:ilha', o servidor de voz do
-//   próprio Project Club). O volume de cada pessoa sai da distância entre os
-//   pinguins (perto = alto, longe = some; outra sala = mudo), aplicado no
-//   VoiceContext como multiplicador — sem mexer no volume escolhido.
+//   próprio Project Club). Quem está na MESMA SALA do jogo se ouve no volume
+//   normal; outra sala = mudo (pedido do dono, nov/2026: sem abaixar pela
+//   distância). Aplicado no VoiceContext como multiplicador 0/1 — sem mexer no
+//   volume escolhido. Durante um minijogo a pessoa continua na voz da sala de
+//   onde saiu (o servidor mantém a última sala na presença).
 // - Dois botões dentro da barra do jogo: FALAR (microfone) e OUVIR
 //   (escutar os outros). Ligar qualquer um entra na voz; desligar os dois sai.
 //   "Ouvir" desligado zera o volume de todo mundo (não usa o "ensurdecer" do
@@ -21,17 +23,11 @@ import { useVoice } from '../context/VoiceContext.jsx';
 import { useStore } from '../store/useStore';
 
 export const PRACA_VOICE_ID = 'praca:ilha';
-const NEAR = 110; // até aqui: volume cheio (px do palco 760x480)
-const FAR = 380;  // daqui em diante: não ouve
 const PREFS_KEY = 'pc.praca.voice';
 
-/** 0–1 conforme a distância (curva suave). */
-export function proximityGain(dx, dy) {
-  const d = Math.hypot(dx, dy);
-  if (d <= NEAR) return 1;
-  if (d >= FAR) return 0;
-  const t = 1 - (d - NEAR) / (FAR - NEAR);
-  return t * t;
+/** Volume de quem está na mesma sala: sempre cheio (a distância não abaixa mais). */
+export function proximityGain() {
+  return 1;
 }
 
 function readPrefs() {

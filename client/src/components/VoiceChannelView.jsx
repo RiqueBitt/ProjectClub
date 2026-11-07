@@ -10,7 +10,7 @@ import { CustomIcon, hasCustomIcon } from './ChannelIcon.jsx';
 import { usePopoverCoordination } from '../utils/popoverCoordinator';
 import { MicTest, MicSilentWarning, QualityDot } from './voice/VoiceExtras.jsx';
 import ScreenQualityMenu from './voice/ScreenQualityMenu.jsx';
-import { useYouTubeWatch, YouTubeStage, YouTubePicker, ActivitiesButton, YouTubeToast } from './voice/YouTubeWatch.jsx';
+import { useYouTubeWatch, YouTubeStage, YouTubePicker, ActivitiesButton, YouTubeToast, markYouTubeStageMounted } from './voice/YouTubeWatch.jsx';
 import { CallMusicPicker } from '../music/MusicPlayer.jsx';
 import { ReactionBar, ReactionsOverlay, RecordingBanner, RecordButton, LiveCaptions } from './voice/CallExtras.jsx';
 import { getVoicePref, setVoicePref, onVoicePrefsChange } from '../utils/voicePrefs';
@@ -19,7 +19,6 @@ import { buildVoiceModerationItems } from './voice/voiceModerationMenu';
 import { useVideoViewport } from '../voice/useVideoViewport';
 import { TempVoiceRoomBar } from './voice/TempVoiceRoom.jsx';
 import { SoundboardButton } from './voice/Soundboard.jsx';
-import { FocusButton } from './voice/FocusRoom.jsx';
 import { RadioChip, RadioSettings } from './voice/RadioSettings.jsx';
 
 // ============================================================
@@ -108,6 +107,13 @@ export default function VoiceChannelView({ channel }) {
   const memberFor = (userId) => members.find((m) => m.user.id === userId)?.user;
   // YouTube "Assistir juntos" (só em canal de voz comum, dentro da chamada).
   const yt = useYouTubeWatch(inThisCall && !isStage ? channel.id : null);
+  // Enquanto esta tela da chamada está aberta, o player de fundo da atividade
+  // fica quieto (quem toca é o palco); ao sair daqui ele assume.
+  useEffect(() => {
+    if (!inThisCall || isStage) return undefined;
+    markYouTubeStageMounted(channel.id, true);
+    return () => markYouTubeStageMounted(channel.id, false);
+  }, [inThisCall, isStage, channel.id]);
   const [ytPicker, setYtPicker] = useState(false);
   const closeYtPicker = useCallback(() => setYtPicker(false), []);
   // Modo da tela da chamada (H): 'auto' | 'grid' | 'focus'.
@@ -222,7 +228,7 @@ export default function VoiceChannelView({ channel }) {
       <div className={`vc-stage${spotlight ? ' is-spotlight' : ''}`}>
         {spotlight ? (
           <>
-            <div className={`vc-screens vc-screens-${Math.min(screens.length + (yt.active ? 1 : 0), 2)}`}>
+            <div className={`vc-screens vc-screens-${Math.min(screens.length + (yt.active ? 1 : 0), 5)}`}>
               {yt.active && <YouTubeStage yt={yt} viewers={viewers} onAdd={(kind) => setYtPicker(kind || 'youtube')} />}
               {screens.map((s) => {
                 // Volume desta transmissão (0–200%): o SOM DA TELA tem volume
@@ -528,7 +534,8 @@ function VoiceCallControls({ voice, micLocked, onActivity, screenLimitReached = 
         {screenOn && <ScreenQualityMenu voice={voice} className="vc-sqm" />}
         {!micLocked && <ReactionBar voice={voice} />}
         {!micLocked && voice?.call?.channelId && <SoundboardButton channelId={voice.call.channelId} />}
-        {voice?.call?.channelId && <FocusButton channelId={voice.call.channelId} />}
+        {/* Sala de estudos (Pomodoro na call) REMOVIDA da chamada (pedido do dono,
+            nov/2026) — o código fica em voice/FocusRoom.jsx e server/src/sockets/focusRoom.js. */}
         {onActivity && <ActivitiesButton onPick={onActivity} active={activeActivity} />}
         {!micLocked && <RecordButton voice={voice} />}
         <span className="vc-dock-sep" aria-hidden="true" />

@@ -152,8 +152,18 @@
 
 /* Destaque: tela transmitida grande + pessoas numa faixa embaixo */
 .vc-stage.is-spotlight { padding-bottom: 96px; }
-.vc-screens { flex: 1; min-height: 240px; display: grid; gap: 12px; }
+.vc-screens { flex: 1; min-height: 240px; display: grid; gap: 12px; grid-auto-rows: minmax(0, 1fr); }
 .vc-screens-2 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+/* BUG CORRIGIDO (3+ transmissões/atividade no foco): a grade só previa 2 por
+   linha e cada tela exigia 240px — a 3ª caía numa linha nova que vazava por
+   cima da faixa de pessoas. Com 3 ou 4 itens vira 2×2 dividindo a altura
+   livre (as telas encolhem em vez de sobrepor); com mais, a área rola. */
+.vc-screens-3, .vc-screens-4 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.vc-screens-3 .vc-screen, .vc-screens-4 .vc-screen, .vc-screens-3 .ytw-stage, .vc-screens-4 .ytw-stage { min-height: 0; }
+.vc-screens-3 { grid-template-rows: repeat(2, minmax(0, 1fr)); }
+.vc-screens-4 { grid-template-rows: repeat(2, minmax(0, 1fr)); }
+.vc-screens-5 { grid-template-columns: repeat(2, minmax(0, 1fr)); flex: 0 0 auto; }
+.vc-screens-5 .vc-screen, .vc-screens-5 .ytw-stage { min-height: 0; aspect-ratio: 16 / 9; }
 .vc-screen { position: relative; overflow: hidden; border-radius: 18px; background: #000; border: 1px solid var(--border); min-height: 240px; }
 .vc-screen .vc-video video { object-fit: contain; }
 .vc-strip { display: flex; gap: 10px; overflow-x: auto; flex-shrink: 0; padding-bottom: 2px; }
@@ -214,7 +224,7 @@
   .vc-grid-1 { grid-template-columns: minmax(0, 1fr); }
   .vc-tile { min-height: 0; aspect-ratio: 1 / 1; border-radius: 16px; }
   .vc-tile-avatar > * { transform: scale(.78); }
-  .vc-screens-2 { grid-template-columns: minmax(0, 1fr); }
+  .vc-screens-2, .vc-screens-3, .vc-screens-4, .vc-screens-5 { grid-template-columns: minmax(0, 1fr); grid-template-rows: none; }
   .vc-strip .vc-tile { flex-basis: 132px; aspect-ratio: 1 / 1; }
   .vc-dock-wrap { bottom: calc(10px + env(safe-area-inset-bottom, 0px)); }
   .vc-dock { gap: 4px; padding: 6px; border-radius: 18px; }

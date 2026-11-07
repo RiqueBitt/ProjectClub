@@ -806,15 +806,33 @@ function setIo(socketIo) {
   presenceTimer.unref?.();
 }
 
+// Última sala/posição vista de cada pinguim: quem entra num MINIJOGO sai da
+// sala do jogo (o engine não o põe em sala nenhuma) mas continua na voz da
+// sala de onde saiu — a voz fica ativa durante o jogo (pedido do dono).
+const lastSeen = new Map(); // penguinId -> { room, entry }
 function presenceByRoom() {
   if (!instance || !instance.world.getPresence) return new Map();
   const rooms = new Map();
+  const inRoom = new Set();
   for (const p of instance.world.getPresence()) {
     const userId = penguinUser.get(p.id) || null;
     const entry = { penguinId: p.id, userId, name: p.name, x: Math.round(p.x), y: Math.round(p.y) };
     if (!rooms.has(p.room)) rooms.set(p.room, []);
     rooms.get(p.room).push(entry);
+    inRoom.add(p.id);
+    lastSeen.set(p.id, { room: p.room, entry });
   }
+  // Online mas fora de qualquer sala (minijogo): fica na última sala, parado.
+  const online = new Set();
+  for (const p of (instance.world.getAllPlayersInfo?.() || [])) {
+    online.add(p.id);
+    if (inRoom.has(p.id)) continue;
+    const last = lastSeen.get(p.id);
+    if (!last) continue;
+    if (!rooms.has(last.room)) rooms.set(last.room, []);
+    rooms.get(last.room).push({ ...last.entry, userId: penguinUser.get(p.id) || last.entry.userId, inGame: true });
+  }
+  for (const id of [...lastSeen.keys()]) if (!online.has(id)) lastSeen.delete(id);
   return rooms;
 }
 
