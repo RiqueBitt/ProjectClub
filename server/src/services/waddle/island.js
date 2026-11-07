@@ -43,7 +43,8 @@ const FILES = {
     shop: 'static/images/archives/6/68/RoomsShop-May2015.swf',
     forts: 'static/images/archives/b/bd/RoomsForts-February2016.swf',
     village: 'static/images/archives/e/e3/RoomsVillage-January2016.swf',
-    dock: 'static/images/archives/e/ee/RoomsDock-January2016.swf', // última versão normal da Doca
+    // dock: fica a do WF (RoomsDock_2, reforma de dez/2012) — é a Doca padrão até o fim de 2015;
+    // a RoomsDock-January2016 tem a construção da Área 501 (Operação Crustáceo), não usar.
     lodge: 'static/images/archives/5/53/RoomsLodge-September2015.swf',
     attic: 'static/images/archives/5/5b/RoomsAttic-May2015.swf',
     mtn: 'static/images/archives/7/75/RoomsMtn-May2015.swf',
