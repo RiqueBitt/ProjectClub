@@ -1,0 +1,19 @@
+/* ============================================================
+   Escala única de espaçamento e cantos (revisão de layout).
+   Antes cada tela usava um valor (6, 8, 10, 12, 14, 16, 20px…).
+   Novos estilos devem usar estas variáveis; os menus flutuantes já
+   foram alinhados abaixo.
+   ============================================================ */
+:root {
+  --space-1: 4px; --space-2: 8px; --space-3: 12px; --space-4: 16px; --space-5: 24px; --space-6: 32px;
+  --radius-sm: 6px; --radius-md: 10px; --radius-lg: 14px; --radius-xl: 20px;
+  --shadow-pop: 0 12px 32px rgba(0, 0, 0, .45);
+}
+
+/* Menus flutuantes (contexto, suspensos, cargos, ações): mesmo canto,
+   mesma sombra, mesmo respiro. */
+:is(.context-menu, .dropdown-menu, .role-picker, .ut-menu, .status-menu) {
+  border-radius: var(--radius-md) !important;
+  box-shadow: var(--shadow-pop);
+}
+:is(.context-menu, .dropdown-menu, .role-picker) :is(button, .context-menu-item) { border-radius: var(--radius-sm); }

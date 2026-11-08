@@ -1,0 +1,44 @@
+/* Correção de responsividade mobile — Configurações (item pedido).
+   Mantido em arquivo próprio, separado de global.css (arquivo grande,
+   ~400KB) para minimizar o risco de tocar em qualquer outra regra —
+   importado logo depois dele em main.jsx, então vence no cascata sem
+   precisar reescrever nada existente.
+
+   BUG: em telas mobile, ".settings-modal-sidebar" usava
+   "flex-wrap: wrap" — isso fazia os grupos
+   (".settings-modal-sidebar-group") se organizarem numa grade
+   improvisada de 2 colunas (cada grupo virando uma "coluna" com a
+   altura do próprio conteúdo), em vez de uma faixa horizontal única.
+   Resultado relatado: "Notificações" sozinho numa coluna, com um
+   espaço vazio enorme embaixo, enquanto "EXPERIÊNCIA" e seus itens
+   ficavam na coluna ao lado.
+
+   CORREÇÃO: remove a quebra de linha, permite rolagem horizontal, e
+   impede que os grupos sejam comprimidos/redistribuídos — os grupos
+   passam a formar uma faixa horizontal contínua e rolável, cada um
+   mantendo sua própria coluna interna (rótulo em cima, itens embaixo).
+   Escopado ao mesmo "@media (max-width: 600px)" já usado no resto das
+   regras de Configurações — o desktop não é afetado de forma alguma. */
+@media (max-width: 600px) {
+  .settings-modal-sidebar {
+    flex-wrap: nowrap !important;
+    overflow-x: auto !important;
+    overflow-y: hidden !important;
+    -webkit-overflow-scrolling: touch;
+    gap: 10px !important;
+  }
+  /* Sem isso, o "flex-shrink" padrão (1) deixaria cada grupo se espremer
+     pra caber na largura da tela — junto com o overflow-x acima, os
+     grupos agora preferem "vazar" pro lado (com rolagem) a se
+     comprimirem uns aos outros. */
+  .settings-modal-sidebar-group {
+    flex-shrink: 0;
+  }
+  /* Impede que o rótulo do grupo ("Perfil", "Conta"...) ou o nome de
+     um item de configuração quebre em duas linhas dentro da faixa
+     horizontal estreita, o que bagunçaria a altura de cada coluna. */
+  .settings-modal-sidebar-group-label,
+  .settings-modal-sidebar-item {
+    white-space: nowrap;
+  }
+}

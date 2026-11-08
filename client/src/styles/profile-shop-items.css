@@ -1,0 +1,26 @@
+/* Configurações → Perfil → Itens da Loja */
+.psi { display: flex; flex-direction: column; gap: 12px; grid-column: 1 / -1; }
+.psi-head { display: flex; align-items: flex-start; gap: 12px; justify-content: space-between; flex-wrap: wrap; }
+.psi-head h3 { margin: 0 0 2px; font-size: 16px; color: var(--header-primary); }
+.psi-head p { margin: 0; font-size: 13px; color: var(--text-muted); }
+.psi-store { display: inline-flex; align-items: center; gap: 6px; }
+.psi-tabs { display: flex; gap: 4px; padding: 4px; border-radius: 12px; background: var(--bg-secondary); border: 1px solid var(--border); overflow-x: auto; }
+.psi-tabs button { display: inline-flex; align-items: center; gap: 6px; height: 34px; padding: 0 12px; border-radius: 9px; border: 0; background: transparent; color: var(--text-muted); font: inherit; font-size: 13.5px; font-weight: 600; cursor: pointer; white-space: nowrap; }
+.psi-tabs button.on { background: var(--bg-primary); color: var(--header-primary); box-shadow: 0 1px 3px rgba(0, 0, 0, .25); }
+.psi-tabs em { font-style: normal; font-size: 11px; font-weight: 800; padding: 1px 7px; border-radius: 999px; background: var(--bg-tertiary, rgba(255, 255, 255, .08)); }
+.psi-msg { padding: 9px 12px; border-radius: 10px; font-size: 13px; background: color-mix(in srgb, var(--green, #23a55a) 15%, transparent); color: var(--text-normal); }
+.psi-msg.bad { background: color-mix(in srgb, var(--red, #f23f43) 15%, transparent); }
+.psi-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 10px; }
+.psi-item { position: relative; display: flex; flex-direction: column; gap: 8px; padding: 8px; border-radius: 14px; border: 2px solid var(--border); background: var(--bg-secondary); color: var(--text-normal); font: inherit; text-align: left; cursor: pointer; transition: border-color .15s, transform .15s; min-width: 0; }
+.psi-item:hover:not(:disabled) { border-color: color-mix(in srgb, var(--brand) 60%, var(--border)); transform: translateY(-1px); }
+.psi-item.on { border-color: var(--brand); box-shadow: 0 0 0 3px color-mix(in srgb, var(--brand) 25%, transparent); cursor: default; }
+.psi-item:disabled { opacity: .8; }
+.psi-art { display: block; height: 150px; border-radius: 10px; overflow: hidden; background: var(--bg-primary); position: relative; }
+.psi-art .shop-mock { width: 100%; height: 100%; }
+.psi-art-deco, .psi-art-font { display: grid; place-items: center; height: 100%; padding: 8px; box-sizing: border-box; }
+.psi-art-font span { font-size: 22px; color: var(--header-primary); text-align: center; overflow: hidden; text-overflow: ellipsis; max-width: 100%; }
+.psi-name { font-size: 13px; font-weight: 700; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.psi-name small { color: #c98a00; font-weight: 800; }
+.psi-check { position: absolute; top: 12px; right: 12px; width: 22px; height: 22px; border-radius: 50%; display: grid; place-items: center; background: var(--brand); color: #fff; z-index: 40; }
+.psi-busy { position: absolute; inset: 8px 8px auto; padding: 4px 8px; border-radius: 8px; background: rgba(0, 0, 0, .7); color: #fff; font-size: 12px; z-index: 40; }
+.psi-empty { grid-column: 1 / -1; display: flex; align-items: center; gap: 10px; padding: 14px; border-radius: 12px; border: 1px dashed var(--border); color: var(--text-muted); font-size: 13.5px; }

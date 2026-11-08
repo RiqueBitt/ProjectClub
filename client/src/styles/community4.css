@@ -1,0 +1,250 @@
+/* ============================================================
+   Fase 4 — comunidade e economia (Participar, Sorteio, Retrospectiva,
+   seções do Início, competição dos Clubes, cupons, gorjetas...).
+   Tudo com prefixo c4- e só variáveis do tema (claro/escuro/AMOLED).
+   ============================================================ */
+
+.c4-page .pk-inner { gap: 16px; }
+.c4-tab-body { display: flex; flex-direction: column; gap: 16px; min-width: 0; }
+.c4-card { display: flex; flex-direction: column; gap: 12px; }
+.c4-card-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; }
+.c4-card-head .pk-section-title { margin: 0; }
+.c4-small { margin: 0; font-size: 12.5px; color: var(--text-muted); line-height: 1.45; }
+.c4-error { margin: 0; font-size: 13px; color: var(--red); }
+.c4-clamp { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.c4-plain { background: none; border: 0; padding: 0; cursor: pointer; display: inline-flex; }
+.c4-countdown { display: inline-flex; align-items: center; gap: 5px; font-size: 12.5px; font-weight: 600; color: var(--text-muted); white-space: nowrap; }
+
+/* ---------- Barra de progresso ---------- */
+.c4-bar { height: 8px; border-radius: 999px; background: var(--bg-modifier-hover); overflow: hidden; }
+.c4-bar > span { display: block; height: 100%; border-radius: inherit; background: var(--brand); transition: width .5s cubic-bezier(.2, .8, .2, 1); }
+.c4-bar.tone-green > span { background: var(--green); }
+
+/* ---------- Aviso rápido ---------- */
+.c4-flash {
+  position: fixed; left: 50%; bottom: 24px; transform: translateX(-50%); z-index: 1300; max-width: calc(100vw - 32px); box-sizing: border-box;
+  padding: 11px 16px; border-radius: 12px; font-size: 14px; font-weight: 600; color: var(--header-primary);
+  background: var(--bg-floating-solid, var(--bg-secondary)); border: 1px solid color-mix(in srgb, var(--green) 50%, var(--border));
+  box-shadow: 0 16px 40px -12px rgba(0, 0, 0, .5); animation: c4-in .2s ease-out;
+}
+.c4-flash.bad { border-color: color-mix(in srgb, var(--red) 55%, var(--border)); }
+@keyframes c4-in { from { opacity: 0; transform: translate(-50%, 8px); } }
+
+/* ---------- Janela ---------- */
+.c4-dialog {
+  width: 100%; max-height: calc(100vh - 32px); overflow: auto; box-sizing: border-box; border-radius: 18px;
+  background: var(--bg-primary); border: 1px solid var(--border); box-shadow: 0 24px 60px -20px rgba(0, 0, 0, .6);
+  display: flex; flex-direction: column;
+}
+.c4-dialog-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 16px 18px 6px; }
+.c4-dialog-head h2 { margin: 0; font-size: 18px; color: var(--header-primary); }
+.c4-dialog-body { padding: 8px 18px 16px; display: flex; flex-direction: column; gap: 12px; }
+.c4-dialog-foot { display: flex; justify-content: flex-end; gap: 8px; padding: 12px 18px; border-top: 1px solid var(--border); }
+.c4-icon-btn { width: 34px; height: 34px; border-radius: 10px; display: inline-flex; align-items: center; justify-content: center; color: var(--text-muted); background: none; border: 0; cursor: pointer; }
+.c4-icon-btn:hover { background: var(--bg-modifier-hover); color: var(--header-primary); }
+
+/* ---------- Formulários ---------- */
+.c4-form { display: flex; flex-direction: column; gap: 12px; }
+.c4-form label, .c4-form-inline { display: flex; flex-direction: column; gap: 6px; font-size: 13px; font-weight: 600; color: var(--header-primary); }
+.c4-form label small { font-weight: 500; color: var(--text-muted); }
+.c4-form input, .c4-form textarea, .c4-form select, .c4-form-inline input, .c4-search input, .c4-coupon-row input {
+  font: inherit; font-weight: 500; color: var(--text-normal); background: var(--bg-secondary); border: 1px solid var(--border);
+  border-radius: 10px; padding: 9px 11px; min-width: 0; box-sizing: border-box; width: 100%;
+}
+.c4-form input:focus, .c4-form textarea:focus, .c4-form-inline input:focus, .c4-search input:focus, .c4-coupon-row input:focus { outline: 2px solid color-mix(in srgb, var(--brand) 60%, transparent); outline-offset: 1px; }
+.c4-form textarea { resize: vertical; }
+.c4-form-row { display: grid; grid-template-columns: 1.4fr 1fr; gap: 10px; }
+.c4-form-actions { display: flex; justify-content: flex-end; gap: 8px; flex-wrap: wrap; }
+
+/* ---------- Listas ---------- */
+.c4-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
+.c4-list-row { display: flex; align-items: center; gap: 12px; padding: 8px 10px; border-radius: 12px; min-width: 0; }
+.c4-list .c4-list-row:hover { background: var(--bg-modifier-hover); }
+.c4-list-row.is-me { background: color-mix(in srgb, var(--brand) 12%, transparent); }
+.c4-list-main { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 3px; }
+.c4-list-main strong { color: var(--header-primary); font-size: 14px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.c4-list-main small { color: var(--text-muted); font-size: 12.5px; }
+.c4-avatar-ph { width: 32px; height: 32px; border-radius: 50%; display: inline-flex; align-items: center; justify-content: center; background: var(--bg-modifier-hover); color: var(--text-muted); flex-shrink: 0; }
+.c4-rank-pos {
+  width: 28px; height: 28px; flex-shrink: 0; border-radius: 9px; display: inline-flex; align-items: center; justify-content: center;
+  font-weight: 800; font-size: 13px; color: var(--text-muted); background: var(--bg-modifier-hover);
+}
+.c4-rank-pos.pos-1 { color: #1f1300; background: #f5c542; }
+.c4-rank-pos.pos-2 { color: #1b1d22; background: #c9ced6; }
+.c4-rank-pos.pos-3 { color: #2a1406; background: #d89157; }
+.c4-clan-icon { width: 26px; height: 26px; display: inline-flex; align-items: center; justify-content: center; flex-shrink: 0; }
+
+/* ---------- Números em destaque ---------- */
+.c4-stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: 8px; }
+.c4-stats > div { padding: 12px 14px; border-radius: 12px; background: var(--bg-primary); border: 1px solid var(--border); display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.c4-stats strong { font-size: 22px; font-weight: 800; color: var(--header-primary); font-variant-numeric: tabular-nums; }
+.c4-stats small { font-size: 12px; color: var(--text-muted); }
+
+/* ---------- Bora Jogar ---------- */
+.c4-filters { margin-top: -2px; }
+.c4-groups { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 10px; }
+.c4-group {
+  display: flex; flex-direction: column; gap: 8px; padding: 14px; border-radius: 14px; min-width: 0;
+  background: var(--bg-primary); border: 1px solid var(--border);
+}
+.c4-group.is-joined { border-color: color-mix(in srgb, var(--brand) 55%, var(--border)); }
+.c4-group header { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.c4-group-game { display: inline-flex; align-items: center; gap: 6px; min-width: 0; color: var(--header-primary); }
+.c4-group-game svg { color: var(--brand); flex-shrink: 0; }
+.c4-group-when { display: flex; align-items: center; gap: 6px; margin: 0; font-size: 13px; font-weight: 600; color: var(--text-normal); }
+.c4-group-desc { margin: 0; font-size: 13px; color: var(--text-muted); line-height: 1.45; white-space: pre-wrap; overflow-wrap: anywhere; }
+.c4-group-people { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.c4-group-people small { color: var(--text-muted); font-size: 12px; }
+.c4-group footer { display: flex; justify-content: flex-end; gap: 6px; margin-top: auto; }
+.c4-avatars { display: inline-flex; align-items: center; }
+.c4-avatars > * { margin-left: -6px; border-radius: 50%; box-shadow: 0 0 0 2px var(--bg-primary); }
+.c4-avatars > *:first-child { margin-left: 0; }
+.c4-avatars-more { font-size: 11px; font-weight: 700; padding: 3px 6px; border-radius: 999px; background: var(--bg-modifier-hover); color: var(--text-muted); }
+
+/* ---------- Convites ---------- */
+.c4-code-box {
+  display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap;
+  padding: 14px 16px; border-radius: 14px; border: 1px dashed color-mix(in srgb, var(--brand) 55%, var(--border));
+  background: color-mix(in srgb, var(--brand) 8%, var(--bg-primary));
+}
+.c4-code-box small { display: block; font-size: 12px; color: var(--text-muted); }
+.c4-code { font-size: 24px; font-weight: 800; letter-spacing: 3px; color: var(--header-primary); font-family: ui-monospace, Menlo, Consolas, monospace; }
+.c4-code-actions { display: flex; gap: 8px; flex-wrap: wrap; }
+
+/* ---------- Interesses ---------- */
+.c4-search { display: flex; align-items: center; gap: 8px; color: var(--text-muted); }
+.c4-chips { display: flex; flex-wrap: wrap; gap: 8px; }
+.c4-interest {
+  display: inline-flex; align-items: center; gap: 7px; height: 34px; padding: 0 14px; border-radius: 999px; cursor: pointer;
+  font: inherit; font-size: 13.5px; font-weight: 600; color: var(--text-normal); background: var(--bg-primary); border: 1px solid var(--border);
+  transition: background .15s, border-color .15s, color .15s;
+}
+.c4-interest:hover { border-color: color-mix(in srgb, var(--tint, var(--brand)) 60%, var(--border)); }
+.c4-interest.on { color: var(--header-primary); border-color: var(--tint, var(--brand)); background: color-mix(in srgb, var(--tint, var(--brand)) 18%, var(--bg-primary)); }
+.c4-interest.on svg { color: var(--tint, var(--brand)); }
+.c4-dot { width: 9px; height: 9px; border-radius: 50%; background: var(--tint, var(--text-muted)); opacity: .8; }
+
+/* ---------- Sorteio ---------- */
+.c4-prize { display: flex; flex-direction: column; align-items: flex-end; gap: 2px; }
+.c4-prize small { font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: .4px; color: var(--text-muted); }
+.c4-prize strong { display: inline-flex; align-items: center; gap: 8px; font-size: 30px; font-weight: 800; color: var(--header-primary); font-variant-numeric: tabular-nums; }
+.c4-buy { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+.c4-stepper { display: inline-flex; align-items: center; gap: 6px; }
+.c4-stepper output { min-width: 32px; text-align: center; font-size: 18px; font-weight: 800; color: var(--header-primary); font-variant-numeric: tabular-nums; }
+
+/* ---------- Retrospectiva ---------- */
+.c4-recap {
+  position: relative; overflow: hidden; border-radius: 24px; padding: 24px; color: #fff; display: flex; flex-direction: column; gap: 16px;
+  background:
+    radial-gradient(ellipse 70% 90% at 100% 0%, rgba(255, 255, 255, .18), transparent 60%),
+    linear-gradient(135deg, var(--brand), color-mix(in srgb, var(--brand) 35%, #12131a));
+  box-shadow: 0 24px 60px -28px color-mix(in srgb, var(--brand) 80%, transparent);
+}
+.c4-recap header { display: flex; align-items: center; gap: 14px; }
+.c4-recap header small { font-size: 13px; opacity: .85; }
+.c4-recap h1 { margin: 0; font-size: clamp(30px, 6vw, 44px); font-weight: 800; letter-spacing: -.5px; text-transform: capitalize; line-height: 1.05; }
+.c4-recap-badge { margin: 0; display: inline-flex; align-items: center; gap: 6px; align-self: flex-start; padding: 6px 12px; border-radius: 999px; background: rgba(255, 255, 255, .18); font-weight: 700; font-size: 13.5px; }
+.c4-recap-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }
+.c4-recap-tile { padding: 14px; border-radius: 16px; background: rgba(255, 255, 255, .13); display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+.c4-recap-tile svg { opacity: .85; }
+.c4-recap-tile strong { font-size: 26px; font-weight: 800; font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
+.c4-recap-tile small { font-size: 12.5px; opacity: .85; }
+.c4-recap-ach small { font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: .4px; opacity: .8; }
+.c4-recap-ach ul { list-style: none; padding: 0; margin: 6px 0 0; display: flex; flex-wrap: wrap; gap: 6px; }
+.c4-recap-ach li { display: inline-flex; align-items: center; gap: 6px; padding: 5px 10px; border-radius: 999px; background: rgba(255, 255, 255, .15); font-size: 13px; font-weight: 600; }
+.c4-recap-ach em { font-style: normal; opacity: .75; font-size: 12px; }
+.c4-recap footer { display: flex; gap: 8px; flex-wrap: wrap; justify-content: flex-end; }
+.c4-recap footer .pk-btn { background: rgba(255, 255, 255, .16); color: #fff; border-color: rgba(255, 255, 255, .25); }
+.c4-recap footer .pk-btn.primary { background: #fff; color: #15161c; }
+
+/* ---------- Início: temporada ---------- */
+.c4-season {
+  --sa: var(--pc-season-a, var(--brand)); --sb: var(--pc-season-b, #ff6fb5);
+  display: flex; align-items: center; justify-content: space-between; gap: 16px; flex-wrap: wrap;
+  padding: 18px 20px; border-radius: 18px; color: #fff;
+  background: linear-gradient(120deg, color-mix(in srgb, var(--sa) 85%, #111), color-mix(in srgb, var(--sb) 70%, #111));
+}
+.c4-season-natal { --sa: #e23d3d; --sb: #2eaa5c; }
+.c4-season-anonovo { --sa: #b8860b; --sb: #3b3f8f; }
+.c4-season-carnaval { --sa: #ff4fa3; --sb: #ffb703; }
+.c4-season-festajunina { --sa: #e8a33d; --sb: #d9452b; }
+.c4-season-halloween { --sa: #ff8a1f; --sb: #8d4bff; }
+.c4-season-aniversario { --sa: var(--brand); --sb: #ff6fb5; }
+.c4-season-text { min-width: 0; flex: 1 1 260px; }
+.c4-season-text small { font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: .4px; opacity: .85; }
+.c4-season-text h2 { margin: 2px 0 4px; font-size: 22px; font-weight: 800; }
+.c4-season-text p { margin: 0; font-size: 13.5px; opacity: .9; line-height: 1.45; }
+.c4-season-btn { background: #fff; color: #15161c; border-color: transparent; }
+.c4-season-done { display: inline-flex; align-items: center; gap: 6px; padding: 8px 14px; border-radius: 999px; background: rgba(255, 255, 255, .18); font-weight: 700; font-size: 13.5px; }
+
+/* ---------- Início: metas, post da semana, Clubes, atalhos ---------- */
+.c4-goals { display: flex; flex-direction: column; gap: 14px; }
+.c4-goal { display: flex; flex-direction: column; gap: 6px; }
+.c4-goal small { font-size: 12.5px; color: var(--text-muted); }
+.c4-goal-top { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.c4-goal-top strong { font-size: 14px; color: var(--header-primary); }
+.c4-goal-pct { font-size: 13px; font-weight: 800; color: var(--brand); font-variant-numeric: tabular-nums; }
+.c4-home-goals .c4-small { margin-top: 10px; }
+.c4-potw-badge { font-size: 12px; font-weight: 700; color: var(--text-muted); }
+.c4-potw-flag {
+  display: inline-flex; align-items: center; gap: 5px; align-self: flex-start; margin-bottom: 6px;
+  padding: 3px 10px; border-radius: 999px; font-size: 12px; font-weight: 800; color: #1f1300; background: #f5c542;
+}
+.c4-podium { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
+.c4-podium li { display: flex; align-items: center; gap: 8px; font-size: 13.5px; color: var(--header-primary); min-width: 0; }
+.c4-podium li .truncate { flex: 1; min-width: 0; }
+.c4-podium li strong { font-size: 12.5px; color: var(--text-muted); white-space: nowrap; }
+.c4-quick { display: flex; flex-direction: column; gap: 4px; }
+.c4-quick-link { display: flex; align-items: center; gap: 10px; width: 100%; padding: 8px; border-radius: 10px; background: none; border: 0; cursor: pointer; text-align: left; font: inherit; color: inherit; min-width: 0; }
+.c4-quick-link:hover { background: var(--bg-modifier-hover); }
+.c4-quick-icon { width: 32px; height: 32px; flex-shrink: 0; border-radius: 10px; display: inline-flex; align-items: center; justify-content: center; color: var(--brand); background: color-mix(in srgb, var(--brand) 14%, transparent); }
+.c4-quick-text { display: flex; flex-direction: column; min-width: 0; }
+.c4-quick-text strong { font-size: 13.5px; color: var(--header-primary); }
+.c4-quick-text small { font-size: 12px; color: var(--text-muted); }
+
+/* ---------- Agradecer ---------- */
+.c4-thanks { background: none; border: 0; cursor: pointer; font: inherit; }
+.c4-thanks:hover:not(:disabled) { color: #ff5c8a; }
+.c4-thanks.is-done { color: #ff5c8a; }
+
+/* ---------- Competição dos Clubes ---------- */
+.c4-clanweek { display: flex; flex-direction: column; gap: 12px; }
+.c4-clanweek-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+.c4-clanweek-head h3 { margin: 0 0 4px; display: flex; align-items: center; gap: 8px; font-size: 16px; color: var(--header-primary); }
+.c4-clanweek-head > div { flex: 1 1 280px; min-width: 0; }
+.c4-last-winner { margin: 0; display: flex; align-items: center; gap: 6px; flex-wrap: wrap; font-size: 13px; color: var(--text-muted); }
+.c4-last-winner svg { color: #f5c542; }
+
+/* ---------- Cupom na compra (Loja) ---------- */
+.c4-coupon { display: flex; flex-direction: column; gap: 6px; margin: 4px 0 8px; }
+.c4-coupon-toggle { align-self: flex-start; background: none; border: 0; padding: 0; cursor: pointer; font: inherit; font-size: 13px; font-weight: 600; color: var(--brand); text-decoration: underline; text-underline-offset: 3px; }
+.c4-coupon-row { display: flex; gap: 8px; }
+.c4-coupon-row input { flex: 1; text-transform: uppercase; letter-spacing: 1px; font-weight: 700; }
+.c4-coupon-ok { margin: 0; font-size: 13px; font-weight: 600; color: var(--green); }
+
+/* ---------- Painel da staff ---------- */
+.c4-admin { display: flex; flex-direction: column; gap: 14px; }
+.c4-admin-form { display: flex; flex-direction: column; gap: 10px; }
+.c4-admin-form label { display: flex; flex-direction: column; gap: 5px; }
+.c4-admin-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: 10px; }
+.c4-admin-msg { margin: 0; font-size: 13px; font-weight: 600; color: var(--header-primary); }
+.c4-table-wrap { overflow-x: auto; }
+.c4-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+.c4-table th, .c4-table td { text-align: left; padding: 8px 10px; border-bottom: 1px solid var(--border); white-space: nowrap; }
+.c4-table th { font-size: 12px; text-transform: uppercase; letter-spacing: .3px; color: var(--text-muted); }
+.c4-role-dot { width: 14px; height: 14px; border-radius: 50%; flex-shrink: 0; }
+
+/* ---------- Celular ---------- */
+@media (max-width: 700px) {
+  .c4-form-row { grid-template-columns: 1fr; }
+  .c4-groups { grid-template-columns: 1fr; }
+  .c4-recap { padding: 18px; border-radius: 20px; }
+  .c4-recap-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .c4-prize { align-items: flex-start; }
+  .c4-flash { bottom: 84px; }
+  .c4-code { font-size: 20px; letter-spacing: 2px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .c4-flash { animation: none; }
+  .c4-bar > span { transition: none; }
+}

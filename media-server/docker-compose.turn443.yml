@@ -1,0 +1,17 @@
+# TURN na porta 443 (opt-in). Liga com, no .env:
+#   COMPOSE_FILE=docker-compose.yml:docker-compose.turn443.yml
+#   TURN_DOMAIN=turn-38-92-41-54.sslip.io   (DNS → mesmo IP da VM)
+# (o scripts/vm-voz-robusta.sh faz isso com TURN_443=1). Sem essas linhas
+# tudo continua como antes (Caddy oficial, TURN/TLS só na 5349).
+#
+# Troca a imagem do Caddy por uma com caddy-l4 (caddy-l4/Dockerfile) e o
+# Caddyfile por Caddyfile.turn443, que separa por SNI na 443:
+# TURN_DOMAIN → coturn 5349 (TLS repassado), resto → HTTPS de sempre.
+# O coturn passa a usar o certificado do TURN_DOMAIN (pc-turn-cert-sync).
+services:
+  caddy:
+    image: projectclub/caddy-l4:2.11.4-l4-0.1.2
+    build: ./caddy-l4
+    volumes:
+      - ./Caddyfile.turn443:/etc/caddy/Caddyfile:ro
+      - ./Caddyfile:/etc/caddy/Caddyfile.base:ro

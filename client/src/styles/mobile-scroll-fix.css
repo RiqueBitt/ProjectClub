@@ -1,0 +1,26 @@
+/* Correção do "scroll do celular passa por cima da barra de digitar"
+   — mantida em arquivo próprio, no mesmo padrão já usado por
+   settings-mobile-fix.css, em vez de mexer em global.css (que já
+   está com ~400KB). Precisa ser importado DEPOIS de global.css em
+   main.jsx pra vencer no cascata do CSS.
+
+   Causa real: .app-shell/body já tentavam travar o scroll nativo da
+   página (height: 100dvh fixo, body { overflow: hidden } em
+   global.css), mas o <html> em si — o elemento que navegadores/
+   WebViews móveis realmente rolam quando "a página inteira" arrasta,
+   não o <body> — nunca tinha o overflow travado. Bastava um pixel de
+   overflow (comum com dvh/safe-area em WebView Android) pra a página
+   toda arrastar pra cima/baixo, levando junto a barra de digitar e o
+   topo, em vez de só a lista de mensagens rolar por dentro (que já
+   cuida de si mesma via .message-list { overflow-y: auto } em
+   global.css). Travando aqui também, e desligando o "elastic bounce"
+   vertical nativo (overscroll-behavior-y), só quem tem overflow
+   próprio de propósito rola — o resto do layout (topo, barra de
+   digitar, barra de chamada) fica fixo/"pregado" no lugar. */
+html {
+  overflow: hidden;
+  overscroll-behavior-y: none;
+}
+body {
+  overscroll-behavior-y: none;
+}

@@ -1,0 +1,26 @@
+{
+  "compilerOptions": {
+    "skipLibCheck": true,
+    "target": "ES2022",
+    "module": "commonjs",
+    "esModuleInterop": true,
+    "sourceMap": false,
+    "strict": false,
+    "rootDir": "src",
+    "outDir": "dist",
+    "paths": {
+      "@common/*": [
+        "./src/common/*"
+      ],
+      "@server/*": [
+        "./src/server/*"
+      ]
+    },
+    "types": [
+      "node"
+    ]
+  },
+  "include": [
+    "src/**/*"
+  ]
+}

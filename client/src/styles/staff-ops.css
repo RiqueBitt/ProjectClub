@@ -1,0 +1,62 @@
+/* Painel de saúde (components/admin/StaffOpsPanel.jsx) — complementa
+   staff-tools.css (.sth-*). */
+.sop .sth-section h2 { display: inline-flex; align-items: center; gap: 7px; }
+.sop-chip {
+  display: inline-flex; align-items: center; gap: 6px; height: 26px; padding: 0 10px; border-radius: 999px;
+  font-size: 12px; font-weight: 600; color: var(--text-muted); background: var(--bg-secondary); border: 1px solid var(--st-border);
+  max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.sop-chip-bad { color: var(--st-bad); background: color-mix(in srgb, var(--st-bad) 12%, transparent); }
+.sop-push { margin-left: auto; }
+.sop-note { margin: 0 0 10px; font-size: 13px; color: var(--text-normal); }
+.sop-warn {
+  display: flex; align-items: center; gap: 7px; margin: 0 0 10px; padding: 8px 12px; border-radius: 10px; font-size: 13px;
+  color: var(--st-warn); background: color-mix(in srgb, var(--st-warn) 10%, transparent); border: 1px solid color-mix(in srgb, var(--st-warn) 30%, transparent);
+}
+.sop-warn code, .sop-room code, .sop-table code { font-size: 12px; }
+.sop-empty { margin: 0; font-size: 13px; color: var(--text-muted); }
+.sop-backup-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 10px; }
+.sop-kv { display: flex; flex-direction: column; gap: 3px; padding: 12px 14px; border-radius: 12px; background: var(--bg-secondary); border: 1px solid var(--st-border); }
+.sop-kv span { font-size: 12px; color: var(--text-muted); }
+.sop-kv strong { font-size: 14px; color: var(--header-primary); font-variant-numeric: tabular-nums; }
+.sop-st-ok { color: var(--st-good) !important; }
+.sop-st-failed { color: var(--st-bad) !important; }
+.sop-st-running { color: var(--st-warn) !important; }
+.sop-pre {
+  margin: 10px 0 0; padding: 10px 12px; border-radius: 10px; max-height: 260px; overflow: auto;
+  font: 12px/1.5 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; white-space: pre-wrap; word-break: break-word;
+  background: var(--bg-deepest, var(--bg-secondary)); color: var(--text-normal); border: 1px solid var(--st-border);
+}
+.sop-details { margin-top: 12px; }
+.sop-details summary { cursor: pointer; font-size: 13px; font-weight: 600; color: var(--text-muted); }
+.sop-table { width: 100%; border-collapse: collapse; margin-top: 8px; font-size: 13px; }
+.sop-table th { text-align: left; font-size: 12px; font-weight: 700; color: var(--text-muted); padding: 6px 8px; border-bottom: 1px solid var(--st-border); }
+.sop-table td { padding: 7px 8px; border-bottom: 1px solid var(--st-border); color: var(--text-normal); vertical-align: top; }
+.sop-table tr:last-child td { border-bottom: 0; }
+@media (max-width: 700px) { .sop-table { display: block; overflow-x: auto; white-space: nowrap; } }
+
+.sop-rooms { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 10px; }
+.sop-room { padding: 12px 14px; border-radius: 12px; background: var(--bg-secondary); border: 1px solid var(--st-border); min-width: 0; }
+.sop-room-head { display: flex; flex-direction: column; gap: 2px; margin-bottom: 8px; }
+.sop-room-head strong { color: var(--header-primary); font-size: 14px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.sop-room-meta { font-size: 12px; color: var(--text-muted); }
+.sop-people { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; }
+.sop-person { display: flex; align-items: center; gap: 8px; min-width: 0; font-size: 13px; }
+.sop-person-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--text-normal); }
+.sop-flag { display: inline-flex; align-items: center; color: var(--text-muted); font-size: 10px; font-weight: 800; }
+.sop-flag.is-live { color: var(--st-bad); }
+.sop-flag.is-mod { padding: 0 4px; border-radius: 4px; background: color-mix(in srgb, var(--st-warn) 18%, transparent); color: var(--st-warn); }
+.sop-provider { font-size: 11px; color: var(--text-muted); padding: 1px 6px; border-radius: 999px; border: 1px solid var(--st-border); }
+
+.sop-errors { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; }
+.sop-err { border-radius: 10px; background: var(--bg-secondary); border: 1px solid var(--st-border); border-left: 3px solid var(--st-bad); }
+.sop-err-client { border-left-color: var(--st-warn); }
+.sop-err-process { border-left-color: #b46cff; }
+.sop-err summary { display: flex; align-items: center; gap: 10px; padding: 9px 12px; cursor: pointer; list-style: none; min-width: 0; }
+.sop-err summary::-webkit-details-marker { display: none; }
+.sop-err-count { flex-shrink: 0; min-width: 42px; font-weight: 800; font-variant-numeric: tabular-nums; color: var(--header-primary); }
+.sop-err-src { flex-shrink: 0; font-size: 11px; font-weight: 700; padding: 1px 7px; border-radius: 999px; color: var(--text-muted); border: 1px solid var(--st-border); }
+.sop-err-msg { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 13px; color: var(--text-normal); }
+.sop-err-when { flex-shrink: 0; font-size: 12px; color: var(--text-muted); }
+.sop-err-body { padding: 0 12px 12px; }
+.sop-err-meta { margin: 0; font-size: 12px; color: var(--text-muted); word-break: break-all; }

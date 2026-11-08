@@ -1,0 +1,46 @@
+name: VPN no Windows (teste ao vivo)
+
+# Instala o OpenVPN embutido do jeito que o app faz (script elevado com
+# msiexec silencioso), conecta num servidor do VPN Gate com o vpnManager.js de
+# verdade e confere se o IP público mudou e voltou ao desligar.
+on:
+  workflow_dispatch:
+    inputs:
+      country:
+        description: 'País do servidor (código de 2 letras)'
+        default: 'US'
+  pull_request:
+    paths:
+      - 'desktop/vpnManager.js'
+      - 'desktop/scripts/fetch-openvpn.ps1'
+      - 'desktop/test/live/vpn-live.js'
+      - '.github/workflows/vpn-windows.yml'
+
+concurrency:
+  group: vpn-windows-${{ github.head_ref || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  vpn:
+    runs-on: windows-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Baixar e conferir o OpenVPN embutido
+        shell: pwsh
+        run: ./desktop/scripts/fetch-openvpn.ps1
+      - name: Conectar de verdade (vpnManager.js)
+        shell: pwsh
+        env:
+          VPN_COUNTRY: ${{ github.event.inputs.country || 'US' }}
+        run: node desktop/test/live/vpn-live.js "$((Resolve-Path desktop/vendor/openvpn/OpenVPN.msi).Path)"
+      - name: Log do OpenVPN
+        if: always()
+        shell: pwsh
+        run: |
+          $log = Join-Path $env:ProgramData 'ProjectClub\vpn\openvpn.log'
+          if (Test-Path $log) { Get-Content $log -Tail 60 } else { 'sem log' }
+          Get-ItemProperty -Path 'HKLM:\SOFTWARE\OpenVPN' -ErrorAction SilentlyContinue | Format-List

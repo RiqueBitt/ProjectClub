@@ -1,0 +1,52 @@
+/* Denúncia rápida (components/modals/ReportDialog.jsx) — chips de motivo
+   no estilo do Discord, detalhes opcionais e tela de "obrigado". */
+.report-dlg-overlay { z-index: 1200; }
+.report-dlg.modal-box { --modal-width: 460px; padding: 20px; display: flex; flex-direction: column; gap: 12px; }
+.report-dlg-head h3,
+.report-dlg-done h3 { margin: 0; color: var(--header-primary); font-size: 18px; font-weight: 700; }
+.report-dlg-sub { margin-top: 6px; color: var(--text-muted); font-size: 13px; line-height: 1.4; overflow-wrap: anywhere; }
+.report-dlg-sub .report-dlg-snippet {
+  display: block; margin-top: 6px; padding: 8px 10px; border-left: 3px solid var(--divider-strong, var(--border));
+  background: var(--bg-secondary); border-radius: 6px; color: var(--text-normal);
+  max-height: 72px; overflow: hidden; text-overflow: ellipsis; white-space: pre-wrap;
+}
+.report-dlg-q { margin: 2px 0 0; font-size: 12px; font-weight: 700; letter-spacing: .03em; text-transform: uppercase; color: var(--header-secondary); }
+.report-dlg-chips { display: flex; flex-wrap: wrap; gap: 8px; }
+.report-dlg-chip {
+  padding: 8px 14px; border-radius: 999px; border: 1px solid var(--divider-strong, var(--border));
+  background: var(--bg-secondary); color: var(--text-normal); font: inherit; font-size: 13.5px; font-weight: 600;
+  cursor: pointer; transition: background .12s, border-color .12s, color .12s, transform .08s;
+}
+.report-dlg-chip:hover { background: var(--bg-modifier-hover); }
+.report-dlg-chip:active { transform: scale(.97); }
+.report-dlg-chip:focus-visible { outline: 2px solid var(--brand); outline-offset: 2px; }
+.report-dlg-chip.on { background: color-mix(in srgb, var(--red) 18%, transparent); border-color: var(--red); color: var(--header-primary); }
+.report-dlg-hint { margin: -4px 0 0; font-size: 12.5px; color: var(--text-muted); }
+.report-dlg-details { display: flex; flex-direction: column; gap: 6px; font-size: 12px; font-weight: 700; color: var(--header-secondary); text-transform: uppercase; letter-spacing: .03em; }
+.report-dlg-details i,
+.report-dlg-details b { font-style: normal; font-weight: 500; text-transform: none; letter-spacing: 0; color: var(--text-muted); }
+.report-dlg-details .report-dlg-req { color: var(--red); }
+.report-dlg-details textarea {
+  resize: vertical; min-height: 72px; padding: 10px; border-radius: 8px; border: 1px solid var(--border);
+  background: var(--bg-deepest); color: var(--text-normal); font: inherit; font-size: 14px; font-weight: 400;
+  text-transform: none; letter-spacing: 0;
+}
+.report-dlg-details textarea:focus { outline: none; border-color: var(--brand); }
+.report-dlg-count { align-self: flex-end; font-weight: 500; color: var(--text-muted); text-transform: none; }
+.report-dlg .modal-actions { margin-top: 4px; }
+.report-dlg-done { display: flex; flex-direction: column; align-items: center; text-align: center; gap: 10px; padding: 8px 4px 2px; }
+.report-dlg-done p { margin: 0; color: var(--text-muted); font-size: 14px; line-height: 1.45; }
+.report-dlg-done .btn-primary { margin-top: 6px; min-width: 120px; }
+.report-dlg-check {
+  width: 56px; height: 56px; border-radius: 50%; display: grid; place-items: center;
+  background: color-mix(in srgb, var(--green) 20%, transparent); color: var(--green);
+  animation: report-dlg-pop .28s var(--ease-smooth, ease-out);
+}
+@keyframes report-dlg-pop { from { transform: scale(.6); opacity: 0; } to { transform: scale(1); opacity: 1; } }
+@media (max-width: 600px) {
+  .report-dlg.modal-box { padding: 16px; }
+  .report-dlg-chip { flex: 1 1 calc(50% - 8px); text-align: center; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .report-dlg-check { animation: none; }
+}

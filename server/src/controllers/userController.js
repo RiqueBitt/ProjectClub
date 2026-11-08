@@ -1,0 +1,911 @@
+const prisma = require('../config/prisma');
+const { safeUpsert } = require('../utils/prismaSafe');
+const { PUBLIC_USER_FIELDS, SELF_USER_FIELDS, ensurePublicId } = require('./authController');
+const { clearIfExpired, computeStatusExpiry } = require('../services/customStatus');
+const { validateUsername, USERNAME_CHANGE_COOLDOWN_MS } = require('../utils/usernameRules');
+const activityStore = require('../services/activityStore');
+const { getFeaturedForProfile } = require('./modpackController');
+
+// BUG CORRIGIDO ("achei um bloco de validação antigo/duplicado,
+// desatualizado, que contornava a proteção de cores_perfil"): essas
+// duas constantes ficavam aqui com só as 5 fontes/efeitos ORIGINAIS
+// (de antes de eu adicionar as 10 novas de cada) — e um SEGUNDO bloco
+// de validação, mais abaixo na função updateProfile, revalidava
+// profileNameColor/Color2 usando essas listas desatualizadas, SEM
+// nenhuma checagem de "cores_perfil desativado". Na prática esse
+// segundo bloco só reforçava um valor que o bloco novo (com a lista
+// completa E a proteção certa) já tinha definido — mas era código
+// morto/confuso e, no caso da cor, contornava a proteção real
+// (revalidava e regravava a cor sem checar se a staff tinha desligado
+// isso). Consolidado num único bloco de verdade — ver mais abaixo.
+// Keep in sync with client/src/utils/nameStyle.js's own option lists.
+const VALID_NAME_FONTS = ['NORMAL', 'PIXEL', 'CARTOON', 'MEDIEVAL', 'HANDWRITING', 'CREEPY', 'FUTURISTIC', 'SIGNATURE', 'BOLD_CONDENSED', 'ROUNDED', 'CASUAL_SCRIPT', 'RETRO_NEON', 'URBAN', 'ELEGANT_SERIF', 'PLAYFUL', 'BOLD_SCRIPT'];
+const VALID_NAME_EFFECTS = ['SOLID', 'NEON', 'GRADIENT', 'POP', 'SKETCH', 'SHADOW_3D', 'OUTLINE', 'RAINBOW', 'GLITCH', 'ICE', 'FIRE', 'METALLIC', 'SHINE', 'EMBOSS', 'DOUBLE_STROKE', 'GOLD'];
+
+// Item pedido: "escolher a cor de fundo da bolha que mostra os
+// status (Preto/Cinza/Branco)" — só 3 valores fixos (diferente de
+// profileColor/miniProfileColor, que aceitam qualquer cor livre), por
+// isso validado como allowlist simples aqui, fora do bloco de
+// "cores_perfil" mais abaixo: não tem como usar isso pra burlar
+// aquele controle de moderação, já que a pessoa nunca escolhe uma cor
+// arbitrária, só uma dessas três.
+const VALID_STATUS_BUBBLE_COLORS = ['#000000', '#80848E', '#FFFFFF'];
+
+// Enquadramento do banner (editor de banner no cliente): "x,y,zoom" —
+// x/y = ponto de foco em % (0–100), zoom de 1 a 4. Qualquer coisa fora
+// disso vira null (= centralizado, sem zoom), nunca texto livre no banco.
+function sanitizeBannerFraming(raw) {
+  if (raw === undefined || raw === null || raw === '') return null;
+  const parts = String(raw).split(',').map(Number);
+  if (parts.length !== 3 || parts.some((n) => !Number.isFinite(n))) return null;
+  const [x, y, zoom] = parts;
+  if (x < 0 || x > 100 || y < 0 || y > 100 || zoom < 1 || zoom > 4) return null;
+  return `${Math.round(x * 10) / 10},${Math.round(y * 10) / 10},${Math.round(zoom * 100) / 100}`;
+}
+
+// Item pedido: "sistema igual da Steam" pra reorganizar o perfil —
+// chaves de seção conhecidas, mantidas em sincronia com
+// PROFILE_SECTIONS em client/src/components/modals/UserProfileModal.jsx.
+// Validado no servidor também (não só escondido na tela) — evita
+// salvar uma chave inválida/lixo que quebraria a exibição depois.
+const PROFILE_SECTION_KEYS = [
+  'about', 'badges', 'featuredAchievements', 'tag', 'album', 'polls', 'communityActivity',
+  'roles', 'memberSince', 'connections', 'mutualFriends', 'birthdays', 'relationship',
+  'scraps', 'testimonials', 'traits', 'visitors',
+];
+
+async function updateProfile(req, res, next) {
+  try {
+    const allowed = ['displayName', 'bio', 'pronouns', 'customStatus', 'profileColor', 'profileSectionOrder', 'levelBarColor'];
+    // BUG CORRIGIDO ("quando troco pra novas fontes/estilo não está
+    // trocando, fica a antiga"): profileNameFont/Effect/Color/Color2
+    // nunca eram salvos de verdade — o backend descartava esses 4
+    // campos SILENCIOSAMENTE (sem erro nenhum) mesmo quando o
+    // formulário os enviava (nenhum estava em "allowed", nem tinham
+    // validação própria como os outros campos especiais abaixo). O
+    // preview dentro do modal parecia funcionar (lê direto do estado
+    // local do formulário, não do que foi salvo de verdade), então
+    // nada avisava que o salvamento não tinha pego — validados mais
+    // abaixo, junto de profileColor (mesma proteção de "cores_perfil"
+    // desativado) e contra os valores reais de fonte/efeito.
+    // Conexões links (see UserSettingsModal.jsx's "Conexões" section under the
+    // PROFILE tab / UserProfileModal.jsx's Conexões display) — plain optional
+    // URLs, no OAuth verification. Sanitized to either a real http(s) link or
+    // null so the profile renderer never has to guard against garbage values.
+    const linkFields = ['youtubeUrl', 'steamUrl', 'robloxUrl', 'xUrl'];
+    const data = {};
+    for (const key of allowed) {
+      if (req.body[key] !== undefined) data[key] = req.body[key];
+    }
+    // Guarda equivalente à seção "Cor do perfil" ficando escondida em
+    // UserSettingsModal.jsx quando a staff desativa "cores_perfil" em
+    // /admin → Sistema (ver adminController.js TOGGLEABLE_SYSTEMS) — sem
+    // isso, alguém poderia continuar mudando a própria cor direto pela API
+    // mesmo com o controle escondido na UI. Só bloqueia a EDIÇÃO: perfis
+    // que já tinham uma cor salva continuam mostrando ela normalmente em
+    // todo o app, isso só impede que ela seja alterada enquanto o sistema
+    // estiver desligado.
+    // Item pedido: "sistema igual da Steam" — ordem personalizada das
+    // seções do perfil. Valida no servidor (não só confiando no que o
+    // frontend mandou) que é um array de verdade, com só chaves de
+    // seção conhecidas — evita salvar lixo no banco se algo mandar um
+    // valor malformado.
+    const VALID_SECTION_KEYS = [
+      'about', 'achievements', 'album', 'polls', 'community_activity', 'roles',
+      'member_since', 'connections', 'mutual_friends', 'relationship', 'traits',
+      'scraps', 'testimonials', 'visitors', 'featured_modpack',
+    ];
+    if (data.profileSectionOrder !== undefined) {
+      try {
+        const parsed = JSON.parse(data.profileSectionOrder);
+        // Item pedido: "pode desativar qualquer uma também" — cada
+        // item agora é um objeto { key, hidden } (aceita string pura
+        // também, formato antigo de antes dessa mudança — tratada
+        // como "hidden: false").
+        const isValidItem = (item) => {
+          if (typeof item === 'string') return VALID_SECTION_KEYS.includes(item);
+          return item && typeof item === 'object' && VALID_SECTION_KEYS.includes(item.key) && typeof item.hidden === 'boolean';
+        };
+        if (!Array.isArray(parsed) || !parsed.every(isValidItem)) {
+          delete data.profileSectionOrder;
+        }
+      } catch {
+        delete data.profileSectionOrder;
+      }
+    }
+
+    // Item pedido: aniversário editável em "Editar Perfil" — só dia e
+    // mês importam de verdade (o sistema de Aniversariantes ignora o
+    // ano), mas o campo no banco é um DateTime completo, então o
+    // cliente manda uma data com um ano fixo (ver
+    // UserSettingsModal.jsx) — só valida que é uma data de verdade
+    // antes de salvar.
+    if (req.body.birthDate !== undefined) {
+      if (req.body.birthDate === null || req.body.birthDate === '') {
+        data.birthDate = null;
+      } else {
+        const parsedDate = new Date(req.body.birthDate);
+        if (!isNaN(parsedDate.getTime())) data.birthDate = parsedDate;
+      }
+    }
+
+    // Item pedido: "opacidade das caixas das colunas, deixando
+    // invisível ou mostrando melhor" — 0 a 100, validado no servidor
+    // (não só confiando no que o slider do cliente mandou).
+    if (req.body.profileSectionOpacity !== undefined) {
+      const n = Number(req.body.profileSectionOpacity);
+      if (Number.isInteger(n) && n >= 0 && n <= 100) data.profileSectionOpacity = n;
+    }
+
+    if (data.profileColor !== undefined || req.body.miniProfileColor !== undefined || req.body.miniProfileButtonColor !== undefined || req.body.profileNameColor !== undefined || req.body.profileNameColor2 !== undefined || req.body.profileNameColors !== undefined) {
+      const settings = await prisma.platformSettings.findUnique({ where: { id: 'singleton' } });
+      let disabled = [];
+      try { disabled = JSON.parse(settings?.disabledSystems || '[]'); } catch { disabled = []; }
+      if (disabled.includes('cores_perfil')) {
+        delete data.profileColor;
+      } else {
+        // Item pedido: "cor do mini perfil separada do perfil grande" —
+        // mesma proteção de moderação que profileColor já tinha (se a
+        // staff desativou cores de perfil, cobre as duas, não só a do
+        // perfil grande).
+        if (req.body.miniProfileColor !== undefined) data.miniProfileColor = req.body.miniProfileColor;
+        if (req.body.miniProfileButtonColor !== undefined) data.miniProfileButtonColor = req.body.miniProfileButtonColor;
+        // BUG CORRIGIDO: profileNameColor/Color2 (cor do "Estilo do
+        // nome") passavam batido dessa mesma proteção — dava pra
+        // contornar "cores de perfil desativadas" pintando o nome por
+        // esse campo em vez do profileColor. Mesma regra agora.
+        if (req.body.profileNameColor !== undefined) data.profileNameColor = req.body.profileNameColor;
+        if (req.body.profileNameColor2 !== undefined) data.profileNameColor2 = req.body.profileNameColor2;
+        // Item pedido: "poder editar cada cor... tipo todas as cores
+        // que aparecem no arco-íris" — array de cores pros efeitos com
+        // mais de 2 cores (RAINBOW, GLITCH). Validado: JSON de verdade,
+        // array de strings, cada uma uma cor hex válida, no máximo 8
+        // (RAINBOW usa 6 hoje — folga pra qualquer efeito futuro sem
+        // abrir pra um array arbitrariamente grande).
+        if (req.body.profileNameColors !== undefined) {
+          if (req.body.profileNameColors === null || req.body.profileNameColors === '') {
+            data.profileNameColors = null;
+          } else {
+            try {
+              const parsed = JSON.parse(req.body.profileNameColors);
+              const isValid = Array.isArray(parsed) && parsed.length <= 8
+                && parsed.every((c) => typeof c === 'string' && /^#[0-9a-fA-F]{6}$/.test(c));
+              if (isValid) data.profileNameColors = JSON.stringify(parsed);
+            } catch { /* JSON malformado — ignora, campo simplesmente não é atualizado */ }
+          }
+        }
+      }
+    }
+    // Item pedido: "escolher a cor de fundo da bolha que mostra os
+    // status (Preto/Cinza/Branco)" — allowlist fixa de 3 hex, fora do
+    // bloco de "cores_perfil" acima (ver VALID_STATUS_BUBBLE_COLORS no
+    // topo do arquivo — não é uma cor livre, então não há como usar
+    // isso pra contornar aquele controle de moderação).
+    if (req.body.statusBubbleColor !== undefined) {
+      if (req.body.statusBubbleColor === null || req.body.statusBubbleColor === '') {
+        data.statusBubbleColor = null;
+      } else if (VALID_STATUS_BUBBLE_COLORS.includes(req.body.statusBubbleColor)) {
+        data.statusBubbleColor = req.body.statusBubbleColor;
+      }
+    }
+    // BUG CORRIGIDO (junto com o de cima) — profileNameFont/Effect
+    // validados contra os valores de verdade que o frontend oferece
+    // (ver NAME_FONTS/NAME_EFFECTS em utils/nameStyle.js) — evita
+    // salvar lixo no banco se algo mandar um valor malformado direto
+    // pela API, mesmo passando pela UI. (VALID_NAME_FONTS/EFFECTS
+    // declaradas no topo do arquivo, reaproveitadas aqui.)
+    if (req.body.profileNameFont !== undefined && VALID_NAME_FONTS.includes(req.body.profileNameFont)) data.profileNameFont = req.body.profileNameFont;
+    if (req.body.profileNameEffect !== undefined && VALID_NAME_EFFECTS.includes(req.body.profileNameEffect)) data.profileNameEffect = req.body.profileNameEffect;
+    // Avatar de pinguim (tema Club Penguin — ver PenguinAvatar.jsx no
+    // client): um "pseudo-URL" fixo em vez de um upload de arquivo de
+    // verdade. Validado contra uma lista travada de cores pra esse campo
+    // nunca virar um jeito de gravar uma URL arbitrária burlando o upload
+    // normal de avatar (uploadAvatar, que continua sendo o único jeito de
+    // setar uma foto de verdade).
+    const PENGUIN_COLORS = ['blue', 'red', 'green', 'yellow', 'pink', 'purple', 'orange', 'black'];
+    if (req.body.avatarUrl !== undefined) {
+      const raw = String(req.body.avatarUrl || '');
+      if (raw.startsWith('penguin:') && PENGUIN_COLORS.includes(raw.slice(8))) {
+        data.avatarUrl = raw;
+      } else if (raw === '') {
+        data.avatarUrl = null;
+      }
+    }
+    for (const key of linkFields) {
+      if (req.body[key] === undefined) continue;
+      const raw = (req.body[key] || '').trim();
+      if (!raw) { data[key] = null; continue; }
+      data[key] = /^https?:\/\//i.test(raw) ? raw : `https://${raw}`;
+    }
+    // Privacidade de pedidos de amizade (item pedido) — só as 3 opções
+    // válidas passam, o resto é ignorado silenciosamente (mesma
+    // estratégia de allowlist do resto desse controller).
+    if (req.body.friendRequestPrivacy !== undefined) {
+      const validPrivacy = ['EVERYONE', 'FRIENDS_OF_FRIENDS', 'NOBODY'];
+      if (validPrivacy.includes(req.body.friendRequestPrivacy)) data.friendRequestPrivacy = req.body.friendRequestPrivacy;
+    }
+    // Same field/cap as the dedicated setCustomStatus endpoint (see below)
+    // — this is the simpler "just save it with the rest of your profile"
+    // path (UserSettingsModal.jsx), which doesn't touch
+    // customStatusExpiresAt at all (that's only ever set through the
+    // dedicated "Definir status personalizado" flow).
+    if (req.body.customStatusEmoji !== undefined) {
+      data.customStatusEmoji = req.body.customStatusEmoji ? String(req.body.customStatusEmoji).slice(0, 32) : null;
+    }
+    // Reajuste do enquadramento do banner atual, sem reenviar a imagem.
+    if (req.body.bannerFraming !== undefined) data.bannerFraming = sanitizeBannerFraming(req.body.bannerFraming);
+    if (req.body.miniProfileBannerFraming !== undefined) data.miniProfileBannerFraming = sanitizeBannerFraming(req.body.miniProfileBannerFraming);
+    // Enquadramento da placa de identificação (mesmo formato/validação do banner).
+    if (req.body.idCardFraming !== undefined) data.idCardFraming = sanitizeBannerFraming(req.body.idCardFraming);
+    // Vitrine do perfil (UserProfileModal.jsx): jogos em destaque. Só
+    // campos conhecidos e pequenos — nunca grava um objeto cru.
+    if (req.body.profileShowcase !== undefined) data.profileShowcase = sanitizeProfileShowcase(req.body.profileShowcase);
+    const user = await prisma.user.update({ where: { id: req.user.id }, data, select: SELF_USER_FIELDS });
+    await broadcastUserUpdate(req, user);
+    if (['bio', 'pronouns', 'displayName', 'profileShowcase', 'profileColor'].some((k) => data[k] !== undefined)) require('../services/profileUpdates').profileChanged(req, req.user.id).catch(() => {});
+    res.json({ user });
+  } catch (err) { next(err); }
+}
+
+// See UserSettingsModal.jsx's "Tags" tab. `serverId: null` clears the
+// active tag. Denormalizes tagEmoji/tagText onto the user row at selection
+// time (see the schema.prisma comment on User.tagEmoji for why) rather than
+// resolving live — requires the caller to actually be a member of that
+// server, and that server to have a real tag configured (both emoji and
+// text set), otherwise there'd be nothing to display.
+// Broadcasts the fresh public fields to every room this person shows up
+// in — their own personal room (other tabs/devices) plus every server they
+// share with someone else — so a tag change (or any future PUBLIC_USER_FIELDS
+// change routed through here) shows up immediately in open member lists and
+// already-loaded chat messages instead of needing a page refresh (see
+// SocketContext.jsx's 'user:update' handler / useStore.patchUserEverywhere).
+async function broadcastUserUpdate(req, user) {
+  const io = req.app.get('io');
+  if (!io) return;
+  // `user` aqui vem selecionado com SELF_USER_FIELDS (inclui email/2FA) —
+  // correto para as próprias abas/dispositivos do dono da conta
+  // (`user:${id}`), mas o resto da comunidade só pode ver a versão pública.
+  const { email, emailVerified, twoFactorEnabled, ...publicUser } = user;
+  io.to(`user:${user.id}`).emit('user:update', user);
+  // except: o dono já recebeu a versão completa acima — e o broadcast da
+  // comunidade sai com o "invisível" mascarado (OFFLINE), que não pode
+  // sobrescrever o status real nas abas da própria pessoa.
+  io.to('community').except(`user:${user.id}`).emit('user:update', publicUser);
+}
+
+// Tag da comunidade (ex.: "🔥 FUNDADOR") — como agora só existe uma
+// comunidade, é uma tag global configurada em PlatformSettings (ver
+// platformController) que qualquer membro pode optar por exibir ou não
+// junto ao próprio nome.
+async function setActiveTag(req, res, next) {
+  try {
+    const { active } = req.body;
+    if (!active) {
+      const user = await prisma.user.update({
+        where: { id: req.user.id }, data: { tagEmoji: null, tagText: null }, select: SELF_USER_FIELDS,
+      });
+      await broadcastUserUpdate(req, user);
+      return res.json({ user });
+    }
+
+    const settings = await prisma.platformSettings.findUnique({ where: { id: 'singleton' } });
+    if (!settings) return res.status(400).json({ error: 'A comunidade ainda não tem uma tag configurada.' });
+
+    // BUG CORRIGIDO ("a tag PROJ continua no sistema"): antes, essa
+    // tag era calculada sozinha a partir do NOME da comunidade —
+    // "Project Club" sempre virava "PROJ", sem jeito de evitar isso
+    // enquanto o nome continuasse o mesmo (mesmo limpando as contas
+    // já com ela ativa, qualquer pessoa clicando em "mostrar tag" de
+    // novo já recriava "PROJ" na hora, instantaneamente). Agora usa um
+    // texto configurável à parte (communityTagText/Emoji em
+    // PlatformSettings), com um valor fixo seguro como reserva —
+    // nunca mais "PROJ" de novo, mesmo sem a staff configurar nada.
+    const user = await prisma.user.update({
+      where: { id: req.user.id },
+      data: { tagEmoji: settings.communityTagEmoji || '🏠', tagText: settings.communityTagText || 'CLUBE' },
+      select: SELF_USER_FIELDS,
+    });
+    await broadcastUserUpdate(req, user);
+    res.json({ user });
+  } catch (err) { next(err); }
+}
+
+// { games: [{ gameKey, name, steamAppId?, iconUrl? }] } (até 4) → texto
+// JSON, ou null quando vazio/inválido.
+function sanitizeProfileShowcase(raw) {
+  let v = raw;
+  if (typeof v === 'string') { try { v = JSON.parse(v); } catch { return null; } }
+  if (!v || typeof v !== 'object' || Array.isArray(v)) return null;
+  const games = (Array.isArray(v.games) ? v.games : []).slice(0, 4).map((g) => {
+    if (!g || typeof g !== 'object') return null;
+    const gameKey = typeof g.gameKey === 'string' ? g.gameKey.trim().slice(0, 64) : '';
+    const name = typeof g.name === 'string' ? g.name.trim().slice(0, 100) : '';
+    if (!gameKey || !name) return null;
+    const out = { gameKey, name };
+    if (g.steamAppId != null && /^\d{1,12}$/.test(String(g.steamAppId))) out.steamAppId = String(g.steamAppId);
+    if (typeof g.iconUrl === 'string' && g.iconUrl.length <= 500 && /^(https?:\/\/|\/)/i.test(g.iconUrl)) out.iconUrl = g.iconUrl;
+    return out;
+  }).filter(Boolean);
+  const seen = new Set();
+  const unique = games.filter((g) => (seen.has(g.gameKey) ? false : (seen.add(g.gameKey), true)));
+  return unique.length ? JSON.stringify({ games: unique }) : null;
+}
+
+async function updateUsername(req, res, next) {
+  try {
+    const raw = req.body?.username;
+    const username = typeof raw === 'string' ? raw.trim() : raw;
+    // Mesmas regras da inscrição (utils/usernameRules.js) + nomes
+    // reservados (admin, staff, suporte...).
+    const invalid = validateUsername(username);
+    if (invalid) return res.status(400).json({ error: invalid });
+    if (username === req.user.username) return res.status(400).json({ error: 'Essa já é a sua ClubTag.' });
+
+    // Cooldown de 7 dias entre trocas — evita ficar trocando de @ pra
+    // confundir/assumir a identidade de outra pessoa (e quebrar menções).
+    const last = req.user.usernameChangedAt ? new Date(req.user.usernameChangedAt).getTime() : 0;
+    if (last && Date.now() - last < USERNAME_CHANGE_COOLDOWN_MS) {
+      const retryAt = new Date(last + USERNAME_CHANGE_COOLDOWN_MS);
+      return res.status(429).json({
+        error: `Você só pode trocar sua ClubTag uma vez a cada 7 dias. Próxima troca liberada em ${retryAt.toLocaleString('pt-BR', { timeZone: 'America/Sao_Paulo' })}.`,
+        retryAt,
+      });
+    }
+
+    const taken = await prisma.user.findFirst({ where: { username, NOT: { id: req.user.id } } });
+    if (taken) return res.status(409).json({ error: 'Nome de usuário já em uso.' });
+    const user = await prisma.user.update({
+      where: { id: req.user.id }, data: { username, usernameChangedAt: new Date() }, select: SELF_USER_FIELDS,
+    });
+    await broadcastUserUpdate(req, user);
+    res.json({ user });
+  } catch (err) { next(err); }
+}
+
+async function uploadAvatar(req, res, next) {
+  try {
+    if (!req.file) return res.status(400).json({ error: 'Nenhum arquivo enviado.' });
+    const avatarUrl = req.file.url;
+    const user = await prisma.user.update({
+      where: { id: req.user.id }, data: { avatarUrl }, select: SELF_USER_FIELDS,
+    });
+    await broadcastUserUpdate(req, user);
+    require('../services/profileUpdates').profileChanged(req, req.user.id).catch(() => {});
+    res.json({ user });
+  } catch (err) { next(err); }
+}
+
+async function uploadBanner(req, res, next) {
+  try {
+    if (!req.file) return res.status(400).json({ error: 'Nenhum arquivo enviado.' });
+    const bannerUrl = req.file.url;
+    // Imagem nova sempre zera o enquadramento antigo; GIF manda o
+    // enquadramento escolhido no editor junto (campo "framing").
+    const bannerFraming = sanitizeBannerFraming(req.body?.framing);
+    const user = await prisma.user.update({
+      where: { id: req.user.id }, data: { bannerUrl, bannerFraming }, select: SELF_USER_FIELDS,
+    });
+    await broadcastUserUpdate(req, user);
+    require('../services/profileUpdates').profileChanged(req, req.user.id).catch(() => {});
+    res.json({ user });
+  } catch (err) { next(err); }
+}
+
+// Item pedido: "banner do miniperfil, independente do banner do
+// perfil completo" — mesmo padrão exato de uploadBanner acima, só
+// gravando no campo separado.
+async function uploadMiniProfileBanner(req, res, next) {
+  try {
+    if (!req.file) return res.status(400).json({ error: 'Nenhum arquivo enviado.' });
+    const miniProfileBannerUrl = req.file.url;
+    const miniProfileBannerFraming = sanitizeBannerFraming(req.body?.framing);
+    const user = await prisma.user.update({
+      where: { id: req.user.id }, data: { miniProfileBannerUrl, miniProfileBannerFraming }, select: SELF_USER_FIELDS,
+    });
+    await broadcastUserUpdate(req, user);
+    res.json({ user });
+  } catch (err) { next(err); }
+}
+
+// "Placa de identificação" (see schema.prisma's comment on User.idCardUrl)
+// — shown as the background behind this user's own row in the members
+// list, so it IS visible to others (unlike a purely personal setting) and
+// needs the same broadcastUserUpdate every other profile-visible change
+// gets, so it updates live in anyone's member list who's looking at it.
+async function uploadIdCard(req, res, next) {
+  try {
+    if (!req.file) return res.status(400).json({ error: 'Nenhum arquivo enviado.' });
+    const idCardUrl = req.file.url;
+    // Enquadramento opcional escolhido no editor ao enviar; ao trocar de
+    // imagem, zera o enquadramento antigo (volta pro centralizado) se não
+    // vier um novo, pra não aplicar um recorte de uma imagem diferente.
+    const idCardFraming = sanitizeBannerFraming(req.body?.framing);
+    const user = await prisma.user.update({
+      where: { id: req.user.id }, data: { idCardUrl, idCardFraming }, select: SELF_USER_FIELDS,
+    });
+    await broadcastUserUpdate(req, user);
+    res.json({ user });
+  } catch (err) { next(err); }
+}
+
+async function removeIdCard(req, res, next) {
+  try {
+    const user = await prisma.user.update({
+      where: { id: req.user.id }, data: { idCardUrl: null, idCardFraming: null }, select: SELF_USER_FIELDS,
+    });
+    await broadcastUserUpdate(req, user);
+    res.json({ user });
+  } catch (err) { next(err); }
+}
+
+// Tema de interface (facebook/light/dark/amoled/clubpenguin) — salvo na
+// CONTA, não só no localStorage do navegador (ver comentário no
+// schema.prisma sobre User.preferredTheme). O cliente já aplica o tema
+// na hora localmente; essa chamada só garante que ele sobrevive a trocar
+// de navegador/dispositivo ou limpar dados locais.
+async function setPreferredTheme(req, res, next) {
+  try {
+    const { theme } = req.body;
+    const allowed = ['facebook', 'light', 'dark', 'amoled', 'clubpenguin'];
+    if (!allowed.includes(theme)) return res.status(400).json({ error: 'Tema inválido.' });
+    const user = await prisma.user.update({
+      where: { id: req.user.id }, data: { preferredTheme: theme }, select: SELF_USER_FIELDS,
+    });
+    res.json({ user });
+  } catch (err) { next(err); }
+}
+
+// Item pedido: "em aparência adicione uma nova opção de layout... a
+// opção normal e a opção de layout discord" — mesmo padrão de
+// setPreferredTheme acima.
+async function setLayoutStyle(req, res, next) {
+  try {
+    const { layoutStyle } = req.body;
+    const allowed = ['normal2', 'normal', 'discord'];
+    if (!allowed.includes(layoutStyle)) return res.status(400).json({ error: 'Layout inválido.' });
+    // layoutVersion 2: a pessoa já escolheu na versão atual dos layouts,
+    // então a migração do seed (prisma/seed.js) não mexe mais na conta.
+    const user = await prisma.user.update({
+      where: { id: req.user.id }, data: { layoutStyle, layoutVersion: 2 }, select: SELF_USER_FIELDS,
+    });
+    res.json({ user });
+  } catch (err) { next(err); }
+}
+
+// Item pedido: "sistema podendo mudar o zoom de 1,0 até 2,0... pra
+// melhor personalização" — mesmo padrão de setPreferredTheme acima.
+async function setChatZoom(req, res, next) {
+  try {
+    const { zoom } = req.body;
+    const value = Number(zoom);
+    if (!Number.isFinite(value) || value < 1 || value > 2) {
+      return res.status(400).json({ error: 'O zoom precisa estar entre 1.0 e 2.0.' });
+    }
+    // Arredonda pra 1 casa decimal — o controle na tela já só deixa
+    // escolher passos de 0.1, isso é só uma rede de segurança contra
+    // um valor mandado direto pra API por fora da tela normal.
+    const rounded = Math.round(value * 10) / 10;
+    const user = await prisma.user.update({
+      where: { id: req.user.id }, data: { chatZoom: rounded }, select: SELF_USER_FIELDS,
+    });
+    res.json({ user });
+  } catch (err) { next(err); }
+}
+
+// Item pedido: "adicione nas configurações do usuário ele poder
+// aumentar ou diminuir o zoom quanto quiser" — zoom GERAL de toda a
+// interface, mesmo padrão de setChatZoom acima. Item pedido (revisão
+// posterior): "escolher o zoom de 50% a 200%, 1% por 1%" — intervalo e
+// precisão exatos pedidos.
+async function setInterfaceZoom(req, res, next) {
+  try {
+    const { zoom } = req.body;
+    const value = Number(zoom);
+    if (!Number.isFinite(value) || value < 0.5 || value > 2) {
+      return res.status(400).json({ error: 'O zoom precisa estar entre 50% e 200%.' });
+    }
+    // Arredonda pra 2 casas decimais (passos de 1%) — o controle na
+    // tela já só deixa escolher assim, isso é só uma rede de
+    // segurança contra um valor mandado direto pra API por fora dela.
+    const rounded = Math.round(value * 100) / 100;
+    const user = await prisma.user.update({
+      where: { id: req.user.id }, data: { interfaceZoom: rounded }, select: SELF_USER_FIELDS,
+    });
+    res.json({ user });
+  } catch (err) { next(err); }
+}
+
+// Item pedido: "5 variantes de visual dos meus emoji, uma delas o
+// mesmo tema do Discord" — mesmo padrão de setPreferredTheme acima.
+async function setEmojiStyle(req, res, next) {
+  try {
+    const { emojiStyle } = req.body;
+    const allowed = ['native', 'twemoji', 'noto', 'fluent', 'openmoji'];
+    if (!allowed.includes(emojiStyle)) return res.status(400).json({ error: 'Estilo de emoji inválido.' });
+    const user = await prisma.user.update({
+      where: { id: req.user.id }, data: { emojiStyle }, select: SELF_USER_FIELDS,
+    });
+    res.json({ user });
+  } catch (err) { next(err); }
+}
+
+async function setStatus(req, res, next) {
+  try {
+    const { status } = req.body;
+    const allowed = ['ONLINE', 'IDLE', 'DND', 'INVISIBLE'];
+    if (!allowed.includes(status)) return res.status(400).json({ error: 'Status inválido.' });
+    const user = await prisma.user.update({
+      where: { id: req.user.id }, data: { status }, select: SELF_USER_FIELDS,
+    });
+    const io = req.app.get('io');
+    io?.emitPresenceUpdate?.(user);
+    // Escolha manual de status (pelo dropdown) sempre vence o que o
+    // sweep de inatividade decidiu sozinho — ver onManualStatusChange em
+    // sockets/index.js.
+    io?.onManualStatusChange?.(req.user.id, status);
+    res.json({ user });
+  } catch (err) { next(err); }
+}
+
+// Discord-style custom status: free text + emoji, shown as a balloon next
+// to the avatar, with an optional auto-clear time. Duration is expressed in
+// minutes from "now" (null/0 = doesn't expire on its own).
+async function setCustomStatus(req, res, next) {
+  try {
+    const { text, emoji, durationMinutes, expiresAt } = req.body || {};
+    const cleanText = text ? String(text).trim().slice(0, 128) : '';
+    const cleanEmoji = emoji ? String(emoji).trim().slice(0, 32) : '';
+    // Expiração: duração em minutos (30, 60, 240...) ou o horário exato
+    // (expiresAt — "Hoje" = fim do dia no fuso de quem escolheu).
+    const expiry = computeStatusExpiry({ durationMinutes, expiresAt });
+    if (expiry.error) return res.status(400).json({ error: expiry.error });
+    const empty = !cleanText && !cleanEmoji;
+    const data = {
+      customStatus: cleanText || null,
+      customStatusEmoji: cleanEmoji || null,
+      customStatusExpiresAt: empty ? null : expiry.expiresAt,
+    };
+    const user = await prisma.user.update({ where: { id: req.user.id }, data, select: SELF_USER_FIELDS });
+    req.app.get('io')?.emitPresenceUpdate?.(user);
+    // Lista de membros, autores de mensagens e as outras abas da pessoa
+    // atualizam na hora (presence:update só leva o texto).
+    await broadcastUserUpdate(req, {
+      id: user.id, customStatus: user.customStatus, customStatusEmoji: user.customStatusEmoji, customStatusExpiresAt: user.customStatusExpiresAt,
+    });
+    res.json({ user });
+  } catch (err) { next(err); }
+}
+
+async function searchUsers(req, res, next) {
+  try {
+    // "@fulano" também vale (o @ é só o jeito de escrever a ClubTag).
+    const q = String(req.query.q || '').trim().replace(/^@+/, '').trim();
+    if (q.length < 2) return res.json({ users: [] });
+    // self=1: inclui a própria pessoa (ex.: staff dando um item pra si mesma).
+    const includeSelf = req.query.self === '1';
+    const users = await prisma.user.findMany({
+      where: {
+        ...(includeSelf ? {} : { NOT: { id: req.user.id } }),
+        selfDeactivatedAt: null, // contas desativadas temporariamente não aparecem
+        OR: [
+          { username: { contains: q } },
+          { displayName: { contains: q } },
+        ],
+      },
+      select: PUBLIC_USER_FIELDS,
+      take: 20,
+    });
+    res.json({ users });
+  } catch (err) { next(err); }
+}
+
+// Item pedido: "Privacidade do perfil... Quem pode visualizar meu
+// perfil completo?... O servidor deve verificar essa configuração
+// antes de devolver informações." — decide se QUEM ESTÁ PEDINDO tem
+// direito de ver o perfil completo de `targetId`, sem nunca confiar
+// em nada vindo do frontend (nem no id do próprio front, que já vem
+// de req.params — mas a DECISÃO em si é sempre recalculada aqui, no
+// servidor).
+//
+// Extraído em checkPrivacyLevel pra ser reusado por qualquer campo com
+// o mesmo conjunto de valores 'everyone'/'friends'/'friends_groups'/
+// 'none' — usado abaixo tanto pra perfil (profilePrivacy) quanto pra
+// atividade/Rich Presence (activityVisibility, ver hasActivityAccess).
+async function checkPrivacyLevel(viewerId, targetId, level) {
+  if (viewerId === targetId) return true;
+  if (level === 'everyone') return true;
+  if (level === 'none') return false;
+
+  const friendship = await prisma.friendship.findFirst({
+    where: {
+      status: 'ACCEPTED',
+      OR: [
+        { requesterId: viewerId, addresseeId: targetId },
+        { requesterId: targetId, addresseeId: viewerId },
+      ],
+    },
+  });
+  if (friendship) return true;
+  if (level !== 'friends_groups') return false;
+
+  // Item pedido: "Pessoas dos meus grupos" — no Project Club, o único
+  // conceito de "grupo" que já existe de verdade (fora de amizade) é
+  // o clã (User.clanId, ver clanController.js). Duas pessoas
+  // "compartilham grupo" quando estão no mesmo clã, e um clã sempre
+  // tem no máximo um dono/membros — nunca null pra dois lados
+  // diferentes contarem como "compartilhado" por engano.
+  const [viewer, target] = await Promise.all([
+    prisma.user.findUnique({ where: { id: viewerId }, select: { clanId: true } }),
+    prisma.user.findUnique({ where: { id: targetId }, select: { clanId: true } }),
+  ]);
+  return !!(viewer?.clanId && target?.clanId && viewer.clanId === target.clanId);
+}
+
+async function hasFullProfileAccess(viewerId, targetId) {
+  if (viewerId === targetId) return true;
+  const settings = await prisma.userSettings.findUnique({ where: { userId: targetId }, select: { profilePrivacy: true } });
+  return checkPrivacyLevel(viewerId, targetId, settings?.profilePrivacy || 'everyone');
+}
+
+// Item pedido: verificar se todos os toggles de Configurações têm efeito
+// real. "Compartilhar atividade" e "Quem pode ver sua atividade" já
+// existiam na tela, salvavam no banco, mas getUser() nunca lia nenhum
+// dos dois — todo mundo via a atividade de todo mundo sempre, mexer nos
+// dois toggles não mudava nada de verdade.
+async function hasActivityAccess(viewerId, targetId) {
+  if (viewerId === targetId) return true;
+  const settings = await prisma.userSettings.findUnique({ where: { userId: targetId }, select: { activitySharing: true, activityVisibility: true } });
+  if (settings?.activitySharing === false) return false;
+  return checkPrivacyLevel(viewerId, targetId, settings?.activityVisibility || 'everyone');
+}
+
+// Full profile view (used by the "click an avatar" modal) — public fields
+// plus badges, account age, and — when viewing someone other than yourself —
+// servers and friends you have in common. Kept as one endpoint instead of
+// several so the modal only needs a single round-trip.
+async function getUser(req, res, next) {
+  try {
+    const { id } = req.params;
+    const user = await prisma.user.findUnique({ where: { id }, select: { ...PUBLIC_USER_FIELDS, profileShowcase: true } });
+    if (!user) return res.status(404).json({ error: 'Usuário não encontrado.' });
+    if (!user.publicId) user.publicId = await ensurePublicId(user.id, user.publicId);
+
+    const fullAccess = await hasFullProfileAccess(req.user.id, id);
+    // Item pedido: "O Discord atualmente diferencia informações que
+    // podem continuar públicas, como avatar, banner, nome e idade da
+    // conta, das informações ocultadas pela privacidade do perfil...
+    // definir explicitamente quais campos entram em cada nível." —
+    // avatar/banner/nome/idCard/tags/nível continuam vindo de
+    // PUBLIC_USER_FIELDS normalmente (são mostrados em listas de
+    // membros/mensagens pra qualquer um de qualquer forma); só o que é
+    // exclusivo da TELA de perfil completo (bio, conexões, status
+    // personalizado, ordem de seções) é apagado aqui quando a pessoa
+    // não tem acesso.
+    if (!fullAccess) {
+      user.bio = null;
+      user.pronouns = null;
+      user.customStatus = null;
+      user.customStatusEmoji = null;
+      user.customStatusExpiresAt = null;
+      user.youtubeUrl = null;
+      user.steamUrl = null;
+      user.robloxUrl = null;
+      user.xUrl = null;
+      user.profileSectionOrder = null;
+      user.displayedAchievements = '[]';
+      user.displayedAchievementsMini = '[]';
+      user.profileShowcase = null;
+    }
+
+    // perf: tudo daqui pra baixo depende só de `user`/`fullAccess` e não
+    // uma parte da outra — antes eram ~7 idas ao banco EM SÉRIE (parceiro,
+    // aniversário, insígnias, amigos em comum, votos, conquistas); agora
+    // rodam juntas. Mesmo resultado, mesmas regras de privacidade.
+
+    // Item pedido: status de relacionamento — busca os dados do
+    // parceiro só se existir um confirmado (evita uma query aninhada
+    // desnecessária pro caso comum de não ter parceiro nenhum).
+    const partnerJob = (fullAccess && user.relationshipPartnerId)
+      ? prisma.user.findUnique({
+        where: { id: user.relationshipPartnerId },
+        select: { id: true, displayName: true, username: true, avatarUrl: true, avatarDecoration: true, profileColor: true },
+      })
+      : Promise.resolve(null);
+
+    // Item pedido: aniversariantes — só um booleano de "é hoje", nunca
+    // a data completa (nem no PUBLIC_USER_FIELDS genérico) — evita
+    // expor a idade da pessoa em qualquer resposta de perfil.
+    const birthdayJob = fullAccess
+      ? prisma.user.findUnique({ where: { id }, select: { birthDate: true } }).then((rawUser) => {
+        if (!rawUser?.birthDate) return false;
+        const today = new Date();
+        const bd = rawUser.birthDate;
+        return bd.getUTCDate() === today.getUTCDate() && bd.getUTCMonth() === today.getUTCMonth();
+      })
+      : Promise.resolve(false);
+
+    const badgesJob = fullAccess
+      ? prisma.userBadge.findMany({ where: { userId: id }, include: { badge: true }, orderBy: { badge: { priority: 'asc' } } })
+      : Promise.resolve([]);
+
+    const mutualJob = (async () => {
+      if (!fullAccess || id === req.user.id) return [];
+      const [myFriendships, theirFriendships] = await Promise.all([
+        prisma.friendship.findMany({
+          where: { status: 'ACCEPTED', OR: [{ requesterId: req.user.id }, { addresseeId: req.user.id }] },
+          select: { requesterId: true, addresseeId: true },
+        }),
+        prisma.friendship.findMany({
+          where: { status: 'ACCEPTED', OR: [{ requesterId: id }, { addresseeId: id }] },
+          select: { requesterId: true, addresseeId: true },
+        }),
+      ]);
+      const otherIdOf = (f, selfId) => (f.requesterId === selfId ? f.addresseeId : f.requesterId);
+      const myFriendIds = new Set(myFriendships.map((f) => otherIdOf(f, req.user.id)));
+      const theirFriendIds = new Set(theirFriendships.map((f) => otherIdOf(f, id)).filter((fid) => fid !== req.user.id));
+      const commonFriendIds = [...myFriendIds].filter((fid) => theirFriendIds.has(fid));
+      if (commonFriendIds.length === 0) return [];
+      return prisma.user.findMany({
+        where: { id: { in: commonFriendIds } }, select: { id: true, displayName: true, username: true, avatarUrl: true, avatarDecoration: true, profileColor: true },
+      });
+    })();
+
+    // "Amigos desde ...": só sai quando QUEM ESTÁ VENDO é amigo do dono do
+    // perfil (a busca é pela amizade entre os dois) — ninguém de fora
+    // descobre há quanto tempo duas outras pessoas são amigas.
+    const friendsSinceJob = id === req.user.id
+      ? Promise.resolve(null)
+      : prisma.friendship.findFirst({
+        where: {
+          status: 'ACCEPTED',
+          OR: [{ requesterId: req.user.id, addresseeId: id }, { requesterId: id, addresseeId: req.user.id }],
+        },
+        select: { acceptedAt: true, updatedAt: true, createdAt: true },
+      }).then((f) => (f ? (f.acceptedAt || f.updatedAt || f.createdAt) : null));
+
+    const votesJob = Promise.all([
+      prisma.profileVote.count({ where: { toUserId: id, value: 1 } }),
+      prisma.profileVote.count({ where: { toUserId: id, value: -1 } }),
+      prisma.profileVote.findUnique({ where: { fromUserId_toUserId: { fromUserId: req.user.id, toUserId: id } } }),
+      // Ups totais (item pedido: "Ups recebidos em posts ou no perfil
+      // devem contar para os Ups gerais") — soma votos positivos que a
+      // pessoa recebeu no Feed (posts + comentários), não só no perfil.
+      prisma.postVote.count({ where: { value: 1, post: { authorId: id } } }),
+      prisma.postCommentVote.count({ where: { value: 1, comment: { authorId: id } } }),
+    ]);
+
+    // Resolve as conquistas escolhidas pra exibir (guardadas como array
+    // de `key` no JSON de User.displayedAchievements/Mini) pros objetos
+    // completos (ícone/nome/raridade) — assim a tela do perfil não
+    // precisa de uma segunda chamada só pra isso.
+    const achievementsJob = (async () => {
+      if (!fullAccess) return [[], []];
+      try {
+        const profileKeys = JSON.parse(user.displayedAchievements || '[]');
+        const miniKeys = JSON.parse(user.displayedAchievementsMini || '[]');
+        const allKeys = [...new Set([...profileKeys, ...miniKeys])];
+        if (allKeys.length === 0) return [[], []];
+        const defs = await prisma.achievement.findMany({ where: { key: { in: allKeys } } });
+        const byKey = Object.fromEntries(defs.map((d) => [d.key, d]));
+        return [profileKeys.map((k) => byKey[k]).filter(Boolean), miniKeys.map((k) => byKey[k]).filter(Boolean)];
+      } catch { return [[], []]; /* JSON inválido — trata como vazio */ }
+    })();
+
+    const [
+      relationshipPartner, isBirthdayToday, badgeRows, mutualFriends,
+      [likeCount, dislikeCount, myVoteRow, postUpvotes, commentUpvotes],
+      [displayedAchievements, displayedAchievementsMini],
+      friendsSince,
+    ] = await Promise.all([partnerJob, birthdayJob, badgesJob, mutualJob, votesJob, achievementsJob, friendsSinceJob]);
+
+    // awardedAt lives on the UserBadge join row (when THIS user unlocked it),
+    // not on the Badge itself (which is shared across everyone who has it) —
+    // has to be merged in by hand or the "Data desbloqueada" on the badge
+    // browser modal has nothing to show.
+    const badges = badgeRows.map((b) => ({ ...b.badge, awardedAt: b.awardedAt }));
+    const totalUps = likeCount + postUpvotes + commentUpvotes;
+
+    // Progresso até o próximo nível (pra barra de progresso no perfil).
+    const { LEVELS, nextLevel } = require('../data/levelsCatalog');
+    const currentLevelData = LEVELS.find((l) => l.level === user.accountLevel) || LEVELS[0];
+    const next = nextLevel(user.accountLevel);
+    let levelProgress = 100;
+    if (next) {
+      const xpInLevel = user.accountXp - currentLevelData.minXp;
+      const xpNeeded = next.minXp - currentLevelData.minXp;
+      levelProgress = Math.max(0, Math.min(100, Math.floor((xpInLevel / xpNeeded) * 100)));
+    }
+
+    // Item pedido: coluna "Modpack preferido" — some junto com o resto
+    // do perfil completo quando a privacidade não deixa ver. (Em paralelo
+    // com a atividade — não dependem uma da outra.)
+    const [activity, featuredItem] = await Promise.all([
+      (async () => ((await hasActivityAccess(req.user.id, id)) ? activityStore.getActivity(id) : null))(),
+      fullAccess ? getFeaturedForProfile(id, req.user.id).catch(() => null) : null,
+    ]);
+
+    res.json({
+      user: clearIfExpired(user), badges, mutualFriends,
+      likeCount, dislikeCount, myVote: myVoteRow?.value || 0, levelProgress, totalUps,
+      displayedAchievements, displayedAchievementsMini,
+      activity, relationshipPartner, isBirthdayToday, featuredItem, friendsSince,
+      // Item pedido: "Não mostrar informações administrativas
+      // internas que não devam ser expostas ao usuário" (mesmo
+      // espírito aqui) — sinaliza pro frontend que esse perfil está
+      // limitado, sem dizer POR QUE nem revelar a configuração exata
+      // de privacidade de quem está sendo visto.
+      profileRestricted: !fullAccess,
+    });
+  } catch (err) { next(err); }
+}
+
+// Like/dislike another user's profile. Voting again with the same value
+// removes the vote (tap-to-toggle, like a message reaction); voting with
+// the opposite value flips it in place. Can't vote on your own profile —
+// there's no UI path to it (the buttons don't render for isMe), but the
+// server is the actual boundary, not the client.
+async function voteProfile(req, res, next) {
+  try {
+    const { id } = req.params;
+    const { value } = req.body;
+    if (id === req.user.id) return res.status(400).json({ error: 'Você não pode votar no seu próprio perfil.' });
+    if (![1, -1].includes(value)) return res.status(400).json({ error: 'Valor de voto inválido.' });
+
+    const target = await prisma.user.findUnique({ where: { id }, select: { id: true } });
+    if (!target) return res.status(404).json({ error: 'Usuário não encontrado.' });
+
+    const existing = await prisma.profileVote.findUnique({ where: { fromUserId_toUserId: { fromUserId: req.user.id, toUserId: id } } });
+    let myVote = value;
+    if (existing && existing.value === value) {
+      await prisma.profileVote.delete({ where: { id: existing.id } });
+      myVote = 0;
+    } else {
+      await safeUpsert(prisma.profileVote, {
+        where: { fromUserId_toUserId: { fromUserId: req.user.id, toUserId: id } },
+        update: { value },
+        create: { fromUserId: req.user.id, toUserId: id, value },
+      });
+    }
+
+    const [likeCount, dislikeCount] = await Promise.all([
+      prisma.profileVote.count({ where: { toUserId: id, value: 1 } }),
+      prisma.profileVote.count({ where: { toUserId: id, value: -1 } }),
+    ]);
+    require('../services/ups').emitUpsUpdate(req.app.get('io'), id);
+    require('../services/achievements').checkAndUnlock(id, req.app.get('io')); // carismatico / amado_por_todos
+    res.json({ likeCount, dislikeCount, myVote });
+  } catch (err) { next(err); }
+}
+
+// Escolher quais conquistas aparecem no perfil (até 6) e no miniperfil
+// (até 4) — validado no servidor: só pode escolher conquista que já
+// desbloqueou de verdade, e nunca mais que o limite de cada slot. Salvo
+// na conta (User.displayedAchievements/Mini), então sobrevive a sair e
+// entrar de novo.
+async function setDisplayedAchievements(req, res, next) {
+  try {
+    const { slot, achievementIds } = req.body;
+    if (!['profile', 'mini'].includes(slot)) return res.status(400).json({ error: 'Slot inválido.' });
+    if (!Array.isArray(achievementIds)) return res.status(400).json({ error: 'Lista inválida.' });
+    const limit = slot === 'profile' ? 6 : 4;
+    if (achievementIds.length > limit) return res.status(400).json({ error: `Escolha no máximo ${limit} conquistas.` });
+
+    const unlocked = await prisma.userAchievement.findMany({ where: { userId: req.user.id }, select: { achievementId: true } });
+    const unlockedIds = new Set(unlocked.map((a) => a.achievementId));
+    if (achievementIds.some((id) => !unlockedIds.has(id))) {
+      return res.status(400).json({ error: 'Você só pode exibir conquistas que já desbloqueou.' });
+    }
+
+    const field = slot === 'profile' ? 'displayedAchievements' : 'displayedAchievementsMini';
+    const user = await prisma.user.update({
+      where: { id: req.user.id }, data: { [field]: JSON.stringify(achievementIds) }, select: SELF_USER_FIELDS,
+    });
+    res.json({ user });
+  } catch (err) { next(err); }
+}
+
+module.exports = {
+  updateProfile, updateUsername, uploadAvatar, uploadBanner, uploadMiniProfileBanner, uploadIdCard, removeIdCard,
+  setStatus, setCustomStatus, searchUsers, getUser, setActiveTag, voteProfile, setPreferredTheme, setLayoutStyle, setEmojiStyle, setChatZoom, setInterfaceZoom,
+  setDisplayedAchievements, hasFullProfileAccess, hasActivityAccess, sanitizeBannerFraming, broadcastUserUpdate,
+};

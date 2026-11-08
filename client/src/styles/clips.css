@@ -1,0 +1,53 @@
+/* Clipes dos últimos 30 segundos (Fase 7) — configurações + indicador. */
+.clips-settings { display: flex; flex-direction: column; gap: 10px; }
+.clips-settings select { max-width: 360px; }
+.clips-h4 { margin: 6px 0 0; }
+.clips-hint { margin: -2px 0 0; }
+.clips-audio-row { margin-top: 4px; }
+.clips-actions { margin-top: 4px; }
+.clips-msg, .clips-last { margin: 0; }
+.clips-warn {
+  margin: 0; padding: 8px 12px; border-radius: 10px; font-size: 13px;
+  color: var(--yellow, #f0b232); background: color-mix(in srgb, var(--yellow, #f0b232) 12%, transparent);
+  border: 1px solid color-mix(in srgb, var(--yellow, #f0b232) 32%, transparent);
+}
+.clips-status {
+  display: flex; align-items: center; gap: 8px; margin: 0; padding: 9px 12px; border-radius: 10px;
+  font-size: 13px; font-weight: 600; color: var(--text-normal); background: var(--bg-tertiary, var(--bg-secondary));
+  border: 1px solid var(--border, transparent);
+}
+.clips-status-dot { width: 9px; height: 9px; border-radius: 50%; flex-shrink: 0; background: var(--text-muted); }
+.clips-status.is-rec .clips-status-dot { background: var(--red, #f23f43); box-shadow: 0 0 0 0 color-mix(in srgb, var(--red, #f23f43) 60%, transparent); animation: clips-pulse 1.6s ease-out infinite; }
+.clips-status.is-wait .clips-status-dot { background: var(--yellow, #f0b232); }
+.clips-status.is-err { color: var(--red, #f23f43); }
+.clips-status.is-err .clips-status-dot { background: var(--red, #f23f43); }
+@keyframes clips-pulse {
+  0% { box-shadow: 0 0 0 0 color-mix(in srgb, var(--red, #f23f43) 55%, transparent); }
+  70% { box-shadow: 0 0 0 7px transparent; }
+  100% { box-shadow: 0 0 0 0 transparent; }
+}
+
+/* Indicador fixo enquanto os Clipes gravam (canto inferior esquerdo). */
+.clips-indicator {
+  position: fixed; left: 14px; bottom: 14px; z-index: 950; display: inline-flex; align-items: center; gap: 8px;
+  padding: 6px 12px 6px 10px; border-radius: 999px; font-size: 12px; font-weight: 700; color: #fff;
+  background: rgba(20, 20, 24, .88); border: 1px solid rgba(255, 255, 255, .12);
+  box-shadow: 0 6px 18px rgba(0, 0, 0, .3); backdrop-filter: blur(6px); cursor: pointer;
+}
+.clips-indicator:focus-visible { outline: 2px solid var(--brand); outline-offset: 2px; }
+.clips-indicator .clips-status-dot { background: var(--red, #f23f43); animation: clips-pulse 1.6s ease-out infinite; }
+.clips-indicator kbd { font: inherit; font-weight: 800; padding: 1px 6px; border-radius: 6px; background: rgba(255, 255, 255, .14); }
+
+.clips-toast {
+  position: fixed; left: 14px; bottom: 56px; z-index: 951; display: flex; align-items: center; gap: 10px;
+  max-width: min(420px, calc(100vw - 28px)); padding: 10px 12px; border-radius: 12px; font-size: 13px;
+  color: var(--text-normal); background: var(--bg-secondary); border: 1px solid var(--border, rgba(255, 255, 255, .1));
+  box-shadow: 0 12px 32px rgba(0, 0, 0, .35); animation: clips-in .18s ease-out;
+}
+.clips-toast strong { color: var(--header-primary); }
+.clips-toast span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.clips-toast button { flex-shrink: 0; }
+@keyframes clips-in { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+@media (prefers-reduced-motion: reduce) {
+  .clips-status.is-rec .clips-status-dot, .clips-indicator .clips-status-dot, .clips-toast { animation: none; }
+}

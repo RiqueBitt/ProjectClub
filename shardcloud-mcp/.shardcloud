@@ -1,0 +1,7 @@
+DISPLAY_NAME=shardcloud-mcp
+DESCRIPTION=MCP da Shard Cloud pro Claude gerenciar apps, bancos e deploys
+MAIN=src/index.js
+LANGUAGE=node
+MEMORY=256
+VERSION=recommended
+SUBDOMAIN=projectclub-mcp
