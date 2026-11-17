@@ -42,7 +42,7 @@ na pasta `server/` e commite o `server/waddle/dist` junto.
 As chaves ficam no **Painel da staff → Servidor de voz** (criptografadas no
 Redis e com cópia no banco). Valores:
 
-- URL: `wss://179-197-228-137.sslip.io`
+- URL: `wss://179-197-228-137.sslip.io/ws` (com o `/ws` no fim — sem ele a call não conecta)
 - Segredo: o `MEDIA_SERVER_SECRET` de `/opt/projectclub/media-server/.env` na VPS da Hostinger
   (hPanel → VPS → **Console web**: `grep SECRET /opt/projectclub/media-server/.env`)
 - TURN: `turn:179-197-228-137.sslip.io:3478?transport=udp,turn:179-197-228-137.sslip.io:3478?transport=tcp,turns:turn-179-197-228-137.sslip.io:443?transport=tcp`
