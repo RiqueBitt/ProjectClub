@@ -4,7 +4,7 @@ Responda sempre em **português do Brasil**. Dono: RiqueBitt.
 
 > Este repositório é **público**. Nunca coloque senhas, segredos, tokens ou
 > chaves aqui (nem em commit, nem em comentário). Os segredos ficam nas
-> variáveis de ambiente da Shard Cloud e no `.env` do servidor de mídia.
+> variáveis de ambiente da Shard Cloud e no `.env` do servidor de mídia (VPS da Hostinger).
 
 ## Onde roda cada coisa
 
@@ -13,7 +13,7 @@ Responda sempre em **português do Brasil**. Dono: RiqueBitt.
 | Site + API (Node/Express/Prisma) | Shard Cloud, app **ProjectClub** (`f9ba88be-b4b5-4c12-aa4a-699e94d41570`), https://projectclub.shardweb.app | `server/`, `client/` |
 | Banco | MySQL e Redis da Shard Cloud (`DATABASE_URL`, `REDIS_URL` nas variáveis do app) | `server/prisma/` |
 | Club Penguin (Praça) | dentro do mesmo app (Waddle Forever, TS → `dist` commitado) | `server/waddle/` |
-| Servidor de voz/vídeo/tela (mediasoup + TURN) | PC do dono, `wss://179-197-228-137.sslip.io` (saúde: `https://179-197-228-137.sslip.io/health`) | `media-server/` |
+| Servidor de voz/vídeo/tela (mediasoup + TURN) | VPS da **Hostinger** `srv2072093` (179.197.228.137), código em `/opt/projectclub/media-server`. `wss://179-197-228-137.sslip.io` (saúde: `https://179-197-228-137.sslip.io/health`) | `media-server/` |
 | VPS `projectclub-voz` (`7830da54-…`, 38.92.41.54) | IA Pingu (Ollama) e vigia de deploy — **pode estar desligada** | `scripts/deploy-watch.sh` |
 | App do PC | Electron | `desktop/` |
 | App Android | Kotlin/Compose nativo | `android-nativo/` |
@@ -43,12 +43,13 @@ As chaves ficam no **Painel da staff → Servidor de voz** (criptografadas no
 Redis e com cópia no banco). Valores:
 
 - URL: `wss://179-197-228-137.sslip.io`
-- Segredo: o `MEDIA_SERVER_SECRET` do `media-server/.env` no PC do servidor
+- Segredo: o `MEDIA_SERVER_SECRET` de `/opt/projectclub/media-server/.env` na VPS da Hostinger
+  (hPanel → VPS → **Console web**: `grep SECRET /opt/projectclub/media-server/.env`)
 - TURN: `turn:179-197-228-137.sslip.io:3478?transport=udp,turn:179-197-228-137.sslip.io:3478?transport=tcp,turns:turn-179-197-228-137.sslip.io:443?transport=tcp`
 - Segredo do TURN: o `TURN_SECRET` do mesmo `.env`
 
-Mudou algo em `media-server/`? Lá no PC do servidor: `git pull` e
-`docker compose up -d --build` dentro de `media-server/`.
+Mudou algo em `media-server/`? Na VPS da Hostinger (Console web):
+`cd /opt/projectclub && git pull && cd media-server && docker compose up -d --build`.
 
 ## Regras do dono
 
