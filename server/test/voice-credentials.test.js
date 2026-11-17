@@ -7,6 +7,7 @@ const path = require('node:path');
 const store = new Map();
 const fakeRedis = {
   hgetall: async (k) => Object.fromEntries(store.get(k) || new Map()),
+  hset: async (k, obj) => { if (!store.has(k)) store.set(k, new Map()); for (const [f, v] of Object.entries(obj)) store.get(k).set(f, v); },
   multi() {
     const ops = [];
     const m = {
@@ -18,6 +19,12 @@ const fakeRedis = {
   },
 };
 require.cache[path.resolve(__dirname, '../src/config/redis.js')] = { exports: { redis: fakeRedis }, loaded: true, id: 'redis' };
+const dbRows = new Map();
+const fakePrisma = { plazaSetting: {
+  findUnique: async ({ where }) => (dbRows.has(where.key) ? { key: where.key, value: dbRows.get(where.key) } : null),
+  upsert: async ({ where, create, update }) => { dbRows.set(where.key, dbRows.has(where.key) ? update.value : create.value); },
+} };
+require.cache[path.resolve(__dirname, '../src/config/prisma.js')] = { exports: fakePrisma, loaded: true, id: 'prisma' };
 
 process.env.TURN_URLS = 'turn:hospedagem.example:3478';
 delete process.env.MEDIA_SERVER_SECRET;
@@ -60,4 +67,14 @@ test('recarrega do Redis na subida (e ignora chaves antigas de provedores removi
   console.log = quiet;
   assert.equal(process.env.MEDIA_SERVER_URL, 'wss://midia.example/ws');
   assert.equal(process.env.LIVEKIT_URL, undefined);
+});
+
+test('Redis zerado: as chaves voltam da cópia no banco', async () => {
+  await creds.save('projectclub', { MEDIA_SERVER_URL: 'wss://midia.example/ws', MEDIA_SERVER_SECRET: 'segredo-do-banco' });
+  assert.ok(dbRows.has('voice:credentials'));
+  store.clear();
+  delete process.env.MEDIA_SERVER_SECRET;
+  await creds.load();
+  assert.equal(process.env.MEDIA_SERVER_SECRET, 'segredo-do-banco');
+  assert.ok(store.get('voice:credentials')?.size >= 2, 'devolve as chaves pro Redis');
 });

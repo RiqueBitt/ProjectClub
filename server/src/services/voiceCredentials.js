@@ -2,7 +2,7 @@
 // PAINEL DA STAFF ("Servidor de voz"), sem precisar mexer nas variáveis da
 // hospedagem e reiniciar.
 //
-// - Ficam no Redis CRIPTOGRAFADAS (AES-256-GCM, chave derivada do segredo
+// - Ficam no Redis E no banco (PlazaSetting "voice:credentials") CRIPTOGRAFADAS (AES-256-GCM, chave derivada do segredo
 //   do servidor) — nunca em texto puro, nunca devolvidas ao navegador
 //   (o painel só vê "definido" + os 4 últimos caracteres dos segredos).
 // - Valem por cima das variáveis de ambiente: o que a equipe salvar no
@@ -15,6 +15,26 @@ const crypto = require('crypto');
 const { redis } = require('../config/redis');
 
 const KEY = 'voice:credentials';
+// Cópia no MySQL: o Redis da hospedagem já foi zerado uma vez e a voz ficou
+// "não configurada" (as chaves só existiam lá). O banco é a cópia que dura.
+const DB_KEY = 'voice:credentials';
+
+async function dbRead() {
+  try {
+    const prisma = require('../config/prisma');
+    const row = await prisma.plazaSetting.findUnique({ where: { key: DB_KEY } });
+    return row?.value ? JSON.parse(row.value) : {};
+  } catch { return {}; }
+}
+async function dbWrite(blobs) {
+  try {
+    const prisma = require('../config/prisma');
+    const value = JSON.stringify(blobs);
+    await prisma.plazaSetting.upsert({ where: { key: DB_KEY }, create: { key: DB_KEY, value }, update: { value } });
+  } catch (err) {
+    console.warn('[voz] não deu pra guardar a cópia das chaves no banco:', err?.message || err);
+  }
+}
 
 // Campos editáveis. secret=true → nunca volta pro navegador. (A chave
 // "projectclub" é mantida por compatibilidade com o formato antigo.)
@@ -63,7 +83,21 @@ function apply() {
 // Carrega do Redis e aplica (chamado na subida do servidor).
 async function load() {
   try {
-    const raw = await redis.hgetall(KEY);
+    let raw = {};
+    try { raw = (await redis.hgetall(KEY)) || {}; } catch { raw = {}; }
+    // Redis vazio (zerado/trocado): recupera do banco e devolve pro Redis.
+    if (!Object.keys(raw).some((k) => ALL_ENV.has(k))) {
+      const fromDb = await dbRead();
+      if (Object.keys(fromDb).length) {
+        raw = fromDb;
+        try { await redis.hset(KEY, fromDb); } catch { /* fica só em memória */ }
+        console.log('[voz] chaves do servidor de voz recuperadas do banco.');
+      }
+    } else {
+      // Redis tem e o banco não (instalação antiga): faz a cópia.
+      const fromDb = await dbRead();
+      if (!Object.keys(fromDb).length) await dbWrite(Object.fromEntries(Object.entries(raw).filter(([k]) => ALL_ENV.has(k))));
+    }
     const out = {};
     for (const [name, blob] of Object.entries(raw || {})) {
       if (!ALL_ENV.has(name)) continue;
@@ -119,6 +153,9 @@ async function save(provider = 'projectclub', values = {}) {
     else multi.hdel(KEY, f.env);
   }
   await multi.exec();
+  const blobs = {};
+  for (const [name, v] of Object.entries(next)) if (ALL_ENV.has(name)) blobs[name] = encrypt(v);
+  await dbWrite(blobs);
   saved = next;
   apply();
   return describe(provider);
