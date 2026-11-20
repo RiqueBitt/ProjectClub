@@ -41,3 +41,15 @@ mkdir -p shell-scripts/frame_1 && cp shell.as shell-scripts/frame_1/DoAction.as
 java -jar ffdec.jar -importScript template.swf shell.swf shell-scripts
 python3 extract.py --swf shell.swf --out ../src/server/file-server/praca-shell-action.ts --name PRACA_SHELL_DOACTION
 ```
+
+## Conserto do Pátio do Dojo (`dojoext.as`)
+
+O `dojoext.swf` de 2015 (ilha 2015) desliga a interface de quem não tem os 4
+baralhos iniciais (normal, Fogo, Água e Neve) e o pinguim fica travado.
+`dojoext.as` vai no 1º quadro da sala e religa a interface depois do `init()`.
+
+```sh
+mkdir -p dojoext-scripts/frame_1 && cp dojoext.as dojoext-scripts/frame_1/DoAction.as
+java -jar ffdec.jar -importScript template.swf dojoext.swf dojoext-scripts
+python3 extract.py --swf dojoext.swf --out ../src/server/file-server/praca-dojoext-action.ts --name PRACA_DOJOEXT_DOACTION
+```

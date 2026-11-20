@@ -85,6 +85,7 @@ function installSwfAddressShim() {
 const FRESH_GAME_FILES = [
   /\/play\/v2\/content\/global\/content\/interface\.swf(\?|$)/,
   /\/play\/v2\/client\/(shell|catalog_viewer|igloo|backyard)\.swf(\?|$)/,
+  /\/play\/v2\/content\/global\/rooms\/dojoext\.swf(\?|$)/,
   /\/play\/v2\/content\/local\/[a-z]{2}\/(news|catalogues)\//,
 ];
 function freshUrl(url) {

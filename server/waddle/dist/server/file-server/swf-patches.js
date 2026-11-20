@@ -37,6 +37,10 @@ exports.isPatchedRoute = isPatchedRoute;
  * iglu atrás do quintal (a mídia só tem o 1_backyard.swf, então trocar o fundo
  * do iglu não mudava o quintal) — praca-backyard-action.ts.
  *
+ * rooms/dojoext.swf: um DoAction a mais no 1º quadro religa a interface no
+ * Pátio do Dojo de 2015 (a sala exige os 4 baralhos iniciais e, sem eles,
+ * desliga a interface e o pinguim fica travado) — praca-dojoext-action.ts.
+ *
  * map.swf: os cenários do Project Club (server/waddle/praca-lago/icons.json) —
  * no 1º quadro entram os ícones (símbolos exportados) e um DoAction que os põe
  * clicáveis em MAP.id_0 — praca-lago-map-tags.ts.
@@ -59,6 +63,7 @@ const praca_voice_action_1 = require("./praca-voice-action");
 const praca_shell_action_1 = require("./praca-shell-action");
 const praca_igloo_action_1 = require("./praca-igloo-action");
 const praca_backyard_action_1 = require("./praca-backyard-action");
+const praca_dojoext_action_1 = require("./praca-dojoext-action");
 const praca_lago_map_tags_1 = require("./praca-lago-map-tags");
 const swf_coins_1 = require("./swf-coins");
 const PATCHES = [
@@ -89,6 +94,11 @@ const PATCHES = [
         test: (route) => /(^|\/)play\/v2\/client\/backyard\.swf$/.test(route),
         patches: [],
         frame1Tags: [praca_backyard_action_1.PRACA_BACKYARD_DOACTION],
+    },
+    {
+        test: (route) => /(^|\/)play\/v2\/content\/global\/rooms\/dojoext\.swf$/.test(route),
+        patches: [],
+        frame1Tags: [praca_dojoext_action_1.PRACA_DOJOEXT_DOACTION],
     },
     {
         test: (route) => /(^|\/)play\/v2\/client\/shell\.swf$/.test(route),
