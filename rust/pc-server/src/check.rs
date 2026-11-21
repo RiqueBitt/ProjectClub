@@ -129,16 +129,6 @@ pub async fn run(config: &Config, only: &str) -> bool {
     ok
 }
 
-#[cfg(test)]
-mod tests {
-    #[test]
-    fn nao_mostra_senha() {
-        let s = super::host_of("rediss://default:senha@abc123.shardatabases.app:6379");
-        assert_eq!(s, "rediss://…shardatabases.app:6379");
-        assert!(!s.contains("senha"));
-    }
-}
-
 /// Diagnóstico do Redis por etapas: TCP, TLS (com o nome do servidor) e um
 /// PING cru — mostra exatamente onde trava, sem a biblioteca do Redis no meio.
 pub async fn redis_raw(url: &str) {
@@ -253,5 +243,15 @@ pub async fn mysql_modes(url: &str) {
             Ok(Err(e)) => println!("  {label}: {e}"),
             Err(_) => println!("  {label}: passou de 10 s"),
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    #[test]
+    fn nao_mostra_senha() {
+        let s = super::host_of("rediss://default:senha@abc123.shardatabases.app:6379");
+        assert_eq!(s, "rediss://…shardatabases.app:6379");
+        assert!(!s.contains("senha"));
     }
 }
