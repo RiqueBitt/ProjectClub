@@ -6,6 +6,7 @@
 
 pub mod auth;
 pub mod cache;
+pub mod check;
 pub mod config;
 pub mod db;
 pub mod proxy;

@@ -12,6 +12,11 @@ async fn main() -> anyhow::Result<()> {
         .init();
 
     let config = Config::from_env()?;
+    // `pc-server check`: só confere Redis e MySQL e sai
+    if std::env::args().nth(1).as_deref() == Some("check") {
+        let ok = pc_server::check::run(&config).await;
+        std::process::exit(if ok { 0 } else { 1 });
+    }
     let listen = config.listen;
     tracing::info!(
         "Project Club (Rust) — ambiente {env}, ouvindo em {listen}, o resto vai pro Node em {node}",
