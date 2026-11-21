@@ -2,7 +2,7 @@ import { useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext.jsx';
 import { useStore } from '../store/useStore';
 import UserAvatar from './UserAvatar.jsx';
-import { useBadges } from './Normal2Sidebar.jsx';
+import { useBadges } from '../utils/navBadges';
 
 // Barra de navegação de baixo no celular (estilo apps de comunidade):
 // Início, Comunidade, Social, Avisos e Você a um toque. Some dentro de
@@ -18,7 +18,7 @@ const PATHS = {
 const ITEMS = [
   { to: '/inicio', label: 'Início', icon: 'home', match: (p) => p === '/inicio' },
   { to: '/', label: 'Comunidade', icon: 'chat', match: (p) => p === '/' },
-  { to: '/dms', label: 'Social', icon: 'friends', match: (p) => p === '/dms' || p.startsWith('/clans') },
+  { to: '/dms', label: 'Amigos', icon: 'friends', match: (p) => p === '/dms' || p.startsWith('/clans') },
   { to: '/economia', label: 'Economia', icon: 'coin', system: 'economia', match: (p) => p.startsWith('/economia') || p.startsWith('/missoes') || p === '/loja' },
   { to: '/notifications', label: 'Avisos', icon: 'bell', match: (p) => p === '/notifications' },
 ];

@@ -437,6 +437,11 @@ button.sx-item-body:hover { border-color: color-mix(in srgb, var(--brand) 40%, v
 .featured-channels .sidebar-item.featured-channel::after { top: 9px; bottom: 9px; }
 .featured-feed { --fc: color-mix(in srgb, var(--brand) 70%, #7c5cff); }
 .featured-loja { --fc: var(--green); }
+/* Antigo menu do Normal 2.0 que virou canais em destaque (nov/2026) */
+.featured-inicio { --fc: #4f8cff; }
+.featured-amigos { --fc: #ff8a3d; }
+.featured-progresso { --fc: #f5c518; }
+.featured-suporte { --fc: #22c1c3; }
 .featured-channel-soon {
   margin-left: auto; flex-shrink: 0; height: 18px; padding: 0 7px; border-radius: 999px; display: inline-flex; align-items: center;
   font-size: 10.5px; font-weight: 800; letter-spacing: .2px;

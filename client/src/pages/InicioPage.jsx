@@ -248,7 +248,7 @@ export default function InicioPage() {
   const shortcuts = [
     firstText && { icon: 'chat', label: 'Conversar', hint: `#${firstText.name}`, to: channelPath(firstText) },
     { icon: 'feed', label: 'Fórum', hint: 'Posts e temas', to: '/comunidades' },
-    { icon: 'social', label: 'Social', hint: 'Amigos e mensagens', to: '/dms' },
+    { icon: 'social', label: 'Amigos', hint: 'Amigos e mensagens', to: '/dms' },
     { icon: 'star', label: 'Progresso', hint: 'Ranks e conquistas', to: '/progresso' },
   ].filter(Boolean);
 
