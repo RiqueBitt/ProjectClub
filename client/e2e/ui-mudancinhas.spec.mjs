@@ -33,7 +33,7 @@ test('barra de mensagem: um botão só abre emoji, figurinhas e GIFs em abas', a
   await expect(page.getByPlaceholder('Buscar GIFs...')).toBeVisible();
 });
 
-test('canal com mensagens novas mostra o número vermelho; Central mostra "novo" e apaga ao abrir Anúncios', async ({ page }) => {
+test('canal com mensagens novas mostra o número vermelho; Central mostra "novo" e apaga ao abrir', async ({ page }) => {
   const seen = [];
   let anuncios = 3;
   await page.route('**/api/**', (route) => {
@@ -53,14 +53,12 @@ test('canal com mensagens novas mostra o número vermelho; Central mostra "novo"
   await expect(page.locator('.unread-count-badge', { hasText: '7' })).toBeVisible();
   await expect(page.locator('.unread-count-badge.has-mention', { hasText: '99+' })).toBeVisible();
   // Novidades entrou na Central (canal em destaque no topo da lista): a
-  // bolinha soma Anúncios + Eventos; a aba Anúncios marca como visto.
+  // bolinha soma Anúncios + Eventos; abrir a Central marca como visto.
   const novo = page.locator('.featured-inicio .section-new-badge');
   await expect(novo).toHaveText('3');
   await expect(page.locator('.featured-inicio')).toContainText('Central');
   await page.locator('.featured-inicio').click();
   await expect(page).toHaveURL(/\/inicio/);
-  await page.locator('.hub-tabs-bar').getByText('Anúncios').click();
-  await expect(page).toHaveURL(/\/anuncios/);
   await expect.poll(() => seen).toContain('/section-badges/anuncios/seen');
   await expect(novo).toHaveCount(0);
 });

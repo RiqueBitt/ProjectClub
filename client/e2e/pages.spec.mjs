@@ -6,7 +6,6 @@ import { handler, imageHandler } from './mock-api.mjs';
 // ter rolagem lateral (conteúdo vazando da tela).
 const PAGES = [
   { path: '/inicio', ready: '.home-hero' },
-  { path: '/comunidades', ready: '.fp-card' },
   { path: '/dms', ready: '.social-hero' },
   { path: '/progresso', ready: '.pg-hero' },
   { path: '/progresso?tab=conquistas', ready: '.pg-ach-card' },
