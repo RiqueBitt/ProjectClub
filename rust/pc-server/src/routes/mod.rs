@@ -5,6 +5,7 @@ pub mod account;
 pub mod auth;
 pub mod ctx;
 pub mod devices;
+pub mod export;
 pub mod login;
 pub mod passkeys;
 pub mod qr_login;

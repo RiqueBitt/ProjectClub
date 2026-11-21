@@ -11,6 +11,7 @@ pub mod config;
 pub mod db;
 pub mod iron;
 pub mod node;
+pub mod prisma_json;
 pub mod proxy;
 pub mod qr;
 pub mod ratelimit;
@@ -171,6 +172,7 @@ fn ported(state: &AppState) -> Router<AppState> {
             post(routes::passkeys::login_verify),
         )
         .route("/api/auth/passkeys/{id}", delete(routes::passkeys::remove))
+        .route("/api/auth/export-data", get(routes::export::export_data))
         // rotas internas (Rust → Node) não existem pra quem vem de fora
         .route("/api/internal", any(not_found))
         .route("/api/internal/{*rest}", any(not_found))
