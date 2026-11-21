@@ -250,6 +250,10 @@ export const uploadCommunityBanner = (file) => {
 // --- Economia (adaptado do bot Robbie — moedas + baú diário; loja de
 // cores, empregos e cassino foram removidos por pedido do usuário) ---
 export const getMyEconomy = () => api.get('/economy').then((r) => r.data);
+// Cartão da carteira: estilo (Loja) e "Mostrar cartão" no chat.
+export const setWalletCardStyle = (style) => api.put('/economy/card-style', { style }).then((r) => r.data);
+export const shareWalletCard = () => api.post('/economy/card/share').then((r) => r.data);
+export const getSharedWalletCard = (id) => api.get(`/economy/card/${encodeURIComponent(id)}`).then((r) => r.data);
 export const claimDaily = () => api.post('/economy/daily').then((r) => r.data);
 export const listChests = () => api.get('/economy/chests').then((r) => r.data);
 // Missões diárias/semanais (Economia)

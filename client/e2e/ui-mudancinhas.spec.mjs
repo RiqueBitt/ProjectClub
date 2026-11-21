@@ -134,3 +134,14 @@ test('Economia: cartão da carteira com moedas e gemas vira ao clicar e no tecla
   await expect(page.getByRole('tab', { name: /Histórico/ })).toHaveCount(0);
   await expect(page.getByRole('tab', { name: /Sorteio/ })).toHaveCount(0);
 });
+
+test('Loja: estilos do cartão da carteira (Assinante usa o dourado, arco-íris bloqueado)', async ({ page }) => {
+  await page.route('**/api/**', handler);
+  await page.route('**/api/economy', (r) => json(r, { coins: 500, gems: 2, dailyStreak: 0, streakRequired: 5, accountLevel: 3, cardStyle: 'GOLD', cardStyles: ['DEFAULT', 'GOLD'] }));
+  await page.goto('/loja?secao=cartao');
+  await expect(page.getByRole('heading', { name: 'Cartão da carteira' })).toBeVisible({ timeout: 20_000 });
+  await expect(page.locator('.wcs-option')).toHaveCount(3);
+  await expect(page.locator('.wcs-option.is-current .wcard--gold')).toHaveCount(1);
+  await expect(page.locator('.wcs-option.is-locked')).toHaveCount(1);
+  await expect(page.locator('.wcs-option.is-locked .wcard--rainbow')).toHaveCount(1);
+});

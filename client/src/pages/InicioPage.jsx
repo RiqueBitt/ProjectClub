@@ -219,8 +219,6 @@ export default function InicioPage() {
   const visibleVideos = useMemo(() => videos?.slice(0, VIDEOS_SHOWN) ?? [], [videos]);
 
   const allChannels = useMemo(() => [...channels, ...categories.flatMap((c) => c.channels || [])], [channels, categories]);
-  const firstText = allChannels.find((c) => c.name?.toLowerCase().includes('geral') && !['VOICE', 'STAGE'].includes(c.type))
-    || allChannels.find((c) => !['VOICE', 'STAGE'].includes(c.type));
 
   // Quem está online (sem contar quem está invisível/offline).
   const online = useMemo(() => members
@@ -242,12 +240,6 @@ export default function InicioPage() {
   const peopleInCalls = liveCalls.reduce((n, c) => n + c.people.length, 0);
 
   const disabledSystems = useStore((st) => st.disabledSystems) || [];
-  const shortcuts = [
-    firstText && { icon: 'chat', label: 'Conversar', hint: `#${firstText.name}`, to: channelPath(firstText) },
-    { icon: 'social', label: 'Amigos', hint: 'Amigos e mensagens', to: '/dms' },
-    { icon: 'coin', label: 'Economia', hint: 'Moedas, missões e Loja', to: '/economia' },
-    { icon: 'star', label: 'Progresso', hint: 'Ranks e conquistas', to: '/progresso' },
-  ].filter(Boolean);
 
   return (
     <div className="home">
@@ -271,34 +263,7 @@ export default function InicioPage() {
         </div>
       </header>
 
-      {liveEvent && (
-        <section className="home-now" aria-label="Acontecendo agora">
-          <p className="home-label">Acontecendo agora</p>
-          <button type="button" className="home-now-card home-now-event is-live" onClick={() => navigate(eventPath(liveEvent))}>
-            <span className="home-now-top">
-              <span className="home-now-live">Ao vivo</span>
-              <strong className="truncate">{liveEvent.title}</strong>
-            </span>
-            <span className="home-now-sub">
-              {(liveEvent.rsvp?.counts?.GOING || 0)} confirmado{(liveEvent.rsvp?.counts?.GOING || 0) === 1 ? '' : 's'}
-            </span>
-            <span className="home-now-cta">Entrar</span>
-          </button>
-        </section>
-      )}
 
-      <nav className="home-shortcuts is-compact" aria-label="Atalhos">
-        {shortcuts.map((s) => (
-          <button key={s.to} type="button" className="home-shortcut" onClick={() => navigate(s.to)}>
-            <span className="home-shortcut-icon"><HomeIcon name={s.icon} size={20} /></span>
-            <span className="home-shortcut-text">
-              <strong>{s.label}</strong>
-              <span className="truncate">{s.hint}</span>
-            </span>
-            <HomeIcon name="arrow" size={16} />
-          </button>
-        ))}
-      </nav>
 
       {isFeatureEnabled('cardsWar') && (!disabledSystems.includes('cartas') || user?.platformRole === 'ADMIN') && <ArenaPromo />}
 
@@ -306,6 +271,22 @@ export default function InicioPage() {
 
       <div className="home-grid">
         <div className="home-main">
+          {/* Evento ao vivo: só aparece enquanto um evento está acontecendo, em cima das Novidades. */}
+          {liveEvent && (
+            <section className="home-now" aria-label="Acontecendo agora">
+              <p className="home-label">Acontecendo agora</p>
+              <button type="button" className="home-now-card home-now-event is-live" onClick={() => navigate(eventPath(liveEvent))}>
+                <span className="home-now-top">
+                  <span className="home-now-live">Ao vivo</span>
+                  <strong className="truncate">{liveEvent.title}</strong>
+                </span>
+                <span className="home-now-sub">
+                  {(liveEvent.rsvp?.counts?.GOING || 0)} confirmado{(liveEvent.rsvp?.counts?.GOING || 0) === 1 ? '' : 's'}
+                </span>
+                <span className="home-now-cta">Entrar</span>
+              </button>
+            </section>
+          )}
           {/* Novidades da staff com banner e texto, direto aqui (antes era uma aba). */}
           <section className="home-section home-news">
             <AnunciosPage embedded />

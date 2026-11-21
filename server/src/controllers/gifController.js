@@ -18,6 +18,10 @@ function mapResults(data) {
     id: r.id,
     preview: r.media_formats?.tinygif?.url || r.media_formats?.gif?.url,
     full: r.media_formats?.gif?.url,
+    // Proporção real do GIF (formato Tenor v2: dims = [largura, altura]) —
+    // o seletor usa pra mostrar cada GIF sem achatar nem cortar.
+    width: (r.media_formats?.tinygif?.dims || r.media_formats?.gif?.dims || [])[0] || null,
+    height: (r.media_formats?.tinygif?.dims || r.media_formats?.gif?.dims || [])[1] || null,
   })).filter((g) => g.full);
 }
 

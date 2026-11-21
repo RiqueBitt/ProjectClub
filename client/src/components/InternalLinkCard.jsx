@@ -7,6 +7,8 @@ import { proxyImage } from '../utils/imageProxy';
 import UserAvatar from './UserAvatar.jsx';
 import BattleInviteCard from '../cards/BattleInviteCard.jsx';
 import { isFeatureEnabled } from '../utils/features';
+import WalletCard from './WalletCard.jsx';
+import { getSharedWalletCard } from '../api/endpoints';
 import '../styles/socialx.css';
 
 // Cartão de prévia pra links internos colados no chat (post, modpack,
@@ -35,7 +37,33 @@ export function LinkKindIcon({ kind, size = 14 }) {
 export default function InternalLinkCard({ link }) {
   // Guerra das Cartas desligada: o convite vira só o link comum (abre o "Em breve").
   if (link.kind === 'battle') return isFeatureEnabled('cardsWar') ? <BattleInviteCard code={link.id} /> : null;
+  if (link.kind === 'wallet') return <SharedWalletCard id={link.id} />;
   return <LinkPreviewCard link={link} />;
+}
+
+// "Mostrar cartão" (Atividades da barra de mensagem): a foto do cartão da
+// carteira de quem mandou, do jeito que estava na hora. Dá pra virar e
+// girar igual ao da Economia. Some se o cartão não existir.
+const walletCache = new Map();
+function SharedWalletCard({ id }) {
+  const [data, setData] = useState(() => walletCache.get(id));
+  useEffect(() => {
+    if (walletCache.has(id)) { setData(walletCache.get(id)); return undefined; }
+    let alive = true;
+    getSharedWalletCard(id)
+      .then((d) => { walletCache.set(id, d); if (alive) setData(d); })
+      .catch(() => { walletCache.set(id, null); if (alive) setData(null); });
+    return () => { alive = false; };
+  }, [id]);
+  if (data === null) return null;
+  if (data === undefined) return <div className="wcard-chat" aria-hidden="true"><span className="ilc-skel" style={{ width: 300, height: 189, borderRadius: 16 }} /></div>;
+  const when = new Date(data.card.createdAt).toLocaleString('pt-BR', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' });
+  return (
+    <div className="wcard-chat">
+      <WalletCard user={{ ...data.user, createdAt: data.user?.createdAt }} coins={data.card.coins} gems={data.card.gems} level={data.card.level} variant={data.card.style} compact hint={false} />
+      <span className="wcard-chat-caption">Cartão de {data.user?.displayName || 'alguém'} · saldo de {when}</span>
+    </div>
+  );
 }
 
 function LinkPreviewCard({ link }) {

@@ -6726,3 +6726,68 @@ h2 > .ui-stroke-icon:first-child, h3 > .ui-stroke-icon:first-child, h4 > .ui-str
 .top-more-menu .top-more-donate svg { color: #ff4d6d; flex-shrink: 0; }
 .top-more-sep { height: 1px; margin: 4px 6px; background: var(--border); }
 @media (max-width: 600px) { .top-more-menu { position: fixed; top: 56px; right: 12px; } }
+
+/* ============================================================
+   Seletor de Emojis / Figurinhas / GIFs — visual novo (nov/2026)
+   Mais espaço, abas em pílula, emojis maiores, rótulos fixos ao
+   rolar, prévia no rodapé e GIFs em mosaico na proporção real
+   (antes eram cortados em caixas de 110px e ficavam achatados).
+   ============================================================ */
+.emoji-picker-popover { border: 1px solid var(--border); border-radius: 14px; overflow: hidden; box-shadow: 0 18px 48px rgba(0,0,0,.5); }
+@media (min-width: 601px) {
+  .emoji-picker-popover.composer-centered-picker { max-height: min(72vh, 640px); border-radius: 14px; }
+}
+.emoji-picker-popover .emoji-picker-tabs { gap: 4px; padding: 8px 8px 0; border-bottom: 0; }
+.emoji-picker-popover .emoji-picker-tabs button {
+  flex: 1; padding: 7px 10px; border-radius: 9px; font-size: 13px; font-weight: 700;
+  color: var(--text-muted); border-bottom: 0; transition: background .12s, color .12s;
+}
+.emoji-picker-popover .emoji-picker-tabs button:hover { background: var(--bg-modifier-hover); color: var(--header-primary); }
+.emoji-picker-popover .emoji-picker-tabs button.active { background: color-mix(in srgb, var(--brand) 20%, transparent); color: var(--header-primary); border-bottom: 0; }
+.emoji-picker-popover .emoji-picker-subtabs { padding: 6px 8px 0; }
+.emoji-picker-popover .emoji-picker-search {
+  margin: 8px; padding: 9px 12px 9px 34px; border-radius: 10px; border: 1px solid var(--border);
+  background: var(--bg-primary) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%23949ba4' stroke-width='2.2' stroke-linecap='round'%3E%3Ccircle cx='11' cy='11' r='7'/%3E%3Cpath d='m20 20-3.5-3.5'/%3E%3C/svg%3E") no-repeat 11px center;
+}
+.emoji-picker-popover .emoji-picker-search:focus { border-color: color-mix(in srgb, var(--brand) 60%, var(--border)); outline: none; }
+
+.emoji-picker-popover .emoji-picker-cat-rail { width: 46px; gap: 4px; padding: 6px 0; background: var(--bg-secondary); }
+.emoji-picker-popover .emoji-picker-cat-rail-btn { width: 34px; height: 34px; border-radius: 10px; }
+.emoji-picker-popover .emoji-picker-cat-rail-btn img { width: 22px; height: 22px; object-fit: contain; }
+.emoji-picker-popover .emoji-picker-group-label {
+  position: sticky; top: 0; z-index: 1; margin: 0 -10px 4px; padding: 8px 10px 6px;
+  background: var(--bg-floating); font-size: 11.5px; letter-spacing: .4px; text-transform: uppercase;
+  display: flex; align-items: center; gap: 6px;
+}
+.emoji-picker-popover .emoji-picker-group-label img { width: 16px; height: 16px; object-fit: contain; }
+.emoji-picker-popover .emoji-picker-grid { grid-template-columns: repeat(auto-fill, minmax(40px, 1fr)); gap: 2px; margin-bottom: 6px; }
+.emoji-picker-popover .emoji-picker-grid button { aspect-ratio: 1; padding: 4px; border-radius: 9px; transition: background .1s, transform .1s; }
+.emoji-picker-popover .emoji-picker-grid button:hover { background: var(--bg-modifier-hover); transform: scale(1.12); }
+.emoji-picker-popover .emoji-picker-grid img { width: 30px; height: 30px; }
+
+.emoji-picker-popover .sticker-picker-grid { grid-template-columns: repeat(auto-fill, minmax(96px, 1fr)); gap: 8px; margin-bottom: 8px; }
+.emoji-picker-popover .sticker-picker-grid button { aspect-ratio: 1; padding: 6px; border-radius: 12px; background: var(--bg-secondary); transition: background .12s, transform .12s; }
+.emoji-picker-popover .sticker-picker-grid button:hover { background: var(--bg-modifier-hover); transform: translateY(-2px); }
+.emoji-picker-popover .sticker-picker-grid img { width: 100%; height: 100%; object-fit: contain; }
+
+/* GIFs: mosaico em colunas, cada um na proporção dele (sem cortar nem achatar). */
+.emoji-picker-popover .gif-picker-grid { display: block; column-count: 2; column-gap: 8px; padding: 8px 10px 10px; }
+@media (min-width: 601px) { .emoji-picker-popover .gif-picker-grid { column-count: 3; } }
+.emoji-picker-popover .gif-picker-grid > .dim { column-span: all; }
+.emoji-picker-popover .gif-picker-grid button, .emoji-picker-popover .gif-picker-tile {
+  display: block; width: 100%; height: auto; margin: 0 0 8px; break-inside: avoid;
+  border-radius: 10px; background: var(--bg-secondary); min-height: 60px;
+}
+.emoji-picker-popover .gif-picker-grid img { width: 100%; height: auto; object-fit: contain; border-radius: 10px; }
+.emoji-picker-popover .gif-picker-tile:hover img { filter: brightness(1.08); }
+.emoji-picker-popover .gif-picker-mural { grid-template-columns: repeat(auto-fill, minmax(130px, 1fr)); }
+.emoji-picker-popover .gif-picker-mural-tile { height: 96px; border-radius: 12px; }
+
+/* Rodapé com a prévia do que está sob o mouse. */
+.emoji-picker-preview {
+  flex-shrink: 0; display: flex; align-items: center; gap: 10px; min-height: 48px; padding: 6px 12px;
+  border-top: 1px solid var(--border); background: var(--bg-secondary); font-size: 13.5px; font-weight: 700; color: var(--header-primary);
+}
+.emoji-picker-preview img { width: 32px; height: 32px; object-fit: contain; }
+.emoji-picker-preview-hint { font-weight: 500; color: var(--text-muted); font-size: 12.5px; }
+@media (max-width: 600px), (hover: none) { .emoji-picker-preview { display: none; } }

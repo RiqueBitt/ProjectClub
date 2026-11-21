@@ -8,6 +8,9 @@ import '../styles/wallet-card.css';
 // Enter/Espaço) vira o cartão; arrastar pro lado gira ele pra frente ou pra
 // trás e, ao soltar, ele assenta na face mais próxima. Parado, flutua de
 // leve e um reflexo acompanha o mouse. A bandeira "ClubPay" é fictícia.
+// Estilos (`variant`): DEFAULT (azul), GOLD (preto e dourado, Assinante) e
+// RAINBOW (preto e arco-íris, Super Assinante) — ver server/services/walletCard.js.
+// `compact`: versão menor, usada no chat ("Mostrar cartão") e na Loja.
 // Nada aqui mexe em saldo: só mostra o que vem de /economy/me.
 
 function fmt(n) { return Math.floor(Number(n) || 0).toLocaleString('pt-BR'); }
@@ -34,7 +37,9 @@ function ClubPayMark() {
 
 const SNAP_MS = 520;
 
-export default function WalletCard({ user, coins, gems, level }) {
+const VARIANTS = { DEFAULT: '', GOLD: ' wcard--gold', RAINBOW: ' wcard--rainbow' };
+
+export default function WalletCard({ user, coins, gems, level, variant = 'DEFAULT', compact = false, hint = true }) {
   const [angle, setAngle] = useState(0);         // rotação Y "assentada" (múltiplos de 180)
   const [drag, setDrag] = useState(null);        // { startX, base, moved }
   const [tilt, setTilt] = useState({ x: 0, y: 0, px: 50, py: 50 });
@@ -90,10 +95,10 @@ export default function WalletCard({ user, coins, gems, level }) {
   const sinceText = since ? `${String(since.getMonth() + 1).padStart(2, '0')}/${String(since.getFullYear()).slice(-2)}` : '--/--';
 
   return (
-    <div className="wcard-stage">
+    <div className={`wcard-stage${compact ? ' is-compact' : ''}`}>
       <div
         ref={cardRef}
-        className={`wcard${drag ? ' is-dragging' : ''}${snapping ? ' is-snapping' : ''}`}
+        className={`wcard${VARIANTS[variant] || ''}${drag ? ' is-dragging' : ''}${snapping ? ' is-snapping' : ''}`}
         role="button" tabIndex={0}
         aria-label={`Cartão da carteira de ${name}: ${fmt(coins)} moedas e ${fmt(gems)} gemas. ${showingBack ? 'Mostrando o verso' : 'Mostrando a frente'}. Enter vira o cartão.`}
         onPointerDown={onPointerDown} onPointerMove={onPointerMove} onPointerUp={endDrag} onPointerCancel={endDrag}
@@ -113,7 +118,7 @@ export default function WalletCard({ user, coins, gems, level }) {
               </div>
               <div className="wcard-mid">
                 <span className="wcard-chip" aria-hidden="true"><i /><i /><i /></span>
-                <span className="wcard-photo"><UserAvatar user={user} size={52} /></span>
+                <span className="wcard-photo"><UserAvatar user={user} size={compact ? 40 : 52} /></span>
               </div>
               <div className="wcard-balances">
                 <span className="wcard-bal coins"><Ico name="coin" size={17} /><b>{fmt(coins)}</b><small>moedas</small></span>
@@ -147,7 +152,7 @@ export default function WalletCard({ user, coins, gems, level }) {
           </div>
         </div>
       </div>
-      <p className="wcard-hint" aria-hidden="true">Toque pra virar · arraste pra girar</p>
+      {hint && <p className="wcard-hint" aria-hidden="true">Toque pra virar · arraste pra girar</p>}
     </div>
   );
 }

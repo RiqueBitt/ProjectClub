@@ -280,7 +280,10 @@ export default function EconomyPage({ initialTab = 'geral' }) {
     <div className="pk-page eco">
       <div className="pk-inner">
         {/* Cartão da carteira no lugar da barra "Sua carteira" (nov/2026). */}
-        <WalletCard user={user} coins={eco.coins} gems={eco.gems} level={eco.accountLevel} />
+        <WalletCard user={user} coins={eco.coins} gems={eco.gems} level={eco.accountLevel} variant={eco.cardStyle} />
+        {eco.cardStyles?.length > 1 && (
+          <p className="eco-card-style-link"><Link to="/loja?secao=cartao">Trocar o estilo do cartão</Link></p>
+        )}
 
         <PillTabs
           tabs={tabs} value={tab} label="Seções da Economia" className="eco-tabs"

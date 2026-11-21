@@ -26,6 +26,7 @@ import '../styles/shop-room.css';
 import '../styles/contentx.css';
 import '../styles/cards.css';
 import HubTabs, { ECONOMY_HUB_TABS } from '../components/HubTabs.jsx';
+import WalletCardStyles from '../components/shop/WalletCardStyles.jsx';
 import { previewCoupon } from '../api/community';
 import '../styles/community4.css';
 
@@ -179,7 +180,7 @@ export default function LojaPage() {
   const [params] = useSearchParams();
   const [data, setData] = useState(null);
   const [loadError, setLoadError] = useState('');
-  const [section, setSection] = useState(() => (params.get('secao') === 'assinatura' ? 'plans' : params.get('tab') === 'trocas' ? 'trades' : CARDS_WAR_ON && params.get('cat') === 'versos' ? 'back' : 'home'));
+  const [section, setSection] = useState(() => (params.get('secao') === 'assinatura' ? 'plans' : params.get('secao') === 'cartao' ? 'cartao' : params.get('tab') === 'trocas' ? 'trades' : CARDS_WAR_ON && params.get('cat') === 'versos' ? 'back' : 'home'));
   const [query, setQuery] = useState('');
   const [sort, setSort] = useState('foryou');
   const [shuffleSeed, setShuffleSeed] = useState(() => Math.floor(Math.random() * 1e9));
@@ -362,6 +363,8 @@ export default function LojaPage() {
     // Exclusivos: a coroa no título marca o que é dos assinantes.
     { group: 'Exclusivos', crown: true, items: [
       { id: 'exclusive', label: 'Loja exclusiva', icon: 'crown', n: exclusives.length },
+      // Estilo do cartão da carteira (Economia / "Mostrar cartão" no chat).
+      { id: 'cartao', label: 'Cartão da carteira', icon: 'coin' },
       ...(limiteds.length > 0 ? [{ id: 'limited', label: 'Limitados', icon: 'star', n: limiteds.filter((i) => i.remaining > 0).length }] : []),
     ] },
     { group: 'Você', items: [
@@ -389,6 +392,7 @@ export default function LojaPage() {
   else if (section === 'wishlist') content = <WishlistPage list={items.filter(inWish)} go={go} ctx={ctx} />;
   else if (section === 'gifts') content = <GiftsPage go={go} onWallet={(w) => setData((d) => (d ? { ...d, coins: w.coins ?? d.coins, gems: w.gems ?? d.gems } : d))} reload={load} flash={flash} />;
   else if (section === 'plans') content = <PlansPage supporter={supporter} />;
+  else if (section === 'cartao') content = <WalletCardStyles user={user} flash={flash} onPlans={() => go('plans')} />;
   else if (section === 'cartas') content = <CardsSoonPage />;
   else if (section === 'tryon') content = <ShopTryOn items={items} user={user} data={data} ctx={ctx} />;
   else if (section === 'look') content = <LookPage look={lookParam} from={params.get('from')} items={items} ctx={ctx} />;
