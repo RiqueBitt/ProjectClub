@@ -23,6 +23,7 @@ async fn main() -> anyhow::Result<()> {
             if let Some(u) = config.database_url.as_deref() {
                 println!("mysql (modos de TLS):");
                 pc_server::check::mysql_modes(u).await;
+                pc_server::check::mysql_async_probe(u).await;
             }
             return Ok(());
         }

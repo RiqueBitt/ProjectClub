@@ -39,6 +39,7 @@ bcrypt = "0.17"
 cookie = "0.18"
 tokio-rustls = { version = "0.26", default-features = false, features = ["ring", "tls12"] }
 webpki-roots = "1"
+mysql_async = { version = "0.37.1", default-features = false, features = ["minimal-rust", "rustls-tls", "tracing"] }
 
 [dev-dependencies]
 axum = { version = "0.8", features = ["ws"] }

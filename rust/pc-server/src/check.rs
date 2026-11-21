@@ -207,6 +207,33 @@ pub async fn redis_raw(url: &str) {
     }
 }
 
+/// Mesmo teste com o `mysql_async` (o driver que o Prisma usa por baixo).
+pub async fn mysql_async_probe(url: &str) {
+    use mysql_async::prelude::Queryable;
+    let r: anyhow::Result<String> = async {
+        let opts = mysql_async::Opts::from_url(url)?;
+        let mut conn = tokio::time::timeout(
+            std::time::Duration::from_secs(10),
+            mysql_async::Conn::new(opts),
+        )
+        .await
+        .map_err(|_| anyhow::anyhow!("passou de 10 s"))??;
+        let v: Option<String> = conn.query_first("SELECT VERSION()").await?;
+        let n: Option<i64> = conn.query_first("SELECT COUNT(*) FROM `User`").await?;
+        conn.disconnect().await?;
+        Ok(format!(
+            "versão {}, {} contas",
+            v.unwrap_or_default(),
+            n.unwrap_or_default()
+        ))
+    }
+    .await;
+    match r {
+        Ok(m) => println!("  mysql_async: OK ({m})"),
+        Err(e) => println!("  mysql_async: {e}"),
+    }
+}
+
 /// Tenta o MySQL com cada modo de TLS (preferido, desligado, obrigatório).
 pub async fn mysql_modes(url: &str) {
     use sqlx::ConnectOptions;
