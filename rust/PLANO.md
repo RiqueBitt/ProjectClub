@@ -158,3 +158,7 @@ fim), com as variáveis de verdade:
   Rust não tem (ex.: OPTIONS) vai pro Node.
 - Diferença conhecida: JSON quebrado dá 400 nos dois, mas a mensagem do
   Node vem do V8 (`Expected property name…`) e a do Rust é `JSON inválido (…)`.
+
+Produção (21/11/2026, depois do login): `POST /api/auth/login` (corpo vazio
+e conta inexistente) e `GET /api/auth/me` sem login — mesmo código, mesmo
+corpo e os mesmos cabeçalhos de segurança/CORS que o Node.
