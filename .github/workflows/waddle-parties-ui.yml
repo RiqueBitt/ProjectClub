@@ -1,0 +1,44 @@
+name: Telas das festas 2013-2017 (release waddle-parties)
+
+# Baixa as telas das festas (close-ups, catálogos, avisos de sócio, a
+# configuração content/features.swf das festas de 2015+) e os paths.json
+# originais guardados no Wayback Machine. Publica na release
+# "waddle-parties": media-parties-ui.tar (pasta parties/pcparties-ui/).
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: waddle-parties
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    steps:
+      - uses: actions/checkout@v4
+      - name: Baixar as telas
+        run: python3 tools/cp-parties/fetch-ui.py tools/cp-parties/parties.json out
+      - name: Empacotar
+        run: |
+          cd out
+          tar cf media-parties-ui.tar parties
+          cp parties/pcparties-ui/index.json parties-ui-index.json
+          cp parties/pcparties-ui/paths-union.json parties-paths-union.json
+          sha256sum media-parties-ui.tar parties-ui-index.json parties-paths-union.json > SHA256SUMS-parties-ui.txt
+          ls -la
+      - name: Publicar na release waddle-parties
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          if ! gh release view waddle-parties >/dev/null 2>&1; then
+            gh release create waddle-parties --title "Festas 2013-2017 da Praça" --latest=false \
+              --notes "Salas e arquivos das festas de 2013 a 2017 do Club Penguin (arquivo histórico, via Club Penguin Archives). Usado pela Praça do Project Club; não é uma versão do app."
+          fi
+          cd out
+          gh release upload waddle-parties media-parties-ui.tar parties-ui-index.json parties-paths-union.json SHA256SUMS-parties-ui.txt --clobber
+          gh release view waddle-parties --json assets --jq '.assets[] | "\(.name) \(.size)"'

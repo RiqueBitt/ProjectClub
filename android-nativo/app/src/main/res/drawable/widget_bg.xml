@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Fundo do widget "quem está online": cartão escuro com cantos arredondados. -->
+<shape xmlns:android="http://schemas.android.com/apk/res/android" android:shape="rectangle">
+    <solid android:color="#F01E1F22" />
+    <stroke android:width="1dp" android:color="#22FFFFFF" />
+    <corners android:radius="20dp" />
+</shape>

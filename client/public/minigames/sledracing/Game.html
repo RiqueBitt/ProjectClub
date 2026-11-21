@@ -1,0 +1,34 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+	<head>
+		<title>Sled Racing (Game)</title>
+		<link rel="stylesheet" href="Include/Style.css">
+		<meta charset="utf-8">
+	</head>
+	<body class="loading frame">
+		<div class="game">
+			<div class="loading-wrapper">
+				<div class="loading-flex">
+					<img class="loading-icon" src="Assets/Loading.gif">
+					<div class="loading-outer">
+						<div class="loading-bar-wrapper">
+							<div class="loading-bar"></div>
+						</div>
+					</div>
+					<div class="loading-text">Carregando Corrida de Trenó</div>
+				</div>
+			</div>
+		</div>
+		<iframe allow="autoplay" src="Assets/Silence.mp3" style="display:none"></iframe>
+		<script src="../_shared/jquery.min.js"></script>
+		<script src="../_shared/sbd.js?v=2"></script>
+		<!-- Project Club: cliente Socket.IO (mesma origem) pro multiplayer do trenó. -->
+		<script src="/socket.io/socket.io.js"></script>
+		<script src="Include/Scripts/Game.js?v=3"></script>
+		<script src="Include/Scripts/Input.js?v=3"></script>
+		<script src="Include/Scripts/Maps.js?v=3"></script>
+		<script src="Include/Scripts/Multiplayer.js?v=3"></script>
+		<script src="Include/Scripts/Tiles.js"></script>
+		<script src="Include/Scripts/Main.js"></script>
+	</body>
+</html>

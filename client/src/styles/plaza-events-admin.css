@@ -1,0 +1,37 @@
+/* Painel da Equipe → Club Penguin → Eventos da Praça (PlazaEventsAdmin.jsx) */
+.pea-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
+.pea-list .stg-party.is-off { opacity: .6; }
+.pea-form { display: flex; flex-direction: column; gap: 12px; }
+.pea-form h4 { margin: 10px 0 0; font-size: 13px; text-transform: uppercase; letter-spacing: .06em; color: var(--text-muted); }
+.pea-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 10px; }
+.pea-grid label, .pea-inline label { display: flex; flex-direction: column; gap: 4px; font-size: 12px; color: var(--text-muted); }
+.pea-grid input, .pea-grid select, .pea-inline input, .pea-search input { height: 34px; padding: 0 10px; border-radius: 9px; background: var(--bg-primary); color: var(--header-primary); border: 1px solid var(--st-border); font-size: 13px; outline: none; }
+.pea-grid input:focus, .pea-grid select:focus, .pea-search input:focus { border-color: color-mix(in srgb, var(--brand) 70%, transparent); }
+.pea-check { flex-direction: row !important; align-items: center; gap: 8px !important; }
+.pea-check input { height: auto !important; }
+.pea-wide { grid-column: 1 / -1; }
+.pea-card { padding: 12px; border-radius: 12px; border: 1px solid var(--st-border); background: var(--bg-primary); display: flex; flex-direction: column; gap: 10px; }
+.pea-inline { flex-direction: row; flex-wrap: wrap; align-items: flex-end; }
+.pea-inline label { min-width: 110px; }
+.pea-inline .pea-tags { flex: 1; min-width: 220px; }
+.pea-tags { display: flex; flex-direction: column; gap: 4px; }
+.pea-label { font-size: 12px; color: var(--text-muted); }
+.pea-chips { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+.pea-chips select { height: 30px; border-radius: 999px; padding: 0 10px; background: var(--bg-primary); color: var(--text-normal); border: 1px dashed var(--st-border); font-size: 12.5px; }
+.pea-search { position: relative; flex: 1; min-width: 180px; }
+.pea-search input { width: 100%; height: 30px; }
+.pea-results { position: absolute; z-index: 5; top: 34px; left: 0; right: 0; margin: 0; padding: 4px; list-style: none; border-radius: 10px; border: 1px solid var(--st-border); background: var(--bg-secondary); box-shadow: 0 10px 30px rgba(0,0,0,.35); }
+.pea-results button { width: 100%; text-align: left; border: 0; background: transparent; color: var(--text-normal); padding: 6px 8px; border-radius: 6px; cursor: pointer; font-size: 13px; }
+.pea-results button:hover { background: var(--bg-modifier-hover); }
+.pea-results small { color: var(--text-muted); }
+.pea-actions { margin-top: 8px; }
+
+/* galerias (participações de concurso, artes do Jigsaw) */
+.pea-gallery { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 10px; }
+.pea-entry { display: flex; flex-direction: column; gap: 4px; padding: 6px; border-radius: 10px; border: 1px solid var(--border, #2a2f3a); background: var(--bg-2, rgba(255,255,255,.03)); font-size: 12px; }
+.pea-entry img { width: 100%; aspect-ratio: 1; object-fit: cover; border-radius: 6px; background: #111; }
+.pea-entry small { opacity: .7; }
+.pea-entry.is-winner { border-color: #f5b116; }
+.pea-entry.is-pending { border-color: #4c9aff; }
+.pea-entry.is-hidden { opacity: .5; }
+.pea-entry .stg-parties-bar { flex-wrap: wrap; gap: 4px; }

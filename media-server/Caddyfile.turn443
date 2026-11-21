@@ -1,0 +1,36 @@
+# Modo TURN na 443 (TURN_443=1 — docker-compose.turn443.yml, imagem com
+# caddy-l4). Redes que só deixam passar a 443 (empresa, escola, hotel)
+# alcançam o coturn por turns:<TURN_DOMAIN>:443.
+#
+# Na porta 443 o Caddy olha o SNI do ClientHello ANTES de decifrar:
+#   SNI = {$TURN_DOMAIN}  → TLS repassado intacto pro coturn (127.0.0.1:5349)
+#   qualquer outra coisa  → HTTPS normal (sinalização wss do servidor de mídia)
+# Este arquivo vai montado como /etc/caddy/Caddyfile e importa o Caddyfile
+# de sempre (montado como /etc/caddy/Caddyfile.base) — o site é o mesmo.
+{
+	servers :443 {
+		listener_wrappers {
+			layer4 {
+				@turn tls sni {$TURN_DOMAIN}
+				route @turn {
+					proxy 127.0.0.1:5349
+				}
+			}
+			tls
+		}
+	}
+}
+
+import /etc/caddy/Caddyfile.base
+
+# Certificado do domínio do TURN (o coturn usa — pc-turn-cert-sync copia).
+# O TLS desse nome na 443 vai pro coturn, então o desafio TLS-ALPN não
+# funciona: só HTTP-01 (porta 80).
+{$TURN_DOMAIN} {
+	tls {
+		issuer acme {
+			disable_tlsalpn_challenge
+		}
+	}
+	respond 404
+}

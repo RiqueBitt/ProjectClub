@@ -1,0 +1,34 @@
+/* Zoom do visualizador de imagem (ZoomableImage.jsx): pinça, arrastar,
+   toque duplo e deslizar pra baixo pra fechar. O próprio visualizador
+   cuida dos gestos — a página por trás não rola nem amplia. */
+.lightbox-overlay.no-swipe {
+  touch-action: none;
+  overscroll-behavior: contain;
+  background: rgba(0, 0, 0, calc(.9 * var(--lightbox-fade, 1)));
+}
+.lightbox-stage {
+  position: absolute; inset: 0;
+  display: flex; align-items: center; justify-content: center;
+  padding: 24px;
+  overflow: hidden;
+  touch-action: none;
+  -webkit-user-select: none; user-select: none;
+  -webkit-touch-callout: none;
+}
+.lightbox-image.lightbox-zoomable {
+  transform-origin: 50% 50%;
+  will-change: transform;
+  transition: none;
+  cursor: zoom-in;
+  -webkit-user-drag: none;
+  backface-visibility: hidden;
+}
+.lightbox-image.lightbox-zoomable.is-zoomed { cursor: grab; }
+.lightbox-image.lightbox-zoomable.is-zoomed:active { cursor: grabbing; }
+.lightbox-image.lightbox-zoomable.animating { transition: transform .22s cubic-bezier(.2, .8, .2, 1); }
+@media (prefers-reduced-motion: reduce) {
+  .lightbox-image.lightbox-zoomable.animating { transition: none; }
+}
+@media (max-width: 600px) {
+  .lightbox-stage { padding: 8px; }
+}

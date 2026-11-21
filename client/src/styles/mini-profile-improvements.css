@@ -1,0 +1,125 @@
+/* Melhorias do Mini Perfil (MiniProfileCard.jsx), estilo Discord —
+   mantidas em arquivo próprio, no mesmo padrão já usado por
+   settings-mobile-fix.css/mobile-scroll-fix.css, em vez de mexer em
+   global.css (que já está com ~430KB). Precisa vir DEPOIS de
+   global.css em main.jsx pra vencer no cascata do CSS.
+
+   Itens pedidos:
+   - "Aumentar o tamanho geral do mini perfil"
+   - "Aumentar o tamanho do banner no mini-perfil, seguir exemplo do
+     discord"
+   - "Colocar a foto do perfil um pouco mais acima, estilo discord,
+     pegando a foto na metade do banner"
+   - "Aumentar a bolha de status para ficar maior, similar a do
+     discord"
+   - "Escolher a cor de fundo da bolha que mostra os status" — a
+     PARTE de cor (Preto/Cinza/Branco) é feita à parte, via variável
+     CSS --status-bubble-border definida inline em MiniProfileCard.jsx
+     quando a pessoa escolheu uma; sem escolha, cai no valor padrão de
+     sempre (var(--bg-elevated)), sem mudança de comportamento. */
+
+/* Card geral: 280px → 320px (mesma ordem de grandeza do popout de
+   perfil do Discord). */
+.mini-profile-card { width: 320px; }
+
+/* Banner: 60px → 100px de altura, bem mais perto da proporção do
+   banner de perfil do Discord (que ocupa boa parte do card). */
+.mini-profile-banner { height: 100px; }
+
+/* Avatar: 64px → 84px. margin-top ajustado pra continuar exatamente
+   na "metade do banner" mesmo com o avatar e o banner maiores — o
+   centro do avatar cai bem em cima da borda de baixo do novo banner
+   (100px), erguendo boa parte dele por dentro do banner, igual o
+   Discord faz — em vez de só encostar de leve na borda de baixo como
+   antes. */
+.mini-profile-avatar-wrap { margin-top: -56px; width: 84px; height: 84px; }
+.mini-profile-avatar { width: 84px; height: 84px; border-width: 4px; }
+
+/* Bolha/indicador de status (presença) no canto do avatar: 20px → 28px,
+   proporcional ao avatar maior — tamanho comparável ao indicador de
+   status do Discord no popout de perfil. border-color agora lê a
+   variável --status-bubble-border quando a pessoa escolheu uma cor de
+   fundo própria pra essa bolha (Preto/Cinza/Branco); sem escolha, cai
+   no mesmo var(--bg-elevated) de sempre. */
+.mini-profile-presence-dot {
+  width: 28px; height: 28px; border-width: 4px;
+  border-color: var(--status-bubble-border, var(--bg-elevated));
+}
+
+/* ============================================================
+   Rodada 5 — miniperfil repaginado
+   - Bolinha de status no canto de baixo/direita do avatar, igual o
+     Discord (anel recortado na cor do fundo). Antes o wrap tinha 84px
+     mas o avatar ocupa 92px (84 + borda de 4px dos dois lados, por
+     causa do box-sizing: content-box) — a bolinha era posicionada
+     dentro dos 84px e ficava 8px alta/para dentro, por cima da foto.
+     Agora o wrap tem o tamanho REAL do avatar.
+   - Seções com rótulo (Sobre mim / Cargos), insígnias numa pílula,
+     espaçamentos mais consistentes.
+   Seletores com .mini-profile-card na frente pra vencer presence.css
+   (carregado depois deste arquivo).
+   ============================================================ */
+.mini-profile-card .mini-profile-avatar-wrap {
+  width: 92px; height: 92px; margin-top: -60px; margin-bottom: 4px;
+}
+.mini-profile-card .mini-profile-avatar { position: relative; z-index: 1; }
+.mini-profile-card .mini-profile-presence-dot.status-dot {
+  position: absolute; z-index: 4;
+  width: 18px; height: 18px; border-width: 5px;
+  right: 2px; bottom: 2px; top: auto; left: auto;
+  box-shadow: none;
+  /* anel = mesma cor do fundo do card (recorte), ou a cor escolhida */
+  --status-ring: var(--status-bubble-border, var(--mini-ring, var(--bg-elevated)));
+}
+/* Com cor de perfil: o anel acompanha o fundo do card logo abaixo do banner */
+.mini-profile-card.mini-profile-accented { --mini-ring: color-mix(in srgb, var(--profile-accent-start) 85%, #000); }
+/* Com moldura (avatar-deco) a bolinha continua por cima da moldura */
+.mini-profile-card .mini-profile-avatar-wrap:has(.avatar-deco-wrap) .mini-profile-presence-dot.status-dot { right: 3px; bottom: 3px; }
+
+.mini-profile-card .mini-profile-body { padding: 12px 16px 16px; }
+.mini-profile-card .mini-profile-avatar-row { align-items: flex-end; gap: 10px; }
+.mini-profile-card .mini-profile-status-bubble { margin-bottom: 14px; border-radius: 12px; }
+.mini-profile-card .mini-profile-name { margin-top: 6px; }
+.mini-profile-card .mini-profile-handle { margin-top: 2px; font-size: 13px; }
+.mini-profile-card .mini-profile-level-badge {
+  margin-left: 2px; padding: 1px 8px 1px 6px; border-radius: 999px; font-size: 11px;
+  background: rgba(0, 0, 0, .28); border: 1px solid rgba(255, 255, 255, .1); color: var(--header-primary);
+}
+.mini-profile-card .mini-profile-level-badge::before { content: none; }
+
+/* Insígnias numa pílula discreta */
+.mini-profile-card .mini-profile-badges-row {
+  width: fit-content; max-width: 100%; margin-top: 10px; padding: 4px 6px; gap: 4px;
+  border-radius: 10px; background: rgba(0, 0, 0, .28); border: 1px solid rgba(255, 255, 255, .08);
+}
+.mini-profile-card .mini-profile-badge { width: 22px; height: 22px; }
+
+/* Seções com rótulo */
+.mini-profile-section {
+  margin-top: 12px; padding: 10px 12px; border-radius: 12px;
+  background: rgba(0, 0, 0, .26); border: 1px solid rgba(255, 255, 255, .07);
+}
+.mini-profile-section-label {
+  font-size: 11px; font-weight: 800; letter-spacing: .06em; text-transform: uppercase;
+  color: var(--header-secondary, var(--text-muted)); margin-bottom: 6px;
+}
+.mini-profile-card .mini-profile-section .mini-profile-bio { margin-top: 0; font-size: 13px; line-height: 1.45; color: var(--text-normal); }
+.mini-profile-card .mini-profile-section .mini-profile-roles-row { margin-top: 0; }
+
+/* Caixa de atividade (única) */
+.mini-profile-card .mini-profile-body .activity-badge {
+  margin-top: 12px; border-radius: 12px; padding: 10px; max-width: none; width: 100%; box-sizing: border-box;
+  background: rgba(0, 0, 0, .32); border: 1px solid rgba(255, 255, 255, .08);
+}
+.mini-profile-card .mini-profile-mutual-row { margin-top: 10px; }
+
+/* Título da caixa de atividade com ícone (ActivityBadge.jsx) */
+.activity-badge-title { display: flex; align-items: center; gap: 5px; letter-spacing: .04em; }
+.activity-badge-glyph { flex-shrink: 0; opacity: .9; }
+.activity-badge-spotify .activity-badge-glyph { color: #1db954; }
+.activity-badge-game .activity-badge-glyph { color: var(--green); }
+.activity-badge-app .activity-badge-glyph { color: var(--brand); }
+
+@media (max-width: 400px) {
+  .mini-profile-card { width: min(320px, calc(100vw - 16px)); }
+}

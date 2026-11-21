@@ -1,0 +1,404 @@
+'use strict';
+// Festas de 2013-2017 na Praça (Club Penguin).
+//
+// O Waddle Forever tem a linha do tempo detalhada até 2012; das festas de
+// 2013 em diante ele não tem nada. As salas dessas festas vêm da Club Penguin
+// Archives (release "waddle-parties", montada pelo workflow
+// .github/workflows/waddle-parties.yml) e entram na ilha como uma "camada de
+// festa" por cima da data atual (GameData.setPartyOverlay).
+//
+// Quando cada festa roda:
+//  - Rodízio de anos: o calendário continua acompanhando o dia de hoje, mas
+//    cada mês usa a festa de um ano diferente (2012…2016, e 2017 em jan-mar).
+//    Ano 2012 = festas originais do Waddle Forever. Com uma festa nova por
+//    cima, a ilha usa um dia de 2012 sem festa (as decorações não se misturam).
+//  - Festas de outras marcas da Disney (Star Wars, Frozen, Marvel…) NÃO entram
+//    no rodízio: só rodam quando a staff liga no painel (e param quando desliga).
+//  - A staff pode ligar qualquer festa (do rodízio ou não) a qualquer momento.
+const fs = require('fs');
+const path = require('path');
+const { spawn } = require('child_process');
+const { Readable } = require('stream');
+const { pipeline } = require('stream/promises');
+
+const DATA = require('./parties-data.json');
+const RELEASE = process.env.PLAZA_PARTIES_RELEASE ?? 'https://github.com/RiqueBitt/ProjectClub/releases/download/waddle-parties';
+const ROTATION = [2012, 2013, 2014, 2015, 2016];
+const ROTATION_JAN_MAR = [2012, 2013, 2014, 2015, 2016, 2017];
+
+const mediaDir = () => process.env.WADDLE_MEDIA_DIR || path.join(process.env.WADDLE_DATA_DIR || path.join(__dirname, '..', '..', '..', 'data', 'waddle'), 'media');
+// pasta das festas na mídia (direto na raiz). A primeira versão foi
+// extraída em parties/ com o dono do GitHub Actions e, no servidor de
+// produção, nada mais consegue escrever ali — por isso a pasta nova.
+const SUBDIR = 'pcparties-v2';
+const filesDir = () => path.join(mediaDir(), SUBDIR);
+// telas das festas (close-ups, catálogos, content/features.swf…): outro pacote
+const UI_SUBDIR = 'pcparties-ui';
+const uiDir = () => path.join(mediaDir(), UI_SUBDIR);
+let PATHS = { global: {}, local: {} };
+try { PATHS = require('./parties-paths.json'); } catch { /* sem chaves extras */ }
+// falas das telas (game_strings originais): português quando existe
+let STRINGS = {};
+try { const s = require('./parties-strings.json'); STRINGS = { ...(s.en || {}), ...(s.pt || {}) }; } catch { /* sem textos */ }
+const stateFile = () => path.join(process.env.WADDLE_DATA_DIR || path.join(__dirname, '..', '..', '..', 'data', 'waddle'), 'pc-party.json');
+
+const bySlug = new Map(DATA.parties.map((p) => [p.slug, p]));
+let manual = null; // slug ligado pela staff
+let active = null; // { slugs: [principal, ...], source: 'staff' | 'rotation' }
+let downloadState = { state: 'idle' };
+let uiState = { state: 'idle' };
+let instance = null;
+
+function readState() {
+  try {
+    const j = JSON.parse(fs.readFileSync(stateFile(), 'utf8'));
+    manual = typeof j.manual === 'string' && bySlug.has(j.manual) ? j.manual : null;
+  } catch { manual = null; }
+}
+
+function writeState() {
+  try {
+    fs.mkdirSync(path.dirname(stateFile()), { recursive: true });
+    fs.writeFileSync(stateFile(), JSON.stringify({ manual, at: new Date().toISOString() }));
+  } catch (err) { console.warn('[festas] não deu pra gravar o estado:', err?.message || err); }
+}
+
+let fileExists = (file) => fs.existsSync(file);
+const MAP_ROUTE = 'play/v2/content/global/content/map.swf';
+const onDisk = (file) => { try { return fileExists(path.join(filesDir(), file)); } catch { return false; } };
+const uiOnDisk = (file) => { try { return fileExists(path.join(uiDir(), file)); } catch { return false; } };
+const uiMissing = () => DATA.parties.some((p) => Object.values(p.ui || {}).some((f) => !uiOnDisk(f)));
+
+/** Algum arquivo citado pelas festas (salas, mapa, músicas) ainda falta no disco? */
+function anyMissing() {
+  return DATA.parties.some((p) => [...Object.values(p.rooms || {}), ...(p.map ? [p.map] : []), ...Object.values(p.musicFiles || {})].some((f) => !onDisk(f)));
+}
+
+/** Os arquivos das salas desta festa estão no disco? */
+function filesReady(party) {
+  const files = Object.values(party.rooms || {});
+  return files.length > 0 && files.every((file) => {
+    try { return fileExists(path.join(filesDir(), file)); } catch { return false; }
+  });
+}
+
+const mmdd = (d) => `${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+
+/** A festa cobre esse dia do ano (MM-DD)? Aceita festas que viram o ano (dez→jan). */
+function covers(party, day) {
+  return party.start <= party.end ? (day >= party.start && day <= party.end) : (day >= party.start || day <= party.end);
+}
+
+/** Ano do rodízio pra este mês (muda todo mês; jan-mar inclui 2017). */
+function rotationYear(now = new Date()) {
+  const y = now.getFullYear();
+  const m = now.getMonth();
+  // jan-mar: 6 anos (inclui 2017); 12 é múltiplo de 6, então ali a conta é ano + mês
+  if (m < 3) return ROTATION_JAN_MAR[(y + m) % ROTATION_JAN_MAR.length];
+  return ROTATION[(y * 12 + m) % ROTATION.length];
+}
+
+const days = (p) => {
+  const n = (mmddStr) => { const [m, d] = mmddStr.split('-').map(Number); return (m - 1) * 31 + d; };
+  const a = n(p.start); const b = n(p.end);
+  return b >= a ? b - a : b + 372 - a;
+};
+
+/**
+ * Qual festa nova deve estar na ilha agora (ou null = ilha original do WF).
+ * Festas do mesmo ano que coincidem (ex.: Halloween + aniversário) entram
+ * juntas: a mais longa é a principal e as salas da menor vão por cima.
+ */
+function wanted(now = new Date()) {
+  if (manual) return { slugs: [manual], source: 'staff' };
+  const year = rotationYear(now);
+  if (year === 2012) return null;
+  const day = mmdd(now);
+  const hits = DATA.parties.filter((p) => p.year === year && !p.licensed && covers(p, day) && filesReady(p));
+  if (!hits.length) return null;
+  hits.sort((a, b) => days(b) - days(a));
+  return { slugs: hits.map((p) => p.slug), source: 'rotation' };
+}
+
+const key = (w) => (w ? `${w.source}:${w.slugs.join('+')}` : '');
+
+/** Junta as festas (a primeira é a principal). */
+function merged(slugs) {
+  const parties = slugs.map((s) => bySlug.get(s));
+  const main = parties[0];
+  const out = { name: main.name, label: main.label, rooms: {}, music: {}, musicFiles: {}, routes: {} };
+  for (const p of parties) {
+    Object.assign(out.rooms, overlayRooms(p));
+    Object.assign(out.music, overlayMusic(p));
+    Object.assign(out.musicFiles, overlayMusicFiles(p));
+  }
+  // mapa da ilha decorado: o da festa principal (ou de outra que tenha)
+  const withMap = parties.find((p) => p.map && onDisk(p.map));
+  if (withMap) out.routes[MAP_ROUTE] = `${SUBDIR}/${withMap.map}`;
+  // telas (close-ups, catálogos, features): a festa principal ganha nas repetidas
+  for (const p of [...parties].reverse()) {
+    for (const [route, file] of Object.entries(p.ui || {})) {
+      if (uiOnDisk(file)) out.routes[`play/v2/content/${route}`] = `${UI_SUBDIR}/${file}`;
+    }
+  }
+  return out;
+}
+
+function overlayRooms(party) {
+  const out = {};
+  for (const [room, file] of Object.entries(party.rooms)) out[room] = `${SUBDIR}/${file}`;
+  return out;
+}
+
+/** Músicas novas desta festa (id → arquivo), só as que estão no disco. */
+function overlayMusicFiles(party) {
+  const out = {};
+  for (const [id, file] of Object.entries(party.musicFiles || {})) {
+    try { if (fs.existsSync(path.join(filesDir(), file))) out[id] = `${SUBDIR}/${file}`; } catch { /* ok */ }
+  }
+  return out;
+}
+
+/** Sala → música, só com músicas que o jogo consegue tocar (do WF ou baixadas). */
+function overlayMusic(party) {
+  const files = overlayMusicFiles(party);
+  const out = {};
+  for (const [room, id] of Object.entries(party.music || {})) {
+    if (party.haveMusic?.includes(Number(id)) || files[id]) out[room] = Number(id);
+  }
+  return out;
+}
+
+/** Aplica a festa certa na ilha. Devolve true se a festa mudou. */
+function apply(force = false) {
+  const w = instance;
+  if (!w) return false;
+  let next = wanted();
+  // force: arquivos novos chegaram (ex.: o mapa) — reaplica mesmo sem trocar de festa
+  if (!force && key(next) === key(active)) return false;
+  const prev = active;
+  if (next && !next.slugs.every((s) => filesReady(bySlug.get(s)))) {
+    console.warn(`[festas] ${next.slugs.join(', ')}: arquivos ainda não estão no disco`);
+    next = null;
+  }
+  active = next;
+  // arquivos da Club Penguin Archives ligados pela staff (assets.js) ficam
+  // por cima de tudo — com ou sem festa
+  let extra = { rooms: {}, routes: {}, musicFiles: {}, any: false };
+  try { extra = require('./assets').overlay(); } catch { /* sem assets */ }
+  // ilha 2015 (island.js): mapa de junho/2015 + Hotel dos Puffles, Parque,
+  // Puffle Wild e Escola — fica POR BAIXO da festa (as salas e o mapa
+  // decorados ganham) e por baixo dos arquivos da Archives ligados pela staff
+  let island = { rooms: {}, music: {}, routes: {}, musicFiles: {}, any: false };
+  try { island = require('./island').overlay(); } catch { /* sem ilha 2015 */ }
+  if (next) {
+    const m = merged(next.slugs);
+    w.gameData.setPartyOverlay(m.name, { ...island.rooms, ...m.rooms, ...extra.rooms }, { ...island.music, ...m.music }, { ...island.musicFiles, ...m.musicFiles, ...extra.musicFiles }, { ...island.routes, ...m.routes, ...extra.routes });
+    console.log(`[festas] na ilha: ${next.slugs.map((s) => bySlug.get(s).name).join(' + ')} (${next.source === 'staff' ? 'ligada pela staff' : 'rodízio'})${island.any ? ' + ilha 2015' : ''}${extra.any ? ' + arquivos da Archives' : ''}`);
+  } else if (extra.any || island.any) {
+    w.gameData.setPartyOverlay(island.any ? 'Ilha 2015' : 'Arquivos da Archives', { ...island.rooms, ...extra.rooms }, island.music, { ...island.musicFiles, ...extra.musicFiles }, { ...island.routes, ...extra.routes });
+    if (prev || force) console.log(`[festas] ${island.any ? 'ilha 2015' : ''}${island.any && extra.any ? ' + ' : ''}${extra.any ? 'arquivos da Archives' : ''} por cima da ilha de 2012`);
+  } else {
+    w.gameData.setPartyOverlay(null);
+    if (prev) console.log('[festas] camada de festa desligada');
+  }
+  try { w.settings.resyncCalendar?.(); } catch { /* ok */ }
+  return key(prev) !== key(active);
+}
+
+/**
+ * Com uma festa nova por cima, a data do jogo vai pro dia mais próximo de
+ * 2012 (pra trás) sem festa do WF, pra não misturar duas decorações.
+ */
+function calendarAdjust(version) {
+  if (!active || !instance) return version;
+  const gd = instance.gameData;
+  if (typeof gd.getPartyAt !== 'function' || !gd.getPartyAt(version)) return version;
+  const d = new Date(`${version}T12:00:00Z`);
+  for (let i = 1; i <= 200; i++) {
+    d.setUTCDate(d.getUTCDate() - 1);
+    const v = d.toISOString().slice(0, 10);
+    if (v.slice(0, 4) !== version.slice(0, 4)) break;
+    if (!gd.getPartyAt(v)) return v;
+  }
+  return version;
+}
+
+function run(cmd, args) {
+  return new Promise((resolve, reject) => {
+    const p = spawn(cmd, args, { stdio: 'ignore' });
+    p.on('error', reject);
+    p.on('exit', (code) => (code === 0 ? resolve() : reject(new Error(`${cmd} saiu com ${code}`))));
+  });
+}
+
+// --no-same-owner: os arquivos ficam do usuário do servidor (senão ninguém sobrescreve depois)
+const extractTar = (file, dest) => run('tar', ['xf', file, '-C', dest, '--no-same-owner', '--no-same-permissions']);
+
+/**
+ * Baixa um .tar da release e põe os arquivos de <pasta do tar> em <destino>.
+ * Extrai numa pasta à parte e move arquivo por arquivo: no disco de produção
+ * o tar não consegue sobrescrever ("File exists").
+ */
+async function downloadTar(asset, inner, dest, tag) {
+  const tmp = path.join(mediaDir(), `.tmp-${tag}.tar`);
+  const stage = path.join(mediaDir(), `.tmp-${tag}`);
+  try {
+    fs.mkdirSync(mediaDir(), { recursive: true });
+    // centenas de MB direto pro disco: curl aguenta melhor (sem curl, fetch)
+    try {
+      await run('curl', ['-fsSL', '--retry', '3', '--retry-delay', '5', '-o', tmp, `${RELEASE}/${asset}`]);
+    } catch (err) {
+      if (err?.code !== 'ENOENT') throw err;
+      const res = await fetch(`${RELEASE}/${asset}`, { redirect: 'follow' });
+      if (!res.ok || !res.body) throw new Error(`HTTP ${res.status}`);
+      await pipeline(Readable.fromWeb(res.body), fs.createWriteStream(tmp));
+    }
+    await fs.promises.rm(stage, { recursive: true, force: true });
+    await fs.promises.mkdir(stage, { recursive: true });
+    await extractTar(tmp, stage);
+    const from = path.join(stage, ...inner.split('/'));
+    await fs.promises.mkdir(dest, { recursive: true });
+    for (const name of await fs.promises.readdir(from)) {
+      const target = path.join(dest, name);
+      try {
+        await fs.promises.rename(path.join(from, name), target);
+      } catch {
+        await fs.promises.rm(target, { force: true }).catch(() => {});
+        await fs.promises.copyFile(path.join(from, name), target);
+      }
+    }
+  } finally {
+    await fs.promises.rm(stage, { recursive: true, force: true }).catch(() => {});
+    fs.promises.unlink(tmp).catch(() => {});
+  }
+}
+
+/** Baixa e extrai as festas (uma vez; depois fica no disco). */
+async function ensureFiles() {
+  const index = path.join(filesDir(), 'index.json');
+  const missing = DATA.parties.filter((p) => !filesReady(p)).length;
+  // pacote novo (ex.: mapas incluídos depois): baixa de novo se faltar algo
+  if (!anyMissing()) { downloadState = { state: 'ready' }; return; }
+  if (!RELEASE) { downloadState = { state: 'missing', missing }; return; }
+  downloadState = { state: 'downloading', missing };
+  try {
+    await downloadTar('media-parties.tar', 'parties/pcparties', filesDir(), 'parties');
+    downloadState = { state: fs.existsSync(index) ? 'ready' : 'partial' };
+    console.log(`[festas] arquivos das festas 2013-2017 prontos (${DATA.parties.filter(filesReady).length}/${DATA.parties.length} festas)`);
+  } catch (err) {
+    downloadState = { state: 'error', error: err?.message || String(err) };
+    console.warn('[festas] não deu pra baixar as festas:', downloadState.error);
+  }
+}
+
+/** Telas das festas (close-ups, catálogos…): pacote à parte. */
+async function ensureUiFiles() {
+  if (!uiMissing()) { uiState = { state: 'ready' }; return; }
+  if (!RELEASE) { uiState = { state: 'missing' }; return; }
+  uiState = { state: 'downloading' };
+  try {
+    await downloadTar('media-parties-ui.tar', 'parties/pcparties-ui', uiDir(), 'parties-ui');
+    uiState = { state: uiMissing() ? 'partial' : 'ready' };
+    console.log('[festas] telas das festas prontas');
+  } catch (err) {
+    uiState = { state: 'error', error: err?.message || String(err) };
+    console.warn('[festas] não deu pra baixar as telas das festas:', uiState.error);
+  }
+}
+
+/** Liga o agendador no jogo (chamado uma vez, ao subir o Club Penguin). */
+function attach(w) {
+  instance = w;
+  readState();
+  w.settings.calendarAdjust = calendarAdjust;
+  // sem os textos, as telas de fala mostrariam a chave no balão: ficam de fora
+  const noDialogue = (obj) => Object.fromEntries(Object.entries(obj || {}).filter(([, v]) => Object.keys(STRINGS).length || !String(v).includes('character_dialogue')));
+  try { w.gameData.setExtraPaths?.(noDialogue(PATHS.global), noDialogue(PATHS.local)); } catch { /* WF antigo */ }
+  let islandStrings = {};
+  try { islandStrings = require('./island').STRINGS || {}; } catch { /* sem ilha */ }
+  const allStrings = { ...islandStrings, ...STRINGS };
+  if (Object.keys(allStrings).length) { try { w.gameData.setExtraStrings?.(allStrings); } catch { /* WF antigo */ } }
+  apply();
+  const download = () => ensureFiles().then(() => ensureUiFiles()).then(() => apply(true)).catch(() => {});
+  download();
+  setInterval(() => { try { apply(); } catch (err) { console.warn('[festas]', err?.message || err); } }, 60_000).unref?.();
+  // deu erro (rede, servidor ocupado)? tenta baixar de novo a cada 10 min
+  setInterval(() => { if (['error', 'partial'].includes(downloadState.state) || ['error', 'partial'].includes(uiState.state)) download(); }, 10 * 60_000).unref?.();
+}
+
+/** Derruba todo mundo da ilha: o jogo reconecta sozinho já com a festa nova. */
+function reloadEveryone(w) {
+  try {
+    const ids = (w.world.getAllPlayersInfo() || []).map((p) => Number(p.id ?? p.penguinId)).filter(Number.isFinite);
+    for (const id of ids) { try { w.world.kick(id); } catch { /* saiu */ } }
+    return ids.length;
+  } catch { return 0; }
+}
+
+/** Painel da staff: liga uma festa (slug) ou volta pro calendário (null). */
+function setManual(slug, { reload = true } = {}) {
+  if (slug !== null && !bySlug.has(slug)) throw Object.assign(new Error('Festa não encontrada.'), { status: 404 });
+  if (slug !== null && !filesReady(bySlug.get(slug))) throw Object.assign(new Error('Os arquivos desta festa ainda não foram baixados no servidor.'), { status: 409 });
+  manual = slug;
+  writeState();
+  const changed = apply();
+  const kicked = changed && reload && instance ? reloadEveryone(instance) : 0;
+  return { ...status(), kicked };
+}
+
+function status() {
+  return {
+    active: active ? { ...publicParty(bySlug.get(active.slugs[0])), slugs: active.slugs, source: active.source } : null,
+    manual,
+    rotationYear: rotationYear(),
+    files: downloadState,
+    screens: uiState,
+  };
+}
+
+function publicParty(p) {
+  return { slug: p.slug, name: p.name, label: p.label, year: p.year, start: p.start, end: p.end, licensed: !!p.licensed, rooms: Object.keys(p.rooms).length, ready: filesReady(p) };
+}
+
+function list() {
+  return { ...status(), parties: DATA.parties.map(publicParty) };
+}
+
+/** Nome em português de uma festa nova (pra barra do jogo), ou null. */
+function labelOf(name) {
+  const p = DATA.parties.find((x) => x.name === name);
+  return p ? p.label : null;
+}
+
+/**
+ * Centro de Download: arquivos de uma festa com as URLs que o jogo usa
+ * quando ela estiver na ilha (a contentVersion leva o código da festa).
+ * Devolve [{ route, file (caminho no disco), size }].
+ */
+function downloadEntries(slug) {
+  const p = bySlug.get(slug);
+  if (!p) return [];
+  const out = [];
+  const add = (route, name) => {
+    const file = path.join(filesDir(), name);
+    let size = 0;
+    try { size = fs.statSync(file).size; } catch { return; }
+    out.push({ route, file, size });
+  };
+  for (const [room, name] of Object.entries(p.rooms || {})) add(`play/v2/content/global/rooms/${room}.swf`, name);
+  for (const [id, name] of Object.entries(p.musicFiles || {})) add(`play/v2/content/global/music/${id}.swf`, name);
+  if (p.map) add(MAP_ROUTE, p.map);
+  for (const [route, name] of Object.entries(p.ui || {})) {
+    let size = 0;
+    const file = path.join(uiDir(), name);
+    try { size = fs.statSync(file).size; } catch { continue; }
+    out.push({ route: `play/v2/content/${route}`, file, size });
+  }
+  return out;
+}
+
+/** Testes: troca a checagem de arquivo no disco. */
+function _setFileCheck(fn) { fileExists = fn; }
+
+module.exports = { attach, apply, list, status, setManual, labelOf, rotationYear, wanted, covers, merged, downloadEntries, _data: DATA, _setFileCheck };

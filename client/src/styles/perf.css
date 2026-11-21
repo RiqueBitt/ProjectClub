@@ -1,0 +1,19 @@
+/* Economia de recursos com o app parado (ver utils/liveRefresh.js):
+   enquanto <html> tem "pc-idle" (ninguém mexe há 2+ min, janela sem foco
+   ou escondida), animações DECORATIVAS infinitas ficam pausadas — elas
+   redesenham a tela 60x por segundo (nomes animados em cada mensagem e
+   na lista de membros, fundo animado...) mesmo sem ninguém olhando.
+   Voltam sozinhas no próximo movimento/foco. Indicadores de voz
+   (quem está falando), chamadas e carregamento NÃO entram aqui. */
+html.pc-idle .name-style-anim-rainbow,
+html.pc-idle .name-style-anim-neon,
+html.pc-idle .name-style-anim-glitch,
+html.pc-idle .name-style-anim-shine,
+html.pc-idle .name-style-anim-fire,
+html.pc-idle .pc-blob,
+html.pc-idle .profile-birthday-badge,
+html.pc-idle .app-title-bar-btn--update::after,
+html.pc-idle .voice-join-panel .voice-join-icon::after,
+html.pc-idle .sx-live-dot {
+  animation-play-state: paused !important;
+}

@@ -1,0 +1,91 @@
+/* Centro de Download do Club Penguin (praca/DownloadCenter.jsx) — visual do jogo:
+   painéis azuis com borda branca grossa, títulos brancos com contorno escuro e
+   botões amarelos. */
+.pdc-backdrop {
+  position: absolute; inset: 0; z-index: 60; display: grid; place-items: center; padding: 12px;
+  background: rgba(3, 22, 46, .55); backdrop-filter: blur(2px);
+}
+.praca-page > .pdc-backdrop { position: fixed; z-index: 1200; }
+.pdc {
+  --cp-blue: #0f5ea8; --cp-blue-2: #1b7dd1; --cp-light: #dff0ff; --cp-ink: #0b2a4a; --cp-yellow: #ffd31a; --cp-yellow-2: #f2a900; --cp-green: #3db83a;
+  position: relative; display: flex; flex-direction: column; width: min(940px, 100%); max-height: min(620px, 100%);
+  border-radius: 22px; border: 4px solid #fff; background: linear-gradient(180deg, #1d78c8, #0d4f93);
+  box-shadow: 0 0 0 3px var(--cp-ink), 0 18px 40px rgba(0, 0, 0, .45); color: #fff; overflow: hidden;
+  font-family: "Arial Rounded MT Bold", "Nunito", "Trebuchet MS", system-ui, sans-serif; animation: pdc-in .18s ease-out;
+}
+@keyframes pdc-in { from { transform: scale(.96); opacity: 0; } to { transform: none; opacity: 1; } }
+.pdc-head { position: relative; display: flex; align-items: center; gap: 10px; padding: 10px 14px; background: linear-gradient(180deg, #2a8ee0, #1468b8); border-bottom: 3px solid var(--cp-ink); }
+.pdc-logo { width: 40px; height: 40px; flex-shrink: 0; filter: drop-shadow(0 2px 0 rgba(0, 0, 0, .25)); }
+.pdc-head h2 { margin: 0; font-size: 22px; letter-spacing: .02em; text-transform: uppercase; color: #fff; -webkit-text-stroke: 1px var(--cp-ink); paint-order: stroke fill; text-shadow: 0 2px 0 var(--cp-ink); }
+.pdc-help { width: 26px; height: 26px; border-radius: 7px; border: 2px solid var(--cp-ink); background: var(--cp-yellow); color: var(--cp-ink); font-weight: 900; cursor: pointer; }
+.pdc-net { margin-left: auto; font-size: 12.5px; opacity: .92; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.pdc-close { width: 34px; height: 34px; border-radius: 50%; border: 3px solid #fff; background: #0b4f91; color: #fff; font-size: 16px; font-weight: 900; cursor: pointer; box-shadow: 0 0 0 2px var(--cp-ink); flex-shrink: 0; }
+.pdc-close:hover:not(:disabled) { background: #e8463c; }
+.pdc-close:disabled { opacity: .45; cursor: not-allowed; }
+.pdc-tip { position: absolute; top: 54px; left: 60px; z-index: 3; max-width: 380px; padding: 10px 14px; border-radius: 12px; background: #10253f; border: 2px solid #fff; font-size: 13px; line-height: 1.4; box-shadow: 0 8px 20px rgba(0, 0, 0, .4); }
+.pdc-tip p { margin: 0 0 4px; }
+.pdc-banner { margin: 10px 14px 0; padding: 8px 12px; border-radius: 12px; background: var(--cp-yellow); color: var(--cp-ink); font-size: 13.5px; border: 2px solid var(--cp-ink); }
+.pdc-error { margin: 10px 14px 0; padding: 8px 12px; border-radius: 12px; background: #ffe3e0; color: #8a1c14; font-size: 13px; border: 2px solid #c2382c; }
+.pdc-loading { display: flex; align-items: center; justify-content: center; gap: 10px; padding: 40px; font-size: 14px; }
+.pdc-spin { width: 20px; height: 20px; border-radius: 50%; border: 3px solid rgba(255, 255, 255, .35); border-top-color: #fff; animation: pdc-spin .8s linear infinite; }
+@keyframes pdc-spin { to { transform: rotate(360deg); } }
+
+.pdc-body { display: grid; grid-template-columns: minmax(200px, 280px) minmax(0, 1fr); gap: 12px; padding: 12px 14px; min-height: 0; flex: 1; overflow: hidden; }
+.pdc-cats, .pdc-packs { display: flex; flex-direction: column; gap: 8px; overflow-y: auto; min-height: 0; padding-right: 2px; }
+.pdc-cat { display: flex; align-items: center; gap: 8px; padding: 8px 10px; border-radius: 14px; background: rgba(4, 34, 70, .55); border: 2px solid rgba(255, 255, 255, .25); }
+.pdc-cat.active { background: var(--cp-light); color: var(--cp-ink); border-color: #fff; box-shadow: 0 0 0 2px var(--cp-ink); }
+.pdc-cat-main { display: flex; flex-direction: column; align-items: flex-start; gap: 2px; flex: 1; min-width: 0; border: 0; background: none; color: inherit; font: inherit; cursor: pointer; text-align: left; padding: 0; }
+.pdc-cat-name { font-size: 14.5px; font-weight: 800; display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+.pdc-cat-size { font-size: 12.5px; opacity: .8; }
+.pdc-req { font-size: 10.5px; padding: 1px 7px; border-radius: 999px; background: var(--cp-yellow); color: var(--cp-ink); border: 1px solid var(--cp-ink); }
+.pdc-done { font-size: 12.5px; font-weight: 800; color: var(--cp-yellow); text-shadow: 0 1px 0 rgba(0, 0, 0, .35); white-space: nowrap; }
+.pdc-cat.active .pdc-done { color: #c27c00; text-shadow: none; }
+.pdc-cloud { display: grid; place-items: center; width: 36px; height: 36px; flex-shrink: 0; border-radius: 50%; border: 2px solid var(--cp-ink); background: #fff; color: var(--cp-blue); cursor: pointer; box-shadow: 0 2px 0 var(--cp-ink); }
+.pdc-cloud:hover:not(:disabled) { background: var(--cp-yellow); color: var(--cp-ink); }
+.pdc-cloud:active { transform: translateY(1px); box-shadow: none; }
+
+.pdc-pack { position: relative; display: flex; align-items: center; gap: 12px; padding: 12px 12px 12px 14px; border-radius: 16px; background: rgba(4, 34, 70, .55); border: 2px solid rgba(255, 255, 255, .3); }
+.pdc-pack.is-run { border-color: var(--cp-yellow); }
+.pdc-pack.is-done { background: rgba(4, 34, 70, .4); }
+.pdc-badge { position: absolute; top: -2px; left: -2px; padding: 2px 9px; border-radius: 14px 0 10px 0; background: var(--cp-yellow); color: var(--cp-ink); font-size: 10.5px; font-weight: 900; text-transform: uppercase; border: 2px solid var(--cp-ink); }
+.pdc-icon { display: grid; place-items: center; width: 54px; height: 54px; flex-shrink: 0; border-radius: 14px; transform: rotate(45deg) scale(.82); background: linear-gradient(180deg, #fff, #cfe6fb); color: var(--cp-blue); border: 3px solid var(--cp-ink); }
+.pdc-icon svg { transform: rotate(-45deg) scale(1.2); }
+.pdc-pack-main { flex: 1; min-width: 0; }
+.pdc-pack-main h3 { margin: 0; font-size: 16px; color: #fff; text-shadow: 0 1px 0 var(--cp-ink); }
+.pdc-pack-main p { margin: 2px 0 7px; font-size: 12.5px; opacity: .88; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.pdc-bar { height: 10px; border-radius: 999px; background: #08294c; border: 2px solid var(--cp-ink); overflow: hidden; }
+.pdc-bar span { display: block; height: 100%; background: linear-gradient(180deg, #ffe45c, var(--cp-yellow-2)); transition: width .25s; }
+.pdc-pack.is-done .pdc-bar span { background: linear-gradient(180deg, #7be36b, var(--cp-green)); }
+.pdc-pack-side { display: flex; flex-direction: column; align-items: flex-end; gap: 6px; min-width: 96px; }
+.pdc-size { font-size: 11.5px; opacity: .85; white-space: nowrap; }
+.pdc-run, .pdc-wait { font-size: 13px; font-weight: 800; color: var(--cp-yellow); }
+.pdc-wait { color: #cfe6fb; }
+.pdc-trash { display: grid; place-items: center; width: 26px; height: 26px; border-radius: 8px; border: 2px solid rgba(255, 255, 255, .5); background: rgba(0, 0, 0, .2); color: #fff; cursor: pointer; }
+.pdc-trash:hover { background: #e8463c; border-color: #fff; }
+
+.pdc-foot { display: flex; align-items: center; gap: 10px; padding: 10px 14px 12px; border-top: 3px solid var(--cp-ink); background: rgba(3, 25, 52, .35); flex-wrap: wrap; }
+.pdc-btn { height: 42px; padding: 0 22px; border-radius: 12px; border: 3px solid var(--cp-ink); font: inherit; font-size: 16px; font-weight: 900; text-transform: uppercase; letter-spacing: .02em; cursor: pointer; box-shadow: 0 3px 0 var(--cp-ink); }
+.pdc-btn:active:not(:disabled) { transform: translateY(2px); box-shadow: 0 1px 0 var(--cp-ink); }
+.pdc-btn:disabled { opacity: .5; cursor: not-allowed; }
+.pdc-all { background: linear-gradient(180deg, #ffe45c, var(--cp-yellow-2)); color: var(--cp-ink); }
+.pdc-pause { background: #e9f3fd; color: var(--cp-ink); }
+.pdc-foot-note { flex: 1; min-width: 180px; font-size: 12px; opacity: .9; }
+.pdc button:focus-visible { outline: 3px solid var(--cp-yellow); outline-offset: 2px; }
+
+@media (max-width: 680px) {
+  .pdc { border-radius: 16px; max-height: 100%; }
+  .pdc-head h2 { font-size: 17px; }
+  .pdc-net { display: none; }
+  .pdc-body { grid-template-columns: minmax(0, 1fr); overflow-y: auto; }
+  .pdc-cats, .pdc-packs, .pdc-pack { min-width: 0; }
+  .pdc-pack-main p { white-space: normal; }
+  .pdc-cats { flex-direction: row; overflow-x: auto; overflow-y: hidden; padding-bottom: 4px; flex-shrink: 0; }
+  .pdc-cat { min-width: 190px; }
+  .pdc-packs { overflow: visible; }
+  .pdc-pack { padding: 10px; gap: 10px; }
+  .pdc-icon { width: 44px; height: 44px; }
+  .pdc-pack-side { min-width: 78px; }
+  .pdc-btn { height: 38px; padding: 0 16px; font-size: 14px; }
+}
+@media (prefers-reduced-motion: reduce) { .pdc { animation: none; } .pdc-spin { animation: none; } }
+.pdc-pack:has(.pdc-badge) { padding-top: 22px; }

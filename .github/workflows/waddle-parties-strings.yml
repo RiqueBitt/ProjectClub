@@ -1,0 +1,29 @@
+name: Textos das festas 2013-2017 (release waddle-parties)
+
+# game_strings.json originais (Wayback Machine) com as falas das telas das
+# festas → parties-strings.json na release "waddle-parties".
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: waddle-parties
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+      - name: Baixar os textos
+        run: python3 tools/cp-parties/fetch-strings.py out
+      - name: Publicar na release waddle-parties
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          gh release upload waddle-parties out/parties-strings.json --clobber
+          gh release view waddle-parties --json assets --jq '.assets[] | "\(.name) \(.size)"'

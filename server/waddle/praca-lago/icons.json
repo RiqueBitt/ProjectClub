@@ -1,0 +1,16 @@
+[
+ {
+  "key": "lake",
+  "art": "art/icone.png",
+  "hit": "water",
+  "width": 100,
+  "x": 490,
+  "y": 362,
+  "room": "lake",
+  "spawn": [
+   220,
+   160
+  ],
+  "hint": "w.map.lago"
+ }
+]

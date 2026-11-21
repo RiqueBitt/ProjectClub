@@ -1,0 +1,43 @@
+"use strict";
+Object.defineProperty(exports, "__esModule", { value: true });
+exports.UPDATES_2014 = void 0;
+exports.UPDATES_2014 = [
+    {
+        date: '2014-04-17',
+        petFurniture: 'archives:ENCataloguesPetsApr2014.swf'
+    },
+    {
+        date: '2014-05-14',
+        rooms: {
+            lake: 'archives:RoomsLake-May2014.swf',
+            underwater: 'archives:RoomsUnderwater-21April2015.swf'
+        },
+        music: {
+            lake: 666,
+            underwater: 671
+        }
+    },
+    {
+        date: '2014-06-01',
+        dateReference: 'vr-room'
+    },
+    {
+        date: '2014-07-17',
+        gameUpgrades: {
+            newItems: [],
+            removed: [
+                5037,
+                5039,
+                5038,
+                5071,
+                5072,
+                5070,
+                5121
+            ]
+        }
+    },
+    {
+        date: '2014-09-18',
+        dateReference: 'mall'
+    }
+];

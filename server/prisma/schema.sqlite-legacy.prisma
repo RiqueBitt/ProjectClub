@@ -1,0 +1,930 @@
+// Schema da CommunityHub — adaptado do EmberCord para uma UNICA comunidade
+// global (nao multiplos servidores criaveis). Todo mundo que se cadastra
+// entra automaticamente na mesma comunidade: mesmos canais, mesmos cargos,
+// mesmo mural de moderacao.
+//
+// Principais mudancas em relacao ao EmberCord original:
+//   - Removido: Server, ServerMember, Invite, ServerTemplate, DiscoverCategory,
+//     ServerBoost/ServerPurchase/UserServerBoost, Onboarding/Ticket* (fase 2/3).
+//   - Category/Channel/Role/Emoji/Sticker/SoundboardSound/AutoModRule/Ban/
+//     Warning/AuditLogEntry deixam de ter serverId - agora sao globais.
+//   - MemberRole vira UserRole (User <-> Role direto, sem ServerMember no meio).
+//   - Ban/Warning passam a ser da PLATAFORMA (era so do servidor antes).
+//
+// Sistemas mantidos do EmberCord: auth (JWT+refresh, verificacao de e-mail,
+// 2FA), perfil (avatar, banner, idCard, fonte/efeito/cor do nome, account
+// level, insignias, likes de perfil), amigos, DMs completas (anexos,
+// reacoes, respostas, edicao, fixacao, busca, enquetes), cargos e
+// permissoes (bitfield), moderacao (ban/kick/timeout/warn + automod),
+// emojis customizados, painel admin, anuncios da plataforma.
+
+generator client {
+  output   = "../node_modules/.prisma/legacy-sqlite-client"
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id                  String    @id @default(uuid())
+  publicId            String?   @unique
+  email               String    @unique
+  username            String    @unique
+  displayName         String
+  passwordHash        String
+  avatarUrl           String?
+  bannerUrl           String?
+  idCardUrl           String?
+  bio                 String?
+  pronouns            String?
+  profileColor        String    @default("#1877F2")
+  profileNameFont     String    @default("NORMAL")
+  profileNameEffect   String    @default("SOLID")
+  profileNameColor    String    @default("#1877F2")
+  profileNameColor2   String    @default("#FFFFFF")
+  accountLevel        Int       @default(1)
+  accountXp           Int       @default(0)
+  lastXpMessageAt     DateTime? // cooldown anti-farm do ganho de XP por mensagem
+  status              String    @default("OFFLINE")
+  customStatus        String?
+  customStatusEmoji   String?
+  customStatusExpiresAt DateTime?
+  emailVerified       Boolean   @default(false)
+  twoFactorEnabled    Boolean   @default(false)
+  twoFactorSecret     String?
+  platformRole        String    @default("USER")
+  isPlatformBanned    Boolean   @default(false)
+  platformBanReason   String?
+  suspendedUntil      DateTime?
+  timeoutUntil        DateTime?
+  failedLoginAttempts Int       @default(0)
+  loginLockedUntil    DateTime?
+  tagEmoji            String?
+  tagText             String?
+  youtubeUrl          String?
+  steamUrl            String?
+  robloxUrl           String?
+  xUrl                String?
+
+  // --- Economia (adaptado do bot Robbie — mantido: moedas/gemas e o baú
+  // diário. Removidos por pedido do usuário: loja de cores, empregos e
+  // cassino). ---
+  coins               Int       @default(0)  // "moedas"
+  gems                Int       @default(0)  // "gemas" — vêm principalmente do Mega Baú
+  dailyStreak         Int       @default(0)
+  lastDailyAt         DateTime?
+
+  createdAt           DateTime  @default(now())
+  updatedAt           DateTime  @updatedAt
+
+  refreshTokens        RefreshToken[]
+  verificationCodes    EmailVerificationCode[]
+  passwordResetTokens  PasswordResetToken[]
+
+  sentFriendRequests     Friendship[] @relation("Requester")
+  receivedFriendRequests Friendship[] @relation("Addressee")
+  // ^ mantido
+
+  conversationMemberships ConversationMember[]
+  messages                Message[]
+  reactions               Reaction[]
+
+  roles          UserRole[]
+  channelReadStates ChannelReadState[]
+  badges         UserBadge[]
+  emojisCreated  Emoji[]
+  favoriteGifs   FavoriteGif[]
+  pollVotes      PollVote[]
+
+  profileVotesGiven    ProfileVote[] @relation("ProfileVotesGiven")
+  profileVotesReceived ProfileVote[] @relation("ProfileVotesReceived")
+
+  stickersCreated Sticker[]
+  soundsCreated   SoundboardSound[]
+
+  warningsReceived Warning[] @relation("WarningTarget")
+  announcementsCreated PlatformAnnouncement[]
+  ownedFurniture       UserFurniture[]
+  ownedHouses          UserHouse[]
+  ownedMapBackgrounds  UserMapBackground[]
+  stickers             UserSticker[]
+  stickerAlbum         UserStickerAlbum[]
+  stickerCapsules      StickerCapsule[]
+  achievements         UserAchievement[]
+  ticketsOpened        Ticket[]       @relation("TicketsOpened")
+  ticketsClaimed       Ticket[]       @relation("TicketsClaimed")
+  ticketMessages       TicketMessage[]
+  houseLikesGiven      HouseLike[]    @relation("HouseLikesGiven")
+  houseCommentsGiven   HouseComment[] @relation("HouseCommentsGiven")
+  // (bansIssued/warningsIssued removidos: moderatorId não é @relation — ver comentário nos modelos Ban/Warning)
+}
+
+model Badge {
+  id          String   @id @default(uuid())
+  key         String   @unique
+  name        String
+  description String?
+  icon        String
+  iconUrl     String?
+  rarity      String   @default("COMMON")
+  ageYears    Int?
+  createdAt   DateTime @default(now())
+
+  users UserBadge[]
+}
+
+model ProfileVote {
+  id         String   @id @default(uuid())
+  fromUserId String
+  from       User     @relation("ProfileVotesGiven", fields: [fromUserId], references: [id], onDelete: Cascade)
+  toUserId   String
+  to         User     @relation("ProfileVotesReceived", fields: [toUserId], references: [id], onDelete: Cascade)
+  value      Int
+  createdAt  DateTime @default(now())
+
+  @@unique([fromUserId, toUserId])
+}
+
+model UserBadge {
+  id        String   @id @default(uuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  badgeId   String
+  badge     Badge    @relation(fields: [badgeId], references: [id], onDelete: Cascade)
+  awardedAt DateTime @default(now())
+
+  @@unique([userId, badgeId])
+}
+
+model FavoriteGif {
+  id        String   @id @default(uuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  gifId     String
+  url       String
+  preview   String?
+  createdAt DateTime @default(now())
+
+  @@unique([userId, gifId])
+}
+
+model PlatformSettings {
+  id                 String  @id @default("singleton")
+  communityName      String  @default("Project Club")
+  communityIconUrl   String?
+  communityBannerUrl String?
+  maintenanceMode    Boolean @default(false)
+  maintenanceMessage String?
+  // Liga/desliga sistemas inteiros pra toda a comunidade — adaptado do
+  // "disabled_systems" do bot Robbie (lista de chaves: "economia", "casas",
+  // "figurinhas"). Quando uma chave está aqui, a página correspondente
+  // mostra uma tela de "indisponível" pra todo mundo (exceto staff).
+  disabledSystems    String  @default("[]") // JSON array de strings
+  // Casa/mapa inicial (igual o bot Robbie tinha) — todo usuário NOVO já
+  // ganha essa casa (e esse mapa, se a casa tiver grupo) de graça e ativa
+  // assim que a conta é criada, sem precisar comprar nada.
+  starterHouseId     String?
+  starterMapId       String?
+}
+
+model PlatformAnnouncement {
+  id             String    @id @default(uuid())
+  title          String
+  description    String?
+  bannerUrl      String?
+  buttonLabel    String?
+  buttonUrl      String?
+  targetType     String
+  targetUserId   String?
+  createdById    String
+  createdBy      User      @relation(fields: [createdById], references: [id])
+  createdAt      DateTime  @default(now())
+
+  dismissals AnnouncementDismissal[]
+}
+
+model AnnouncementDismissal {
+  id             String               @id @default(uuid())
+  announcementId String
+  announcement   PlatformAnnouncement @relation(fields: [announcementId], references: [id], onDelete: Cascade)
+  userId         String
+  dismissedAt    DateTime             @default(now())
+
+  @@unique([announcementId, userId])
+}
+
+model PlatformAuditLog {
+  id         String   @id @default(uuid())
+  actorId    String
+  action     String
+  targetType String?
+  targetId   String?
+  reason     String?
+  metadata   String?
+  createdAt  DateTime @default(now())
+}
+
+model RefreshToken {
+  id        String   @id @default(uuid())
+  tokenHash String   @unique
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userAgent String?
+  ipAddress String?
+  createdAt DateTime @default(now())
+  expiresAt DateTime
+  revoked   Boolean  @default(false)
+  revokedAt DateTime?
+}
+
+model EmailVerificationCode {
+  id        String   @id @default(uuid())
+  code      String
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+}
+
+model PasswordResetToken {
+  id        String   @id @default(uuid())
+  token     String   @unique
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  expiresAt DateTime
+  used      Boolean  @default(false)
+  createdAt DateTime @default(now())
+}
+
+model Friendship {
+  id           String   @id @default(uuid())
+  requesterId  String
+  requester    User     @relation("Requester", fields: [requesterId], references: [id], onDelete: Cascade)
+  addresseeId  String
+  addressee    User     @relation("Addressee", fields: [addresseeId], references: [id], onDelete: Cascade)
+  status       String   @default("PENDING")
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  @@unique([requesterId, addresseeId])
+}
+
+model Conversation {
+  id        String   @id @default(uuid())
+  isGroup   Boolean  @default(false)
+  name      String?
+  icon      String?
+  createdAt DateTime @default(now())
+
+  members  ConversationMember[]
+  messages Message[]
+}
+
+model ConversationMember {
+  id             String       @id @default(uuid())
+  conversationId String
+  conversation   Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  userId         String
+  user           User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  joinedAt       DateTime     @default(now())
+  lastReadAt     DateTime?
+
+  @@unique([conversationId, userId])
+}
+
+model Role {
+  id          String   @id @default(uuid())
+  name        String
+  color       String   @default("#99AAB5")
+  icon        String?
+  permissions String   @default("0")
+  position    Int      @default(0)
+  isDefault   Boolean  @default(false)
+  hoist       Boolean  @default(false)
+  mentionable Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @default(now()) @updatedAt
+
+  members UserRole[]
+}
+
+model UserRole {
+  id     String @id @default(uuid())
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  roleId String
+  role   Role   @relation(fields: [roleId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, roleId])
+}
+
+model Category {
+  id        String   @id @default(uuid())
+  name      String
+  position  Int      @default(0)
+  updatedAt DateTime @default(now()) @updatedAt
+
+  channels   Channel[]
+  overwrites PermissionOverwrite[]
+}
+
+model Channel {
+  id              String    @id @default(uuid())
+  categoryId      String?
+  category        Category? @relation(fields: [categoryId], references: [id], onDelete: SetNull)
+  name            String
+  topic           String?
+  slowModeSeconds Int?
+  type            String    @default("TEXT")
+  position        Int       @default(0)
+  isPrivate       Boolean   @default(false)
+  userLimit       Int?
+  rulesContent    String?
+  rulesTitle      String?
+  updatedAt       DateTime  @default(now()) @updatedAt
+
+  messages   Message[]
+  readStates ChannelReadState[]
+  overwrites PermissionOverwrite[]
+}
+
+model PermissionOverwrite {
+  id         String    @id @default(uuid())
+  channelId  String?
+  channel    Channel?  @relation(fields: [channelId], references: [id], onDelete: Cascade)
+  categoryId String?
+  category   Category? @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+  targetType String
+  targetId   String
+  allow      String    @default("0")
+  deny       String    @default("0")
+
+  @@unique([channelId, categoryId, targetType, targetId])
+}
+
+model ChannelReadState {
+  id         String   @id @default(uuid())
+  channelId  String
+  channel    Channel  @relation(fields: [channelId], references: [id], onDelete: Cascade)
+  userId     String
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  lastReadAt DateTime @default(now())
+
+  @@unique([channelId, userId])
+}
+
+model Emoji {
+  id            String   @id @default(uuid())
+  name          String   @unique
+  url           String
+  category      String   @default("Geral")
+  allowedRoleId String?
+  createdById   String
+  createdBy     User     @relation(fields: [createdById], references: [id])
+  createdAt     DateTime @default(now())
+}
+
+model Sticker {
+  id          String   @id @default(uuid())
+  name        String   @unique
+  url         String
+  createdById String
+  createdBy   User     @relation(fields: [createdById], references: [id])
+  createdAt   DateTime @default(now())
+}
+
+model SoundboardSound {
+  id          String   @id @default(uuid())
+  name        String   @unique
+  url         String
+  emoji       String?
+  durationMs  Int      @default(0)
+  createdById String
+  createdBy   User     @relation(fields: [createdById], references: [id])
+  createdAt   DateTime @default(now())
+}
+
+model Message {
+  id             String        @id @default(uuid())
+  content        String?
+  title          String?
+  authorId       String
+  author         User          @relation(fields: [authorId], references: [id], onDelete: Cascade)
+  conversationId String?
+  conversation   Conversation? @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  channelId      String?
+  channel        Channel?      @relation(fields: [channelId], references: [id], onDelete: Cascade)
+  replyToId      String?
+  replyTo        Message?      @relation("MessageReply", fields: [replyToId], references: [id], onDelete: SetNull)
+  replies        Message[]     @relation("MessageReply")
+  pinned         Boolean       @default(false)
+  edited         Boolean       @default(false)
+  deleted        Boolean       @default(false)
+  archived       Boolean       @default(false)
+  createdAt      DateTime      @default(now())
+  updatedAt      DateTime      @updatedAt
+
+  attachments Attachment[]
+  reactions   Reaction[]
+  mentions    MessageMention[]
+  poll        Poll?
+
+  embed String?
+  icon  String?
+  quickReactions String @default("[]")
+  stickerUrl String?
+}
+
+model Poll {
+  id        String   @id @default(uuid())
+  messageId String   @unique
+  message   Message  @relation(fields: [messageId], references: [id], onDelete: Cascade)
+  question  String
+  options   String
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+
+  votes PollVote[]
+}
+
+model PollVote {
+  id          String   @id @default(uuid())
+  pollId      String
+  poll        Poll     @relation(fields: [pollId], references: [id], onDelete: Cascade)
+  userId      String
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  optionIndex Int
+  createdAt   DateTime @default(now())
+
+  @@unique([pollId, userId])
+}
+
+model MessageMention {
+  id         String  @id @default(uuid())
+  messageId  String
+  message    Message @relation(fields: [messageId], references: [id], onDelete: Cascade)
+  targetType String
+  targetId   String?
+
+  @@index([targetType, targetId])
+  @@index([messageId])
+}
+
+model Attachment {
+  id        String  @id @default(uuid())
+  messageId String
+  message   Message @relation(fields: [messageId], references: [id], onDelete: Cascade)
+  url       String
+  filename  String
+  mimeType  String
+  size      Int
+}
+
+model Reaction {
+  id        String   @id @default(uuid())
+  messageId String
+  message   Message  @relation(fields: [messageId], references: [id], onDelete: Cascade)
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  emoji     String
+  createdAt DateTime @default(now())
+
+  @@unique([messageId, userId, emoji])
+}
+
+model Ban {
+  id          String   @id @default(uuid())
+  userId      String
+  reason      String?
+  moderatorId String // uuid de um User, ou "system" (AutoMod) — sem @relation de propósito, ver AuditLogEntry.actorId
+  createdAt   DateTime @default(now())
+
+  @@unique([userId])
+}
+
+model Warning {
+  id          String   @id @default(uuid())
+  userId      String
+  target      User     @relation("WarningTarget", fields: [userId], references: [id], onDelete: Cascade)
+  reason      String
+  moderatorId String // uuid de um User, ou "system" (AutoMod) — sem @relation de propósito
+  createdAt   DateTime @default(now())
+}
+
+model AuditLogEntry {
+  id         String   @id @default(uuid())
+  actorId    String // uuid de um User, ou "system" para ações automáticas do AutoMod — por isso NÃO é uma @relation (evita FK quebrando com "system")
+  action     String
+  targetType String?
+  targetId   String?
+  reason     String?
+  metadata   String?
+  createdAt  DateTime @default(now())
+}
+
+model AutoModRule {
+  id        String   @id @default(uuid())
+  type      String
+  enabled   Boolean  @default(true)
+  action    String   @default("DELETE")
+  config    String   @default("{}")
+  createdAt DateTime @default(now())
+}
+
+// --- Baús diários — editável pela staff (o BADGE/COINS/loja de cores e o
+// sistema de empregos foram removidos por pedido do usuário; o baú diário
+// continua, dá pra staff editar sem precisar de deploy novo). ---
+
+model DailyChest {
+  id               String @id @default(uuid())
+  name             String
+  chanceRegular    Float
+  chanceSubscriber Float  @default(0)
+  coinsMin         Int
+  coinsMax         Int
+  ticketsMin       Int    @default(0)
+  ticketsMax       Int    @default(0)
+  position         Int    @default(0)
+  enabled          Boolean @default(true)
+  // Imagens reais do bú (fechado/aberto) — extraídas do bot Robbie
+  // original (config/chests.json), usadas direto por link (imgur), sem
+  // precisar baixar/hospedar de novo.
+  imageClosed      String?
+  imageOpened      String?
+}
+
+// --- Casas/decoração (adaptado do bot Robbie — fase 3). Simplificações
+// desta fase: sem variantes de móvel (frente/lado), sem flip/rotação, sem
+// móveis com GIF animado, sem sistema de mapas/grupos, sem desfazer/refazer,
+// sem geração de imagem no servidor — a casa é renderizada ao vivo no
+// navegador (camadas de <img> por zIndex) em vez de compor um PNG/GIF final
+// como o bot original fazia com Jimp/gifwrap. ---
+
+model FurnitureCategory {
+  id    String @id
+  name  String
+
+  items Furniture[]
+}
+
+model Furniture {
+  id         String   @id
+  categoryId String
+  category   FurnitureCategory @relation(fields: [categoryId], references: [id])
+  name       String
+  price      Int      @default(0)
+  imageUrl   String
+  width      Int      @default(200)
+  height     Int      @default(200)
+  createdAt  DateTime @default(now())
+
+  owners  UserFurniture[]
+  placed  PlacedFurniture[]
+}
+
+model UserFurniture {
+  id          String   @id @default(uuid())
+  userId      String
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  furnitureId String
+  furniture   Furniture @relation(fields: [furnitureId], references: [id], onDelete: Cascade)
+  quantity    Int      @default(1)
+  purchasedAt DateTime @default(now())
+
+  @@unique([userId, furnitureId])
+}
+
+// Casa do catálogo — igual o bot Robbie tinha, uma casa OU tem fundo
+// próprio (imageUrl vira o fundo completo, groupId null), OU pertence a um
+// grupo (imageUrl vira só a "imagem da casa" — sprite, sem fundo — e o
+// fundo real é o mapa que o usuário escolher; a posição/tamanho onde essa
+// casa aparece em cima do mapa vem do HouseGroup).
+model HouseCatalog {
+  id              String   @id
+  name            String
+  price           Int      @default(0)
+  backgroundColor String   @default("#BFEFFF")
+  imageUrl        String?  // fundo completo (sem grupo) OU sprite da casa (com grupo)
+  width           Int      @default(1000)
+  height          Int      @default(632)
+  stock           Int?     // null = ilimitado
+  groupId         Int?     // 1-1000, liga com HouseGroup.id — null = casa autônoma (fundo próprio)
+  group           HouseGroup? @relation(fields: [groupId], references: [id], onDelete: SetNull)
+  createdAt       DateTime @default(now())
+
+  owners UserHouse[]
+}
+
+// Grupo de casas (igual o bot Robbie tinha) — define a posição/tamanho
+// (x, y, width, height) onde a "imagem da casa" (sprite) das casas ligadas
+// a esse grupo aparece por cima do mapa escolhido pelo usuário. Mover ou
+// redimensionar um grupo afeta TODAS as casas daquele grupo de uma vez —
+// staff cadastra várias "peles" de casa (Iglu Azul, Iglu Vermelho...) que
+// compartilham a mesma vaga visual no mapa.
+model HouseGroup {
+  id     Int @id
+  x      Int
+  y      Int
+  width  Int
+  height Int
+
+  houses HouseCatalog[]
+}
+
+model UserHouse {
+  id          String   @id @default(uuid())
+  userId      String
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  houseId     String
+  // Faltava onDelete aqui — sem ele o Prisma/SQLite recusa (erro de chave
+  // estrangeira) apagar qualquer casa do catálogo (HouseCatalog) que já
+  // tenha sido comprada por pelo menos um usuário, ou seja, praticamente
+  // qualquer casa "de verdade" do painel de staff. O clique em "Excluir"
+  // batia no backend, o backend jogava um 500 genérico (erroHandler.js
+  // esconde o motivo real em produção), e a casa simplesmente continuava
+  // na lista — parecia que o botão não fazia nada. Cascade aqui reflete a
+  // intenção real do botão: apagar um tipo de casa do catálogo também
+  // remove as posses dela pelos usuários (e, em cascata, os likes/recados/
+  // móveis colocados dentro, que já dependem de UserHouse via Cascade).
+  house       HouseCatalog @relation(fields: [houseId], references: [id], onDelete: Cascade)
+  isActive    Boolean  @default(false)
+  purchasedAt DateTime @default(now())
+  updatedAt   DateTime @default(now()) @updatedAt
+  // Fundo escolhido (adaptado do sistema de "mapas" do bot Robbie —
+  // fundos de imagem reais que substituem a cor sólida da casa quando
+  // definidos; null = usa HouseCatalog.backgroundColor normalmente. Se a
+  // casa tiver grupo (HouseCatalog.groupId), o fundo é OBRIGATÓRIO — é o
+  // que dá o tamanho do quadro, e a "imagem da casa" do grupo aparece por
+  // cima dele, na posição definida pelo HouseGroup daquela casa).
+  mapBackgroundId String?
+  mapBackground   MapBackground? @relation(fields: [mapBackgroundId], references: [id], onDelete: SetNull)
+
+  items PlacedFurniture[]
+  likes    HouseLike[]
+  comments HouseComment[]
+
+  @@unique([userId, houseId])
+}
+
+// Catálogo de fundos (mapas) — extraído das imagens reais do bot Robbie
+// (floresta, montanha, praia, campo de futebol, etc).
+model MapBackground {
+  id       String @id
+  name     String
+  imageUrl String
+  price    Int    @default(50)
+  stock    Int?   // null = ilimitado (igual HouseCatalog.stock, mesmo padrão do bot Robbie)
+  width    Int    @default(1000) // usado como tamanho do quadro quando a casa ativa tem grupo
+  height   Int    @default(632)
+
+  houses UserHouse[]
+  owners UserMapBackground[]
+}
+
+// Fundos comprados por cada usuário — sem isso, "escolher fundo" na tela
+// de Decorar aceitaria qualquer id sem checar se a pessoa pagou por ele.
+model UserMapBackground {
+  id              String        @id @default(uuid())
+  userId          String
+  user            User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  mapBackgroundId String
+  mapBackground   MapBackground @relation(fields: [mapBackgroundId], references: [id], onDelete: Cascade)
+  purchasedAt     DateTime      @default(now())
+
+  @@unique([userId, mapBackgroundId])
+}
+
+// Curtidas e livro de visitas de casas — adaptado das tabelas house_likes/
+// house_comments do bot Robbie (fase de sistemas adicionais).
+model HouseLike {
+  id          String    @id @default(uuid())
+  userHouseId String
+  userHouse   UserHouse @relation(fields: [userHouseId], references: [id], onDelete: Cascade)
+  likerId     String
+  liker       User      @relation("HouseLikesGiven", fields: [likerId], references: [id], onDelete: Cascade)
+  createdAt   DateTime  @default(now())
+
+  @@unique([userHouseId, likerId])
+}
+
+model HouseComment {
+  id          String    @id @default(uuid())
+  userHouseId String
+  userHouse   UserHouse @relation(fields: [userHouseId], references: [id], onDelete: Cascade)
+  authorId    String
+  author      User      @relation("HouseCommentsGiven", fields: [authorId], references: [id], onDelete: Cascade)
+  content     String
+  createdAt   DateTime  @default(now())
+}
+
+model PlacedFurniture {
+  id          String    @id @default(uuid())
+  userHouseId String
+  userHouse   UserHouse @relation(fields: [userHouseId], references: [id], onDelete: Cascade)
+  furnitureId String
+  furniture   Furniture @relation(fields: [furnitureId], references: [id], onDelete: Cascade)
+  x           Int       @default(0)
+  y           Int       @default(0)
+  width       Int
+  height      Int
+  zIndex      Int       @default(0)
+  flipped     Boolean   @default(false)
+  createdAt   DateTime  @default(now())
+}
+
+// --- Figurinhas/álbum (adaptado do bot Robbie — fase 4). Simplificação
+// desta fase: o layout de páginas/slots configurável pela staff do
+// original virou uma posição fixa por figurinha (slotIndex, na ordem do
+// catálogo) — razoável com um catálogo pequeno; sem sistema de troca entre
+// jogadores (sticker_trades) nesta fase. ---
+
+model StickerRarity {
+  id     String @id
+  name   String
+  color  String
+  weight Float  @default(1)
+
+  stickers CollectibleSticker[]
+}
+
+model CollectibleSticker {
+  id          String @id
+  name        String
+  description String?
+  imageUrl    String
+  rarityId    String
+  rarity      StickerRarity @relation(fields: [rarityId], references: [id])
+  assignedPage    Int     @default(1)   // página do álbum onde a staff fixou essa figurinha
+  assignedSlotKey String?               // "slot0".."slot11" — null = staff ainda não posicionou
+  enabled     Boolean @default(true)
+
+  inventory UserSticker[]
+  album     UserStickerAlbum[]
+  capsules  StickerCapsule[]
+}
+
+model UserSticker {
+  id        String  @id @default(uuid())
+  userId    String
+  user      User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  stickerId String
+  sticker   CollectibleSticker @relation(fields: [stickerId], references: [id], onDelete: Cascade)
+  quantity  Int     @default(0)
+
+  @@unique([userId, stickerId])
+}
+
+model UserStickerAlbum {
+  id        String   @id @default(uuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  stickerId String
+  sticker   CollectibleSticker  @relation(fields: [stickerId], references: [id], onDelete: Cascade)
+  pastedAt  DateTime @default(now())
+
+  @@unique([userId, stickerId])
+}
+
+// Cápsula comprada na Máquina de Cápsulas — a figurinha já é sorteada NA
+// COMPRA (fica "fechada" aqui) e só entra no inventário quando aberta.
+model StickerCapsule {
+  id        String    @id @default(uuid())
+  userId    String
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  stickerId String
+  sticker   CollectibleSticker   @relation(fields: [stickerId], references: [id], onDelete: Cascade)
+  opened    Boolean   @default(false)
+  createdAt DateTime  @default(now())
+  openedAt  DateTime?
+}
+
+// Layout do álbum — configurável pela staff (adaptado de
+// utils/albumCardLayout.js do bot Robbie: fundo, até 12 espaços por
+// página com posição/tamanho/liga-desliga, número de páginas). Sem
+// suporte a sobrescrever o layout por página individual nesta fase — um
+// só grid de espaços vale pra todas as páginas (o original permite
+// overrides por página; simplificado aqui).
+model AlbumSettings {
+  id                 String  @id @default("singleton")
+  backgroundColor    String  @default("#14161c")
+  backgroundImageUrl String?
+  totalPages         Int     @default(5)
+  showBorder         Boolean @default(false)
+  showNames          Boolean @default(false)
+  // Dimensões de referência pra posicionar os espaços — o cliente escala
+  // isso proporcionalmente pro tamanho de tela real (ver StickersPage.jsx).
+  width              Int     @default(1780)
+  height             Int     @default(1208)
+}
+
+model AlbumSlot {
+  id      String  @id @default(uuid())
+  slotKey String  @unique // "slot0".."slot11"
+  x       Int
+  y       Int
+  width   Int
+  height  Int
+  enabled Boolean @default(true)
+}
+
+// Conquistas — as definições (nome/descrição/condição) ficam em código
+// (server/src/data/achievementsCatalog.js), aqui só guarda quem já
+// desbloqueou o quê e quando (adaptado de utils/achievements.js do bot
+// Robbie).
+model UserAchievement {
+  id            String   @id @default(uuid())
+  userId        String
+  user          User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  achievementId String
+  unlockedAt    DateTime @default(now())
+
+  @@unique([userId, achievementId])
+}
+
+// --- Tickets de suporte (adaptado do /ticket do bot Robbie) — sistema
+// genuinamente útil numa plataforma web de comunidade, diferente de coisas
+// como cassino/empregos que eram específicas do bot. Um membro abre um
+// ticket, conversa com a staff por mensagens dentro dele, staff fecha
+// quando resolvido. ---
+
+model Ticket {
+  id          String   @id @default(uuid())
+  authorId    String
+  author      User     @relation("TicketsOpened", fields: [authorId], references: [id], onDelete: Cascade)
+  subject     String
+  status      String   @default("OPEN") // OPEN | CLOSED
+  claimedById String?
+  claimedBy   User?    @relation("TicketsClaimed", fields: [claimedById], references: [id], onDelete: SetNull)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  closedAt    DateTime?
+
+  messages TicketMessage[]
+}
+
+model TicketMessage {
+  id        String   @id @default(uuid())
+  ticketId  String
+  ticket    Ticket   @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+  authorId  String
+  author    User     @relation(fields: [authorId], references: [id], onDelete: Cascade)
+  content   String
+  createdAt DateTime @default(now())
+}
+
+// --- Inscrições (formulário de entrada com aprovação da staff) — a conta
+// só é criada de verdade quando um admin aprova. Antes disso não existe
+// nenhum User, só este registro pendente.
+model MembershipApplication {
+  id           String   @id @default(uuid())
+  email        String
+  passwordHash String
+  username     String
+  displayName  String
+  ageRange     String   // "13-17" | "18-20" | "20+"
+  reason       String
+  status       String   @default("PENDING") // PENDING | APPROVED | REJECTED
+  reviewedById String?
+  reviewedAt   DateTime?
+  createdAt    DateTime @default(now())
+}
+
+// --- Editor de Interface (staff pode reorganizar/redimensionar os menus
+// principais do site — barra de seções, sidebar de canais, lista de
+// membros — separadamente pra PC e pra Mobile, aplicado pra todo mundo). ---
+model UiLayoutConfig {
+  device            String  @id // "PC" | "MOBILE"
+  railOrder         String  @default("[]") // JSON array com a ordem das seções (ex: ["/","/dms","/economia",...])
+  railHidden        String  @default("[]") // JSON array das seções escondidas
+  sidebarWidth      Int     @default(280)
+  membersWidth      Int     @default(240)
+  membersDefaultOpen Boolean @default(true)
+  // Posição de cada painel inteiro (barra lateral, lista de membros, chat,
+  // etc) dentro da grade do app — staff arrasta no Editor de Interface,
+  // vale pra TODO MUNDO assim que salva. JSON: { panelId: { gridColumn,
+  // gridRow } } — painel sem entrada aqui usa a posição padrão do CSS.
+  panelPositions    String  @default("{}")
+  updatedAt         DateTime @updatedAt
+}
+
+// Metadados dos arquivos guardados no Backblaze B2 (fotos de perfil,
+// banners, anexos de mensagem, GIFs, áudio, etc) — o arquivo em si NUNCA
+// fica no Postgres, só essas informações sobre ele. `storageKey` é o
+// caminho dentro do bucket B2; `url` é o endereço público final já
+// resolvido (o que efetivamente é usado no site). Ver
+// services/fileStorage.js pra upload/exclusão de verdade.
+model FileAsset {
+  id           String   @id @default(uuid())
+  ownerId      String?  // quem enviou — sem @relation de propósito, pra não inflar ainda mais a lista de relações do User
+  originalName String
+  mimeType     String
+  sizeBytes    Int
+  storageKey   String   @unique
+  url          String
+  createdAt    DateTime @default(now())
+
+  @@index([ownerId])
+}

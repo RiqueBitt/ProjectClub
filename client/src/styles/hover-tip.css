@@ -1,0 +1,12 @@
+/* Dica rápida dos botões de ícone (HoverTip.jsx). */
+.hover-tip {
+  position: fixed; z-index: 2000; pointer-events: none;
+  transform: translate(-50%, -100%); max-width: 260px; padding: 6px 10px; border-radius: 8px;
+  font-size: 12.5px; font-weight: 600; line-height: 1.3; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  color: var(--header-primary, #fff); background: var(--bg-floating, #111214);
+  border: 1px solid var(--border, rgba(255, 255, 255, .08)); box-shadow: 0 6px 18px rgba(0, 0, 0, .4);
+  animation: hover-tip-in .12s ease-out;
+}
+.hover-tip.below { transform: translate(-50%, 0); }
+@keyframes hover-tip-in { from { opacity: 0; } to { opacity: 1; } }
+@media (prefers-reduced-motion: reduce) { .hover-tip { animation: none; } }

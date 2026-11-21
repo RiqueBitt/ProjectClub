@@ -1,0 +1,50 @@
+name: Festas 2013-2017 da Praça (release waddle-parties)
+
+# Baixa as salas e arquivos das festas de 2013 a 2017 da cópia da Club
+# Penguin Archives na Solero (tools/cp-parties) e publica na release
+# "waddle-parties": media-parties.tar (pasta parties/ da mídia) + index.json
+# + páginas HTML. O servidor baixa e extrai sozinho (media-store.ts), como já
+# faz com a release waddle-media. Nada vai pro Git.
+on:
+  workflow_dispatch:
+  push:
+    branches: [feat/cp-festas-2013-2017]
+    paths:
+      - 'tools/cp-parties/**'
+      - '.github/workflows/waddle-parties.yml'
+
+permissions:
+  contents: write
+
+concurrency:
+  group: waddle-parties
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v4
+      - name: Baixar as festas
+        run: python3 tools/cp-parties/fetch.py tools/cp-parties/parties.json out tools/cp-parties/have-music.txt
+      - name: Empacotar
+        run: |
+          cd out
+          tar cf media-parties.tar parties
+          cp parties/pcparties/index.json parties-index.json
+          tar czf parties-pages.tar.gz pages
+          sha256sum media-parties.tar parties-index.json parties-pages.tar.gz > SHA256SUMS-parties.txt
+          ls -la
+      - name: Publicar na release waddle-parties
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          if ! gh release view waddle-parties >/dev/null 2>&1; then
+            gh release create waddle-parties --title "Festas 2013-2017 da Praça" --latest=false \
+              --notes "Salas e arquivos das festas de 2013 a 2017 do Club Penguin (arquivo histórico, via Club Penguin Archives). Usado pela Praça do Project Club; não é uma versão do app."
+          fi
+          cd out
+          gh release upload waddle-parties media-parties.tar parties-index.json parties-pages.tar.gz SHA256SUMS-parties.txt --clobber
+          gh release view waddle-parties --json assets --jq '.assets[] | "\(.name) \(.size)"'

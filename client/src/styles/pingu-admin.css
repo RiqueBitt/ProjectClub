@@ -1,0 +1,67 @@
+/* Painel da Equipe → Pingu (components/admin/PinguAdmin.jsx) */
+.pga { display: flex; flex-direction: column; gap: 14px; max-width: 760px; }
+.pga-card { position: relative; border-radius: var(--radius-md, 10px); overflow: hidden; border: 1px solid var(--border); background: var(--bg-secondary); }
+.pga-banner { height: 84px; background-size: cover; background-position: center; }
+.pga-id { display: flex; align-items: flex-end; gap: 12px; padding: 0 14px 12px; margin-top: -30px; flex-wrap: wrap; }
+.pga-id .user-avatar, .pga-id img { border: 4px solid var(--bg-secondary); border-radius: 50%; }
+.pga-names { display: flex; flex-direction: column; gap: 2px; min-width: 0; flex: 1; padding-bottom: 2px; }
+.pga-names strong { font-size: 18px; line-height: 1.2; }
+.pga-status { align-self: center; padding: 3px 10px; border-radius: 999px; font-size: 12px; font-weight: 700; color: var(--text-muted); background: var(--bg-modifier-hover); }
+.pga-status.on { color: #3ad17a; background: color-mix(in srgb, #23a55a 18%, transparent); }
+.pga-sub { margin: 10px 0 0; font-size: 13px; }
+.pga-form { display: flex; flex-direction: column; gap: 10px; }
+.pga-form h3 { margin: 6px 0 0; }
+.pga-form label { display: flex; flex-direction: column; gap: 4px; font-size: 12px; font-weight: 700; color: var(--header-secondary); }
+.pga-form input[type="color"] { width: 100%; height: 36px; padding: 2px; cursor: pointer; }
+.pga-row { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; max-width: 360px; }
+.pga-hint { margin: 0; font-size: 13px; }
+.pga-count { align-self: flex-end; font-weight: 600; color: var(--text-muted); }
+.pga-actions { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-top: 10px; }
+.pga-msg { font-size: 13px; color: #3ad17a; }
+.pga-msg.err { color: var(--red, #ed4245); }
+
+/* Fase 9 — funções do Pingu (components/admin/PinguFeaturesAdmin.jsx) e
+   alertas de moderação (components/admin/PinguAlertsAdmin.jsx). */
+.pgf { display: flex; flex-direction: column; gap: 10px; }
+.pgf-form { display: flex; flex-direction: column; gap: 10px; }
+.pgf h4 { margin: 10px 0 0; font-size: 14px; }
+.pgf-toggle { flex-direction: row !important; align-items: center; gap: 8px !important; font-weight: 500 !important; color: var(--text-normal) !important; font-size: 14px !important; cursor: pointer; }
+.pgf-toggle input { width: 16px; height: 16px; }
+.pgf-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 10px; }
+.pgf-row { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.pgf-row input, .pgf-row select { flex: 1 1 200px; min-width: 0; }
+.pgf-quiz-form { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 10px; align-items: end; }
+.pgf-qlist { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; max-height: 420px; overflow-y: auto; }
+.pgf-qlist li { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; padding: 8px 10px; border-radius: 8px; border: 1px solid var(--border); background: var(--bg-secondary); }
+.pgf-qlist li.pending { border-color: #f0b232; }
+.pgf-q { display: flex; flex-direction: column; gap: 2px; flex: 1 1 260px; min-width: 0; }
+.pgf-q span { font-size: 12px; }
+.pgf-q-actions { display: flex; gap: 6px; flex-wrap: wrap; }
+.pgf-q-actions .danger, .pgal .danger { color: var(--red, #ed4245); }
+.pgf-board { margin: 0; padding-left: 22px; }
+.pgal { display: flex; flex-direction: column; gap: 10px; max-width: 860px; }
+.pgal-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
+.pgal-item { padding: 10px 12px; border-radius: 8px; border: 1px solid var(--border); background: var(--bg-secondary); display: flex; flex-direction: column; gap: 6px; }
+.pgal-head { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; font-size: 13px; }
+.pgal-snippet { margin: 0; padding: 6px 10px; border-left: 3px solid #f0b232; background: var(--bg-modifier-hover); border-radius: 4px; white-space: pre-wrap; overflow-wrap: anywhere; font-size: 14px; }
+.pgal-reasons { display: flex; gap: 6px; flex-wrap: wrap; }
+.pgal-reasons span { padding: 1px 8px; border-radius: 999px; font-size: 11px; background: var(--bg-modifier-hover); }
+.pgal-ai { font-weight: 700; font-size: 11px; padding: 1px 8px; border-radius: 999px; }
+.pgal-ai.sim { background: color-mix(in srgb, #ed4245 22%, transparent); }
+.pgal-ai.sem { background: var(--bg-modifier-hover); }
+.pgal-actions { display: flex; gap: 8px; flex-wrap: wrap; }
+
+/* Pingu Turbo: números de velocidade e imagens (components/admin/PinguImagesAdmin.jsx). */
+.pga-perf { font-size: 12px; margin-top: 4px; }
+.pgi-status { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; font-size: 13px; }
+.pgi-err { color: var(--red, #ed4245); font-size: 12px; overflow-wrap: anywhere; }
+.pgi-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; max-height: 520px; overflow-y: auto; }
+.pgi-item { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; padding: 8px 10px; border-radius: 8px; border: 1px solid var(--border); background: var(--bg-secondary); }
+.pgi-item.s-blocked { border-color: color-mix(in srgb, #ed4245 50%, var(--border)); }
+.pgi-item.s-failed { border-color: #f0b232; }
+.pgi-item.s-deleted, .pgi-item.s-cancelled { opacity: .6; }
+.pgi-thumb { width: 56px; height: 56px; flex: 0 0 56px; border-radius: 6px; overflow: hidden; background: var(--bg-modifier-hover); display: grid; place-items: center; font-size: 22px; }
+.pgi-thumb img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.pgi-info { display: flex; flex-direction: column; gap: 2px; flex: 1 1 220px; min-width: 0; }
+.pgi-info span { font-size: 12px; }
+.pgi-prompt { overflow-wrap: anywhere; font-size: 14px; }

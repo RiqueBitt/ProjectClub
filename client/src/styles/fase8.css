@@ -1,0 +1,97 @@
+/* Fase 8 — mascote pinguim, Praça virtual e Loja dos criadores.
+   Usa só as variáveis de tema (claro/escuro/amoled) do global.css. */
+
+/* ---------- Pinguim (SVG) ---------- */
+.pet-svg { overflow: visible; display: block; }
+.pet-svg.is-animated .pet-body { animation: pet-bob 2.8s ease-in-out infinite; transform-box: view-box; transform-origin: 60px 110px; }
+.pet-svg.is-animated .pet-eyes { animation: pet-blink 5s infinite; transform-box: view-box; transform-origin: 60px 50px; }
+.pet-svg.is-animated .pet-wing-l { animation: pet-flap-l 2.8s ease-in-out infinite; transform-box: view-box; transform-origin: 34px 54px; }
+.pet-svg.is-animated .pet-wing-r { animation: pet-flap-r 2.8s ease-in-out infinite; transform-box: view-box; transform-origin: 86px 54px; }
+.pet-svg.is-animated .pet-aura { animation: pet-glow 3.2s ease-in-out infinite; transform-box: view-box; transform-origin: 60px 64px; }
+.pet-svg.is-animated .pet-sparkles path { animation: pet-twinkle 2.4s ease-in-out infinite; transform-box: fill-box; transform-origin: center; }
+.pet-svg.is-animated .pet-sparkles path:nth-child(2) { animation-delay: .8s; }
+.pet-svg.is-animated .pet-sparkles path:nth-child(3) { animation-delay: 1.6s; }
+.pet-svg.is-animated .pet-balloon { animation: pet-sway 3.6s ease-in-out infinite; transform-box: view-box; transform-origin: 96px 76px; }
+.pet-svg.is-animated.is-sad .pet-body { animation-duration: 4.6s; }
+.pet-svg.is-animated .pet-shadow { animation: pet-shadow 2.8s ease-in-out infinite; transform-box: fill-box; transform-origin: center; }
+
+@keyframes pet-bob { 0%, 100% { transform: translateY(0) scaleY(1); } 50% { transform: translateY(-3px) scaleY(1.015); } }
+@keyframes pet-shadow { 0%, 100% { transform: scaleX(1); opacity: 1; } 50% { transform: scaleX(.9); opacity: .75; } }
+@keyframes pet-blink { 0%, 92%, 100% { transform: scaleY(1); } 95% { transform: scaleY(.1); } }
+@keyframes pet-flap-l { 0%, 100% { transform: rotate(0deg); } 50% { transform: rotate(8deg); } }
+@keyframes pet-flap-r { 0%, 100% { transform: rotate(0deg); } 50% { transform: rotate(-8deg); } }
+@keyframes pet-glow { 0%, 100% { opacity: .65; transform: scale(.96); } 50% { opacity: 1; transform: scale(1.04); } }
+@keyframes pet-twinkle { 0%, 100% { opacity: .2; transform: scale(.6); } 50% { opacity: 1; transform: scale(1.15); } }
+@keyframes pet-sway { 0%, 100% { transform: rotate(-4deg); } 50% { transform: rotate(4deg); } }
+@keyframes pet-hop { 0% { transform: translateY(0); } 30% { transform: translateY(-14px); } 60% { transform: translateY(0); } 75% { transform: translateY(-5px); } 100% { transform: translateY(0); } }
+
+@media (prefers-reduced-motion: reduce) {
+  .pet-svg.is-animated * { animation: none !important; }
+}
+
+/* ---------- Card do pinguim no perfil ---------- */
+.pet-profile-card {
+  display: flex; align-items: center; gap: 14px; padding: 14px 16px; margin: 12px 0 4px;
+  border-radius: 16px; border: 1px solid var(--border); background: var(--bg-secondary);
+}
+.pet-profile-card .pet-profile-figure { flex: none; display: grid; place-items: center; width: 96px; height: 96px; border-radius: 14px;
+  background: radial-gradient(circle at 50% 80%, color-mix(in srgb, var(--brand) 18%, transparent), transparent 70%); }
+.pet-profile-card .pet-profile-info { min-width: 0; display: flex; flex-direction: column; gap: 4px; }
+.pet-profile-card strong { color: var(--header-primary); font-size: 16px; }
+.pet-profile-card .pet-profile-meta { color: var(--text-muted); font-size: 13px; }
+.pet-profile-card .pet-profile-bar { height: 6px; border-radius: 99px; background: var(--bg-modifier-hover); overflow: hidden; max-width: 220px; }
+.pet-profile-card .pet-profile-bar span { display: block; height: 100%; background: var(--brand); border-radius: inherit; }
+.pet-profile-card .pet-profile-link { align-self: flex-start; margin-top: 2px; background: none; border: 0; padding: 0; color: var(--text-link, var(--brand)); cursor: pointer; font-size: 13px; }
+.pet-stage-chip { display: inline-flex; align-items: center; gap: 4px; padding: 2px 8px; border-radius: 99px; font-size: 12px; font-weight: 600;
+  background: color-mix(in srgb, var(--brand) 16%, transparent); color: var(--brand); width: fit-content; }
+.pet-stage-chip.is-legend { background: color-mix(in srgb, #F4C430 25%, transparent); color: #B88A00; }
+.pet-mini { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; color: var(--text-muted); }
+
+/* ---------- Página "Meu pinguim" ---------- */
+.pet-page-grid { display: grid; grid-template-columns: minmax(260px, 340px) 1fr; gap: 18px; align-items: start; }
+.pet-stage-panel { position: sticky; top: 12px; display: flex; flex-direction: column; align-items: center; gap: 10px; padding: 20px 16px;
+  border-radius: 20px; border: 1px solid var(--border);
+  background: linear-gradient(180deg, color-mix(in srgb, #8FC9F0 22%, var(--bg-secondary)), var(--bg-secondary) 70%); }
+.pet-stage-panel .pet-hop { animation: pet-hop .7s ease-out; }
+.pet-stage-panel h2 { margin: 0; color: var(--header-primary); font-size: 22px; }
+.pet-stage-panel .pet-mood { color: var(--text-muted); font-size: 13px; }
+.pet-progress { width: 100%; }
+.pet-progress-label { display: flex; justify-content: space-between; font-size: 12px; color: var(--text-muted); margin-bottom: 4px; }
+.pet-progress-track { height: 8px; border-radius: 99px; background: var(--bg-modifier-hover); overflow: hidden; }
+.pet-progress-track span { display: block; height: 100%; border-radius: inherit; background: linear-gradient(90deg, var(--brand), #8FC9F0); transition: width .5s var(--ease-smooth, ease); }
+.pet-stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; width: 100%; }
+.pet-stats div { display: flex; flex-direction: column; align-items: center; padding: 8px 4px; border-radius: 12px; background: var(--bg-primary); }
+.pet-stats b { color: var(--header-primary); font-size: 18px; }
+.pet-stats span { color: var(--text-muted); font-size: 11px; }
+.pet-care-btn { width: 100%; padding: 12px; border: 0; border-radius: 12px; font-weight: 700; font-size: 15px; cursor: pointer;
+  background: var(--brand); color: #fff; transition: transform .15s, filter .15s; }
+.pet-care-btn:hover:not(:disabled) { filter: brightness(1.08); transform: translateY(-1px); }
+.pet-care-btn:disabled { opacity: .6; cursor: default; }
+.pet-section { padding: 16px; border-radius: 16px; border: 1px solid var(--border); background: var(--bg-secondary); margin-bottom: 14px; }
+.pet-section h3 { margin: 0 0 10px; color: var(--header-primary); font-size: 15px; }
+.pet-name-row { display: flex; gap: 8px; flex-wrap: wrap; }
+.pet-name-row input { flex: 1; min-width: 160px; padding: 9px 12px; border-radius: 10px; border: 1px solid var(--border); background: var(--bg-primary); color: var(--text-normal); }
+.pet-colors { display: flex; flex-wrap: wrap; gap: 8px; }
+.pet-color { width: 34px; height: 34px; border-radius: 50%; border: 3px solid transparent; cursor: pointer; box-shadow: 0 0 0 1px var(--border); }
+.pet-color.active { border-color: var(--header-primary); }
+.pet-acc-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 10px; }
+.pet-acc { display: flex; flex-direction: column; align-items: center; gap: 6px; padding: 10px; border-radius: 14px; border: 1px solid var(--border); background: var(--bg-primary); text-align: center; }
+.pet-acc.is-equipped { border-color: var(--brand); box-shadow: 0 0 0 1px var(--brand) inset; }
+.pet-acc.is-locked { opacity: .6; }
+.pet-acc span { font-size: 13px; color: var(--text-normal); font-weight: 600; }
+.pet-acc small { font-size: 11px; color: var(--text-muted); }
+.pet-acc button { width: 100%; }
+.pet-btn { padding: 7px 12px; border-radius: 10px; border: 1px solid var(--border); background: var(--bg-elevated, var(--bg-secondary)); color: var(--text-normal); cursor: pointer; font-weight: 600; font-size: 13px; }
+.pet-btn.primary { background: var(--brand); color: #fff; border-color: transparent; }
+.pet-btn.danger { color: var(--red); }
+.pet-btn:disabled { opacity: .55; cursor: default; }
+.pet-stage-road { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; }
+.pet-stage-road div { display: flex; flex-direction: column; align-items: center; gap: 2px; padding: 8px 4px; border-radius: 12px; background: var(--bg-primary); font-size: 12px; color: var(--text-muted); }
+.pet-stage-road div.reached { color: var(--header-primary); box-shadow: 0 0 0 1px var(--brand) inset; }
+
+@media (max-width: 760px) {
+  .pet-page-grid { grid-template-columns: 1fr; }
+  .pet-stage-panel { position: static; }
+}
+
+/* ---------- Praça ---------- */

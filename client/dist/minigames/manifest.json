@@ -1,0 +1,62 @@
+{
+  "schema": 1,
+  "updated": "2026-10-13",
+  "games": {
+    "beancounters": {
+      "version": "1"
+    },
+    "pizzatron": {
+      "version": "3",
+      "notes": "Soltar ingrediente e espalhar o molho na pizza funciona no toque (posição do dedo em vez de :hover; frasco não engana mais o teste de área)."
+    },
+    "sledracing": {
+      "version": "3",
+      "notes": "Jogável no celular (toque direto: metade esquerda/direita vira). Multiplayer próprio do Project Club (sala de espera, contagem de 15s ao chegar o 2º, até 4 jogadores) com modo solo de reserva. Torneio de até 8 (2 baterias → final de 4) pelo botão na sala de espera. Salva o recorde no fim e também se sair/fechar no meio."
+    },
+    "thinice": {
+      "version": "1"
+    },
+    "astrobarrier": {
+      "version": "1"
+    },
+    "cartsurfer": {
+      "version": "1"
+    },
+    "icefishing": {
+      "version": "1"
+    },
+    "aquagrabber": {
+      "version": "1"
+    },
+    "catchinwaves": {
+      "version": "1"
+    },
+    "dance": {
+      "version": "1"
+    },
+    "systemdefender": {
+      "version": "1"
+    },
+    "hydrohopper": {
+      "version": "1"
+    },
+    "balloonpop": {
+      "version": "1"
+    },
+    "feedapuffle": {
+      "version": "1"
+    },
+    "pufflepaddle": {
+      "version": "1"
+    },
+    "puffleroundup": {
+      "version": "1"
+    },
+    "pufflesoaker": {
+      "version": "1"
+    },
+    "fluffy": {
+      "version": "1"
+    }
+  }
+}

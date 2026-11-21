@@ -1,0 +1,20 @@
+{
+  "name": "shardcloud-mcp",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Servidor MCP da Shard Cloud (apps, bancos, variáveis, backups, deploy do GitHub e migração MySQL) para gerenciar a conta pelo Claude.",
+  "main": "src/index.js",
+  "scripts": {
+    "start": "node src/index.js",
+    "test": "node --test test/*.test.mjs"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.32.1",
+    "adm-zip": "^0.6.1",
+    "express": "^5.3.0",
+    "mysql2": "^3.24.6",
+    "zod": "^3.25.76"
+  },
+  "engines": { "node": ">=20" }
+}

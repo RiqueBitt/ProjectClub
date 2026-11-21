@@ -1,0 +1,90 @@
+import React from 'react';
+import ReactDOM from 'react-dom/client';
+import { BrowserRouter } from 'react-router-dom';
+import App from './App.jsx';
+import { AuthProvider } from './context/AuthContext.jsx';
+import { RouteErrorBoundary } from './components/ErrorBoundary.jsx';
+import './styles/global.css';
+// Correção de responsividade mobile da barra lateral de Configurações —
+// mantida em arquivo próprio (ver o comentário completo no topo do
+// arquivo) em vez de dentro de global.css, que já está com ~400KB.
+// Precisa vir DEPOIS do import acima para vencer no cascata do CSS.
+import './styles/settings-mobile-fix.css';
+// Correção do "scroll do celular passa por cima da barra de digitar" —
+// mesmo padrão do arquivo acima (arquivo próprio, importado depois de
+// global.css pra vencer no cascata).
+import './styles/mobile-scroll-fix.css';
+// Mini perfil maior/estilo Discord (card, banner, avatar, bolha de
+// status) — mesmo padrão dos dois arquivos acima.
+import './styles/mini-profile-improvements.css';
+// Layout "Normal 2.0" — isolado sob .layout-n2 / .n2-*.
+import './styles/normal2.css';
+// Painel da Equipe — isolado sob .staff.
+import './styles/staff.css';
+// Página Início — isolada sob .home.
+import './styles/home.css';
+// Feeds — cartão de post e páginas de Tema/post.
+import './styles/feeds.css';
+// Social — amigos, mensagens e clubes.
+import './styles/social.css';
+// Canal de voz — lobby, chamada e controles.
+import './styles/voice.css';
+import './styles/presence.css';
+// Telas de login/inscrição — por último, isoladas sob .pc-auth.
+import './styles/auth.css';
+import './i18n/index.js';
+import { isChunkLoadError, reloadForNewVersion } from './utils/lazyWithRetry';
+
+// Depois de uma atualização do site, abas abertas ainda pedem os arquivos
+// antigos (com outro nome) e a página travava com "Failed to fetch
+// dynamically imported module". Recarrega uma vez pra pegar a versão nova.
+// BUG CORRIGIDO: NÃO chama mais e.preventDefault() aqui — isso fazia o
+// import() "dar certo" devolvendo undefined, e o React.lazy estourava
+// "Cannot read properties of undefined (reading 'default')". Agora o erro
+// segue normal até o lazyWithRetry (utils/lazyWithRetry.js), que tenta de
+// novo e só então recarrega.
+window.addEventListener('vite:preloadError', () => { reloadForNewVersion(); });
+window.addEventListener('unhandledrejection', (e) => {
+  if (isChunkLoadError(e?.reason)) reloadForNewVersion();
+});
+
+// Item pedido: "adicione nas configurações do usuário ele poder
+// aumentar ou diminuir o zoom quanto quiser" — desliga o CSS zoom só
+// no app desktop (Electron), onde o zoom é feito de forma NATIVA em
+// vez disso (ver setInterfaceZoom em useStore.js e setZoomFactor no
+// preload.js) — sem essa classe, os dois (CSS + nativo) ficariam
+// empilhados ao mesmo tempo, dobrando o efeito.
+if (window.electronAPI) {
+  document.documentElement.classList.add('is-electron-app');
+}
+
+ReactDOM.createRoot(document.getElementById('root')).render(
+  <React.StrictMode>
+    {/* BUG CORRIGIDO ("mudar zoom/configuração desloga o usuário"): o
+        ErrorBoundary global ficava ACIMA do AuthProvider — qualquer
+        erro de render capturado em QUALQUER lugar dentro de <App/>
+        (uma tela específica travando por qualquer motivo) desmontava
+        a árvore inteira, incluindo o AuthProvider junto, perdendo
+        user/token da memória mesmo sem nenhum logout de verdade ter
+        acontecido — e o próprio botão "Recarregar" do boundary
+        (window.location.reload()) reforçava a sensação de sessão
+        perdida. Trocada a ordem: o AuthProvider agora fica FORA do
+        boundary — um erro de render em qualquer tela ainda é
+        capturado e mostra a tela de recuperação normalmente, mas
+        nunca mais desmonta a sessão em memória enquanto isso. */}
+    <BrowserRouter>
+      <AuthProvider>
+        <RouteErrorBoundary>
+          <App />
+        </RouteErrorBoundary>
+      </AuthProvider>
+    </BrowserRouter>
+  </React.StrictMode>
+);
+
+// Service worker: SÓ pra notificações push (public/sw.js — não faz cache de
+// nada; uma versão antiga do app cacheava arquivos e servia layout velho pra
+// sempre). ensureServiceWorker remove qualquer worker antigo com outra URL
+// antes de registrar o atual. No desktop (Electron) e no app nativo não
+// registra nada.
+import('./utils/webPush.js').then((m) => m.ensureServiceWorker()).catch(() => {});

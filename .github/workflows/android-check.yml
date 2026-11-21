@@ -1,0 +1,58 @@
+name: Android (checagem do PR)
+
+# Compila o app Android (debug, sem assinar e sem publicar nada) em todo PR
+# que mexe na parte nativa — pra erro de Java/Gradle aparecer no PR, e não
+# só depois de mesclar, quando o build oficial (build-apps.yml) roda.
+on:
+  pull_request:
+    paths:
+      - 'client/android/**'
+      - 'client/capacitor.config.json'
+      - 'client/package.json'
+      - '.github/workflows/android-check.yml'
+
+concurrency:
+  group: android-check-${{ github.head_ref || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  compilar:
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 21
+      - name: Usar o Android SDK do runner
+        run: |
+          SDK="${ANDROID_HOME:-${ANDROID_SDK_ROOT:-/usr/local/lib/android/sdk}}"
+          echo "ANDROID_HOME=$SDK" >> "$GITHUB_ENV"
+          echo "ANDROID_SDK_ROOT=$SDK" >> "$GITHUB_ENV"
+          SDKM="$SDK/cmdline-tools/latest/bin/sdkmanager"
+          if [ -x "$SDKM" ]; then yes | "$SDKM" --licenses > /dev/null || true; fi
+      - name: Instalar dependências do client
+        working-directory: client
+        run: npm install
+      # O app abre o site ao vivo (server.url); o dist embalado só precisa
+      # existir pro Capacitor sincronizar.
+      - name: Dist mínimo pro Capacitor
+        working-directory: client
+        run: mkdir -p dist && printf '<!doctype html><title>Project Club</title>' > dist/index.html
+      - name: Sincronizar com o projeto Android
+        working-directory: client
+        run: npx cap sync android
+      - name: Compilar (debug)
+        working-directory: client/android
+        run: |
+          chmod +x gradlew
+          set -o pipefail
+          ./gradlew assembleDebug --stacktrace 2>&1 | tee /tmp/gradle.log || {
+            ERR=$(grep -m1 -A25 -E "What went wrong|error:|FAILURE|Exception" /tmp/gradle.log | tr '\n' ' ' | cut -c1-3500)
+            echo "::error title=Android não compilou::${ERR:-sem detalhe no log}"
+            exit 1
+          }

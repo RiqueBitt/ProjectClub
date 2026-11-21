@@ -1,0 +1,186 @@
+/* ============================================================
+   Loja de conveniência (components/shop/ShopBasket.jsx + LojaPage.jsx):
+   painel perfurado com os itens pendurados em ganchos, cestinha no
+   canto inferior direito e checkout com a maquininha.
+   ============================================================ */
+.shop-room {
+  --peg-board: #8c6a45;
+  --peg-hole: rgba(40, 26, 12, .55);
+  --peg-metal: #b9bec7;
+}
+
+/* ---------- Painel perfurado ---------- */
+.shop-room .room-grid {
+  position: relative; padding: 26px 18px 22px; row-gap: 46px; border-radius: 16px;
+  background-color: var(--peg-board);
+  background-image:
+    radial-gradient(circle, var(--peg-hole) 2.2px, transparent 2.6px),
+    linear-gradient(180deg, rgba(255, 255, 255, .06), rgba(0, 0, 0, .12));
+  background-size: 22px 22px, 100% 100%;
+  box-shadow: inset 0 0 0 1px rgba(0, 0, 0, .25), inset 0 6px 18px rgba(0, 0, 0, .25);
+}
+.shop-room .room-grid .room-card {
+  position: relative; overflow: visible; margin-top: 20px;
+  transform-origin: 50% -18px; transition: transform .25s cubic-bezier(.3, 1.6, .5, 1), box-shadow .2s;
+  box-shadow: 0 8px 14px -8px rgba(0, 0, 0, .55);
+}
+.shop-room .room-grid .room-card:hover { transform: rotate(-1.2deg); box-shadow: 0 14px 22px -10px rgba(0, 0, 0, .6); }
+.shop-room .room-grid .room-card:nth-child(2n):hover { transform: rotate(1.2deg); }
+
+/* Gancho de metal (sai do painel) + furinho do pacote. */
+.room-hook { display: none; }
+.room-hole { display: none; }
+.shop-room .room-grid .room-hook {
+  display: block; position: absolute; left: 50%; top: -30px; width: 6px; height: 30px; margin-left: -3px; z-index: 2;
+  border-radius: 3px; background: linear-gradient(90deg, #8d939c, var(--peg-metal) 45%, #7c828b);
+  box-shadow: 0 2px 3px rgba(0, 0, 0, .4);
+}
+.shop-room .room-grid .room-hook::before {
+  content: ''; position: absolute; left: -5px; top: -6px; width: 16px; height: 8px; border-radius: 50%;
+  background: radial-gradient(circle at 50% 40%, #555b64, #2b2f35);
+}
+.shop-room .room-grid .room-hole {
+  display: block; position: absolute; left: 50%; top: 7px; width: 26px; height: 9px; margin-left: -13px; z-index: 3;
+  border-radius: 999px; background: var(--peg-board); box-shadow: inset 0 2px 3px rgba(0, 0, 0, .45);
+}
+/* Sem o overflow do card (o gancho sai pra fora), a arte arredonda sozinha. */
+.shop-room .room-grid .room-card-art { border-radius: var(--room-radius) var(--room-radius) 0 0; }
+.shop-room .room-grid .room-card.is-grabbable { cursor: grab; touch-action: pan-y; }
+.shop-room .room-grid .room-card.is-grabbable:active { cursor: grabbing; }
+.shop-room .room-grid .room-card.in-basket::after {
+  content: 'Na cesta'; position: absolute; top: 22px; right: -6px; z-index: 4; padding: 3px 9px; border-radius: 6px 6px 0 6px;
+  background: var(--green); color: #fff; font-size: 11px; font-weight: 800; box-shadow: 0 2px 6px rgba(0, 0, 0, .35);
+}
+.room-basket-btn { gap: 5px; }
+
+/* Pacote "voando" pra cestinha. */
+.shop-drag-ghost {
+  position: fixed !important; z-index: 9999; margin: 0 !important; pointer-events: none;
+  transform: rotate(-6deg) scale(1.04); opacity: .95; transition: none !important;
+  box-shadow: 0 26px 46px -12px rgba(0, 0, 0, .7) !important; border-radius: 14px;
+}
+.shop-drag-ghost .room-hook { display: none !important; }
+
+/* ---------- Cestinha ---------- */
+.shop-basket-fab {
+  position: fixed; right: 22px; bottom: 22px; z-index: 9000; width: 78px; height: 72px; border: 0; cursor: pointer;
+  display: flex; align-items: center; justify-content: center; color: #fff4df;
+  border-radius: 14px 14px 22px 22px;
+  background:
+    repeating-linear-gradient(90deg, rgba(0, 0, 0, .14) 0 3px, transparent 3px 9px),
+    repeating-linear-gradient(0deg, rgba(255, 255, 255, .08) 0 3px, transparent 3px 9px),
+    linear-gradient(180deg, #c98d4c, #9a6430);
+  box-shadow: 0 12px 26px -8px rgba(0, 0, 0, .65), inset 0 2px 0 rgba(255, 255, 255, .25);
+  transition: transform .18s ease, box-shadow .18s ease;
+}
+.shop-basket-fab:hover { transform: translateY(-2px); }
+.shop-basket-fab:focus-visible { outline: 3px solid var(--brand); outline-offset: 3px; }
+.shop-basket-count {
+  position: absolute; top: -8px; right: -8px; min-width: 24px; height: 24px; padding: 0 6px; box-sizing: border-box;
+  display: inline-flex; align-items: center; justify-content: center; border-radius: 999px;
+  background: var(--red); color: #fff; font-size: 12.5px; font-weight: 800; box-shadow: 0 2px 6px rgba(0, 0, 0, .4);
+}
+.shop-basket-drop {
+  position: absolute; bottom: calc(100% + 10px); right: 0; white-space: nowrap; padding: 5px 10px; border-radius: 8px;
+  background: var(--bg-floating, #111); color: var(--header-primary); font-size: 12.5px; font-weight: 700;
+  opacity: 0; transform: translateY(4px); transition: opacity .15s, transform .15s; pointer-events: none;
+  box-shadow: 0 6px 16px rgba(0, 0, 0, .4);
+}
+.shop-basket-fab.is-target { animation: shop-basket-pulse 1s ease-in-out infinite; }
+.shop-basket-fab.is-target .shop-basket-drop { opacity: 1; transform: none; }
+.shop-basket-fab.is-over { transform: scale(1.14); box-shadow: 0 0 0 4px color-mix(in srgb, var(--green) 70%, transparent), 0 16px 30px -8px rgba(0, 0, 0, .7); animation: none; }
+.shop-basket-fab.bump { animation: shop-basket-bump .45s cubic-bezier(.3, 1.8, .5, 1); }
+@keyframes shop-basket-pulse { 0%, 100% { transform: scale(1); } 50% { transform: scale(1.06); } }
+@keyframes shop-basket-bump { 0% { transform: scale(1); } 40% { transform: scale(1.2) rotate(-6deg); } 100% { transform: scale(1); } }
+@media (max-width: 600px) {
+  .shop-basket-fab { right: 14px; bottom: calc(76px + env(safe-area-inset-bottom, 0px)); width: 64px; height: 60px; }
+}
+
+/* ---------- Checkout ---------- */
+.shop-checkout .room-page-head .room-link { display: inline-flex; align-items: center; gap: 4px; margin-bottom: 8px; }
+.shop-checkout-grid { display: grid; grid-template-columns: minmax(0, 1.1fr) minmax(0, 1fr); gap: 22px; align-items: start; }
+@media (max-width: 900px) { .shop-checkout-grid { grid-template-columns: 1fr; } }
+
+/* Cupom fiscal */
+.shop-receipt {
+  position: relative; padding: 18px 18px 22px; border-radius: 6px;
+  background: #fbfaf6; color: #24211c;
+  box-shadow: 0 16px 32px -14px rgba(0, 0, 0, .6);
+  -webkit-mask: radial-gradient(circle 6px at 50% 100%, transparent 98%, #000) 0 0 / 16px 100% repeat-x;
+          mask: radial-gradient(circle 6px at 50% 100%, transparent 98%, #000) 0 0 / 16px 100% repeat-x;
+}
+.shop-receipt h2 { margin: 0 0 12px; font: 800 16px ui-monospace, 'SF Mono', Menlo, monospace; letter-spacing: .5px; text-transform: uppercase; display: flex; justify-content: space-between; align-items: baseline; }
+.shop-receipt h2 small { font-size: 12px; font-weight: 600; opacity: .6; }
+.shop-receipt ul { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; }
+.shop-receipt .room-muted { color: #7a756b; }
+.shop-receipt-row { display: flex; align-items: center; gap: 10px; padding: 9px 0; border-bottom: 1px dashed #cfc8b8; }
+.shop-receipt-row.is-bad { background: #fde6e6; margin: 0 -10px; padding: 9px 10px; border-radius: 6px; }
+.shop-receipt-row.is-bad .shop-receipt-text small { color: #b3261e; font-weight: 700; }
+.shop-receipt-art { width: 52px; height: 52px; flex-shrink: 0; border-radius: 10px; overflow: hidden; background: #ece8dd; display: flex; align-items: center; justify-content: center; }
+.shop-receipt-art > * { transform: scale(.55); transform-origin: center; }
+.shop-receipt-text { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+.shop-receipt-text strong { font-size: 14px; }
+.shop-receipt-text small { font-size: 12px; color: #7a756b; }
+.shop-receipt-price { font: 700 14px ui-monospace, 'SF Mono', Menlo, monospace; display: inline-flex; align-items: center; gap: 4px; white-space: nowrap; }
+.shop-receipt-price.coins svg { color: #b8860b; }
+.shop-receipt-price.gems svg { color: #7c4dff; }
+.shop-receipt-cur { display: inline-flex; gap: 4px; }
+.shop-receipt-cur button {
+  display: inline-flex; align-items: center; gap: 3px; padding: 4px 8px; border-radius: 7px; cursor: pointer;
+  border: 1px solid #d7d0c0; background: #fff; color: #24211c; font: 700 12.5px ui-monospace, Menlo, monospace;
+}
+.shop-receipt-cur button.on { background: #24211c; color: #fff; border-color: #24211c; }
+.shop-receipt-x { width: 28px; height: 28px; flex-shrink: 0; border-radius: 8px; border: 0; background: none; color: #8a8478; cursor: pointer; display: inline-flex; align-items: center; justify-content: center; }
+.shop-receipt-x:hover { background: #eee8da; color: #24211c; }
+.shop-receipt-total { display: flex; justify-content: space-between; align-items: baseline; margin-top: 14px; padding-top: 10px; border-top: 2px solid #24211c; font: 800 16px ui-monospace, Menlo, monospace; }
+.shop-receipt-after { margin: 6px 0 10px; font-size: 12.5px; color: #6b665c; }
+.shop-receipt-after b { display: inline-flex; align-items: center; gap: 3px; color: #24211c; }
+.shop-receipt .room-link { color: #b3261e; }
+
+/* Maquininha */
+.shop-pos { display: flex; flex-direction: column; align-items: center; gap: 16px; }
+.shop-pos-machine {
+  position: relative; width: 230px; padding: 16px 16px 20px; border-radius: 26px 26px 18px 18px;
+  background: linear-gradient(170deg, #3a3d44, #222429 70%); box-shadow: 0 20px 36px -14px rgba(0, 0, 0, .75), inset 0 1px 0 rgba(255, 255, 255, .12);
+}
+.shop-pos-screen {
+  min-height: 74px; padding: 10px; border-radius: 10px; text-align: center; display: flex; flex-direction: column; justify-content: center; gap: 4px;
+  background: #b7d8c8; color: #0f3326; box-shadow: inset 0 2px 6px rgba(0, 0, 0, .35);
+  font-family: ui-monospace, 'SF Mono', Menlo, monospace; transition: background .25s, color .25s;
+}
+.shop-pos-screen strong { font-size: 15px; letter-spacing: 1px; }
+.shop-pos-screen span { font-size: 12px; line-height: 1.3; }
+.shop-pos.busy .shop-pos-screen { background: #f3e2a1; color: #4a3800; }
+.shop-pos.busy .shop-pos-screen strong { animation: shop-pos-blink .8s steps(2) infinite; }
+.shop-pos.ok .shop-pos-screen { background: #3fd07a; color: #04341a; box-shadow: inset 0 2px 6px rgba(0, 0, 0, .25), 0 0 22px rgba(63, 208, 122, .5); }
+.shop-pos.bad .shop-pos-screen { background: #f2a6a6; color: #4e0c0c; }
+@keyframes shop-pos-blink { 50% { opacity: .35; } }
+.shop-pos-keys { display: grid; grid-template-columns: repeat(3, 1fr); gap: 7px; margin-top: 14px; }
+.shop-pos-keys span { height: 18px; border-radius: 5px; background: linear-gradient(180deg, #55595f, #3d4045); box-shadow: 0 2px 0 #1b1c1f; }
+.shop-pos-keys span:nth-child(10) { background: linear-gradient(180deg, #d9534f, #a83b37); }
+.shop-pos-keys span:nth-child(12) { background: linear-gradient(180deg, #4cbb6c, #2f8a49); }
+.shop-pos-brand { position: absolute; left: 0; right: 0; bottom: 4px; text-align: center; font-size: 10px; font-style: italic; font-weight: 800; color: rgba(255, 255, 255, .35); }
+
+/* Trilho por onde o cartão passa (a fenda fica na ponta direita). */
+.shop-pos-track {
+  position: relative; width: min(460px, 100%); height: 210px; border-radius: 16px; overflow: hidden;
+  background: color-mix(in srgb, var(--bg-secondary) 80%, transparent); border: 1px dashed var(--border);
+}
+.shop-pos-slot {
+  position: absolute; right: 26px; top: 14px; bottom: 14px; width: 14px; border-radius: 7px; z-index: 3;
+  background: linear-gradient(90deg, #000, #2a2c31 60%, #000); box-shadow: 0 0 0 4px #3a3d44, inset 0 0 6px rgba(0, 0, 0, .9);
+}
+.shop-pos-arrow {
+  position: absolute; left: 50%; bottom: 10px; transform: translateX(-50%); z-index: 1; white-space: nowrap;
+  display: inline-flex; align-items: center; gap: 5px; font-size: 12.5px; font-weight: 700; color: var(--text-muted);
+}
+.shop-pos-card { position: absolute; left: 10px; top: 4px; z-index: 2; cursor: grab; touch-action: none; transition: transform .35s cubic-bezier(.2, .8, .2, 1); }
+.shop-pos-card.is-dragging { cursor: grabbing; transition: none; }
+.shop-pos-card.is-disabled { cursor: not-allowed; filter: saturate(.6) brightness(.75); }
+.shop-pos-card .wcard, .shop-pos-card .wcard-stage { pointer-events: none; }
+.shop-pos-card .wcard-float { animation: none; }
+.shop-pos.ok .shop-pos-card { opacity: .6; }
+.shop-pos-btn { min-width: 180px; }
+@media (prefers-reduced-motion: reduce) {
+  .shop-room .room-grid .room-card, .shop-basket-fab, .shop-pos-card { transition: none; animation: none; }
+}
