@@ -42,4 +42,24 @@ router.post('/login-alert', async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
+// E-mails que o Rust pede (verificação de e-mail e "esqueci a senha").
+// Espera o envio terminar (como o Node fazia na própria rota); falha de
+// envio vira { ok: false } — quem chamou segue respondendo 200 à pessoa.
+router.post('/email', async (req, res, next) => {
+  try {
+    const { kind, to, code, url } = req.body || {};
+    if (typeof to !== 'string' || !to.includes('@')) return res.status(400).json({ error: 'to obrigatório.' });
+    const email = require('../services/email');
+    try {
+      if (kind === 'verification' && typeof code === 'string') await email.sendVerificationCode(to, code);
+      else if (kind === 'password-reset' && typeof url === 'string') await email.sendPasswordReset(to, url);
+      else return res.status(400).json({ error: 'kind inválido.' });
+    } catch (err) {
+      console.error(`[internal/email] falha ao enviar (${kind}) para ${to}:`, err.message);
+      return res.json({ ok: false });
+    }
+    res.json({ ok: true });
+  } catch (err) { next(err); }
+});
+
 module.exports = { router, internalSecret };

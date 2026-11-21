@@ -37,6 +37,54 @@ pub fn base32_decode(input: &str) -> Option<Vec<u8>> {
     Some(out)
 }
 
+/// Base32 (RFC 4648) sem `=`.
+pub fn base32_encode(bytes: &[u8]) -> String {
+    const ALPHA: &[u8; 32] = b"ABCDEFGHIJKLMNOPQRSTUVWXYZ234567";
+    let mut out = String::with_capacity(bytes.len().div_ceil(5) * 8);
+    let (mut buf, mut bits) = (0u32, 0u32);
+    for &b in bytes {
+        buf = (buf << 8) | u32::from(b);
+        bits += 8;
+        while bits >= 5 {
+            bits -= 5;
+            out.push(ALPHA[((buf >> bits) & 31) as usize] as char);
+        }
+    }
+    if bits > 0 {
+        out.push(ALPHA[((buf << (5 - bits)) & 31) as usize] as char);
+    }
+    out
+}
+
+/// `generateSecret()` do otplib 13: 20 bytes aleatórios em base32 (32 letras).
+pub fn generate_secret() -> String {
+    let mut b = [0u8; 20];
+    rand::RngCore::fill_bytes(&mut rand::rng(), &mut b);
+    base32_encode(&b)
+}
+
+/// `encodeURIComponent` do JavaScript.
+pub fn encode_uri_component(s: &str) -> String {
+    let mut out = String::with_capacity(s.len());
+    for b in s.bytes() {
+        if b.is_ascii_alphanumeric() || b"-_.!~*'()".contains(&b) {
+            out.push(b as char);
+        } else {
+            out.push_str(&format!("%{b:02X}"));
+        }
+    }
+    out
+}
+
+/// `generateURI({ issuer, label, secret })` do otplib 13.
+pub fn otpauth_uri(issuer: &str, label: &str, secret: &str) -> String {
+    let issuer = encode_uri_component(issuer);
+    format!(
+        "otpauth://totp/{issuer}:{}?secret={secret}&issuer={issuer}",
+        encode_uri_component(label)
+    )
+}
+
 fn key(secret: &str) -> Result<Vec<u8>, TotpError> {
     let k = base32_decode(secret).ok_or(TotpError::Secret)?;
     if k.len() < MIN_SECRET_BYTES {
@@ -125,6 +173,19 @@ mod tests {
             verify(s, &code, 1_795_200_030, Some(99_999_999_999)),
             Err(TotpError::AfterTimeStep)
         );
+    }
+
+    #[test]
+    fn uri_e_segredo_como_o_otplib() {
+        // o otplib do Node gera exatamente isto (conferido)
+        assert_eq!(
+            otpauth_uri("Project Club", "a.b+c@x.com", "JBSWY3DPEHPK3PXP"),
+            "otpauth://totp/Project%20Club:a.b%2Bc%40x.com?secret=JBSWY3DPEHPK3PXP&issuer=Project%20Club"
+        );
+        let s = generate_secret();
+        assert_eq!(s.len(), 32);
+        assert_eq!(base32_decode(&s).unwrap().len(), 20);
+        assert_eq!(base32_encode(b"Hello!"), "JBSWY3DPEE");
     }
 
     #[test]

@@ -81,3 +81,36 @@ pub async fn add_user(db: &MySqlPool, id: &str, extra: &str) {
     );
     db.execute(sql.as_str()).await.unwrap();
 }
+
+/// "Node" de mentira: guarda o que chega em `/api/internal/*` (caminho,
+/// segredo e corpo) e responde 418 no resto.
+pub type Calls = std::sync::Arc<std::sync::Mutex<Vec<(String, String, serde_json::Value)>>>;
+
+pub async fn fake_node(calls: Calls) -> SocketAddr {
+    use axum::extract::Request;
+    let router = axum::Router::new().fallback(move |req: Request| {
+        let calls = calls.clone();
+        async move {
+            let path = req.uri().path().to_string();
+            if !path.starts_with("/api/internal/") {
+                return (axum::http::StatusCode::IM_A_TEAPOT, "node".to_string());
+            }
+            let secret = req
+                .headers()
+                .get("x-pc-internal")
+                .and_then(|v| v.to_str().ok())
+                .unwrap_or_default()
+                .to_string();
+            let body = axum::body::to_bytes(req.into_body(), 1 << 20)
+                .await
+                .unwrap_or_default();
+            let json = serde_json::from_slice(&body).unwrap_or(serde_json::Value::Null);
+            calls.lock().unwrap().push((path, secret, json));
+            (axum::http::StatusCode::OK, "{\"ok\":true}".to_string())
+        }
+    });
+    let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let addr = listener.local_addr().unwrap();
+    tokio::spawn(async move { axum::serve(listener, router).await.unwrap() });
+    addr
+}

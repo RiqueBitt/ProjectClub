@@ -47,6 +47,32 @@ pub fn login_alert(
     });
 }
 
+/// E-mail pelo Node (verificação ou "esqueci a senha"). Espera o envio,
+/// como o Node fazia na própria rota; falha só vai pro log.
+pub async fn send_email(state: &AppState, body: serde_json::Value) {
+    let url = format!("{}/api/internal/email", state.config.node_upstream);
+    let secret = internal_secret(&state.config.jwt_access_secret);
+    let r = state
+        .web
+        .post(&url)
+        .header("x-pc-internal", secret)
+        .timeout(std::time::Duration::from_secs(30))
+        .json(&body)
+        .send()
+        .await;
+    match r {
+        Ok(r) if r.status().is_success() => {
+            if let Ok(v) = r.json::<serde_json::Value>().await
+                && v.get("ok") != Some(&serde_json::Value::Bool(true))
+            {
+                tracing::error!("[email] o Node não conseguiu enviar ({})", body["kind"]);
+            }
+        }
+        Ok(r) => tracing::error!("[email] o Node respondeu {}", r.status()),
+        Err(e) => tracing::error!("[email] {e}"),
+    }
+}
+
 #[cfg(test)]
 mod tests {
     #[test]

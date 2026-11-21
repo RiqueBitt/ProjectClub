@@ -4440,3 +4440,19 @@ ALTER TABLE `PlazaContestVote` ADD CONSTRAINT `PlazaContestVote_entryId_fkey` FO
 -- AddForeignKey
 ALTER TABLE `PlazaPuzzleSolve` ADD CONSTRAINT `PlazaPuzzleSolve_puzzleId_fkey` FOREIGN KEY (`puzzleId`) REFERENCES `PlazaPuzzle`(`id`) ON DELETE CASCADE ON UPDATE CASCADE;
 
+
+-- 21/11/2026 (main: cartão da carteira) — adicionado à mão até gerar de novo
+ALTER TABLE `User` ADD COLUMN `walletCardStyle` VARCHAR(16) NULL;
+
+CREATE TABLE `WalletCardShare` (
+    `id` VARCHAR(191) NOT NULL,
+    `userId` VARCHAR(191) NOT NULL,
+    `coins` INTEGER NOT NULL DEFAULT 0,
+    `gems` INTEGER NOT NULL DEFAULT 0,
+    `level` INTEGER NOT NULL DEFAULT 1,
+    `style` VARCHAR(16) NOT NULL DEFAULT 'DEFAULT',
+    `createdAt` DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+
+    INDEX `WalletCardShare_userId_createdAt_idx`(`userId`, `createdAt`),
+    PRIMARY KEY (`id`)
+) DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;

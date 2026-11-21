@@ -54,7 +54,10 @@ Cada fase é publicável sozinha, só quando o dono liberar.
   - [x] `POST /api/auth/refresh` e `POST /api/auth/logout` (com o "lembrar login")
   - [x] `POST /api/auth/login` (senha, bloqueio, 2FA, aviso de aparelho novo)
   - [x] proteções globais do Node nas rotas do Rust (IP bloqueado, helmet, CORS, corpo)
-  - [ ] próximo: cadastro, verificação de e-mail, esqueci a senha, 2FA (ativar/desativar)
+  - [x] cadastro (410), verificação de e-mail, esqueci/redefinir senha,
+        2FA (ativar, códigos de recuperação, desativar), trocar senha
+  - [ ] próximo: sessões (listar/encerrar), desativar/excluir conta, troca
+        rápida de conta, passkeys, login por QR e OAuth
 
 ### Fase 1 — o que já tem
 
@@ -162,3 +165,19 @@ fim), com as variáveis de verdade:
 Produção (21/11/2026, depois do login): `POST /api/auth/login` (corpo vazio
 e conta inexistente) e `GET /api/auth/me` sem login — mesmo código, mesmo
 corpo e os mesmos cabeçalhos de segurança/CORS que o Node.
+
+### Conta (cadastro, e-mail, senha, 2FA)
+
+- `routes/account.rs`: cadastro direto desativado (410, igual ao Node),
+  verificação de e-mail (só o último código vale), "esqueci a senha"
+  (sempre 200, só o hash do link no banco, link novo invalida os antigos),
+  redefinir senha (destrava a conta, conta como e-mail verificado, derruba
+  todas as sessões e o "lembrar login"), 2FA (segredo + QR Code igual ao
+  `otplib`/`qrcode` do Node — o teste lê o QR de volta —, confirmação com
+  10 códigos de recuperação, desativar com senha + código) e trocar senha
+  (derruba as OUTRAS sessões e mantém esta).
+- Limitadores `auth` (50/15 min, cabeçalhos `X-RateLimit-*`) e `code`
+  (20/10 min, cabeçalhos `RateLimit-*`), no mesmo contador do Node; ao
+  estourar, o mesmo texto do express-rate-limit.
+- E-mails pela ponte com o Node (`POST /api/internal/email`).
+- Transações (`db::transaction`) onde o Node usa `prisma.$transaction`.

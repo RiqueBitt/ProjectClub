@@ -12,6 +12,7 @@ pub mod db;
 pub mod iron;
 pub mod node;
 pub mod proxy;
+pub mod qr;
 pub mod ratelimit;
 pub mod routes;
 pub mod session;
@@ -77,6 +78,41 @@ fn ported(state: &AppState) -> Router<AppState> {
         )
         .route("/api/auth/me", get(routes::auth::me))
         .route("/api/auth/login", post(routes::login::login))
+        .route("/api/auth/register", post(routes::account::register))
+        .route(
+            "/api/auth/verify-email/send",
+            post(routes::account::verify_email_send),
+        )
+        .route(
+            "/api/auth/verify-email/confirm",
+            post(routes::account::verify_email_confirm),
+        )
+        .route(
+            "/api/auth/forgot-password",
+            post(routes::account::forgot_password),
+        )
+        .route(
+            "/api/auth/reset-password",
+            post(routes::account::reset_password),
+        )
+        .route("/api/auth/2fa/setup", post(routes::account::twofa_setup))
+        .route(
+            "/api/auth/2fa/confirm",
+            post(routes::account::twofa_confirm),
+        )
+        .route(
+            "/api/auth/2fa/disable",
+            post(routes::account::twofa_disable),
+        )
+        .route(
+            "/api/auth/2fa/recovery-codes",
+            get(routes::account::recovery_codes_status)
+                .post(routes::account::recovery_codes_regenerate),
+        )
+        .route(
+            "/api/auth/change-password",
+            post(routes::account::change_password),
+        )
         .route("/api/auth/refresh", post(routes::session::refresh))
         .route("/api/auth/logout", post(routes::session::logout))
         // rotas internas (Rust → Node) não existem pra quem vem de fora

@@ -12,7 +12,7 @@ use axum::Json;
 use axum::body::Bytes;
 use axum::extract::{ConnectInfo, State};
 use axum::http::request::Parts;
-use axum::http::{HeaderValue, StatusCode, header};
+use axum::http::{StatusCode, header};
 use axum::response::{IntoResponse, Response};
 use chrono::NaiveDateTime;
 use serde_json::{Value, json};
@@ -79,7 +79,7 @@ async fn find_user(db: &Db, identifier: &str) -> DbResult<Option<LoginUser>> {
 }
 
 /// bcrypt fora da thread do servidor (custo 12 ≈ 250 ms).
-async fn password_ok(password: String, hash: String) -> bool {
+pub(crate) async fn password_ok(password: String, hash: String) -> bool {
     tokio::task::spawn_blocking(move || bcrypt::verify(password, &hash).unwrap_or(false))
         .await
         .unwrap_or(false)
@@ -117,22 +117,39 @@ async fn register_failed_login(db: &Db, user_id: &str) -> DbResult<()> {
 
 /// `verifyTotpOnce`: o mesmo código (o mesmo passo de 30 s) só vale UMA vez.
 async fn verify_totp_once(db: &Db, user: &LoginUser, code: &str) -> anyhow::Result<bool> {
+    verify_totp_once_for(
+        db,
+        &user.id,
+        user.two_factor_secret.as_deref(),
+        user.two_factor_last_used_step,
+        code,
+    )
+    .await
+}
+
+pub(crate) async fn verify_totp_once_for(
+    db: &Db,
+    user_id: &str,
+    secret: Option<&str>,
+    last_step: Option<i64>,
+    code: &str,
+) -> anyhow::Result<bool> {
     let code = code.trim();
-    let Some(secret) = user.two_factor_secret.as_deref().filter(|s| !s.is_empty()) else {
+    let Some(secret) = secret.filter(|s| !s.is_empty()) else {
         return Ok(false);
     };
     if code.len() != 6 || !code.bytes().all(|b| b.is_ascii_digit()) {
         return Ok(false);
     }
     let now = chrono::Utc::now().timestamp();
-    let step = totp::verify(secret, code, now, user.two_factor_last_used_step)
-        .map_err(|e| anyhow::anyhow!("totp: {e:?}"))?;
+    let step =
+        totp::verify(secret, code, now, last_step).map_err(|e| anyhow::anyhow!("totp: {e:?}"))?;
     let Some(step) = step else { return Ok(false) };
     let claimed = db::exec(
         db,
         "UPDATE `User` SET twoFactorLastUsedStep = ?, updatedAt = ? WHERE id = ? \
          AND (twoFactorLastUsedStep IS NULL OR twoFactorLastUsedStep < ?)",
-        params![step, db::now(), user.id.as_str(), step],
+        params![step, db::now(), user_id, step],
     )
     .await?;
     Ok(claimed == 1)
@@ -149,7 +166,7 @@ pub fn normalize_recovery_code(input: &str) -> Option<String> {
 }
 
 /// `consumeRecoveryCode`: código de recuperação de uso único.
-async fn consume_recovery_code(db: &Db, user_id: &str, input: &str) -> DbResult<bool> {
+pub(crate) async fn consume_recovery_code(db: &Db, user_id: &str, input: &str) -> DbResult<bool> {
     let Some(normalized) = normalize_recovery_code(input) else {
         return Ok(false);
     };
@@ -230,23 +247,16 @@ pub async fn login(State(state): State<AppState>, parts: Parts, body: Bytes) -> 
         ip: s::client_ip(&parts.headers, peer),
     };
     // 2) limite por IP (loginLimiter), no mesmo contador do Node
-    let Some(counted) = ratelimit::hit(
+    let counted = match ratelimit::guard(
         &state.cache,
         &ratelimit::LOGIN,
         req.ip.as_deref().unwrap_or("unknown"),
     )
     .await
-    else {
-        return server_error();
+    {
+        Ok(c) => c,
+        Err(r) => return *r,
     };
-    if let Some(mut blocked) = counted.blocked {
-        for (k, v) in &counted.headers {
-            if let Ok(v) = HeaderValue::from_str(v) {
-                blocked.headers_mut().insert(*k, v);
-            }
-        }
-        return blocked;
-    }
     let mut res = match login_inner(&state, &db, &req, &body).await {
         Ok(r) => r,
         Err(e) => {
@@ -254,11 +264,7 @@ pub async fn login(State(state): State<AppState>, parts: Parts, body: Bytes) -> 
             server_error()
         }
     };
-    for (k, v) in &counted.headers {
-        if let Ok(v) = HeaderValue::from_str(v) {
-            res.headers_mut().insert(*k, v);
-        }
-    }
+    counted.apply(&mut res);
     res
 }
 

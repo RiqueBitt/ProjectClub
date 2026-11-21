@@ -88,6 +88,20 @@ pub async fn exec(db: &Db, sql: &str, params: Vec<Value>) -> DbResult<u64> {
     Ok(c.affected_rows())
 }
 
+/// Vários comandos numa transação (o `prisma.$transaction([...])`): ou
+/// todos valem, ou nenhum.
+pub async fn transaction(db: &Db, steps: Vec<(&str, Vec<Value>)>) -> DbResult<()> {
+    let mut conn = db.get_conn().await?;
+    let mut tx = conn
+        .start_transaction(mysql_async::TxOpts::default())
+        .await?;
+    for (sql, params) in steps {
+        tx.exec_drop(sql, params).await?;
+    }
+    tx.commit().await?;
+    Ok(())
+}
+
 /// Um valor só (primeira coluna da primeira linha).
 pub async fn scalar<T: FromValue>(db: &Db, sql: &str, params: Vec<Value>) -> DbResult<Option<T>> {
     match first(db, sql, params).await? {

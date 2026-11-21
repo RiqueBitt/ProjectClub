@@ -287,21 +287,60 @@ pub async fn issue(
         (cfg.refresh_token_ttl_days * 24 * 60 * 60) as u64,
         secure,
     )];
-    let payload =
-        json!({ "uid": user_id, "iat": chrono::Utc::now().timestamp_millis(), "rid": id });
-    let sealed = iron::seal(
-        &payload.to_string(),
-        "1",
-        &keep_password(&cfg.jwt_refresh_secret),
-        KEEP_TTL_SECS,
-        chrono::Utc::now().timestamp_millis(),
-    );
-    cookies.push(set_cookie(KEEP_COOKIE, &sealed, KEEP_TTL_SECS, secure));
+    cookies.push(keep_cookie(state, user_id, Some(&id)));
     Ok(Issued {
         access_token,
         refresh_id: id,
         cookies,
     })
+}
+
+/// `setKeepCookie`: o cookie "lembrar login" (90 dias), com o id do refresh
+/// token que o criou quando houver.
+pub fn keep_cookie(state: &AppState, user_id: &str, refresh_id: Option<&str>) -> HeaderValue {
+    let now = chrono::Utc::now().timestamp_millis();
+    let mut payload = json!({ "uid": user_id, "iat": now });
+    if let Some(rid) = refresh_id {
+        payload["rid"] = json!(rid);
+    }
+    let sealed = iron::seal(
+        &payload.to_string(),
+        "1",
+        &keep_password(&state.config.jwt_refresh_secret),
+        KEEP_TTL_SECS,
+        now,
+    );
+    set_cookie(
+        KEEP_COOKIE,
+        &sealed,
+        KEEP_TTL_SECS,
+        state.config.node_env == "production",
+    )
+}
+
+/// `markSessionsRevoked`: "lembrar login" de antes de agora deixa de valer
+/// em todos os aparelhos (chave no Redis por 90 dias). Falha só vai pro log.
+pub async fn mark_sessions_revoked(state: &AppState, user_id: &str) {
+    let now = chrono::Utc::now().timestamp_millis().to_string();
+    state
+        .cache
+        .set_raw(&format!("sess:revoked-at:{user_id}"), &now, KEEP_TTL_SECS)
+        .await;
+}
+
+/// Hash do refresh token do cookie deste pedido (`currentRefreshHash`).
+pub fn current_refresh_hash(headers: &HeaderMap) -> Option<String> {
+    read_cookie(headers, REFRESH_COOKIE).map(|raw| sha256_hex(&raw))
+}
+
+/// `accountSwitchController.revokeAllFor`: contas salvas pra troca rápida saem.
+pub async fn revoke_account_switch(db: &Db, user_id: &str) {
+    let _ = db::exec(
+        db,
+        "DELETE FROM AccountSwitchToken WHERE userId = ?",
+        params![user_id],
+    )
+    .await;
 }
 
 /// `readKeepCookieData`: `(uid, rid)` do cookie "lembrar login", se ele
