@@ -205,3 +205,42 @@
 /* Cartão mostrado no chat (InternalLinkCard → kind "wallet") */
 .wcard-chat { margin-top: 6px; display: flex; flex-direction: column; gap: 4px; max-width: 320px; }
 .wcard-chat-caption { font-size: 12px; color: var(--text-muted); }
+
+/* ---------- Verso novo (nov/2026): tarja, "assinatura autorizada",
+   faixa branca com assinatura + final do número, CVV à parte e estrelinha ---------- */
+.wcard-back { display: block; }
+.wcard .wcard-back .wcard-stripe { height: 16%; margin-top: 9%; background: #141414; }
+.wcard-sig-label {
+  display: block; margin: 5% 0 0 7%; font-size: 10px; font-weight: 800; letter-spacing: .6px; text-transform: uppercase;
+  opacity: .8;
+}
+.wcard .wcard-back .wcard-sign { display: flex; align-items: stretch; gap: 4%; margin: 2% 7% 0; height: 15%; }
+.wcard .wcard-back .wcard-sign-strip {
+  flex: 1; position: relative; display: flex; align-items: center; justify-content: space-between; gap: 8px;
+  height: auto; padding: 0 12px; border-radius: 3px; background: #f5f5f2; color: #1d1d1f;
+}
+.wcard-scribble { height: 70%; width: auto; max-width: 62%; color: #222; }
+.wcard-sign-strip b { font: 700 17px ui-monospace, 'SF Mono', Menlo, monospace; letter-spacing: 1px; color: #222; }
+.wcard .wcard-back .wcard-cvv {
+  width: 24%; display: flex; align-items: center; justify-content: center; padding: 0; border-radius: 3px;
+  background: #f5f5f2; color: #222; font: 700 17px ui-monospace, 'SF Mono', Menlo, monospace; font-style: normal; letter-spacing: 1px;
+}
+.wcard-star {
+  position: absolute; left: 7%; bottom: 9%; width: 13%; aspect-ratio: 1; border-radius: 10px;
+  display: flex; align-items: center; justify-content: center;
+  background: rgba(255, 255, 255, .45); color: rgba(255, 255, 255, .95); box-shadow: inset 0 0 0 1px rgba(255, 255, 255, .25);
+}
+.wcard-star svg { width: 55%; height: 55%; }
+/* Verso claro no estilo clássico (azul). */
+.wcard:not(.wcard--gold):not(.wcard--rainbow) .wcard-back {
+  color: #1f2b46;
+  background: linear-gradient(160deg, #a9c3ec 0%, #8fb0e3 55%, #7ea2da 100%);
+  border-color: rgba(255, 255, 255, .5);
+}
+.wcard--gold .wcard-sig-label { color: #e8c468; }
+.wcard--gold .wcard-star { background: rgba(232, 196, 104, .22); color: #f2d27a; }
+.wcard--rainbow .wcard-star { background: conic-gradient(from 0deg, #ff4d6d55, #ffb84d55, #4dff9e55, #4dc3ff55, #8a6bff55, #ff4d6d55); color: #fff; }
+.wcard-stage.is-compact .wcard-sig-label { font-size: 8.5px; }
+.wcard-stage.is-compact .wcard-sign-strip b, .wcard-stage.is-compact .wcard .wcard-back .wcard-cvv { font-size: 13px; }
+.wcard-stage.is-compact .wcard-star { border-radius: 8px; }
+.wcard--gold .wcard-back .wcard-stripe, .wcard--rainbow .wcard-back .wcard-stripe { background: #2a2a2e; }
