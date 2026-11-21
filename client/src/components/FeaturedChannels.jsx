@@ -58,25 +58,27 @@ export function FeaturedGlyph({ name, size = 16 }) {
   );
 }
 
-// Ordem: Início, Club Penguin, Guerra das Cartas (quando ligada),
-// Novidades, Economia, Amigos, Progresso e Suporte.
+// Ordem (nov/2026): os jogos em cartão (Club Penguin e, quando ligada, a
+// Guerra das Cartas) no topo; depois a lista "minimalista" — só o ícone
+// colorido, fundo só na página aberta: Início, Novidades, Amigos,
+// Economia, Progresso e Suporte.
 export const FEATURED = [
-  {
-    key: 'inicio', label: 'Início', icon: 'home', to: '/inicio',
-    hint: 'Novidades e destaques do Project Club', match: (p) => p === '/inicio',
-    n2Only: true, fixed: true,
-  },
   // Club Penguin (Praça): o jogo completo, em azul-marinho (pedido do dono).
   {
     key: 'praca', label: 'Club Penguin', icon: 'penguin', to: '/praca',
     hint: 'A ilha do Club Penguin: entre com o seu pinguim',
-    match: (p) => p.startsWith('/praca'), tag: 'Jogar',
-    feature: 'plaza',
+    match: (p) => p.startsWith('/praca'),
+    feature: 'plaza', game: true,
   },
   {
     key: 'arena', label: 'Guerra das Cartas', icon: 'cards', to: '/cartas',
-    hint: 'Jogo de cartas: colecione, monte seu baralho e batalhe', match: (p) => p.startsWith('/cartas'), tag: 'Jogar',
-    feature: 'cardsWar', // interruptor em utils/features.js
+    hint: 'Jogo de cartas: colecione, monte seu baralho e batalhe', match: (p) => p.startsWith('/cartas'),
+    feature: 'cardsWar', game: true, // interruptor em utils/features.js
+  },
+  {
+    key: 'inicio', label: 'Início', icon: 'home', to: '/inicio',
+    hint: 'Novidades e destaques do Project Club', match: (p) => p === '/inicio',
+    n2Only: true, fixed: true,
   },
   // Novidades (antes "Anúncios e Eventos"): anúncios da staff + eventos, com
   // abas internas (pages/AnunciosEventosPage.jsx). Chave 'anuncios' mantida:
@@ -89,6 +91,13 @@ export const FEATURED = [
     match: (p) => p.startsWith('/anuncios') || p.startsWith('/comunidade/eventos') || p.startsWith('/evento/') || p.startsWith('/eventos'),
     merges: ['anuncios', 'eventos'],
   },
+  {
+    key: 'amigos', label: 'Amigos', icon: 'friends', to: '/dms',
+    hint: 'Amigos, mensagens diretas e clubes',
+    match: (p) => p === '/dms' || isDmPath(p) || p.startsWith('/clans'),
+    count: ['mensagem ou pedido novo', 'mensagens ou pedidos novos'],
+    n2Only: true, fixed: true,
+  },
   // Economia: mesma área da Loja (abas Visão geral · Missões · Loja · Passe
   // · Histórico — ver components/HubTabs.jsx). Chave 'loja' mantida: é a
   // que a visibilidade salva por comunidade e o CSS (.featured-loja) usam.
@@ -97,13 +106,6 @@ export const FEATURED = [
     hint: 'Moedas, gemas, missões, Loja e Passe do clube',
     match: (p) => p.startsWith('/economia') || p.startsWith('/missoes') || p.startsWith('/loja') || p.startsWith('/sorteio'),
     count: ['missão pronta pra resgatar', 'missões prontas pra resgatar'],
-  },
-  {
-    key: 'amigos', label: 'Amigos', icon: 'friends', to: '/dms',
-    hint: 'Amigos, mensagens diretas e clubes',
-    match: (p) => p === '/dms' || isDmPath(p) || p.startsWith('/clans'),
-    count: ['mensagem ou pedido novo', 'mensagens ou pedidos novos'],
-    n2Only: true, fixed: true,
   },
   {
     key: 'progresso', label: 'Progresso', icon: 'trophy', to: '/progresso',
@@ -188,7 +190,7 @@ export default function FeaturedChannels({ canManage }) {
     return (
       <button
         key={item.key} type="button"
-        className={`sidebar-item featured-channel featured-${item.key}${active ? ' active' : ''}`}
+        className={`sidebar-item featured-channel featured-${item.key}${item.game ? ' featured-game' : ' featured-plain'}${active ? ' active' : ''}`}
         onClick={() => go(item)} onContextMenu={(e) => onContextMenu(e, item)}
         title={item.hint} aria-current={active ? 'page' : undefined}
       >

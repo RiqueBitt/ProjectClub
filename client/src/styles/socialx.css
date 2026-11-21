@@ -492,3 +492,28 @@ button.sx-item-body:hover { border-color: color-mix(in srgb, var(--brand) 40%, v
 .bic-btn:disabled { opacity: .5; cursor: default; }
 @media (max-width: 600px) { .bic { flex-wrap: wrap; } .bic-btn { width: 100%; } }
 
+
+/* ---------- Canais em destaque "minimalistas" (nov/2026, pedido do dono) ----------
+   Os jogos (Club Penguin, Guerra das Cartas) continuam como cartão colorido.
+   O resto (.featured-plain) vira linha limpa: sem fundo, sem borda e sem
+   barrinha — a cor fica só no ícone; a página aberta ganha um fundo suave
+   na cor dela. */
+.featured-channels .sidebar-item.featured-channel.featured-game { margin-bottom: 2px; }
+.featured-channels .sidebar-item.featured-channel.featured-game + .featured-plain { margin-top: 6px; }
+.featured-channels .sidebar-item.featured-channel.featured-plain,
+.n2-sidebar .featured-channels .sidebar-item.featured-channel.featured-plain {
+  min-height: 38px; padding: 6px 10px; gap: 10px; font-size: 15px; font-weight: 500;
+  background: transparent; box-shadow: none; color: var(--text-normal);
+}
+.featured-channels .sidebar-item.featured-channel.featured-plain::after { display: none; }
+.featured-channels .sidebar-item.featured-channel.featured-plain:hover {
+  background: color-mix(in srgb, var(--fc) 8%, transparent); color: var(--header-primary);
+}
+.featured-channels .sidebar-item.featured-channel.featured-plain.active {
+  background: color-mix(in srgb, var(--fc) 15%, transparent); box-shadow: none; color: var(--header-primary);
+}
+.featured-channels .featured-plain .featured-channel-icon {
+  width: 22px; height: 22px; background: transparent; box-shadow: none; color: var(--fc);
+}
+.featured-channels .featured-plain .featured-channel-icon svg { width: 19px; height: 19px; }
+.featured-channels { gap: 2px; }
