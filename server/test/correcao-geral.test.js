@@ -10,7 +10,7 @@ const SRC = path.join(__dirname, '..', 'src');
 const read = (rel) => fs.readFileSync(path.join(SRC, rel), 'utf8');
 
 // ---------- GIFs ----------
-test('GIFs: resposta da KLIPY vira {id, preview, full} e descarta itens sem GIF', () => {
+test('GIFs: resposta da KLIPY vira {id, preview, full, width, height} e descarta itens sem GIF', () => {
   // Lido do código (sem carregar o controller: ele abre Prisma e Redis de
   // verdade, e uma conexão aberta deixaria o `node --test` pendurado no CI).
   const src = read('controllers/gifController.js');
@@ -18,13 +18,14 @@ test('GIFs: resposta da KLIPY vira {id, preview, full} e descarta itens sem GIF'
   // eslint-disable-next-line no-new-func
   const mapResults = new Function(`${fnSrc}; return mapResults;`)();
   const out = mapResults({ results: [
-    { id: '1', media_formats: { gif: { url: 'https://static.klipy.com/a.gif' }, tinygif: { url: 'https://static.klipy.com/a-t.gif' } } },
+    { id: '1', media_formats: { gif: { url: 'https://static.klipy.com/a.gif', dims: [498, 280] }, tinygif: { url: 'https://static.klipy.com/a-t.gif', dims: [220, 124] } } },
     { id: '2', media_formats: { tinygif: { url: 'https://static.klipy.com/b-t.gif' } } },
     { id: '3', media_formats: { gif: { url: 'https://static.klipy.com/c.gif' } } },
   ] });
+  // width/height: proporção real do GIF (o seletor mostra sem achatar).
   assert.deepEqual(out, [
-    { id: '1', preview: 'https://static.klipy.com/a-t.gif', full: 'https://static.klipy.com/a.gif' },
-    { id: '3', preview: 'https://static.klipy.com/c.gif', full: 'https://static.klipy.com/c.gif' },
+    { id: '1', preview: 'https://static.klipy.com/a-t.gif', full: 'https://static.klipy.com/a.gif', width: 220, height: 124 },
+    { id: '3', preview: 'https://static.klipy.com/c.gif', full: 'https://static.klipy.com/c.gif', width: null, height: null },
   ]);
   assert.deepEqual(mapResults(null), []);
 });
