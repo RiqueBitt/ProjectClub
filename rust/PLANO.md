@@ -181,3 +181,8 @@ corpo e os mesmos cabeçalhos de segurança/CORS que o Node.
   estourar, o mesmo texto do express-rate-limit.
 - E-mails pela ponte com o Node (`POST /api/internal/email`).
 - Transações (`db::transaction`) onde o Node usa `prisma.$transaction`.
+
+Produção (21/11/2026, depois das rotas de conta): `register` (410),
+`forgot-password` com e-mail inexistente (200), `verify-email/send` sem
+login (401), `reset-password` com link inválido e sem corpo (400) e
+`GET 2fa/recovery-codes` de 8 contas reais — tudo idêntico ao Node.
