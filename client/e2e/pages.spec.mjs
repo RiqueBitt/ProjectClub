@@ -62,7 +62,8 @@ test('suporte: abrir um chamado mostra a conversa', async ({ page }) => {
 test('configurações abrem sem erro', async ({ page }) => {
   await page.goto('/inicio');
   await expect(page.locator('.home-hero')).toBeVisible({ timeout: 20_000 });
-  await page.locator('.top-search-bar-icon-btn[title="Configurações"]').click();
+  await page.locator('.top-more-btn').click();
+  await page.locator('.top-more-menu').getByRole('menuitem', { name: 'Configurações' }).click();
   await expect(page.locator('.settings-modal-layout')).toBeVisible();
   await expect(page.getByText('Algo deu errado')).toHaveCount(0);
 });
@@ -82,6 +83,7 @@ test('miniperfil abre e fecha ao abrir outro menu', async ({ page }) => {
   if (!(await row.isVisible())) test.skip(true, 'lista de membros escondida neste tamanho');
   await row.click();
   await expect(page.locator('.mini-profile-card')).toBeVisible();
-  await page.locator('.top-search-bar-icon-btn[title="Configurações"]').click();
+  await page.locator('.top-more-btn').click();
+  await page.locator('.top-more-menu').getByRole('menuitem', { name: 'Configurações' }).click();
   await expect(page.locator('.mini-profile-card')).toHaveCount(0);
 });

@@ -73,7 +73,8 @@ test('configurações: tema colorido, ícone, modo streamer, sons, privacidade',
   const patches = [];
   page.on('request', (r) => { if (r.method() === 'PATCH' && r.url().includes('/users/me/settings')) patches.push(r.postDataJSON()); });
   await page.goto('/inicio');
-  await page.locator('.top-search-bar-icon-btn[title="Configurações"]').click();
+  await page.locator('.top-more-btn').click();
+  await page.locator('.top-more-menu').getByRole('menuitem', { name: 'Configurações' }).click();
   await page.getByText(/^Aparência$/).first().click();
   await expect(page.getByRole('heading', { name: 'Temas coloridos' })).toBeVisible();
   await page.getByRole('radio', { name: /Aurora/ }).click();
