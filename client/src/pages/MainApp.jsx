@@ -138,7 +138,6 @@ const MiniJogosPage = lazy(() => import('./MiniJogosPage.jsx')); // Mini-Jogos (
 const SecurityShortcutPage = lazy(() => import('./SecurityShortcutPage.jsx'));
 // Fase 4 — comunidade e economia.
 const ParticiparPage = lazy(() => import('./ParticiparPage.jsx')); // Bora Jogar, interesses, reputação, convites
-const SorteioPage = lazy(() => import('./SorteioPage.jsx'));
 const RetrospectivaPage = lazy(() => import('./RetrospectivaPage.jsx'));
 // Fase 8: mascote pinguim e Loja dos criadores. A Praça é o Club Penguin (Waddle Forever).
 const MeuPinguimPage = lazy(() => import('./MeuPinguimPage.jsx'));
@@ -583,7 +582,8 @@ export default function MainApp() {
                 <Route path="/minijogos" element={<MiniJogosPage />} />
                 <Route path="/seguranca/sessoes" element={<SecurityShortcutPage />} />
                 <Route path="/participar" element={<ParticiparPage />} />
-                <Route path="/sorteio" element={<SorteioPage />} />
+                {/* Sorteio removido (nov/2026): link antigo leva pra Economia. */}
+                <Route path="/sorteio" element={<Navigate to="/economia" replace />} />
                 <Route path="/retrospectiva" element={<RetrospectivaPage />} />
                 <Route path="/retrospectiva/:mes" element={<RetrospectivaPage />} />
                 {/* Navegador do Project Club (desligado em utils/features.js). */}

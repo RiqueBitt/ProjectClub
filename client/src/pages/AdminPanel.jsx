@@ -2958,7 +2958,7 @@ function EconomyAdminTab() {
       <p className="dim" style={{ fontSize: 13 }}>A soma das chances não precisa fechar em 100% — o restante cai no último baú da lista, igual ao bot original.</p>
       <div className="admin-badges-toolbar"><button className="btn-secondary" onClick={create}>+ Novo baú</button></div>
       <table className="admin-table">
-        <thead><tr><th>Imagem</th><th>Nome</th><th>Chance</th><th>Moedas</th><th>Tickets</th><th>Ativo</th><th></th></tr></thead>
+        <thead><tr><th>Imagem</th><th>Nome</th><th>Chance</th><th>Moedas</th><th>Ativo</th><th></th></tr></thead>
         <tbody>
           {chests.map((c) => (
             <tr key={c.id}>
@@ -2972,10 +2972,6 @@ function EconomyAdminTab() {
               <td>
                 <input type="number" style={{ width: 60 }} defaultValue={c.coinsMin} onBlur={(e) => update(c, 'coinsMin', parseInt(e.target.value, 10))} /> -
                 <input type="number" style={{ width: 60 }} defaultValue={c.coinsMax} onBlur={(e) => update(c, 'coinsMax', parseInt(e.target.value, 10))} />
-              </td>
-              <td>
-                <input type="number" style={{ width: 50 }} defaultValue={c.ticketsMin} onBlur={(e) => update(c, 'ticketsMin', parseInt(e.target.value, 10))} /> -
-                <input type="number" style={{ width: 50 }} defaultValue={c.ticketsMax} onBlur={(e) => update(c, 'ticketsMax', parseInt(e.target.value, 10))} />
               </td>
               <td><input type="checkbox" defaultChecked={c.enabled} onChange={(e) => update(c, 'enabled', e.target.checked)} /></td>
               <td><button className="btn-link danger" onClick={() => remove(c)}>Excluir</button></td>

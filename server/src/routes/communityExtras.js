@@ -32,19 +32,16 @@ function mount(app) {
   home.get('/', route(async (req, res) => {
     const svc = (name) => require(`../services/community/${name}`);
     const settle = (p) => p.then((v) => v).catch(() => null);
-    const economyOff = await require('../services/community/common').economyDisabled(require('../config/prisma')).catch(() => false);
-    const [season, goals, clans, raffle, potw] = await Promise.all([
+    const [season, goals, clans, potw] = await Promise.all([
       settle(svc('seasons').status(req.user.id, over(req))),
       settle(svc('communityGoals').progress(req.user.id, over(req))),
       settle(svc('clanWeekly').standings(require('../utils/spTime').weekBounds().key, over(req))),
-      settle(svc('raffle').overview(req.user.id, over(req))),
       settle(svc('postOfWeek').latest(over(req))),
     ]);
     res.json({
       season: season?.season ? season : null,
       goals,
       clanTop: (clans || []).slice(0, 3),
-      raffle: raffle && !economyOff ? { prize: raffle.prize, endsAt: raffle.endsAt, myTickets: raffle.myTickets, participants: raffle.participants } : null,
       postOfWeek: potw,
     });
   }));
@@ -65,14 +62,7 @@ function mount(app) {
   recap.get('/:month', route(async (req, res) => { res.json(await require('../services/community/monthlyRecap').getRecap(req.user.id, String(req.params.month), over(req))); }));
   app.use('/api/recap', recap);
 
-  // ---------- Sorteio semanal ----------
-  const raffle = express.Router();
-  raffle.use(requireAuth, economy);
-  raffle.get('/', route(async (req, res) => { res.json(await require('../services/community/raffle').overview(req.user.id, over(req))); }));
-  raffle.post('/tickets', perUser('sorteio', 60_000, 10), route(async (req, res) => {
-    res.json(await require('../services/community/raffle').buyTickets(req.user.id, req.body?.quantity, over(req)));
-  }));
-  app.use('/api/raffle', raffle);
+  // Sorteio semanal: removido (nov/2026). Ver services/community/raffle.js.
 
   // ---------- Bora Jogar ----------
   const play = express.Router();

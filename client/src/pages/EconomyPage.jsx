@@ -1,8 +1,10 @@
 import { useCallback, useEffect, useState } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
-import { getMyEconomy, claimDaily, listChests, listMissions, claimMission, getEconomyHistory, getMissionSeason, claimSeasonReward } from '../api/endpoints';
+import { getMyEconomy, claimDaily, listChests, listMissions, claimMission, getMissionSeason, claimSeasonReward } from '../api/endpoints';
+import { useAuth } from '../context/AuthContext.jsx';
+import WalletCard from '../components/WalletCard.jsx';
 import { useSocket } from '../context/SocketContext.jsx';
-import { EmptyState, Ico, PageHero, PillTabs, Skeleton, Toast, Unavailable } from '../components/PagesKit.jsx';
+import { EmptyState, Ico, PillTabs, Skeleton, Toast, Unavailable } from '../components/PagesKit.jsx';
 import '../styles/economy.css';
 import { useLiveRefresh } from '../utils/liveRefresh';
 import { setClaimableMissions } from '../utils/missionBadge';
@@ -30,7 +32,6 @@ const MISSION_ICON = {
   MESSAGES: 'chat', REACTIONS: 'heart', VOICE_MINUTES: 'volume', FORUM_POSTS: 'news',
   FORUM_COMMENTS: 'pen', SHOP_VISIT: 'store', DAILY_CHEST: 'chest',
 };
-const HISTORY_ICON = { DAILY: 'chest', MISSION: 'bolt', SHOP: 'store', ADMIN: 'shield', LEVEL: 'trophy', GAME: 'coin' };
 
 function RewardChips({ m }) {
   return (
@@ -83,20 +84,20 @@ function MissionCard({ m, onClaim, busy, compact }) {
   );
 }
 
-// Hub da Economia: saldo, baú diário, missões, histórico e atalhos.
+// Hub da Economia: cartão da carteira (moedas e gemas), baú diário, missões e atalhos.
+// Histórico e Sorteio saíram (nov/2026, pedido do dono).
 export default function EconomyPage({ initialTab = 'geral' }) {
   const { socket } = useSocket();
-  // ?aba=temporada|historico|missoes|geral — usado pela barra de abas da
+  const { user } = useAuth();
+  // ?aba=temporada|missoes|geral — usado pela barra de abas da
   // Loja (HubTabs) pra voltar direto pra aba certa da Economia.
   const [searchParams] = useSearchParams();
   const abaParam = searchParams.get('aba');
-  const validAba = ['geral', 'missoes', 'temporada', 'historico'].includes(abaParam) ? abaParam : null;
+  const validAba = ['geral', 'missoes', 'temporada'].includes(abaParam) ? abaParam : null;
   const [tab, setTab] = useState(() => validAba || initialTab);
   const [eco, setEco] = useState(null);
   const [chests, setChests] = useState([]);
   const [missionData, setMissionData] = useState(null); // { missions, resets }
-  const [history, setHistory] = useState(null); // { transactions, hasMore }
-  const [loadingMore, setLoadingMore] = useState(false);
   const [wonChest, setWonChest] = useState(null); // última recompensa, pra mostrar o PNG do baú
   const [notice, setNotice] = useState(null);
   const [unavailable, setUnavailable] = useState(false);
@@ -111,14 +112,12 @@ export default function EconomyPage({ initialTab = 'geral' }) {
   }), []);
   const refreshChests = useCallback(() => listChests().then((d) => setChests(d.chests)).catch(() => {}), []);
   const refreshMissions = useCallback(() => listMissions().then(setMissionData).catch(() => {}), []);
-  const refreshHistory = useCallback(() => getEconomyHistory({ limit: 30 }).then(setHistory).catch(() => setHistory((h) => h || { transactions: [], hasMore: false })), []);
 
   useEffect(() => {
     refresh();
     refreshChests();
     refreshMissions();
   }, [refresh, refreshChests, refreshMissions]);
-  useEffect(() => { if (tab === 'historico') refreshHistory(); }, [tab, refreshHistory]);
   // Temporada do mês (passe de missões).
   const navigate = useNavigate();
   const [season, setSeason] = useState(null);
@@ -218,7 +217,7 @@ export default function EconomyPage({ initialTab = 'geral' }) {
       const r = await claimDaily();
       setWonChest({
         name: r.chestName, imageOpened: r.chestImageOpened,
-        coins: r.coins, tickets: r.tickets, megaAwarded: r.megaAwarded, megaGems: r.megaGems,
+        coins: r.coins, megaAwarded: r.megaAwarded, megaGems: r.megaGems,
       });
       if (!r.chestImageOpened) pushNotice(`Baú ${r.chestName}: +${fmt(r.coins)} moedas${r.megaAwarded ? ` e +${r.megaGems} gemas` : ''}!`);
       refresh();
@@ -245,23 +244,12 @@ export default function EconomyPage({ initialTab = 'geral' }) {
       if (r.reward?.multiplier > 1) parts.push(`bônus ${String(r.reward.multiplier).replace('.', ',')}x de apoio`);
       if (r.reward?.seasonPoints) parts.push(`+${r.reward.seasonPoints} pontos de temporada`);
       pushNotice(`${m.title}: ${parts.join(', ') || 'resgatada'}${r.levelUp ? ` · Nível ${r.levelUp.newLevel}!` : ''}`);
-      if (tab === 'historico') refreshHistory();
     } catch (err) {
       pushNotice(err.response?.data?.error || 'Não foi possível resgatar a missão.');
       refreshMissions();
     } finally {
       setClaimingId(null);
     }
-  };
-
-  const loadMoreHistory = async () => {
-    const list = history?.transactions || [];
-    if (!list.length) return;
-    setLoadingMore(true);
-    try {
-      const d = await getEconomyHistory({ limit: 30, before: list[list.length - 1].createdAt });
-      setHistory({ transactions: [...list, ...d.transactions], hasMore: d.hasMore });
-    } catch { /* tenta de novo no próximo clique */ } finally { setLoadingMore(false); }
   };
 
   const tabs = [
@@ -277,9 +265,6 @@ export default function EconomyPage({ initialTab = 'geral' }) {
     // Passe do clube: exclusivo de Assinantes (botão dourado). Quem não assina
     // vai direto pra Loja → Assinatura.
     { id: 'temporada', label: 'Passe do clube', icon: 'crown', count: season?.isSupporter ? (seasonReady || undefined) : undefined, className: 'pk-tab-gold' },
-    { id: 'historico', label: 'Histórico', icon: 'clock' },
-    // Fase 4: sorteio semanal (página própria, mesma barra de abas).
-    { id: 'sorteio', label: 'Sorteio', icon: 'gift' },
   ];
 
   const resetDaily = missionData?.resets?.daily ? untilText(missionData.resets.daily, now) : null;
@@ -294,28 +279,13 @@ export default function EconomyPage({ initialTab = 'geral' }) {
   return (
     <div className="pk-page eco">
       <div className="pk-inner">
-        <PageHero
-          icon="coin" eyebrow="Sua carteira" title="Economia"
-          desc="Ganhe moedas com o baú diário e as missões, e gaste na Loja. Gemas vêm das sequências completas e das missões semanais."
-          aside={(
-            <div className="eco-balances">
-              <div className="eco-balance coins">
-                <span className="eco-balance-icon"><Ico name="coin" size={22} /></span>
-                <div><small>Moedas</small><strong>{fmt(eco.coins)}</strong></div>
-              </div>
-              <div className="eco-balance gems">
-                <span className="eco-balance-icon"><Ico name="gem" size={22} /></span>
-                <div><small>Gemas</small><strong>{fmt(eco.gems)}</strong></div>
-              </div>
-            </div>
-          )}
-        />
+        {/* Cartão da carteira no lugar da barra "Sua carteira" (nov/2026). */}
+        <WalletCard user={user} coins={eco.coins} gems={eco.gems} level={eco.accountLevel} />
 
         <PillTabs
           tabs={tabs} value={tab} label="Seções da Economia" className="eco-tabs"
           onChange={(id) => {
             if (id === 'loja') navigate('/loja');
-            else if (id === 'sorteio') navigate('/sorteio');
             else if (id === 'criadores') navigate('/loja/criadores');
             else if (id === 'temporada' && season && !season.isSupporter) navigate('/loja?secao=assinatura');
             else setTab(id);
@@ -397,7 +367,7 @@ export default function EconomyPage({ initialTab = 'geral' }) {
                   ))}
                 </div>
               ) : (
-                <p className="pk-muted">Cada resgate abre um baú aleatório com moedas e, às vezes, tickets.</p>
+                <p className="pk-muted">Cada resgate abre um baú aleatório com moedas.</p>
               )}
             </section>
 
@@ -503,35 +473,6 @@ export default function EconomyPage({ initialTab = 'geral' }) {
           )
         )}
 
-        {tab === 'historico' && (
-          !history ? <Skeleton rows={6} height={58} /> : history.transactions.length === 0 ? (
-            <EmptyState icon="clock" title="Nada por aqui ainda" text="Baús, missões e compras na Loja aparecem aqui a partir de agora." />
-          ) : (
-            <section className="pk-card eco-history">
-              <ul>
-                {history.transactions.map((t) => (
-                  <li key={t.id}>
-                    <span className={`eco-history-icon k-${String(t.kind).toLowerCase()}`}><Ico name={HISTORY_ICON[t.kind] || 'coin'} size={18} /></span>
-                    <div className="eco-history-text">
-                      <strong className="truncate">{t.label}</strong>
-                      <small>{new Date(t.createdAt).toLocaleString('pt-BR', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' })}</small>
-                    </div>
-                    <span className="eco-history-deltas">
-                      {t.coins !== 0 && <span className={t.coins > 0 ? 'plus' : 'minus'}><Ico name="coin" size={13} strokeWidth={2} />{t.coins > 0 ? '+' : '−'}{fmt(Math.abs(t.coins))}</span>}
-                      {t.gems !== 0 && <span className={t.gems > 0 ? 'plus gem' : 'minus gem'}><Ico name="gem" size={13} strokeWidth={2} />{t.gems > 0 ? '+' : '−'}{fmt(Math.abs(t.gems))}</span>}
-                      {t.xp > 0 && <span className="plus xp">+{fmt(t.xp)} XP</span>}
-                    </span>
-                  </li>
-                ))}
-              </ul>
-              {history.hasMore && (
-                <button type="button" className="pk-btn ghost eco-history-more" disabled={loadingMore} onClick={loadMoreHistory}>
-                  {loadingMore ? 'Carregando...' : 'Ver mais'}
-                </button>
-              )}
-            </section>
-          )
-        )}
       </div>
 
       <Toast>{notice}</Toast>
@@ -546,7 +487,6 @@ export default function EconomyPage({ initialTab = 'geral' }) {
             <h3>Baú {wonChest.name}!</h3>
             <div className="chest-reveal-rewards eco-reveal-rewards">
               <span className="pk-chip tint" style={{ '--tint': 'var(--yellow)' }}><Ico name="coin" size={14} /> +{fmt(wonChest.coins)} moedas</span>
-              {wonChest.tickets > 0 && <span className="pk-chip brand"><Ico name="star" size={14} /> +{wonChest.tickets} tickets</span>}
               {wonChest.megaAwarded && <span className="pk-chip tint eco-mega"><Ico name="gem" size={14} /> Sequência completa: +{wonChest.megaGems} gemas!</span>}
             </div>
             <button className="pk-btn primary lg" onClick={() => setWonChest(null)}>Show!</button>

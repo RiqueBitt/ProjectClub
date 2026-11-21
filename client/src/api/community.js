@@ -4,7 +4,7 @@ import { api } from './client';
 // clans.js e posts.js).
 const data = (r) => r.data;
 
-// Início: tudo numa chamada (temporada, metas, Clubes, sorteio).
+// Início: tudo numa chamada (temporada, metas, Clubes).
 export const getCommunityHome = () => api.get('/community-home').then(data);
 
 // Competição semanal dos Clubes.
@@ -19,9 +19,6 @@ export const getRecap = (month) => api.get(month ? `/recap/${encodeURIComponent(
 // Post da semana.
 export const getPostOfWeek = () => api.get('/posts/post-of-week').then(data);
 
-// Sorteio semanal.
-export const getRaffle = () => api.get('/raffle').then(data);
-export const buyRaffleTickets = (quantity) => api.post('/raffle/tickets', { quantity }).then(data);
 
 // Bora Jogar.
 export const listPlayGroups = () => api.get('/play-groups').then(data);

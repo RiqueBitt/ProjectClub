@@ -15,7 +15,8 @@ const JOBS = [
   ['clubes', (o) => require('./clanWeekly').closeWeekIfDue(o)],
   ['metas', (o) => require('./communityGoals').closeIfDue(o)],
   ['post-da-semana', (o) => require('./postOfWeek').pickIfDue(o)],
-  ['sorteio', (o) => require('./raffle').drawIfDue(o)],
+  // Sorteio removido (nov/2026): só devolve, uma vez, as moedas de bilhetes não sorteados.
+  ['sorteio-encerrado', (o) => require('./raffle').refundOpenTickets(o)],
   ['retrospectiva', (o) => require('./monthlyRecap').runIfDue(o)],
 ];
 const HOURLY_JOBS = [

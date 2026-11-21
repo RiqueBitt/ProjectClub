@@ -97,12 +97,12 @@ export const FEATURED = [
     n2Only: true, fixed: true,
   },
   // Economia: mesma área da Loja (abas Visão geral · Missões · Loja · Passe
-  // · Histórico — ver components/HubTabs.jsx). Chave 'loja' mantida: é a
+  // — ver components/HubTabs.jsx). Chave 'loja' mantida: é a
   // que a visibilidade salva por comunidade e o CSS (.featured-loja) usam.
   {
     key: 'loja', label: 'Economia', icon: 'coin', to: '/economia',
     hint: 'Moedas, gemas, missões, Loja e Passe do clube',
-    match: (p) => p.startsWith('/economia') || p.startsWith('/missoes') || p.startsWith('/loja') || p.startsWith('/sorteio'),
+    match: (p) => p.startsWith('/economia') || p.startsWith('/missoes') || p.startsWith('/loja'),
     count: ['missão pronta pra resgatar', 'missões prontas pra resgatar'],
   },
   {

@@ -47,7 +47,6 @@ const PAGES = [
   { path: '/missoes', label: 'Economia e Loja › Missões', keywords: 'missões tarefas diárias semanais recompensas' },
   { path: '/loja', label: 'Economia e Loja › Loja', keywords: 'loja molduras efeitos comprar decorações fontes' },
   { path: '/economia?aba=temporada', label: 'Economia e Loja › Passe do clube', keywords: 'passe temporada assinante' },
-  { path: '/sorteio', label: 'Economia e Loja › Sorteio', keywords: 'sorteio bilhete prêmio rifa' },
   { path: '/participar', label: 'Participar › Bora Jogar', keywords: 'bora jogar grupo jogatina partida lfg' },
   { path: '/participar?aba=interesses', label: 'Participar › Interesses', keywords: 'interesses cargos jogos' },
   { path: '/participar?aba=reputacao', label: 'Participar › Reputação', keywords: 'reputação agradecer ranking' },

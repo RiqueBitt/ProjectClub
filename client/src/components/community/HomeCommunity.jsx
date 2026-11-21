@@ -94,7 +94,6 @@ export function HomeCommunitySide({ home }) {
   const { data } = home;
   const links = [
     { icon: 'bolt', label: 'Bora Jogar', hint: 'Marque uma jogatina', to: '/participar' },
-    { icon: 'gift', label: 'Sorteio', hint: data?.raffle ? `Prêmio: ${fmt(data.raffle.prize)} moedas` : 'Toda semana', to: '/sorteio' },
     { icon: 'calendar', label: 'Retrospectiva', hint: 'Seu mês em números', to: '/retrospectiva' },
     { icon: 'tag', label: 'Interesses', hint: 'Seus jogos e assuntos', to: '/participar?aba=interesses' },
     { icon: 'users', label: 'Convidar amigos', hint: 'Ganhe moedas', to: '/participar?aba=convites' },
