@@ -16,7 +16,9 @@ import { bootSection, onBootSection, bootstrapActive } from '../utils/bootstrap'
 import ArenaPromo from '../cards/ArenaPromo.jsx';
 import MinecraftStatusCard from '../components/MinecraftStatusCard.jsx';
 import { isFeatureEnabled } from '../utils/features';
-import { channelPath, postPath } from '../utils/prettyLinks';
+import { channelPath, postPath, eventPath } from '../utils/prettyLinks';
+import { api } from '../api/client';
+import { setEventRsvp } from '../api/social';
 import { useCommunityHome, HomeCommunityMain, HomeCommunitySide } from '../components/community/HomeCommunity.jsx';
 
 const EVENT_STATUS_LABEL = { UPCOMING: 'Em breve', ACTIVE: 'Ativo', ENDED: 'Encerrado' };
@@ -100,6 +102,23 @@ function greeting() {
   return 'Boa noite';
 }
 
+// "há 2 h", "há 3 dias"…
+function timeAgo(iso) {
+  if (!iso) return '';
+  const min = Math.round((Date.now() - new Date(iso).getTime()) / 60000);
+  if (min < 1) return 'agora';
+  if (min < 60) return `há ${min} min`;
+  const h = Math.round(min / 60);
+  if (h < 24) return `há ${h} h`;
+  const d = Math.round(h / 24);
+  return d === 1 ? 'ontem' : `há ${d} dias`;
+}
+// Texto puro (sem marcação) pra prévia de um anúncio.
+const plainSnippet = (text, max = 140) => {
+  const t = String(text || '').replace(/[*_~`>#|[\]()]/g, '').replace(/\s+/g, ' ').trim();
+  return t.length > max ? `${t.slice(0, max - 1)}…` : t;
+};
+
 const fmtNum = (n) => (typeof n === 'number' ? n.toLocaleString('pt-BR') : '—');
 
 // Ícones SVG (traço) das seções e atalhos — sem emoji.
@@ -114,6 +133,8 @@ const HOME_ICONS = {
   play: 'M7 5v14l11-7L7 5Z',
   news: 'M4 5h13v14H6a2 2 0 0 1-2-2V5Zm13 4h3v8a2 2 0 0 1-2 2M8 9h5M8 13h5',
   arrow: 'M9 6l6 6-6 6',
+  megaphone: 'M3 11v2a1 1 0 0 0 1 1h2l5 4V6L6 10H4a1 1 0 0 0-1 1zM15 9a3 3 0 0 1 0 6M18 6a7 7 0 0 1 0 12',
+  check: 'M20 6 9 17l-5-5',
 };
 function HomeIcon({ name, size = 18 }) {
   return (
@@ -156,6 +177,8 @@ export default function InicioPage() {
   const [featuredPosts, setFeaturedPosts] = useState(null);
   const [stats, setStats] = useState(null);
   const [me, setMe] = useState(null);
+  // Anúncios da staff (aba Anúncios da Central): o mais recente aparece em "Acontecendo agora".
+  const [announcements, setAnnouncements] = useState(null);
   // Fase 4: temporada, metas coletivas, post da semana, aniversários, Clubes.
   const communityHome = useCommunityHome();
 
@@ -166,6 +189,7 @@ export default function InicioPage() {
     listYoutubeVideos().then((d) => setVideos(d.videos)).catch(() => setVideos([]));
     listFeaturedPosts().then((d) => setFeaturedPosts(d.posts)).catch(() => setFeaturedPosts([]));
     getPlatformStats().then(setStats).catch(() => setStats(null));
+    api.get('/anuncios').then((r) => setAnnouncements(r.data?.announcements || [])).catch(() => setAnnouncements([]));
     // Perfil completo traz o progresso do nível (levelProgress).
     if (user?.id) getUserProfile(user.id).then((d) => setMe(d)).catch(() => setMe(null));
   }, [user?.id]);
@@ -202,12 +226,15 @@ export default function InicioPage() {
     const onEventNew = (entry) => setEvents((list) => (list ? [entry, ...list] : list));
     const onEventUpdate = (entry) => setEvents((list) => (list ? list.map((e) => (e.id === entry.id ? entry : e)) : list));
     const onEventDelete = ({ id }) => setEvents((list) => (list ? list.filter((e) => e.id !== id) : list));
+    const onAnnouncements = () => api.get('/anuncios').then((r) => setAnnouncements(r.data?.announcements || [])).catch(() => {});
+    socket.on('announcements:update', onAnnouncements);
     socket.on('update:new', onUpdateNew);
     socket.on('update:edit', onUpdateEdit);
     socket.on('event:new', onEventNew);
     socket.on('event:update', onEventUpdate);
     socket.on('event:delete', onEventDelete);
     return () => {
+      socket.off('announcements:update', onAnnouncements);
       socket.off('update:new', onUpdateNew);
       socket.off('update:edit', onUpdateEdit);
       socket.off('event:new', onEventNew);
@@ -242,7 +269,28 @@ export default function InicioPage() {
 
   const level = me?.user?.accountLevel ?? user?.accountLevel ?? 1;
   const progress = me?.levelProgress ?? 0;
-  const upcomingEvents = (events || []).filter((e) => e.status !== 'ENDED');
+  const upcomingEvents = (events || []).filter((e) => e.status !== 'ENDED')
+    .sort((a, b) => new Date(a.startsAt || 0) - new Date(b.startsAt || 0));
+  // "Acontecendo agora": o evento ao vivo (ou o próximo) e o último anúncio.
+  const liveEvent = upcomingEvents.find((e) => e.status === 'ACTIVE');
+  const spotlightEvent = liveEvent || upcomingEvents[0] || null;
+  const latestAnnouncement = (announcements || [])[0] || null;
+  const peopleInCalls = liveCalls.reduce((n, c) => n + c.people.length, 0);
+
+  // "Eu vou" direto da lista (clicar de novo desfaz).
+  const toggleGoing = async (ev) => {
+    const rsvp = ev.rsvp || { counts: { GOING: 0, MAYBE: 0, NO: 0 }, mine: null };
+    const next = rsvp.mine === 'GOING' ? null : 'GOING';
+    const counts = { ...rsvp.counts };
+    if (rsvp.mine) counts[rsvp.mine] = Math.max(0, (counts[rsvp.mine] || 0) - 1);
+    if (next) counts[next] = (counts[next] || 0) + 1;
+    const patch = (r) => setEvents((list) => (list ? list.map((e) => (e.id === ev.id ? { ...e, rsvp: r } : e)) : list));
+    patch({ ...rsvp, counts, mine: next });
+    try {
+      const r = await setEventRsvp(ev.id, next);
+      if (r?.rsvp) patch({ ...r.rsvp, mine: r.mine !== undefined ? r.mine : next });
+    } catch { patch(rsvp); }
+  };
 
   const disabledSystems = useStore((st) => st.disabledSystems) || [];
   const shortcuts = [
@@ -267,15 +315,45 @@ export default function InicioPage() {
           {stats && (
             <dl className="home-hero-stats">
               <div><dt>membros</dt><dd>{fmtNum(stats.memberCount)}</dd></div>
-              <div><dt>online agora</dt><dd>{fmtNum(online.length)}</dd></div>
-              <div><dt>posts</dt><dd>{fmtNum(stats.postCount)}</dd></div>
-              <div><dt>mensagens</dt><dd>{fmtNum(stats.messageCount)}</dd></div>
+              <div><dt>online</dt><dd>{fmtNum(online.length)}</dd></div>
+              <div><dt>em call</dt><dd>{fmtNum(peopleInCalls)}</dd></div>
             </dl>
           )}
         </div>
       </header>
 
-      <nav className="home-shortcuts" aria-label="Atalhos">
+      {(spotlightEvent || latestAnnouncement) && (
+        <section className="home-now" aria-label="Acontecendo agora">
+          <p className="home-label">{liveEvent ? 'Acontecendo agora' : 'Fique por dentro'}</p>
+          <div className="home-now-grid">
+            {spotlightEvent && (
+              <button type="button" className={`home-now-card home-now-event${liveEvent ? ' is-live' : ''}`} onClick={() => navigate(eventPath(spotlightEvent))}>
+                <span className="home-now-top">
+                  {liveEvent ? <span className="home-now-live">Ao vivo</span> : <span className="home-now-soon">Próximo evento</span>}
+                  <strong className="truncate">{spotlightEvent.title}</strong>
+                </span>
+                <span className="home-now-sub">
+                  {spotlightEvent.startsAt && !liveEvent ? `${formatEventDate(spotlightEvent.startsAt)} · ` : ''}
+                  {(spotlightEvent.rsvp?.counts?.GOING || 0)} confirmado{(spotlightEvent.rsvp?.counts?.GOING || 0) === 1 ? '' : 's'}
+                </span>
+                <span className="home-now-cta">{liveEvent ? 'Entrar' : 'Ver evento'}</span>
+              </button>
+            )}
+            {latestAnnouncement && (
+              <button type="button" className="home-now-card home-now-ann" onClick={() => navigate('/anuncios')}>
+                <span className="home-now-top">
+                  <HomeIcon name="megaphone" size={16} />
+                  <strong className="truncate">{latestAnnouncement.title || 'Último anúncio'}</strong>
+                  <time dateTime={latestAnnouncement.createdAt}>{timeAgo(latestAnnouncement.createdAt)}</time>
+                </span>
+                <span className="home-now-sub home-now-snippet">{plainSnippet(latestAnnouncement.body)}</span>
+              </button>
+            )}
+          </div>
+        </section>
+      )}
+
+      <nav className="home-shortcuts is-compact" aria-label="Atalhos">
         {shortcuts.map((s) => (
           <button key={s.to} type="button" className="home-shortcut" onClick={() => navigate(s.to)}>
             <span className="home-shortcut-icon"><HomeIcon name={s.icon} size={20} /></span>
@@ -295,34 +373,37 @@ export default function InicioPage() {
       <div className="home-grid">
         <div className="home-main">
           <HomeCommunityMain home={communityHome} />
-          <Section icon="calendar" title="Eventos">
+          <Section
+            icon="calendar" title="Próximos eventos"
+            action={<button type="button" className="home-link" onClick={() => navigate('/comunidade/eventos')}>Ver todos</button>}
+          >
             {events === null && <Empty>Carregando…</Empty>}
             {events !== null && upcomingEvents.length === 0 && <Empty>Nenhum evento agendado. Fique de olho: quando a equipe criar um, ele aparece aqui.</Empty>}
             {upcomingEvents.length > 0 && (
-              <div className="home-events">
-                {upcomingEvents.map((ev) => (
-                  <article key={ev.id} className="home-event">
-                    {ev.bannerUrl
-                      ? <img className="home-event-banner" src={proxyImage(ev.bannerUrl)} alt="" loading="lazy" />
-                      : <div className="home-event-banner home-event-banner-empty"><HomeIcon name="calendar" size={28} /></div>}
-                    <div className="home-event-body">
-                      <div className="home-event-top">
-                        {ev.iconUrl && <img className="home-event-icon" src={proxyImage(ev.iconUrl)} alt="" />}
-                        <h3 className="truncate">{ev.title}</h3>
-                        <span className={`home-pill status-${ev.status.toLowerCase()}`}>{EVENT_STATUS_LABEL[ev.status]}</span>
-                      </div>
-                      {ev.description && <p className="home-event-desc">{ev.description}</p>}
-                      {(ev.startsAt || ev.endsAt) && (
-                        <p className="home-event-dates">
-                          {ev.startsAt && formatEventDate(ev.startsAt)}
-                          {ev.startsAt && ev.endsAt && ' — '}
-                          {ev.endsAt && formatEventDate(ev.endsAt)}
-                        </p>
-                      )}
-                    </div>
-                  </article>
-                ))}
-              </div>
+              <ul className="home-evlist">
+                {upcomingEvents.slice(0, 5).map((ev) => {
+                  const d = ev.startsAt ? new Date(ev.startsAt) : null;
+                  const going = ev.rsvp?.counts?.GOING || 0;
+                  const mine = ev.rsvp?.mine === 'GOING';
+                  return (
+                    <li key={ev.id} className="home-ev">
+                      <span className={`home-ev-date${ev.status === 'ACTIVE' ? ' is-live' : ''}`} aria-hidden="true">
+                        {ev.status === 'ACTIVE' ? <b>Ao vivo</b> : d ? <><b>{String(d.getDate()).padStart(2, '0')}</b>{d.toLocaleDateString('pt-BR', { month: 'short' }).replace('.', '')}</> : <b>—</b>}
+                      </span>
+                      <button type="button" className="home-ev-main" onClick={() => navigate(eventPath(ev))}>
+                        <strong className="truncate">{ev.title}</strong>
+                        <span className="truncate">
+                          {d ? d.toLocaleString('pt-BR', { weekday: 'short', hour: '2-digit', minute: '2-digit', hour12: hour12Option() }) : EVENT_STATUS_LABEL[ev.status]}
+                          {` · ${going} vão`}
+                        </span>
+                      </button>
+                      <button type="button" className={`home-ev-go${mine ? ' on' : ''}`} aria-pressed={mine} onClick={() => toggleGoing(ev)}>
+                        {mine && <HomeIcon name="check" size={13} />} Vou
+                      </button>
+                    </li>
+                  );
+                })}
+              </ul>
             )}
           </Section>
 

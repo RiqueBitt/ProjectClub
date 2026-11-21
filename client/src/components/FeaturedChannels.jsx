@@ -40,6 +40,8 @@ const PATHS = {
   // Club Penguin (Praça): pinguim de perfil, bico e asa
   penguin: 'M12 3c-3.3 0-5.5 2.6-5.5 6.2 0 2 .4 3.6 1.1 5.1L6 17.5l3 .6c.9 1.1 1.9 1.9 3 1.9s2.1-.8 3-1.9l3-.6-1.6-3.2c.7-1.5 1.1-3.1 1.1-5.1C17.5 5.6 15.3 3 12 3zM9.8 8.2h.01M14.2 8.2h.01M10.5 10.5c1 .9 2 .9 3 0M9 20.5h6',
   // Guerra das Cartas: duas cartas em leque
+  // Central: quatro quadradinhos
+  grid: 'M4 4h6v6H4zM14 4h6v6h-6zM4 14h6v6H4zM14 14h6v6h-6z',
   // Início: casinha
   home: 'M15 21v-8a1 1 0 0 0-1-1h-4a1 1 0 0 0-1 1v8M3 10a2 2 0 0 1 .709-1.528l7-5.999a2 2 0 0 1 2.582 0l7 5.999A2 2 0 0 1 21 10v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z',
   // Amigos: duas pessoas
@@ -61,8 +63,9 @@ export function FeaturedGlyph({ name, size = 16 }) {
 
 // Ordem (nov/2026): os jogos em cartão (Club Penguin e, quando ligada, a
 // Guerra das Cartas) no topo; depois a lista "minimalista" — só o ícone
-// colorido, fundo só na página aberta: Início, Novidades, Amigos,
-// Economia e Progresso. (Suporte foi pro topo: TopSearchBar.jsx.)
+// colorido, fundo só na página aberta: Central, Amigos, Economia e
+// Progresso. (Suporte foi pro topo: TopSearchBar.jsx; Novidades entrou na
+// Central.)
 export const FEATURED = [
   // Club Penguin (Praça): o jogo completo, em azul-marinho (pedido do dono).
   {
@@ -76,21 +79,15 @@ export const FEATURED = [
     hint: 'Jogo de cartas: colecione, monte seu baralho e batalhe', match: (p) => p.startsWith('/cartas'),
     feature: 'cardsWar', game: true, // interruptor em utils/features.js
   },
+  // Central (nov/2026): o antigo Início + Novidades (Anúncios e Eventos),
+  // com abas (pages/AnunciosEventosPage.jsx). A bolinha soma as novidades
+  // de Anúncios e Eventos e mostra "Ao vivo" quando há evento.
   {
-    key: 'inicio', label: 'Início', icon: 'home', to: '/inicio',
-    hint: 'Novidades e destaques do Project Club', match: (p) => p === '/inicio',
-    n2Only: true, fixed: true,
-  },
-  // Novidades (antes "Anúncios e Eventos"): anúncios da staff + eventos, com
-  // abas internas (pages/AnunciosEventosPage.jsx). Chave 'anuncios' mantida:
-  // é a que o CSS (.featured-anuncios, cor vermelha), a visibilidade salva e
-  // os testes usam; a bolinha soma as novidades das duas abas e mostra
-  // "Ao vivo" quando há evento.
-  {
-    key: 'anuncios', label: 'Novidades', icon: 'megaphone', to: '/anuncios',
-    hint: 'Anúncios da equipe e eventos da comunidade',
-    match: (p) => p.startsWith('/anuncios') || p.startsWith('/comunidade/eventos') || p.startsWith('/evento/') || p.startsWith('/eventos'),
+    key: 'inicio', label: 'Central', icon: 'grid', to: '/inicio',
+    hint: 'Visão geral, anúncios da equipe e eventos da comunidade',
+    match: (p) => p === '/inicio' || p.startsWith('/anuncios') || p.startsWith('/comunidade/eventos') || p.startsWith('/evento/') || p.startsWith('/eventos'),
     merges: ['anuncios', 'eventos'],
+    n2Only: true, fixed: true,
   },
   {
     key: 'amigos', label: 'Amigos', icon: 'friends', to: '/dms',
@@ -170,7 +167,7 @@ export default function FeaturedChannels({ canManage }) {
     // última vez que a pessoa abriu a seção (some ao abrir).
     const newKeys = item.merges || [{ loja: 'colecoes' }[item.key] || item.key];
     const fresh = active ? 0 : newKeys.reduce((n, k) => n + sectionCount(sectionBadges, k), 0);
-    const what = { anuncios: ['novidade', 'novidades'], loja: ['coleção nova na Loja', 'coleções novas na Loja'] }[item.key] || ['novidade', 'novidades'];
+    const what = { inicio: ['novidade', 'novidades'], loja: ['coleção nova na Loja', 'coleções novas na Loja'] }[item.key] || ['novidade', 'novidades'];
     const newBadge = fresh > 0 ? <span className="section-new-badge" title={`${fresh} ${fresh === 1 ? what[0] : what[1]}`} aria-label={`${fresh} ${fresh === 1 ? what[0] : what[1]}`}>{badgeLabel(fresh)}</span> : null;
     const hasEvents = (item.merges || []).includes('eventos');
     // Contagem (Amigos: DMs não lidas + pedidos; Economia: missões prontas).

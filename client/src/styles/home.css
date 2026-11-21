@@ -226,3 +226,74 @@
   .home-live-dot { animation: none; }
   .home-shortcut:hover, .home-video:hover .home-video-thumb img { transform: none; }
 }
+
+/* ============================================================
+   Central (nov/2026): topo compacto, "Acontecendo agora", atalhos
+   menores e lista de próximos eventos com data em bloquinho.
+   ============================================================ */
+.central-hub .home { padding-top: 16px; }
+.central-hub .home-hero-inner { padding: 18px 22px; min-height: 0; gap: 14px; }
+.central-hub .home-hero-icon { width: 48px; height: 48px; border-radius: 13px; padding: 6px; }
+.central-hub .home-hero h1 { font-size: clamp(20px, 2.4vw, 26px); }
+.central-hub .home-hero-hello { font-size: 13px; }
+.central-hub .home-hero-stats { gap: 18px; }
+.central-hub .home-hero-stats > div,
+.central-hub .home-hero.has-banner .home-hero-stats > div { min-width: 0; padding: 0; background: none; border: 0; backdrop-filter: none; }
+.central-hub .home-hero-stats dd { font-size: 18px; }
+
+.home-label { margin: 0 0 8px; font-size: 11.5px; font-weight: 700; letter-spacing: .5px; text-transform: uppercase; color: var(--text-muted); }
+
+.home-now { margin-top: 16px; }
+.home-now-grid { display: grid; grid-template-columns: minmax(0, 1.3fr) minmax(0, 1fr); gap: 10px; }
+.home-now-card {
+  display: flex; flex-direction: column; align-items: flex-start; gap: 6px; text-align: left; min-width: 0;
+  padding: 14px 16px; border-radius: 14px; background: var(--bg-secondary); border: 1px solid var(--border);
+  color: var(--text-normal); transition: border-color .12s ease;
+}
+.home-now-card:hover { border-color: color-mix(in srgb, var(--brand) 50%, var(--border)); }
+.home-now-event.is-live { background: color-mix(in srgb, var(--red) 9%, var(--bg-secondary)); border-color: color-mix(in srgb, var(--red) 35%, var(--border)); }
+.home-now-event.is-live:hover { border-color: color-mix(in srgb, var(--red) 60%, var(--border)); }
+.home-now-top { display: flex; align-items: center; gap: 8px; width: 100%; min-width: 0; }
+.home-now-top strong { font-size: 15px; color: var(--header-primary); min-width: 0; }
+.home-now-top time { margin-left: auto; flex-shrink: 0; font-size: 12px; color: var(--text-muted); }
+.home-now-ann .home-now-top svg { color: var(--red); flex-shrink: 0; }
+.home-now-live, .home-now-soon { flex-shrink: 0; padding: 2px 8px; border-radius: 999px; font-size: 11px; font-weight: 800; }
+.home-now-live { background: var(--red); color: #fff; }
+.home-now-soon { background: color-mix(in srgb, var(--brand) 18%, transparent); color: var(--brand); }
+.home-now-sub { font-size: 13px; color: var(--text-muted); }
+.home-now-snippet { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.home-now-cta { margin-top: 2px; padding: 4px 12px; border-radius: 8px; font-size: 13px; font-weight: 700; background: var(--brand); color: #fff; }
+.home-now-event.is-live .home-now-cta { background: var(--red); }
+
+.home-shortcuts.is-compact { grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 8px; }
+.home-shortcuts.is-compact .home-shortcut { padding: 9px 12px; border-radius: 11px; gap: 10px; }
+.home-shortcuts.is-compact .home-shortcut-icon { width: 30px; height: 30px; border-radius: 9px; }
+.home-shortcuts.is-compact .home-shortcut-text span,
+.home-shortcuts.is-compact .home-shortcut > svg { display: none; }
+.home-shortcuts.is-compact .home-shortcut-text strong { font-size: 14px; }
+
+.home-evlist { list-style: none; margin: 0; padding: 4px 14px; border-radius: 14px; background: var(--bg-secondary); border: 1px solid var(--border); }
+.home-ev { display: flex; align-items: center; gap: 12px; padding: 10px 0; }
+.home-ev + .home-ev { border-top: 1px solid var(--border); }
+.home-ev-date {
+  width: 46px; flex-shrink: 0; padding: 5px 0; border-radius: 10px; text-align: center;
+  background: var(--bg-primary); font-size: 11px; color: var(--text-muted); text-transform: lowercase; line-height: 1.2;
+}
+.home-ev-date b { display: block; font-size: 17px; color: var(--header-primary); }
+.home-ev-date.is-live { background: color-mix(in srgb, var(--red) 16%, transparent); }
+.home-ev-date.is-live b { font-size: 11px; color: var(--red); text-transform: uppercase; padding: 5px 0; }
+.home-ev-main { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; text-align: left; color: inherit; }
+.home-ev-main strong { font-size: 14.5px; color: var(--header-primary); }
+.home-ev-main span { font-size: 12.5px; color: var(--text-muted); }
+.home-ev-main:hover strong { text-decoration: underline; }
+.home-ev-go {
+  flex-shrink: 0; display: inline-flex; align-items: center; gap: 4px; padding: 5px 12px; border-radius: 999px;
+  border: 1px solid var(--border); background: none; color: var(--text-normal); font: 700 12.5px inherit; cursor: pointer;
+}
+.home-ev-go:hover { border-color: var(--green); color: var(--green); }
+.home-ev-go.on { background: color-mix(in srgb, var(--green) 18%, transparent); border-color: color-mix(in srgb, var(--green) 50%, transparent); color: var(--green); }
+
+@media (max-width: 760px) {
+  .home-now-grid { grid-template-columns: 1fr; }
+  .central-hub .home-hero-stats { width: 100%; }
+}

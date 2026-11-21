@@ -16,7 +16,7 @@ const PATHS = {
   coin: 'M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18ZM12 7.6l1.3 2.65 2.9.42-2.1 2.05.5 2.9L12 14.25l-2.6 1.37.5-2.9-2.1-2.05 2.9-.42z',
 };
 const ITEMS = [
-  { to: '/inicio', label: 'Início', icon: 'home', match: (p) => p === '/inicio' },
+  { to: '/inicio', label: 'Central', icon: 'home', match: (p) => p === '/inicio' || p.startsWith('/anuncios') || p.startsWith('/comunidade/eventos') },
   { to: '/', label: 'Comunidade', icon: 'chat', match: (p) => p === '/' },
   { to: '/dms', label: 'Amigos', icon: 'friends', match: (p) => p === '/dms' || p.startsWith('/clans') },
   { to: '/economia', label: 'Economia', icon: 'coin', system: 'economia', match: (p) => p.startsWith('/economia') || p.startsWith('/missoes') || p === '/loja' },

@@ -66,7 +66,7 @@ export function LinkNotFound({ what = 'esse link' }) {
     <div className="route-loading-fallback" style={{ flexDirection: 'column', gap: 12, textAlign: 'center', padding: 24 }}>
       <h3 style={{ margin: 0 }}>Link indisponível</h3>
       <p style={{ margin: 0, opacity: 0.8 }}>Não encontramos {what}. Ele pode ter sido apagado ou você não tem acesso.</p>
-      <button type="button" className="btn-primary" onClick={() => navigate('/inicio', { replace: true })}>Ir para o Início</button>
+      <button type="button" className="btn-primary" onClick={() => navigate('/inicio', { replace: true })}>Ir para a Central</button>
     </div>
   );
 }

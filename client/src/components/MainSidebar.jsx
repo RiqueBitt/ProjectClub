@@ -45,7 +45,7 @@ export const ITEMS = [
   // pro Chat/Comunidade, mudar isso seria um risco desnecessário só
   // pra Início ser "tecnicamente" a rota raiz; sendo o primeiro item
   // da lista já atende ao pedido.
-  { to: '/inicio', icon: inicioIcon, isImg: true, labelKey: 'nav.inicio', match: (p) => p === '/inicio' },
+  { to: '/inicio', icon: inicioIcon, isImg: true, labelKey: 'nav.inicio', match: (p) => p === '/inicio' || p.startsWith('/anuncios') || p.startsWith('/comunidade/eventos') || p.startsWith('/evento/') },
   { to: '/', icon: topicIcon, isImg: true, labelKey: 'nav.comunidade', match: (p) => p === '/' || isChannelPath(p) },
   // Item pedido: "mude o feed para cima e o amigos para baixo" — ordem
   // invertida (Feeds vem antes de Amigos agora).
