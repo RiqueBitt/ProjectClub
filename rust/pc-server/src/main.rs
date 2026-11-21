@@ -15,6 +15,17 @@ async fn main() -> anyhow::Result<()> {
     // `pc-server check`: só confere Redis e MySQL e sai
     if std::env::args().nth(1).as_deref() == Some("check") {
         let only = std::env::args().nth(2).unwrap_or_default();
+        if only == "diag" {
+            if let Some(u) = config.redis_url.as_deref() {
+                println!("redis (etapas):");
+                pc_server::check::redis_raw(u).await;
+            }
+            if let Some(u) = config.database_url.as_deref() {
+                println!("mysql (modos de TLS):");
+                pc_server::check::mysql_modes(u).await;
+            }
+            return Ok(());
+        }
         let ok = pc_server::check::run(&config, &only).await;
         std::process::exit(if ok { 0 } else { 1 });
     }

@@ -15,7 +15,7 @@ http-body-util = "0.1"
 tower-http = { version = "0.6", features = ["set-header"] }
 serde = { version = "1", features = ["derive"] }
 serde_json = { version = "1", features = ["preserve_order"] }
-redis = { version = "0.32", default-features = false, features = ["tokio-comp", "tokio-rustls-comp", "tls-rustls-webpki-roots", "connection-manager"] }
+redis = { version = "0.32", default-features = false, features = ["tokio-comp", "tokio-rustls-comp", "tls-rustls-webpki-roots", "connection-manager", "disable-client-setinfo"] }
 reqwest = { version = "0.12", default-features = false, features = ["rustls-tls"] }
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }
@@ -37,6 +37,8 @@ hex = "0.4"
 subtle = "2"
 bcrypt = "0.17"
 cookie = "0.18"
+tokio-rustls = { version = "0.26", default-features = false, features = ["ring", "tls12"] }
+webpki-roots = "1"
 
 [dev-dependencies]
 axum = { version = "0.8", features = ["ws"] }

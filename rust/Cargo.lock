@@ -1289,12 +1289,14 @@ dependencies = [
  "sqlx",
  "subtle",
  "tokio",
+ "tokio-rustls",
  "tokio-tungstenite 0.27.0",
  "tower-http",
  "tracing",
  "tracing-subscriber",
  "url",
  "uuid",
+ "webpki-roots 1.0.12",
 ]
 
 [[package]]
