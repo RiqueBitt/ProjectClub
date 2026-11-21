@@ -4,10 +4,13 @@
 //! Rota já portada → responde aqui. O resto → [`proxy::forward`] repassa pro
 //! Node (HTTP e WebSocket), que passa a escutar numa porta interna.
 
+pub mod auth;
 pub mod cache;
 pub mod config;
+pub mod db;
 pub mod proxy;
 pub mod routes;
+pub mod users;
 
 use axum::Router;
 use axum::http::{HeaderName, HeaderValue};
@@ -22,6 +25,10 @@ pub struct AppState {
     pub http: proxy::HttpClient,
     /// cliente pra internet (GitHub etc.)
     pub web: reqwest::Client,
+    /// MySQL (None = sem DATABASE_URL: rotas que usam banco respondem erro)
+    pub db: Option<db::Db>,
+    pub tokens: auth::Tokens,
+    pub auth_cache: auth::AuthCache,
 }
 
 impl AppState {
@@ -30,11 +37,19 @@ impl AppState {
         let web = reqwest::Client::builder()
             .timeout(std::time::Duration::from_secs(15))
             .build()?;
+        let db = match config.database_url.as_deref() {
+            Some(url) => Some(db::connect_lazy(url)?),
+            None => None,
+        };
+        let tokens = auth::Tokens::new(&config.jwt_access_secret);
         Ok(Self {
             config,
             cache,
             http: proxy::client(),
             web,
+            db,
+            tokens,
+            auth_cache: auth::AuthCache::default(),
         })
     }
 }
@@ -54,6 +69,7 @@ fn ported() -> Router<AppState> {
             "/api/system/desktop-latest",
             get(routes::system::desktop_latest),
         )
+        .route("/api/auth/me", get(routes::auth::me))
         .layer(h("x-content-type-options", "nosniff"))
         .layer(h("x-frame-options", "SAMEORIGIN"))
         .layer(h("referrer-policy", "no-referrer"))

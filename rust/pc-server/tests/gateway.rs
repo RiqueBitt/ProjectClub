@@ -74,6 +74,8 @@ async fn gateway(node: SocketAddr) -> SocketAddr {
         node_env: "test".into(),
         redis_url: None,
         desktop_latest_url: format!("http://{node}/latest.yml"),
+        database_url: None,
+        jwt_access_secret: "teste".into(),
     };
     spawn(app(AppState::new(config).await.unwrap())).await
 }

@@ -48,7 +48,10 @@ Cada fase é publicável sozinha, só quando o dono liberar.
 
 - [x] Plano e branch `rust`
 - [x] Fase 1 — gateway (pronto no branch, ainda não está no ar)
-- [ ] Fase 2 — API rota por rota (próximo: auth/tokens)
+- [ ] Fase 2 — API rota por rota
+  - [x] banco (MySQL sem Prisma), token de acesso e `requireAuth`
+  - [x] `GET /api/auth/me`
+  - [ ] próximo: o resto do auth (login, refresh, logout, cadastro, 2FA, senha)
 
 ### Fase 1 — o que já tem
 
@@ -77,3 +80,22 @@ Variáveis novas: `PC_NODE_UPSTREAM` (onde o Node ficou; padrão
 Falta pra Fase 1 ir pro ar (quando o dono liberar): o CI compilar o binário
 Linux e pôr no branch `deploy`, e o start do app subir o Node na porta
 interna + o Rust na porta pública.
+
+### Fase 2 — o que já tem
+
+- `db.rs`: MySQL com as convenções do Prisma (datas em UTC no formato do
+  JavaScript, `updatedAt` à mão, ids UUID v4, números como o JS escreve).
+- `auth.rs`: o token de acesso é o **mesmo** do Node (HS256,
+  `JWT_ACCESS_SECRET`) — testado nos dois sentidos (token do Node vale no
+  Rust e vice-versa). O `requireAuth` faz o mesmo que o do Node, com as
+  mesmas mensagens e códigos: sem token, token ruim, conta inexistente,
+  banida (com motivo), suspensa, desativada, manutenção (só a staff passa,
+  cache de 5 s) e o "usou hoje" (`UserActiveDay`).
+- Máscara do "invisível" (`maskDeep` do Node) pronta pra todas as rotas.
+- `GET /api/auth/me`: mesmos campos e mesma ordem do Node em produção
+  (conferido em 21/11/2026), incluindo clã/ícone e pingente, número público
+  gerado na hora, insígnias de idade da conta e status personalizado vencido.
+
+Testes de banco: `PC_TEST_DATABASE_URL=mysql://root@127.0.0.1:3306 cargo test`
+(cada teste cria um banco novo com `tests/fixtures/schema.sql`, gerado do
+`schema.prisma`). No CI roda com MySQL 8.

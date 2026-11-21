@@ -9,6 +9,17 @@ on:
 jobs:
   test:
     runs-on: ubuntu-latest
+    # MySQL de verdade pros testes de banco (mesmo motor da produção)
+    services:
+      mysql:
+        image: mysql:8.0
+        env:
+          MYSQL_ROOT_PASSWORD: teste
+        ports: ['3306:3306']
+        options: >-
+          --health-cmd="mysqladmin ping -pteste" --health-interval=5s --health-timeout=5s --health-retries=20
+    env:
+      PC_TEST_DATABASE_URL: mysql://root:teste@127.0.0.1:3306
     defaults:
       run:
         working-directory: rust
