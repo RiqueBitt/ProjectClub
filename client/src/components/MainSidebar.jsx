@@ -7,7 +7,6 @@ import { useStore, isChannelUnread, isConversationUnread, useMyRoleIds } from '.
 import { useClaimableMissions } from '../utils/missionBadge';
 import { useAuth } from '../context/AuthContext.jsx';
 import topicIcon from '../assets/icons/nav-topic.png';
-import feedIcon from '../assets/icons/nav-feed.png';
 import friendsIcon from '../assets/icons/nav-profile.png';
 import ranksIcon from '../assets/icons/nav-ranks.png';
 import supportIcon from '../assets/icons/nav-support.png';
@@ -18,7 +17,7 @@ import dashboardIcon from '../assets/icons/nav-dashboard.png';
 import achievementsIcon from '../assets/icons/nav-achievements.png'; // eslint-disable-line no-unused-vars -- mantido: pode ser reaproveitado se algum dia a categoria Progresso ganhar submenu na própria sidebar
 import inicioIcon from '../assets/icons/nav-inicio.png';
 import { proxyImage } from '../utils/imageProxy';
-import { isChannelPath, isPostPath, isDmPath } from '../utils/prettyLinks';
+import { isChannelPath, isDmPath } from '../utils/prettyLinks';
 
 // Barra lateral principal única do app. A marca/logo agora mora na
 // TopSearchBar.jsx (barra de topo estilo Reddit) — esta barra só tem a
@@ -49,7 +48,7 @@ export const ITEMS = [
   { to: '/', icon: topicIcon, isImg: true, labelKey: 'nav.comunidade', match: (p) => p === '/' || isChannelPath(p) },
   // Item pedido: "mude o feed para cima e o amigos para baixo" — ordem
   // invertida (Feeds vem antes de Amigos agora).
-  { to: '/comunidades', icon: feedIcon, isImg: true, labelKey: 'nav.feeds', match: (p) => p === '/comunidades' || isPostPath(p) },
+  // Fórum removido do app (nov/2026, pedido do dono).
   // (removido do menu a pedido do dono — rota continua existindo)
   { to: '/dms', icon: friendsIcon, isImg: true, labelKey: 'nav.amigos', match: (p) => p === '/dms' || isDmPath(p) || p.startsWith('/clans') },
   // Praça (Club Penguin): virou o botão "Club Penguin" junto de Novidades e
@@ -179,8 +178,6 @@ export default function MainSidebar() {
   // sozinhas em tempo real via socket quando a staff cria/edita/exclui
   // um Tema (ver SocketContext.jsx). Temas não têm mais conceito de
   // "entrar" — são categorias oficiais, mostradas pra todo mundo.
-  const clubs = useStore((s) => s.clubs);
-  const sortedClubs = [...clubs].sort((a, b) => a.name.localeCompare(b.name));
 
   // Badges simples por item — não são um sistema de notificações à parte,
   // só reaproveitam o que o store já sabe (menções não lidas / conversas
@@ -245,30 +242,6 @@ export default function MainSidebar() {
           })}
         </nav>
 
-        <div className="main-sidebar-section">
-          <div className="main-sidebar-section-label">Temas</div>
-          <div className="main-sidebar-community-list">
-            {sortedClubs.map((c) => (
-              <button
-                key={c.id}
-                className={`main-sidebar-community-item ${location.pathname === `/comunidades/${c.slug}` ? 'active' : ''}`}
-                onClick={() => { navigate(`/comunidades/${c.slug}`); useStore.getState().closeMobileSidebar(); }}
-                title={c.name}
-              >
-                <span className="main-sidebar-community-icon">{c.iconUrl ? <img src={proxyImage(c.iconUrl)} alt="" /> : '📌'}</span>
-                <span className="main-sidebar-community-name truncate">{c.name}</span>
-              </button>
-            ))}
-            {sortedClubs.length === 0 && (
-              <div className="dim main-sidebar-community-empty">Nenhum Tema criado ainda.</div>
-            )}
-            {isStaff && (
-              <button className="main-sidebar-community-item main-sidebar-community-create" onClick={() => navigate('/comunidades')}>
-                <span className="main-sidebar-community-icon">➕</span>
-                <span className="main-sidebar-community-name">Criar Tema</span>
-              </button>
-            )}          </div>
-        </div>
       </div>
       {tooltip && createPortal(
         <div className="main-sidebar-item-tooltip-portal" style={{ top: tooltip.top, left: tooltip.left }}>

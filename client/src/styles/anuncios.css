@@ -49,3 +49,11 @@
   .an-row { grid-template-columns: 1fr; }
 }
 @media (prefers-reduced-motion: reduce) { .an-skeleton { animation: none; } }
+
+/* Novidades direto na Central (AnunciosPage embedded, InicioPage.jsx) */
+.an-embedded-inner { display: flex; flex-direction: column; gap: 14px; }
+.an-head.an-head-embedded { padding: 0; border: 0; background: none; border-radius: 0; gap: 10px; }
+.an-head-embedded .an-head-icon { width: 30px; height: 30px; border-radius: 9px; }
+.an-head-embedded h2 { margin: 0; font-size: 16px; font-weight: 700; color: var(--header-primary); }
+.an-head-embedded .an-btn { margin-left: auto; min-height: 32px; font-size: 13px; }
+.an-embedded .an-empty { padding: 26px 16px; border: 1px dashed var(--border); border-radius: 14px; }

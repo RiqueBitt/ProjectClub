@@ -94,7 +94,6 @@ const KINDS = [
 const SOURCES = [
   { key: 'all', label: 'Todos os lugares' },
   { key: 'channels', label: 'Canais' },
-  { key: 'posts', label: 'Fórum' },
 ];
 
 function timeAgo(iso) {
@@ -127,7 +126,7 @@ export default function CommunityGalleryPage() {
           <div className="cx-hero-text">
             <span className="cx-eyebrow">Canal em destaque</span>
             <h1>Galeria</h1>
-            <p>Fotos, vídeos e GIFs que a galera já compartilhou nos canais e no Fórum, tudo num lugar só.</p>
+            <p>Fotos, vídeos e GIFs que a galera já compartilhou nos canais, tudo num lugar só.</p>
           </div>
         </header>
         <div className="cxg-sections" role="tablist" aria-label="Seções da Galeria">
@@ -200,9 +199,11 @@ function GalleryMedia({ onAddToAlbum }) {
     return () => { alive = false; };
   }, [sort]);
 
-  const baseItems = sort === 'top'
-    ? (topData ? (topData.items || []).filter((i) => source === 'all' || (source === 'posts' ? i.source === 'post' : i.source === 'channel')) : null)
-    : items;
+  // Mídias de posts do Fórum não aparecem mais (o Fórum saiu do app em nov/2026).
+  const noPosts = (list) => (list ? list.filter((i) => i.source !== 'post') : list);
+  const baseItems = noPosts(sort === 'top'
+    ? (topData ? (topData.items || []).filter((i) => source === 'all' || i.source === 'channel') : null)
+    : items);
   const { likes, toggle, seed } = useGalleryLikes(baseItems);
   useEffect(() => { if (topData) seed(topData.counts, topData.mine); }, [topData, seed]);
 
@@ -256,7 +257,7 @@ function GalleryMedia({ onAddToAlbum }) {
           <div className="cx-empty">
             <span className="cx-empty-icon">{sort === 'top' ? <GIcon name="heart" size={26} /> : <FeaturedGlyph name="image" size={26} />}</span>
             <h3>{error && sort !== 'top' ? 'Algo deu errado' : sort === 'top' ? 'Nenhuma curtida ainda' : 'Nada por aqui ainda'}</h3>
-            <p>{sort === 'top' ? 'Curta as mídias que você gostar: as mais curtidas aparecem aqui.' : (error || 'Quando alguém mandar uma foto, vídeo ou GIF nos canais ou no Fórum, aparece aqui.')}</p>
+            <p>{sort === 'top' ? 'Curta as mídias que você gostar: as mais curtidas aparecem aqui.' : (error || 'Quando alguém mandar uma foto, vídeo ou GIF nos canais, aparece aqui.')}</p>
           </div>
         )}
         {!loading && visible.length > 0 && (

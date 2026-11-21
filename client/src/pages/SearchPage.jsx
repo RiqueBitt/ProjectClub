@@ -2,11 +2,11 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useStore, roomKeyFor } from '../store/useStore';
 import { useAuth } from '../context/AuthContext.jsx';
-import { searchUsers, listPosts, searchMessages } from '../api/endpoints';
+import { searchUsers, searchMessages } from '../api/endpoints';
 import UserAvatar from '../components/UserAvatar.jsx';
 import { Ico, PageHero, PillTabs, EmptyState, Skeleton } from '../components/PagesKit.jsx';
 import '../styles/search.css';
-import { roomPath, postPath, channelPath, conversationPath } from '../utils/prettyLinks';
+import { roomPath, channelPath, conversationPath } from '../utils/prettyLinks';
 
 // Destaca o trecho buscado dentro do texto (sem diferenciar maiúsculas).
 function Hl({ text, q }) {
@@ -31,7 +31,6 @@ function snippet(text, q, size = 110) {
 const TYPES = [
   { id: 'ALL', label: 'Tudo', icon: 'search' },
   { id: 'PEOPLE', label: 'Pessoas', icon: 'user' },
-  { id: 'POSTS', label: 'Posts', icon: 'news' },
   { id: 'MESSAGES', label: 'Mensagens', icon: 'chat' },
   { id: 'CHANNELS', label: 'Canais', icon: 'hash' },
   { id: 'CONVERSATIONS', label: 'Conversas', icon: 'mail' },
@@ -47,8 +46,6 @@ export default function SearchPage() {
   const [searchParams] = useSearchParams();
   const [query, setQuery] = useState(searchParams.get('q') || '');
   const [userResults, setUserResults] = useState([]);
-  const [postResults, setPostResults] = useState([]);
-  const [searchingPosts, setSearchingPosts] = useState(false);
   // Busca GLOBAL de mensagens: todos os canais que a pessoa pode ver + as
   // conversas dela (o servidor aplica as permissões). Aceita os mesmos
   // filtros do painel do canal (de:, tem:, em:#canal, antes:, depois:, fixada:).
@@ -96,7 +93,6 @@ export default function SearchPage() {
     clearTimeout(searchDebounceRef.current);
     searchDebounceRef.current = setTimeout(() => {
       runUserSearch(value);
-      runPostSearch(value);
       runMessageSearch(value);
     }, 300);
   };
@@ -136,19 +132,6 @@ export default function SearchPage() {
     setSearching(false);
   };
 
-  // Item pedido: busca também encontrando posts dos Feeds — reaproveita
-  // o mesmo listPosts que a página de Feeds já usa, só passando o termo
-  // digitado como filtro (ver o parâmetro `q` novo em
-  // postsController.listPosts).
-  const runPostSearch = async (value) => {
-    const ctrl = fresh('posts');
-    if (value.trim().length < 2) { setPostResults([]); setSearchingPosts(false); return; }
-    setSearchingPosts(true);
-    const { posts } = await listPosts({ q: value.trim(), sort: 'new' }, { signal: ctrl.signal }).catch(() => ({ posts: [] }));
-    if (ctrl.signal.aborted) return;
-    setPostResults(posts);
-    setSearchingPosts(false);
-  };
 
   // Chega já preenchida quando vem da busca do topo (TopSearchBar.jsx,
   // navega pra /search?q=...) — dispara a busca de usuários na hora, em
@@ -160,7 +143,7 @@ export default function SearchPage() {
     if (!urlQ) return;
     clearTimeout(searchDebounceRef.current);
     setQuery(urlQ);
-    runUserSearch(urlQ); runPostSearch(urlQ); runMessageSearch(urlQ);
+    runUserSearch(urlQ); runMessageSearch(urlQ);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [urlQ]);
 
@@ -170,10 +153,10 @@ export default function SearchPage() {
   };
 
   const counts = {
-    PEOPLE: userResults.length, POSTS: postResults.length, MESSAGES: messageResults.length, CHANNELS: channelResults.length, CONVERSATIONS: conversationResults.length,
+    PEOPLE: userResults.length, MESSAGES: messageResults.length, CHANNELS: channelResults.length, CONVERSATIONS: conversationResults.length,
   };
-  counts.ALL = counts.PEOPLE + counts.POSTS + counts.MESSAGES + counts.CHANNELS + counts.CONVERSATIONS;
-  const busy = searching || searchingPosts;
+  counts.ALL = counts.PEOPLE + counts.MESSAGES + counts.CHANNELS + counts.CONVERSATIONS;
+  const busy = searching;
   const show = (t) => type === 'ALL' || type === t;
   const cut = (list) => (type === 'ALL' ? list.slice(0, PREVIEW) : list);
 
@@ -199,7 +182,7 @@ export default function SearchPage() {
   return (
     <div className="search-page pk-page sr">
       <div className="pk-inner narrow">
-        <PageHero icon="search" eyebrow="Encontre qualquer coisa" title="Busca" desc="Pessoas, posts do Fórum, canais e conversas — tudo num só lugar.">
+        <PageHero icon="search" eyebrow="Encontre qualquer coisa" title="Busca" desc="Pessoas, mensagens, canais e conversas — tudo num só lugar.">
           <label className="sr-input-wrap">
             <Ico name="search" size={20} />
             <input
@@ -244,24 +227,6 @@ export default function SearchPage() {
                 </ul>
               </Section>
 
-              <Section id="POSTS" title="Posts" icon="news" loading={searchingPosts} total={postResults.length} emptyText="Nenhum post encontrado.">
-                <ul className="notifications-list sr-list">
-                  {cut(postResults).map((p) => (
-                    <li key={p.id} className="notifications-item sr-item sr-post" onClick={() => navigate(postPath(p))}>
-                      <span className="sr-item-icon"><Ico name="news" size={18} /></span>
-                      <div className="sr-item-body">
-                        <strong className="sr-post-title"><Hl text={p.title} q={q} /></strong>
-                        {p.content && <span className="sr-post-snippet"><Hl text={snippet(p.content, q)} q={q} /></span>}
-                        <span className="sr-meta">
-                          {p.community?.name && <span className="pk-chip brand">{p.community.name}</span>}
-                          {p.author?.displayName && <span>por {p.author.displayName}</span>}
-                          {typeof p.commentCount === 'number' && <span><Ico name="chat" size={13} /> {p.commentCount}</span>}
-                        </span>
-                      </div>
-                    </li>
-                  ))}
-                </ul>
-              </Section>
 
               <Section id="MESSAGES" title="Mensagens" icon="chat" loading={searchingMessages} total={messageResults.length} emptyText="Nenhuma mensagem encontrada. Dica: de:@nome · em:#canal · tem:imagem · antes:AAAA-MM-DD">
                 <ul className="notifications-list sr-list">

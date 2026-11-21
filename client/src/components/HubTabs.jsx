@@ -3,20 +3,12 @@ import { PillTabs } from './PagesKit.jsx';
 import '../styles/hub-tabs.css';
 
 // Barra de abas compartilhada pelas áreas que foram unificadas:
-//  - "Central" (/inicio + /anuncios + /comunidade/eventos) — antes Início e
-//    "Novidades" (Anúncios e Eventos) separados; unificados em nov/2026
 //  - Economia + Loja (/economia, /missoes, /loja)
 // Cada aba continua sendo a página que já existia (mesmos dados, rotas,
 // permissões e links profundos) — a unificação é de navegação, não de
 // dados: nada é fundido no banco.
 
-export const CENTRAL_TABS = [
-  { id: 'geral', label: 'Visão geral', icon: 'grid', to: '/inicio' },
-  { id: 'anuncios', label: 'Anúncios', icon: 'megaphone', to: '/anuncios' },
-  { id: 'eventos', label: 'Eventos', icon: 'calendar', to: '/comunidade/eventos' },
-];
-// Nome antigo (quando eram só Anúncios + Eventos).
-export const ANNOUNCE_EVENTS_TABS = CENTRAL_TABS;
+
 
 // "Loja" fica imediatamente à esquerda do Passe do clube (pedido).
 export const ECONOMY_HUB_TABS = [

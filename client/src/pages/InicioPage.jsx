@@ -2,34 +2,28 @@ import { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useStore } from '../store/useStore';
 import { useSocket } from '../context/SocketContext.jsx';
-import { listUpdates, listEvents, listYoutubeVideos, listFeaturedPosts, getPlatformStats, votePost, getUserProfile } from '../api/endpoints';
+import { listUpdates, listEvents, listYoutubeVideos, getPlatformStats, getUserProfile } from '../api/endpoints';
 import { useAuth } from '../context/AuthContext.jsx';
 import { useVoice } from '../context/VoiceContext.jsx';
 import UserAvatar from '../components/UserAvatar.jsx';
-import { PostCard } from './CommunitiesPage.jsx';
+import AnunciosPage from './AnunciosPage.jsx';
+import EventsCalendar from '../components/EventsCalendar.jsx';
+import { useMarkSectionSeen } from '../utils/sectionBadges';
 import { renderRichContent } from '../utils/richTextRender.jsx';
 import { proxyImage } from '../utils/imageProxy';
-import { hour12Option } from '../utils/formatTime';
 import inicioIcon from '../assets/icons/logo-project-club.png';
 import { useLiveRefresh, sameData } from '../utils/liveRefresh';
 import { bootSection, onBootSection, bootstrapActive } from '../utils/bootstrap';
 import ArenaPromo from '../cards/ArenaPromo.jsx';
 import MinecraftStatusCard from '../components/MinecraftStatusCard.jsx';
 import { isFeatureEnabled } from '../utils/features';
-import { channelPath, postPath, eventPath } from '../utils/prettyLinks';
-import { api } from '../api/client';
-import { setEventRsvp } from '../api/social';
+import { channelPath, eventPath } from '../utils/prettyLinks';
 import { useCommunityHome, HomeCommunityMain, HomeCommunitySide } from '../components/community/HomeCommunity.jsx';
 
-const EVENT_STATUS_LABEL = { UPCOMING: 'Em breve', ACTIVE: 'Ativo', ENDED: 'Encerrado' };
 // Item pedido: mostra só os 4 vídeos mais recentes do canal.
 const VIDEOS_SHOWN = 6;
 const UPDATE_COLLAPSED_LINES = 6;
 
-function formatEventDate(iso) {
-  if (!iso) return null;
-  return new Date(iso).toLocaleDateString('pt-BR', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit', hour12: hour12Option() });
-}
 
 // Item pedido: "adicione os - ** __ que deixa mais bonito" — o app já
 // tem um parser de markdown leve (**negrito**, __sublinhado__, etc —
@@ -102,23 +96,6 @@ function greeting() {
   return 'Boa noite';
 }
 
-// "há 2 h", "há 3 dias"…
-function timeAgo(iso) {
-  if (!iso) return '';
-  const min = Math.round((Date.now() - new Date(iso).getTime()) / 60000);
-  if (min < 1) return 'agora';
-  if (min < 60) return `há ${min} min`;
-  const h = Math.round(min / 60);
-  if (h < 24) return `há ${h} h`;
-  const d = Math.round(h / 24);
-  return d === 1 ? 'ontem' : `há ${d} dias`;
-}
-// Texto puro (sem marcação) pra prévia de um anúncio.
-const plainSnippet = (text, max = 140) => {
-  const t = String(text || '').replace(/[*_~`>#|[\]()]/g, '').replace(/\s+/g, ' ').trim();
-  return t.length > max ? `${t.slice(0, max - 1)}…` : t;
-};
-
 const fmtNum = (n) => (typeof n === 'number' ? n.toLocaleString('pt-BR') : '—');
 
 // Ícones SVG (traço) das seções e atalhos — sem emoji.
@@ -133,6 +110,7 @@ const HOME_ICONS = {
   play: 'M7 5v14l11-7L7 5Z',
   news: 'M4 5h13v14H6a2 2 0 0 1-2-2V5Zm13 4h3v8a2 2 0 0 1-2 2M8 9h5M8 13h5',
   arrow: 'M9 6l6 6-6 6',
+  coin: 'M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18zM12 7.6l1.3 2.65 2.9.42-2.1 2.05.5 2.9L12 14.25l-2.6 1.37.5-2.9-2.1-2.05 2.9-.42z',
   megaphone: 'M3 11v2a1 1 0 0 0 1 1h2l5 4V6L6 10H4a1 1 0 0 0-1 1zM15 9a3 3 0 0 1 0 6M18 6a7 7 0 0 1 0 12',
   check: 'M20 6 9 17l-5-5',
 };
@@ -174,11 +152,11 @@ export default function InicioPage() {
   const [updates, setUpdates] = useState(null);
   const [events, setEvents] = useState(null);
   const [videos, setVideos] = useState(null);
-  const [featuredPosts, setFeaturedPosts] = useState(null);
   const [stats, setStats] = useState(null);
   const [me, setMe] = useState(null);
-  // Anúncios da staff (aba Anúncios da Central): o mais recente aparece em "Acontecendo agora".
-  const [announcements, setAnnouncements] = useState(null);
+  // A Central mostra as Novidades (anúncios) e o calendário de eventos: abrir
+  // a página apaga a bolinha "novo" das duas.
+  useMarkSectionSeen('eventos');
   // Fase 4: temporada, metas coletivas, post da semana, aniversários, Clubes.
   const communityHome = useCommunityHome();
 
@@ -187,9 +165,7 @@ export default function InicioPage() {
     // Eventos: reaproveita o pacote de abertura se ele acabou de chegar (utils/bootstrap.js).
     (bootSection('events') || listEvents()).then((d) => setEvents(d.events)).catch(() => setEvents([]));
     listYoutubeVideos().then((d) => setVideos(d.videos)).catch(() => setVideos([]));
-    listFeaturedPosts().then((d) => setFeaturedPosts(d.posts)).catch(() => setFeaturedPosts([]));
     getPlatformStats().then(setStats).catch(() => setStats(null));
-    api.get('/anuncios').then((r) => setAnnouncements(r.data?.announcements || [])).catch(() => setAnnouncements([]));
     // Perfil completo traz o progresso do nível (levelProgress).
     if (user?.id) getUserProfile(user.id).then((d) => setMe(d)).catch(() => setMe(null));
   }, [user?.id]);
@@ -200,7 +176,6 @@ export default function InicioPage() {
   useLiveRefresh(async (ctx) => {
     const { put } = ctx;
     await Promise.allSettled([
-      listFeaturedPosts().then((d) => put(setFeaturedPosts)(d.posts)),
       user?.id ? getUserProfile(user.id).then(put(setMe)) : null,
     ]);
   }, { interval: 22000 });
@@ -226,15 +201,12 @@ export default function InicioPage() {
     const onEventNew = (entry) => setEvents((list) => (list ? [entry, ...list] : list));
     const onEventUpdate = (entry) => setEvents((list) => (list ? list.map((e) => (e.id === entry.id ? entry : e)) : list));
     const onEventDelete = ({ id }) => setEvents((list) => (list ? list.filter((e) => e.id !== id) : list));
-    const onAnnouncements = () => api.get('/anuncios').then((r) => setAnnouncements(r.data?.announcements || [])).catch(() => {});
-    socket.on('announcements:update', onAnnouncements);
     socket.on('update:new', onUpdateNew);
     socket.on('update:edit', onUpdateEdit);
     socket.on('event:new', onEventNew);
     socket.on('event:update', onEventUpdate);
     socket.on('event:delete', onEventDelete);
     return () => {
-      socket.off('announcements:update', onAnnouncements);
       socket.off('update:new', onUpdateNew);
       socket.off('update:edit', onUpdateEdit);
       socket.off('event:new', onEventNew);
@@ -243,12 +215,6 @@ export default function InicioPage() {
     };
   }, [socket]);
 
-  const onVotePost = async (post, value) => {
-    const nextMyVote = post.myVote === value ? 0 : value;
-    const delta = nextMyVote - post.myVote;
-    setFeaturedPosts((list) => list.map((p) => (p.id === post.id ? { ...p, myVote: nextMyVote, score: p.score + delta } : p)));
-    try { await votePost(post.id, value); } catch { listFeaturedPosts().then((d) => setFeaturedPosts(d.posts)).catch(() => {}); }
-  };
 
   const visibleVideos = useMemo(() => videos?.slice(0, VIDEOS_SHOWN) ?? [], [videos]);
 
@@ -271,32 +237,15 @@ export default function InicioPage() {
   const progress = me?.levelProgress ?? 0;
   const upcomingEvents = (events || []).filter((e) => e.status !== 'ENDED')
     .sort((a, b) => new Date(a.startsAt || 0) - new Date(b.startsAt || 0));
-  // "Acontecendo agora": o evento ao vivo (ou o próximo) e o último anúncio.
+  // "Acontecendo agora": só quando tem evento ao vivo.
   const liveEvent = upcomingEvents.find((e) => e.status === 'ACTIVE');
-  const spotlightEvent = liveEvent || upcomingEvents[0] || null;
-  const latestAnnouncement = (announcements || [])[0] || null;
   const peopleInCalls = liveCalls.reduce((n, c) => n + c.people.length, 0);
-
-  // "Eu vou" direto da lista (clicar de novo desfaz).
-  const toggleGoing = async (ev) => {
-    const rsvp = ev.rsvp || { counts: { GOING: 0, MAYBE: 0, NO: 0 }, mine: null };
-    const next = rsvp.mine === 'GOING' ? null : 'GOING';
-    const counts = { ...rsvp.counts };
-    if (rsvp.mine) counts[rsvp.mine] = Math.max(0, (counts[rsvp.mine] || 0) - 1);
-    if (next) counts[next] = (counts[next] || 0) + 1;
-    const patch = (r) => setEvents((list) => (list ? list.map((e) => (e.id === ev.id ? { ...e, rsvp: r } : e)) : list));
-    patch({ ...rsvp, counts, mine: next });
-    try {
-      const r = await setEventRsvp(ev.id, next);
-      if (r?.rsvp) patch({ ...r.rsvp, mine: r.mine !== undefined ? r.mine : next });
-    } catch { patch(rsvp); }
-  };
 
   const disabledSystems = useStore((st) => st.disabledSystems) || [];
   const shortcuts = [
     firstText && { icon: 'chat', label: 'Conversar', hint: `#${firstText.name}`, to: channelPath(firstText) },
-    { icon: 'feed', label: 'Fórum', hint: 'Posts e temas', to: '/comunidades' },
     { icon: 'social', label: 'Amigos', hint: 'Amigos e mensagens', to: '/dms' },
+    { icon: 'coin', label: 'Economia', hint: 'Moedas, missões e Loja', to: '/economia' },
     { icon: 'star', label: 'Progresso', hint: 'Ranks e conquistas', to: '/progresso' },
   ].filter(Boolean);
 
@@ -322,34 +271,19 @@ export default function InicioPage() {
         </div>
       </header>
 
-      {(spotlightEvent || latestAnnouncement) && (
+      {liveEvent && (
         <section className="home-now" aria-label="Acontecendo agora">
-          <p className="home-label">{liveEvent ? 'Acontecendo agora' : 'Fique por dentro'}</p>
-          <div className="home-now-grid">
-            {spotlightEvent && (
-              <button type="button" className={`home-now-card home-now-event${liveEvent ? ' is-live' : ''}`} onClick={() => navigate(eventPath(spotlightEvent))}>
-                <span className="home-now-top">
-                  {liveEvent ? <span className="home-now-live">Ao vivo</span> : <span className="home-now-soon">Próximo evento</span>}
-                  <strong className="truncate">{spotlightEvent.title}</strong>
-                </span>
-                <span className="home-now-sub">
-                  {spotlightEvent.startsAt && !liveEvent ? `${formatEventDate(spotlightEvent.startsAt)} · ` : ''}
-                  {(spotlightEvent.rsvp?.counts?.GOING || 0)} confirmado{(spotlightEvent.rsvp?.counts?.GOING || 0) === 1 ? '' : 's'}
-                </span>
-                <span className="home-now-cta">{liveEvent ? 'Entrar' : 'Ver evento'}</span>
-              </button>
-            )}
-            {latestAnnouncement && (
-              <button type="button" className="home-now-card home-now-ann" onClick={() => navigate('/anuncios')}>
-                <span className="home-now-top">
-                  <HomeIcon name="megaphone" size={16} />
-                  <strong className="truncate">{latestAnnouncement.title || 'Último anúncio'}</strong>
-                  <time dateTime={latestAnnouncement.createdAt}>{timeAgo(latestAnnouncement.createdAt)}</time>
-                </span>
-                <span className="home-now-sub home-now-snippet">{plainSnippet(latestAnnouncement.body)}</span>
-              </button>
-            )}
-          </div>
+          <p className="home-label">Acontecendo agora</p>
+          <button type="button" className="home-now-card home-now-event is-live" onClick={() => navigate(eventPath(liveEvent))}>
+            <span className="home-now-top">
+              <span className="home-now-live">Ao vivo</span>
+              <strong className="truncate">{liveEvent.title}</strong>
+            </span>
+            <span className="home-now-sub">
+              {(liveEvent.rsvp?.counts?.GOING || 0)} confirmado{(liveEvent.rsvp?.counts?.GOING || 0) === 1 ? '' : 's'}
+            </span>
+            <span className="home-now-cta">Entrar</span>
+          </button>
         </section>
       )}
 
@@ -372,55 +306,11 @@ export default function InicioPage() {
 
       <div className="home-grid">
         <div className="home-main">
+          {/* Novidades da staff com banner e texto, direto aqui (antes era uma aba). */}
+          <section className="home-section home-news">
+            <AnunciosPage embedded />
+          </section>
           <HomeCommunityMain home={communityHome} />
-          <Section
-            icon="calendar" title="Próximos eventos"
-            action={<button type="button" className="home-link" onClick={() => navigate('/comunidade/eventos')}>Ver todos</button>}
-          >
-            {events === null && <Empty>Carregando…</Empty>}
-            {events !== null && upcomingEvents.length === 0 && <Empty>Nenhum evento agendado. Fique de olho: quando a equipe criar um, ele aparece aqui.</Empty>}
-            {upcomingEvents.length > 0 && (
-              <ul className="home-evlist">
-                {upcomingEvents.slice(0, 5).map((ev) => {
-                  const d = ev.startsAt ? new Date(ev.startsAt) : null;
-                  const going = ev.rsvp?.counts?.GOING || 0;
-                  const mine = ev.rsvp?.mine === 'GOING';
-                  return (
-                    <li key={ev.id} className="home-ev">
-                      <span className={`home-ev-date${ev.status === 'ACTIVE' ? ' is-live' : ''}`} aria-hidden="true">
-                        {ev.status === 'ACTIVE' ? <b>Ao vivo</b> : d ? <><b>{String(d.getDate()).padStart(2, '0')}</b>{d.toLocaleDateString('pt-BR', { month: 'short' }).replace('.', '')}</> : <b>—</b>}
-                      </span>
-                      <button type="button" className="home-ev-main" onClick={() => navigate(eventPath(ev))}>
-                        <strong className="truncate">{ev.title}</strong>
-                        <span className="truncate">
-                          {d ? d.toLocaleString('pt-BR', { weekday: 'short', hour: '2-digit', minute: '2-digit', hour12: hour12Option() }) : EVENT_STATUS_LABEL[ev.status]}
-                          {` · ${going} vão`}
-                        </span>
-                      </button>
-                      <button type="button" className={`home-ev-go${mine ? ' on' : ''}`} aria-pressed={mine} onClick={() => toggleGoing(ev)}>
-                        {mine && <HomeIcon name="check" size={13} />} Vou
-                      </button>
-                    </li>
-                  );
-                })}
-              </ul>
-            )}
-          </Section>
-
-          <Section
-            icon="fire" title="Em alta no Fórum"
-            action={<button type="button" className="home-link" onClick={() => navigate('/comunidades')}>Ver Fórum</button>}
-          >
-            {featuredPosts === null && <Empty>Carregando…</Empty>}
-            {featuredPosts?.length === 0 && <Empty>Ainda não tem posts em destaque este mês. Que tal publicar o primeiro?</Empty>}
-            {featuredPosts?.length > 0 && (
-              <div className="home-posts">
-                {featuredPosts.map((post) => (
-                  <PostCard key={post.id} post={post} onVote={onVotePost} onOpen={() => navigate(postPath(post))} />
-                ))}
-              </div>
-            )}
-          </Section>
 
           {videos?.length > 0 && (
             <Section icon="play" title="Vídeos do MrPinguim">
@@ -440,6 +330,12 @@ export default function InicioPage() {
         </div>
 
         <aside className="home-side">
+          <Section
+            icon="calendar" title="Calendário de eventos" className="home-card"
+            action={<button type="button" className="home-link" onClick={() => navigate('/comunidade/eventos')}>Ver todos</button>}
+          >
+            <EventsCalendar events={events} />
+          </Section>
           <HomeCommunitySide home={communityHome} />
           <Section icon="voice" title="Em chamada agora" className="home-card">
             {liveCalls.length === 0 && <Empty>Ninguém em chamada. Entre numa sala e chame o pessoal.</Empty>}

@@ -7,7 +7,7 @@ import { useNavigate } from 'react-router-dom';
 import { useLiveRefresh, sameData } from '../../utils/liveRefresh';
 import { useStore } from '../../store/useStore';
 import { useAuth } from '../../context/AuthContext.jsx';
-import { createConversation, sendFriendRequest, assignRole, unassignRole, voteProfile, listPosts, listApprovedTestimonials, writeTestimonial, listScraps, writeScrap, deleteScrap, toggleFan, registerProfileVisit, toggleTrait, sendRelationshipRequest, endRelationship as endRelationshipApi, listPhotosByOwner, voteProfilePoll, upcomingBirthdaysAmongFriends } from '../../api/endpoints';
+import { createConversation, sendFriendRequest, assignRole, unassignRole, voteProfile, listApprovedTestimonials, writeTestimonial, listScraps, writeScrap, deleteScrap, toggleFan, registerProfileVisit, toggleTrait, sendRelationshipRequest, endRelationship as endRelationshipApi, listPhotosByOwner, voteProfilePoll, upcomingBirthdaysAmongFriends } from '../../api/endpoints';
 import { STATUS_LABEL } from '../../utils/status';
 import PresenceDot from '../PresenceDot.jsx';
 import { renderRichContent } from '../../utils/richTextRender.jsx';
@@ -59,7 +59,7 @@ import { updateProfile, uploadAvatar, uploadBanner, reportUserProfile } from '..
 // PfIcon/PfCard moveram pra profileParts.jsx (re-exportados aqui).
 import { PfIcon, PfCard } from './profileParts.jsx';
 import { looksLikeGif, isGifByContent, GIF_AVATAR_MAX_MB } from '../../utils/gifDetect';
-import { conversationPath, postPath } from '../../utils/prettyLinks';
+import { conversationPath } from '../../utils/prettyLinks';
 import { getReputation } from '../../api/community';
 import RoleIcon from '../RoleIcon.jsx';
 export { PfIcon, PfCard };
@@ -293,16 +293,7 @@ export default function UserProfileModal() {
     return () => { alive = false; };
   }, [userId]);
 
-  // NOVO (fusão com o Reddit clone — item 5): atividade em Comunidades —
-  // posts recentes da pessoa + Ups (soma dos scores) num cantinho do
-  // próprio perfil, igual ao Reddit mostra na página de qualquer usuário.
-  const [redditActivity, setRedditActivity] = useState(null);
-  useEffect(() => {
-    if (!userId) { setRedditActivity(null); return; }
-    setRedditActivity(null);
-    if (!lazyOn.posts) return;
-    listPosts({ authorId: userId, sort: 'new' }).then((d) => setRedditActivity(d.posts)).catch(() => setRedditActivity([]));
-  }, [userId, lazyOn.posts]);
+  // A seção "Atividade em clubes" (posts do Fórum) saiu junto com o Fórum (nov/2026).
 
   // Item pedido: sistemas estilo Orkut — depoimentos, recados (scraps)
   // e "sou fã", carregados junto do resto do perfil, mesmo padrão dos
@@ -657,7 +648,6 @@ export default function UserProfileModal() {
     const { put } = ctx;
     const jobs = [];
     if (isMe && !HIDE_BIRTHDAYS) jobs.push(upcomingBirthdaysAmongFriends().then(put(setBirthdays)));
-    if (lazyOn.posts) jobs.push(listPosts({ authorId: userId, sort: 'new' }).then((d) => put(setRedditActivity)(d.posts)));
     if (lazyOn.album) jobs.push(listPhotosByOwner(userId).then((d) => { put(setPhotoPreview)(d.photos.slice(0, 3)); put(setPhotoTotal)(d.total); }));
     if (lazyOn.scraps) jobs.push(listScraps(userId).then((d) => { put(setScraps)(d.scraps); put(setScrapTotal)(d.total ?? d.scraps.length); }));
     if (lazyOn.testimonials) jobs.push(listApprovedTestimonials(userId).then((d) => { put(setTestimonials)(d.testimonials); put(setTestimonialTotal)(d.total ?? d.testimonials.length); }));
@@ -849,29 +839,8 @@ export default function UserProfileModal() {
         />
       )
     ),
-    community_activity: (
-      // Ainda não apareceu na tela: só um marcador vazio pra saber quando buscar.
-      redditActivity === null ? <div ref={lazyRef('posts')} className="pf-lazy-sentinel" aria-hidden="true" /> : redditActivity.length > 0 && (
-        <PfCard icon="flame" title="Atividade em clubes" count={`${redditActivity.reduce((sum, p) => sum + p.score, 0)} Ups`}>
-          <div className="pf-list">
-            {redditActivity.slice(0, 5).map((post) => (
-              <button
-                key={post.id}
-                className="pf-post"
-                onClick={() => { closeProfile(); navigate(postPath(post)); }}
-              >
-                <span className="pf-post-score"><PfIcon name="up" size={12} strokeWidth={2.4} />{post.score}</span>
-                <span className="pf-post-info">
-                  <span className="pf-post-title">{post.title}</span>
-                  <span className="pf-post-club">c/{post.community.name}</span>
-                </span>
-                <span className="pf-post-arrow"><PfIcon name="arrow" size={14} /></span>
-              </button>
-            ))}
-          </div>
-        </PfCard>
-      )
-    ),
+    // Fórum removido do app (nov/2026): a seção de posts não aparece mais.
+    community_activity: null,
     roles: (
       member && (memberRoles.length > 0 || canManageRoles) && (
         <PfCard icon="shield" title="Cargos na comunidade" count={memberRoles.length} innerRef={rolesSectionRef}>

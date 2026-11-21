@@ -20,7 +20,6 @@ import { postPath } from '../utils/prettyLinks';
 
 const FILTERS = [
   { key: 'all', label: 'Tudo', icon: 'spark' },
-  { key: 'post', label: 'Posts', icon: 'post' },
   { key: 'modpack', label: 'Modpacks', icon: 'box' },
   { key: 'achievement', label: 'Conquistas', icon: 'trophy' },
   { key: 'level', label: 'Níveis', icon: 'star' },
@@ -127,7 +126,8 @@ export default function AtividadePage() {
 
   const allItems = useMemo(() => {
     const seen = new Set();
-    return [...(data?.items || []), ...extra].filter((i) => (seen.has(i.key) ? false : seen.add(i.key)));
+    // Posts do Fórum não aparecem mais (o Fórum saiu do app em nov/2026).
+    return [...(data?.items || []), ...extra].filter((i) => i.type !== 'post' && (seen.has(i.key) ? false : seen.add(i.key)));
   }, [data, extra]);
   const items = filter === 'all' ? allItems : allItems.filter((i) => i.type === filter);
 
@@ -175,7 +175,7 @@ export default function AtividadePage() {
           <span className="sx-head-icon"><Ico name="spark" size={26} /></span>
           <div className="sx-head-text">
             <h1>Atividade</h1>
-            <p>O que seus amigos andam fazendo: jogos, posts, modpacks, conquistas e níveis.</p>
+            <p>O que seus amigos andam fazendo: jogos, modpacks, conquistas e níveis.</p>
           </div>
           {data && !noFriends && (
             <div className="sx-head-stats">
