@@ -41,6 +41,7 @@ webpki-roots = "1"
 mysql_async = { version = "0.37.1", default-features = false, features = ["minimal-rust", "chrono", "rustls-tls", "ring", "tls12", "tracing"] }
 qrcode = { version = "0.14", default-features = false }
 png = "0.17"
+regex = "1"
 
 [dev-dependencies]
 sqlx = { version = "0.8", default-features = false, features = ["runtime-tokio", "tls-rustls", "mysql", "chrono"] }

@@ -56,8 +56,9 @@ Cada fase é publicável sozinha, só quando o dono liberar.
   - [x] proteções globais do Node nas rotas do Rust (IP bloqueado, helmet, CORS, corpo)
   - [x] cadastro (410), verificação de e-mail, esqueci/redefinir senha,
         2FA (ativar, códigos de recuperação, desativar), trocar senha
-  - [ ] próximo: sessões (listar/encerrar), desativar/excluir conta, troca
-        rápida de conta, passkeys, login por QR e OAuth
+  - [x] aparelhos conectados (listar, encerrar um, sair dos outros),
+        desativar/excluir conta, troca rápida de conta
+  - [ ] próximo: passkeys, login por QR, app-handoff, OAuth e exportar dados
 
 ### Fase 1 — o que já tem
 
@@ -186,3 +187,17 @@ Produção (21/11/2026, depois das rotas de conta): `register` (410),
 `forgot-password` com e-mail inexistente (200), `verify-email/send` sem
 login (401), `reset-password` com link inválido e sem corpo (400) e
 `GET 2fa/recovery-codes` de 8 contas reais — tudo idêntico ao Node.
+
+### Aparelhos, conta e troca rápida
+
+- `GET /api/auth/sessions`, `DELETE /api/auth/sessions/other` e
+  `DELETE /api/auth/sessions/{id}` — nome do aparelho e IP mascarado com as
+  mesmas regras do Node (`describeDevice`/`maskIp`), encerra a família
+  inteira da sessão (inclusive um filho nascendo numa rotação) e grava o
+  `SecurityLog` (só o hash do IP).
+- `POST /api/auth/deactivate` e `POST /api/auth/delete-account` — senha,
+  transação, derruba o "lembrar login" e os sockets abertos pela ponte nova
+  `POST /api/internal/kick` (o Socket.IO continua no Node).
+- `POST /api/auth/switch/remember`, `/switch` e `/switch/forget` — até 10
+  contas salvas por pessoa, 90 dias, a sessão atual do aparelho sai antes de
+  entrar na outra.

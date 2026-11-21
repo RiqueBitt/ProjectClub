@@ -73,6 +73,25 @@ pub async fn send_email(state: &AppState, body: serde_json::Value) {
     }
 }
 
+/// `io.kickUser`: avisa o evento nos sockets da pessoa e desconecta todos.
+pub fn kick(state: &AppState, user_id: &str, event: &str, payload: serde_json::Value) {
+    let url = format!("{}/api/internal/kick", state.config.node_upstream);
+    let secret = internal_secret(&state.config.jwt_access_secret);
+    let body = json!({ "userId": user_id, "event": event, "payload": payload });
+    let web = state.web.clone();
+    tokio::spawn(async move {
+        if let Err(e) = web
+            .post(&url)
+            .header("x-pc-internal", secret)
+            .json(&body)
+            .send()
+            .await
+        {
+            tracing::error!("[kick] {e}");
+        }
+    });
+}
+
 #[cfg(test)]
 mod tests {
     #[test]

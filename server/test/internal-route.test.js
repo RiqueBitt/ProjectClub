@@ -40,3 +40,26 @@ test('sem o cabeçalho certo responde 404', async () => {
     server.close();
   }
 });
+
+test('/kick derruba os sockets da pessoa pelo io do app', async () => {
+  const express = require('express');
+  const { router } = require('../src/routes/internal');
+  const app = express();
+  const kicked = [];
+  app.set('io', { kickUser: (...args) => kicked.push(args) });
+  app.use(express.json());
+  app.use('/api/internal', router);
+  const server = app.listen(0);
+  const port = server.address().port;
+  const post = (body) => fetch(`http://127.0.0.1:${port}/api/internal/kick`, {
+    method: 'POST', headers: { 'x-pc-internal': internalSecret(), 'content-type': 'application/json' }, body: JSON.stringify(body),
+  });
+  try {
+    assert.strictEqual((await post({ userId: 'u1' })).status, 400);
+    const ok = await post({ userId: 'u1', event: 'account:disabled', payload: { temporary: true } });
+    assert.strictEqual(ok.status, 200);
+    assert.deepStrictEqual(kicked, [['u1', 'account:disabled', { temporary: true }]]);
+  } finally {
+    server.close();
+  }
+});

@@ -23,7 +23,7 @@ pub mod web;
 use axum::Router;
 use axum::http::StatusCode;
 use axum::middleware::from_fn_with_state;
-use axum::routing::{any, get, post};
+use axum::routing::{any, delete, get, post};
 use tower_http::compression::CompressionLayer;
 
 #[derive(Clone)]
@@ -115,6 +115,29 @@ fn ported(state: &AppState) -> Router<AppState> {
         )
         .route("/api/auth/refresh", post(routes::session::refresh))
         .route("/api/auth/logout", post(routes::session::logout))
+        .route("/api/auth/sessions", get(routes::devices::list))
+        .route(
+            "/api/auth/sessions/other",
+            delete(routes::devices::revoke_others),
+        )
+        .route(
+            "/api/auth/sessions/{id}",
+            delete(routes::devices::revoke_one),
+        )
+        .route(
+            "/api/auth/delete-account",
+            post(routes::devices::delete_account),
+        )
+        .route("/api/auth/deactivate", post(routes::devices::deactivate))
+        .route(
+            "/api/auth/switch/remember",
+            post(routes::devices::switch_remember),
+        )
+        .route("/api/auth/switch", post(routes::devices::switch))
+        .route(
+            "/api/auth/switch/forget",
+            post(routes::devices::switch_forget),
+        )
         // rotas internas (Rust → Node) não existem pra quem vem de fora
         .route("/api/internal", any(not_found))
         .route("/api/internal/{*rest}", any(not_found))

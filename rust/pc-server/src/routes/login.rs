@@ -35,30 +35,42 @@ fn server_error() -> Response {
 }
 
 /// O que o login precisa da conta.
-struct LoginUser {
-    id: String,
-    password_hash: String,
-    failed_login_attempts: i64,
-    login_locked_until: Option<NaiveDateTime>,
-    is_platform_banned: bool,
-    platform_ban_reason: Option<String>,
-    suspended_until: Option<NaiveDateTime>,
-    account_disabled_at: Option<NaiveDateTime>,
-    two_factor_enabled: bool,
-    two_factor_secret: Option<String>,
-    two_factor_last_used_step: Option<i64>,
-    self_deactivated_at: Option<NaiveDateTime>,
+pub(crate) struct LoginUser {
+    pub(crate) id: String,
+    pub(crate) password_hash: String,
+    pub(crate) failed_login_attempts: i64,
+    pub(crate) login_locked_until: Option<NaiveDateTime>,
+    pub(crate) is_platform_banned: bool,
+    pub(crate) platform_ban_reason: Option<String>,
+    pub(crate) suspended_until: Option<NaiveDateTime>,
+    pub(crate) account_disabled_at: Option<NaiveDateTime>,
+    pub(crate) two_factor_enabled: bool,
+    pub(crate) two_factor_secret: Option<String>,
+    pub(crate) two_factor_last_used_step: Option<i64>,
+    pub(crate) self_deactivated_at: Option<NaiveDateTime>,
 }
 
 async fn find_user(db: &Db, identifier: &str) -> DbResult<Option<LoginUser>> {
-    let row = db::first(
+    load_user(
         db,
-        "SELECT id, passwordHash, failedLoginAttempts, loginLockedUntil, isPlatformBanned, platformBanReason, \
-         suspendedUntil, accountDisabledAt, twoFactorEnabled, twoFactorSecret, twoFactorLastUsedStep, selfDeactivatedAt \
-         FROM `User` WHERE email = ? OR username = ? LIMIT 1",
+        "email = ? OR username = ?",
         params![identifier.to_lowercase(), identifier],
     )
-    .await?;
+    .await
+}
+
+/// A conta pelo id (troca rápida de conta).
+pub(crate) async fn find_user_by_id(db: &Db, id: &str) -> DbResult<Option<LoginUser>> {
+    load_user(db, "id = ?", params![id]).await
+}
+
+async fn load_user(db: &Db, cond: &str, p: Vec<db::Value>) -> DbResult<Option<LoginUser>> {
+    let sql = format!(
+        "SELECT id, passwordHash, failedLoginAttempts, loginLockedUntil, isPlatformBanned, platformBanReason, \
+         suspendedUntil, accountDisabledAt, twoFactorEnabled, twoFactorSecret, twoFactorLastUsedStep, selfDeactivatedAt \
+         FROM `User` WHERE {cond} LIMIT 1"
+    );
+    let row = db::first(db, &sql, p).await?;
     row.map(|r| {
         Ok(LoginUser {
             id: db::get(&r, "id")?,
@@ -220,9 +232,9 @@ fn pt_br_datetime(d: NaiveDateTime) -> String {
     d.format("%d/%m/%Y, %H:%M:%S").to_string()
 }
 
-struct Req {
-    user_agent: Option<String>,
-    ip: Option<String>,
+pub(crate) struct Req {
+    pub(crate) user_agent: Option<String>,
+    pub(crate) ip: Option<String>,
 }
 
 pub async fn login(State(state): State<AppState>, parts: Parts, body: Bytes) -> Response {
@@ -399,7 +411,7 @@ async fn login_inner(
 
 /// `completeLogin`: zera os erros, abre a sessão, avisa de aparelho novo e
 /// reativa conta desativada pela própria pessoa.
-async fn complete_login(
+pub(crate) async fn complete_login(
     state: &AppState,
     db: &Db,
     req: &Req,

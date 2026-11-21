@@ -3,6 +3,7 @@
 
 pub mod account;
 pub mod auth;
+pub mod devices;
 pub mod login;
 pub mod session;
 pub mod system;

@@ -62,4 +62,13 @@ router.post('/email', async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
+// Derruba os sockets de uma pessoa (conta desativada/excluída pelo Rust):
+// o mesmo io.kickUser que o Node usa — avisa o evento e desconecta.
+router.post('/kick', (req, res) => {
+  const { userId, event, payload } = req.body || {};
+  if (typeof userId !== 'string' || typeof event !== 'string') return res.status(400).json({ error: 'userId e event obrigatórios.' });
+  req.app.get('io')?.kickUser?.(userId, event, payload && typeof payload === 'object' ? payload : {});
+  res.json({ ok: true });
+});
+
 module.exports = { router, internalSecret };
