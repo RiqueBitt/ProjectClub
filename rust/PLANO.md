@@ -201,3 +201,8 @@ login (401), `reset-password` com link inválido e sem corpo (400) e
 - `POST /api/auth/switch/remember`, `/switch` e `/switch/forget` — até 10
   contas salvas por pessoa, 90 dias, a sessão atual do aparelho sai antes de
   entrar na outra.
+
+Produção (21/11/2026): `GET /api/auth/sessions` de 8 contas reais (com
+aparelhos de verdade na lista) — idêntico ao Node. As rotas que mudam algo
+(encerrar, desativar, excluir, trocar) só nos testes, pra não mexer em
+conta de ninguém.
