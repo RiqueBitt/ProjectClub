@@ -149,6 +149,10 @@ backfillPollTopicPermissions().catch((err) => {
 // Cria no banco as conquistas do catálogo seed que ainda não existem —
 // ver comentário completo em services/achievements.js. Fire-and-forget,
 // não trava o servidor aceitar conexões.
+// Emojis do Club Penguin (coleção "Club Penguin"), se as imagens já vieram da wiki.
+require('./services/cpEmotes').ensureCpEmotes().then((r) => {
+  if (r.created) console.log(`[emojis] Club Penguin: ${r.created} emoji(s) novos`);
+}).catch((err) => console.warn('[emojis] Club Penguin:', err.message));
 seedAchievements().catch((err) => {
   console.error('\x1b[31m[achievements-seed]\x1b[0m falhou:', err.message);
 });

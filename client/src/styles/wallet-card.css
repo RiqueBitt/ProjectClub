@@ -109,3 +109,99 @@
   .wcard-float, .wcard-sheen { animation: none; }
   .wcard-inner, .wcard.is-snapping .wcard-inner { transition: none; }
 }
+
+/* Versão compacta (chat e Loja) */
+.wcard-stage.is-compact { padding: 6px 0 2px; align-items: flex-start; }
+.wcard-stage.is-compact .wcard { width: min(300px, 78vw); border-radius: 16px; }
+.wcard-stage.is-compact .wcard-face { border-radius: 16px; padding: 14px 16px; }
+.wcard-stage.is-compact .wcard-back { padding: 0; }
+.wcard-stage.is-compact .wcard-bank { font-size: 12.5px; }
+.wcard-stage.is-compact .wcard-mid { margin-top: 8px; }
+.wcard-stage.is-compact .wcard-chip { width: 36px; height: 27px; }
+.wcard-stage.is-compact .wcard-balances { margin-top: 8px; gap: 14px; }
+.wcard-stage.is-compact .wcard-bal b { font-size: 17px; }
+.wcard-stage.is-compact .wcard-bottom { left: 16px; right: 16px; bottom: 12px; }
+.wcard-stage.is-compact .wcard-holder strong { font-size: 12.5px; max-width: 150px; }
+.wcard-stage.is-compact .wcard-brand-name { font-size: 12px; }
+.wcard-stage.is-compact .wcard-stripe { height: 34px; margin-top: 16px; }
+.wcard-stage.is-compact .wcard-sign { margin: 10px 16px 0; }
+.wcard-stage.is-compact .wcard-sign-strip { height: 26px; }
+.wcard-stage.is-compact .wcard-back-info { margin: 10px 16px 0; gap: 12px; }
+.wcard-stage.is-compact .wcard-back-info b { font-size: 11.5px; }
+.wcard-stage.is-compact .wcard-legal { display: none; }
+.wcard-stage.is-compact .wcard-back-bottom { right: 14px; bottom: 10px; }
+
+/* Assinante: preto e dourado */
+.wcard--gold .wcard-face {
+  color: #f6e7b8;
+  background:
+    radial-gradient(110% 80% at 100% 0%, rgba(230, 190, 90, .28), transparent 60%),
+    radial-gradient(80% 70% at 0% 100%, rgba(180, 140, 50, .22), transparent 60%),
+    linear-gradient(135deg, #17150f 0%, #0b0a07 60%, #000 100%);
+  border-color: rgba(232, 196, 104, .55);
+  box-shadow: 0 22px 50px -18px rgba(0, 0, 0, .8), inset 0 0 0 1px rgba(255, 220, 140, .12), inset 0 1px 0 rgba(255, 230, 160, .25);
+}
+.wcard--gold .wcard-bank, .wcard--gold .wcard-bal b, .wcard--gold .wcard-holder strong, .wcard--gold .wcard-brand-name {
+  background: linear-gradient(100deg, #fff2c4, #e2b450 45%, #fff0b5 60%, #c8952e);
+  -webkit-background-clip: text; background-clip: text; color: transparent; text-shadow: none;
+}
+.wcard--gold .wcard-bal.coins svg, .wcard--gold .wcard-bal.gems svg, .wcard--gold .wcard-contactless { color: #e8c468; }
+.wcard--gold .wcard-photo { background: linear-gradient(135deg, #fff0b5, #c8952e); }
+.wcard--gold .wcard-brand svg rect { stroke: #e8c468; fill: rgba(232, 196, 104, .14); }
+.wcard--gold .wcard-brand svg path { stroke: #f6dc8c; }
+.wcard--gold .wcard-sheen { background:
+    radial-gradient(40% 55% at var(--px) var(--py), rgba(255, 228, 150, .2), transparent 70%),
+    linear-gradient(115deg, transparent 35%, rgba(255, 220, 140, .22) 45%, transparent 55%);
+  background-size: 100% 100%, 250% 100%; }
+
+/* Super Assinante: preto e arco-íris */
+.wcard--rainbow .wcard-face {
+  background: linear-gradient(135deg, #111 0%, #050505 60%, #000 100%);
+  border: 0;
+  box-shadow: 0 22px 50px -18px rgba(0, 0, 0, .85);
+}
+.wcard--rainbow .wcard-face::before {
+  content: ''; position: absolute; inset: 0; border-radius: inherit; padding: 2px; pointer-events: none;
+  background: conic-gradient(from var(--wcard-hue, 0deg), #ff4d6d, #ffb84d, #f9f871, #4dff9e, #4dc3ff, #8a6bff, #ff4dd8, #ff4d6d);
+  -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+  -webkit-mask-composite: xor; mask-composite: exclude;
+  animation: wcard-hue 6s linear infinite;
+}
+.wcard--rainbow .wcard-face::after {
+  content: ''; position: absolute; inset: 0; border-radius: inherit; pointer-events: none; mix-blend-mode: screen; opacity: .22;
+  background: linear-gradient(120deg, #ff4d6d, #ffb84d, #f9f871, #4dff9e, #4dc3ff, #8a6bff, #ff4dd8);
+  background-size: 300% 100%; animation: wcard-holo 8s ease-in-out infinite;
+}
+.wcard--rainbow .wcard-bank, .wcard--rainbow .wcard-bal b, .wcard--rainbow .wcard-brand-name {
+  background: linear-gradient(90deg, #ff6b8b, #ffc56b, #f9f871, #6bffb0, #6bd0ff, #a08bff, #ff6be2);
+  background-size: 200% 100%; animation: wcard-holo 6s linear infinite;
+  -webkit-background-clip: text; background-clip: text; color: transparent; text-shadow: none;
+}
+.wcard--rainbow .wcard-photo { background: conic-gradient(#ff4d6d, #ffb84d, #f9f871, #4dff9e, #4dc3ff, #8a6bff, #ff4dd8, #ff4d6d); }
+.wcard--rainbow .wcard-bal.coins svg { color: #ffd45a; }
+.wcard--rainbow .wcard-bal.gems svg { color: #c9a5ff; }
+@property --wcard-hue { syntax: '<angle>'; inherits: false; initial-value: 0deg; }
+@keyframes wcard-hue { to { --wcard-hue: 360deg; } }
+@keyframes wcard-holo { 0% { background-position: 0% 50%; } 50% { background-position: 100% 50%; } 100% { background-position: 0% 50%; } }
+@media (prefers-reduced-motion: reduce) {
+  .wcard--rainbow .wcard-face::before, .wcard--rainbow .wcard-face::after,
+  .wcard--rainbow .wcard-bank, .wcard--rainbow .wcard-bal b, .wcard--rainbow .wcard-brand-name { animation: none; }
+}
+
+/* Loja → Cartão da carteira (components/shop/WalletCardStyles.jsx) */
+.wcs-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 16px; margin-top: 18px; }
+.wcs-option {
+  display: flex; flex-direction: column; align-items: flex-start; gap: 10px; padding: 14px 16px 16px;
+  border-radius: 16px; background: var(--room-raised, var(--bg-secondary)); border: 1px solid var(--room-line, var(--border));
+}
+.wcs-option.is-current { border-color: var(--room-accent, var(--brand)); box-shadow: 0 0 0 1px var(--room-accent, var(--brand)); }
+.wcs-option.is-locked .wcard-stage { filter: saturate(.55) brightness(.8); }
+.wcs-info { display: flex; flex-direction: column; gap: 2px; }
+.wcs-info strong { font-size: 15px; }
+.wcs-info span { font-size: 13px; color: var(--room-muted, var(--text-muted)); }
+.wcs-badge { display: inline-flex; align-items: center; gap: 5px; padding: 6px 12px; border-radius: 999px; font-size: 13px; font-weight: 700; color: var(--green); background: color-mix(in srgb, var(--green) 14%, transparent); }
+.wcs-error { color: var(--red); font-size: 13.5px; }
+
+/* Cartão mostrado no chat (InternalLinkCard → kind "wallet") */
+.wcard-chat { margin-top: 6px; display: flex; flex-direction: column; gap: 4px; max-width: 320px; }
+.wcard-chat-caption { font-size: 12px; color: var(--text-muted); }

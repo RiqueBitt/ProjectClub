@@ -62,6 +62,8 @@ export default function EmojiPicker({ serverEmojis = [], serverStickers = [], on
   // Emojis (personalizado + padrão + de outros servidores juntos no
   // mesmo rail), Figurinhas, GIFs.
   const [tab, setTab] = useState(initialTab);
+  // Prévia do que está sob o mouse (rodapé): emoji/figurinha grande + nome.
+  const [hovered, setHovered] = useState(null); // { img?, emoji?, name }
   const [query, setQuery] = useState('');
   // Avisa quem abriu (barra de mensagem) qual aba ficou por último.
   useEffect(() => { onTabChange?.(tab); }, [tab]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -201,7 +203,7 @@ export default function EmojiPicker({ serverEmojis = [], serverStickers = [], on
     <div ref={rootRef} className={`emoji-picker-popover ${variant === 'reaction' ? 'reaction-picker' : ''} ${variant === 'composer-centered' ? 'composer-centered-picker' : ''}`} style={{ '--sheet-height': `${heightVh}vh`, ...style }} onMouseDown={(e) => e.stopPropagation()}>
       <div className="sheet-drag-handle" {...dragHandlers} />
       <div className="emoji-picker-tabs">
-        <button className={tab === 'emojis' ? 'active' : ''} onClick={() => { setTab('emojis'); setQuery(''); }}>Emojis</button>
+        <button className={tab === 'emojis' ? 'active' : ''} onClick={() => { setTab('emojis'); setQuery(''); setHovered(null); }}>Emojis</button>
         {/* Aba sempre visível quando dá pra mandar figurinha: mesmo sem
             figurinha da comunidade, tem a seção "Minhas figurinhas". */}
         {onPickSticker && <button className={tab === 'stickers' ? 'active' : ''} onClick={() => { setTab('stickers'); setQuery(''); }}>Figurinhas</button>}
@@ -253,7 +255,7 @@ export default function EmojiPicker({ serverEmojis = [], serverStickers = [], on
                     <div className="emoji-picker-group-label">{g.iconUrl && <img src={g.iconUrl} alt="" className="asset-collection-label-icon" />} {g.label}</div>
                     <div className="emoji-picker-grid">
                       {filtered.map((e) => (
-                        <button key={e.id} title={`:${e.name}:`} onClick={() => { onPick(`:${e.name}:`); onClose?.(); }}>
+                        <button key={e.id} title={`:${e.name}:`} onMouseEnter={() => setHovered({ img: e.url, name: `:${e.name}:` })} onClick={() => { onPick(`:${e.name}:`); onClose?.(); }}>
                           <img src={e.url} alt={e.name} />
                         </button>
                       ))}
@@ -269,7 +271,7 @@ export default function EmojiPicker({ serverEmojis = [], serverStickers = [], on
                     <div className="emoji-picker-group-label">🌐 {serverName}</div>
                     <div className="emoji-picker-grid">
                       {filtered.map((e) => (
-                        <button key={e.id} title={`:${e.name}:`} onClick={() => { onPick(`:${e.name}:`); onClose?.(); }}>
+                        <button key={e.id} title={`:${e.name}:`} onMouseEnter={() => setHovered({ img: e.url, name: `:${e.name}:` })} onClick={() => { onPick(`:${e.name}:`); onClose?.(); }}>
                           <img src={e.url} alt={e.name} />
                         </button>
                       ))}
@@ -289,7 +291,7 @@ export default function EmojiPicker({ serverEmojis = [], serverStickers = [], on
                     <div className="emoji-picker-group-label">Emojis padrão</div>
                     <div className="emoji-picker-grid">
                       {filtered.map((e) => (
-                        <button key={e.emoji} onClick={() => { onPick(e.emoji); onClose?.(); }} title={e.name}>
+                        <button key={e.emoji} onMouseEnter={() => setHovered({ emoji: e.emoji, name: e.name })} onClick={() => { onPick(e.emoji); onClose?.(); }} title={e.name}>
                           <StyledEmoji emoji={e.emoji} size={24} />
                         </button>
                       ))}
@@ -324,7 +326,7 @@ export default function EmojiPicker({ serverEmojis = [], serverStickers = [], on
                     <div className="emoji-picker-group-label">{g.iconUrl && <img src={g.iconUrl} alt="" className="asset-collection-label-icon" />} {g.label}</div>
                     <div className="sticker-picker-grid">
                       {filtered.map((s) => (
-                        <button key={s.id} title={s.name} onClick={() => { onPickSticker(s); onClose?.(); }}>
+                        <button key={s.id} title={s.name} onMouseEnter={() => setHovered({ img: s.url, name: s.name })} onClick={() => { onPickSticker(s); onClose?.(); }}>
                           <img src={s.url} alt={s.name} />
                         </button>
                       ))}
@@ -340,7 +342,7 @@ export default function EmojiPicker({ serverEmojis = [], serverStickers = [], on
                     <div className="emoji-picker-group-label">{serverName}</div>
                     <div className="sticker-picker-grid">
                       {filtered.map((s) => (
-                        <button key={s.id} title={s.name} onClick={() => { onPickSticker(s); onClose?.(); }}>
+                        <button key={s.id} title={s.name} onMouseEnter={() => setHovered({ img: s.url, name: s.name })} onClick={() => { onPickSticker(s); onClose?.(); }}>
                           <img src={s.url} alt={s.name} />
                         </button>
                       ))}
@@ -393,7 +395,7 @@ export default function EmojiPicker({ serverEmojis = [], serverStickers = [], on
               {gifSubTab === 'search' && !gifLoading && !gifFailed && shownGifs.length === 0 && <div className="dim">Nenhum resultado.</div>}
               {shownGifs.map((g) => (
                 <button key={g.id} className="gif-picker-tile" onClick={() => { onPickGif(g.full); onClose?.(); }}>
-                  <img src={g.preview} alt="" loading="lazy" />
+                  <img src={g.preview} alt="" loading="lazy" style={g.width && g.height ? { aspectRatio: `${g.width} / ${g.height}` } : undefined} />
                   <span
                     className={`gif-favorite-btn ${favoriteGifIds.has(g.id ?? g.full) ? 'active' : ''}`}
                     role="button"
@@ -408,6 +410,16 @@ export default function EmojiPicker({ serverEmojis = [], serverStickers = [], on
           )
         )}
       </div>
+      {(tab === 'emojis' || tab === 'stickers') && (
+        <div className="emoji-picker-preview" aria-hidden="true">
+          {hovered ? (
+            <>
+              {hovered.img ? <img src={hovered.img} alt="" /> : <StyledEmoji emoji={hovered.emoji} size={30} />}
+              <span className="truncate">{hovered.name}</span>
+            </>
+          ) : <span className="emoji-picker-preview-hint">Passe o mouse para ver o nome</span>}
+        </div>
+      )}
     </div>
   );
 }

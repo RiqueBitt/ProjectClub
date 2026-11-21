@@ -242,7 +242,8 @@ function renderInline(text, ctx, keyPrefix) {
             else useStore.getState().openLinkConfirm(url);
           }}
         >
-          {url}
+          {/* Cartão da carteira: o link vira só um rótulo curto (o cartão aparece logo abaixo). */}
+          {internal?.kind === 'wallet' ? 'cartão da carteira' : url}
         </a>,
       );
       break;

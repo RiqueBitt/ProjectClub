@@ -297,3 +297,4 @@
   .home-now-grid { grid-template-columns: 1fr; }
   .central-hub .home-hero-stats { width: 100%; }
 }
+.home-main .home-now { margin-top: 0; }

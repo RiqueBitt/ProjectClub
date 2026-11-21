@@ -1,6 +1,6 @@
 import UnreadCountBadge from './UnreadCountBadge.jsx';
 import { convertEmoticons } from '../utils/extraPrefs';
-import { setConversationInbox } from '../api/endpoints';
+import { setConversationInbox, shareWalletCard } from '../api/endpoints';
 import MiniJogosComposerButton from '../minijogos/MiniJogosComposerButton.jsx';
 import { Fragment, Suspense, memo, useEffect, useMemo, useRef, useState, useLayoutEffect } from 'react';
 import { lazyWithRetry as lazy } from '../utils/lazyWithRetry';
@@ -425,8 +425,9 @@ function ChatWindowInner({ conversationId, channelId }) {
   // pode usar aqui, continuam aparecendo como texto puro mesmo).
   const composerEmojiMap = useMemo(() => Object.fromEntries(usableEmojis.map((e) => [e.name, e.url])), [usableEmojis]);
   const [pickerStyle, setPickerStyle] = useState(null);
-  const PICKER_WIDTH = 380;
-  const PICKER_HEIGHT_VH = 40;
+  // Seletor maior no computador (nov/2026): GIFs e figurinhas com espaço pra respirar.
+  const PICKER_WIDTH = 460;
+  const PICKER_HEIGHT_VH = 60;
   // useLayoutEffect (não useEffect): a posição é calculada ANTES da tela
   // pintar. Com useEffect o seletor aparecia primeiro na posição padrão do
   // CSS (meio/canto) e só depois "pulava" pro lugar certo.
@@ -1179,6 +1180,13 @@ function ChatWindowInner({ conversationId, channelId }) {
     };
   };
 
+  // Atividades → "Mostrar cartão": grava a foto do cartão da carteira no
+  // servidor e manda o link dela (vira o cartão na mensagem, InternalLinkCard).
+  const showWalletCard = async () => {
+    const { id } = await shareWalletCard();
+    await sendGif(`mostrou o cartão da carteira: ${window.location.origin}/carteira/${id}`);
+  };
+
   const sendGif = async (url) => {
     const fd = new FormData();
     if (conversationId) fd.append('conversationId', conversationId);
@@ -1904,11 +1912,12 @@ function ChatWindowInner({ conversationId, channelId }) {
             <button ref={emojiBtnRef} type="button" className={`icon-btn chat-composer-btn chat-media-picker-btn ${emojiPickerOpen ? 'on' : ''}`} title="Emojis, figurinhas e GIFs" aria-label="Emojis, figurinhas e GIFs" aria-haspopup="dialog" aria-expanded={emojiPickerOpen} onClick={() => setPickerTab((t) => (t ? null : readLastPickerTab()))}>
               <ChatIcon name="smile" />
             </button>
-            <MiniJogosComposerButton />
+            <MiniJogosComposerButton onShowCard={showWalletCard} />
             {emojiPickerOpen && createPortal(
               <EmojiPicker
                 key={pickerTab}
                 variant="composer-centered"
+                defaultHeightVh={typeof window !== 'undefined' && window.matchMedia('(min-width: 601px)').matches ? PICKER_HEIGHT_VH : undefined}
                 style={{ '--composer-height': `${composerBarHeight}px`, ...(pickerStyle || {}) }}
                 serverStickers={serverStickers}
                 serverEmojis={usableEmojis}

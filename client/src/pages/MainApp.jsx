@@ -584,6 +584,8 @@ export default function MainApp() {
                 <Route path="/participar" element={<ParticiparPage />} />
                 {/* Sorteio removido (nov/2026): link antigo leva pra Economia. */}
                 <Route path="/sorteio" element={<Navigate to="/economia" replace />} />
+                {/* Link do cartão mostrado no chat: abre a Economia (o cartão aparece na própria mensagem). */}
+                <Route path="/carteira/:id" element={<Navigate to="/economia" replace />} />
                 <Route path="/retrospectiva" element={<RetrospectivaPage />} />
                 <Route path="/retrospectiva/:mes" element={<RetrospectivaPage />} />
                 {/* Navegador do Project Club (desligado em utils/features.js). */}
