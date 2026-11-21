@@ -1,0 +1,13 @@
+[workspace]
+resolver = "3"
+members = ["pc-server"]
+
+[workspace.package]
+edition = "2024"
+license = "MIT"
+publish = false
+
+[profile.release]
+lto = "thin"
+codegen-units = 1
+strip = true
