@@ -59,7 +59,8 @@ Cada fase é publicável sozinha, só quando o dono liberar.
   - [x] aparelhos conectados (listar, encerrar um, sair dos outros),
         desativar/excluir conta, troca rápida de conta
   - [x] entrar pelo QR Code (PC e celular) e entrada do app no WebView (app-handoff)
-  - [ ] próximo: passkeys, OAuth (Google/Discord/GitHub) e exportar dados
+  - [x] chaves de acesso (passkeys): listar, cadastrar, apagar e entrar
+  - [ ] próximo: OAuth (Google/Discord/GitHub) e exportar dados
 
 ### Fase 1 — o que já tem
 
@@ -222,3 +223,21 @@ conta de ninguém.
   caminho do próprio site.
 - Redis fora do ar não trava mais o pedido: 3 tentativas com prazo de 3 s e
   depois 500, como o ioredis do Node (`maxRetriesPerRequest: 3`).
+
+### Chaves de acesso (passkeys)
+
+- `GET /api/auth/passkeys`, `POST /passkeys/register/options|verify`,
+  `DELETE /passkeys/{id}`, `POST /passkeys/login/options|verify`.
+- Conferência do WebAuthn escrita em Rust (`src/webauthn.rs`, com `ring` e
+  `ciborium`), seguindo o `@simplewebauthn/server` 13.3.3 passo a passo:
+  `id === rawId`, tipo, desafio, origem, hash do site, presença do usuário,
+  contador (repetição recusada) e assinatura. A chave pública é guardada nos
+  mesmos bytes que o Node guarda: chave criada num entra pelo outro.
+- O teste usa respostas geradas com chaves de verdade e aprovadas pelo
+  próprio `@simplewebauthn` do Node (`tests/fixtures/gerar_webauthn.cjs`):
+  ES256, Ed25519 e RS256, atestado `none` e `packed`.
+- Diferença conhecida: o atestado `packed` com certificado e o `fido-u2f`
+  têm a assinatura conferida, mas não as regras do certificado; `tpm`,
+  `android-key`, `android-safetynet` e `apple` são recusados. Como o site
+  pede `attestation: 'none'`, os navegadores mandam `none` — a única chave
+  de acesso em produção hoje é ES256.

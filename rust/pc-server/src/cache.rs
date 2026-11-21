@@ -74,6 +74,19 @@ impl Cache {
         }
     }
 
+    /// `SET key value EX ttl` que precisa dar certo (`None` = sem Redis ou
+    /// falha — o Node responde erro nesse caso).
+    pub async fn set_strict(&self, key: &str, value: &str, ttl_secs: u64) -> Option<()> {
+        let mut conn = self.redis.clone()?;
+        conn.set_ex::<_, _, ()>(key, value, ttl_secs).await.ok()
+    }
+
+    /// `DEL key` (`None` = sem Redis ou falha).
+    pub async fn del(&self, key: &str) -> Option<()> {
+        let mut conn = self.redis.clone()?;
+        conn.del::<_, ()>(key).await.ok()
+    }
+
     /// Roda um script Lua (EVALSHA, carregando se preciso) com uma chave.
     pub async fn eval<T: redis::FromRedisValue>(
         &self,

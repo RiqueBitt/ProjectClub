@@ -343,37 +343,8 @@ async fn login_inner(
         }
     };
 
-    if user.is_platform_banned {
-        let mut body =
-            json!({ "error": "Esta conta foi banida da plataforma.", "platformBanned": true });
-        if let Some(r) = user
-            .platform_ban_reason
-            .as_deref()
-            .filter(|r| !r.is_empty())
-        {
-            body["reason"] = json!(r);
-        }
-        body["appealToken"] = json!(appeal_token(state, &user.id));
-        return Ok(error(StatusCode::FORBIDDEN, body));
-    }
-    if let Some(until) = user.suspended_until.filter(|u| *u > db::now()) {
-        return Ok(error(
-            StatusCode::FORBIDDEN,
-            json!({
-                "error": format!("Esta conta está suspensa até {}.", pt_br_datetime(until)),
-                "suspendedUntil": db::iso(until),
-                "appealToken": appeal_token(state, &user.id),
-            }),
-        ));
-    }
-    if user.account_disabled_at.is_some() {
-        return Ok(error(
-            StatusCode::FORBIDDEN,
-            json!({
-                "error": "Esta conta foi desativada. Se você quer reativá-la, entre em contato com a equipe do Project Club.",
-                "accountDisabled": true,
-            }),
-        ));
+    if let Some(r) = blocked_response(state, &user) {
+        return Ok(r);
     }
 
     if user.two_factor_enabled {
@@ -407,6 +378,44 @@ async fn login_inner(
     }
 
     complete_login(state, db, req, &user).await
+}
+
+/// Conta banida (com token pra pedir revisão), suspensa ou desativada: a
+/// resposta 403 do login (a mesma no login por chave de acesso).
+pub(crate) fn blocked_response(state: &AppState, user: &LoginUser) -> Option<Response> {
+    if user.is_platform_banned {
+        let mut body =
+            json!({ "error": "Esta conta foi banida da plataforma.", "platformBanned": true });
+        if let Some(r) = user
+            .platform_ban_reason
+            .as_deref()
+            .filter(|r| !r.is_empty())
+        {
+            body["reason"] = json!(r);
+        }
+        body["appealToken"] = json!(appeal_token(state, &user.id));
+        return Some(error(StatusCode::FORBIDDEN, body));
+    }
+    if let Some(until) = user.suspended_until.filter(|u| *u > db::now()) {
+        return Some(error(
+            StatusCode::FORBIDDEN,
+            json!({
+                "error": format!("Esta conta está suspensa até {}.", pt_br_datetime(until)),
+                "suspendedUntil": db::iso(until),
+                "appealToken": appeal_token(state, &user.id),
+            }),
+        ));
+    }
+    if user.account_disabled_at.is_some() {
+        return Some(error(
+            StatusCode::FORBIDDEN,
+            json!({
+                "error": "Esta conta foi desativada. Se você quer reativá-la, entre em contato com a equipe do Project Club.",
+                "accountDisabled": true,
+            }),
+        ));
+    }
+    None
 }
 
 /// `completeLogin`: zera os erros, abre a sessão, avisa de aparelho novo e

@@ -19,6 +19,7 @@ pub mod session;
 pub mod totp;
 pub mod users;
 pub mod web;
+pub mod webauthn;
 
 use axum::Router;
 use axum::http::StatusCode;
@@ -152,6 +153,24 @@ fn ported(state: &AppState) -> Router<AppState> {
             "/api/auth/app-handoff/{code}",
             get(routes::qr_login::handoff_consume),
         )
+        .route("/api/auth/passkeys", get(routes::passkeys::list))
+        .route(
+            "/api/auth/passkeys/register/options",
+            post(routes::passkeys::register_options),
+        )
+        .route(
+            "/api/auth/passkeys/register/verify",
+            post(routes::passkeys::register_verify),
+        )
+        .route(
+            "/api/auth/passkeys/login/options",
+            post(routes::passkeys::login_options),
+        )
+        .route(
+            "/api/auth/passkeys/login/verify",
+            post(routes::passkeys::login_verify),
+        )
+        .route("/api/auth/passkeys/{id}", delete(routes::passkeys::remove))
         // rotas internas (Rust → Node) não existem pra quem vem de fora
         .route("/api/internal", any(not_found))
         .route("/api/internal/{*rest}", any(not_found))
