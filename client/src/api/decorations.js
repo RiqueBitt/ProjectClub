@@ -47,6 +47,8 @@ export const buyFont = (id, currency, expectedPrice, coupon) => api.post(`/decor
 export const equipFont = (id) => api.post('/decorations/fonts/equip', { id }).then((r) => r.data);
 // `coupon` (opcional): cupom de desconto da Loja (Fase 4).
 export const buyStyle = (id, currency, expectedPrice, coupon) => api.post(`/decorations/styles/${id}/buy`, { currency, expectedPrice, ...(coupon ? { coupon } : {}) }).then((r) => r.data);
+// Cestinha da Loja: compra vários itens de uma vez (tudo ou nada).
+export const checkoutBasket = (items) => api.post('/decorations/checkout', { items }).then((r) => r.data);
 export const equipStyle = (id) => api.post('/decorations/styles/equip', { id }).then((r) => r.data);
 
 // Itens limitados e trocas.
