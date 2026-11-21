@@ -1,16 +1,16 @@
 const prisma = require('../config/prisma');
+const walletCard = require('../services/walletCard');
 const economy = require('../services/economy');
 const achievements = require('../services/achievements');
 const { LEVELS, nextLevel, titleForLevel } = require('../data/levelsCatalog');
 const { MEGA_CHEST_STREAK_REQUIRED } = require('../data/chestsCatalog');
 const missions = require('../services/missions');
-const { listTransactions } = require('../services/economyLedger');
 
 async function getMyEconomy(req, res, next) {
   try {
     const user = await prisma.user.findUnique({
       where: { id: req.user.id },
-      select: { coins: true, gems: true, dailyStreak: true, lastDailyAt: true, accountLevel: true, accountXp: true },
+      select: { coins: true, gems: true, dailyStreak: true, lastDailyAt: true, accountLevel: true, accountXp: true, supporterTier: true, supporterUntil: true, walletCardStyle: true },
     });
     const nextDailyAt = user.lastDailyAt ? new Date(user.lastDailyAt.getTime() + economy.DAILY_COOLDOWN_MS) : null;
     res.json({
@@ -19,8 +19,22 @@ async function getMyEconomy(req, res, next) {
       // Extras pro hub de Economia: meta da sequência e quando o próximo baú libera.
       streakRequired: MEGA_CHEST_STREAK_REQUIRED,
       nextDailyAt: nextDailyAt && nextDailyAt.getTime() > Date.now() ? nextDailyAt : null,
+      // Cartão da carteira: estilo em uso e os que a categoria libera.
+      cardStyle: walletCard.styleFor(user),
+      cardStyles: walletCard.allowedStyles(walletCard.effectiveTier(user)),
     });
   } catch (err) { next(err); }
+}
+
+// --- Cartão da carteira ---
+async function setCardStyle(req, res, next) {
+  try { res.json(await walletCard.setStyle(prisma, req.user.id, req.body?.style)); } catch (err) { next(err); }
+}
+async function shareCard(req, res, next) {
+  try { res.status(201).json(await walletCard.share(prisma, req.user.id)); } catch (err) { next(err); }
+}
+async function getSharedCard(req, res, next) {
+  try { res.json(await walletCard.getShared(prisma, req.params.id)); } catch (err) { next(err); }
 }
 
 async function claimDaily(req, res, next) {
@@ -33,12 +47,6 @@ async function claimDaily(req, res, next) {
 }
 
 // Histórico da carteira (só registra daqui pra frente — ver services/economyLedger.js).
-async function getHistory(req, res, next) {
-  try {
-    res.json(await listTransactions(req.user.id, { limit: req.query.limit, before: req.query.before }));
-  } catch (err) { next(err); }
-}
-
 // Galeria pública dos baús possíveis (só nome+imagem, sem as chances —
 // isso fica só na tela de admin) — mostrada na página de Economia, igual
 // o bot Robbie mostrava com /daily.
@@ -157,6 +165,6 @@ async function adminDeleteChest(req, res, next) {
 }
 
 module.exports = {
-  getMyEconomy, claimDaily, listChests, getRank, listLeaderboard, getHistory,
+  getMyEconomy, claimDaily, listChests, getRank, listLeaderboard, setCardStyle, shareCard, getSharedCard,
   adminListChests, adminCreateChest, adminUpdateChest, adminDeleteChest,
 };

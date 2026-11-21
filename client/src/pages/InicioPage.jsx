@@ -2,32 +2,28 @@ import { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useStore } from '../store/useStore';
 import { useSocket } from '../context/SocketContext.jsx';
-import { listUpdates, listEvents, listYoutubeVideos, listFeaturedPosts, getPlatformStats, votePost, getUserProfile } from '../api/endpoints';
+import { listUpdates, listEvents, listYoutubeVideos, getPlatformStats, getUserProfile } from '../api/endpoints';
 import { useAuth } from '../context/AuthContext.jsx';
 import { useVoice } from '../context/VoiceContext.jsx';
 import UserAvatar from '../components/UserAvatar.jsx';
-import { PostCard } from './CommunitiesPage.jsx';
+import AnunciosPage from './AnunciosPage.jsx';
+import EventsCalendar from '../components/EventsCalendar.jsx';
+import { useMarkSectionSeen } from '../utils/sectionBadges';
 import { renderRichContent } from '../utils/richTextRender.jsx';
 import { proxyImage } from '../utils/imageProxy';
-import { hour12Option } from '../utils/formatTime';
 import inicioIcon from '../assets/icons/logo-project-club.png';
 import { useLiveRefresh, sameData } from '../utils/liveRefresh';
 import { bootSection, onBootSection, bootstrapActive } from '../utils/bootstrap';
 import ArenaPromo from '../cards/ArenaPromo.jsx';
 import MinecraftStatusCard from '../components/MinecraftStatusCard.jsx';
 import { isFeatureEnabled } from '../utils/features';
-import { channelPath, postPath } from '../utils/prettyLinks';
+import { channelPath, eventPath } from '../utils/prettyLinks';
 import { useCommunityHome, HomeCommunityMain, HomeCommunitySide } from '../components/community/HomeCommunity.jsx';
 
-const EVENT_STATUS_LABEL = { UPCOMING: 'Em breve', ACTIVE: 'Ativo', ENDED: 'Encerrado' };
 // Item pedido: mostra só os 4 vídeos mais recentes do canal.
 const VIDEOS_SHOWN = 6;
 const UPDATE_COLLAPSED_LINES = 6;
 
-function formatEventDate(iso) {
-  if (!iso) return null;
-  return new Date(iso).toLocaleDateString('pt-BR', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit', hour12: hour12Option() });
-}
 
 // Item pedido: "adicione os - ** __ que deixa mais bonito" — o app já
 // tem um parser de markdown leve (**negrito**, __sublinhado__, etc —
@@ -114,6 +110,9 @@ const HOME_ICONS = {
   play: 'M7 5v14l11-7L7 5Z',
   news: 'M4 5h13v14H6a2 2 0 0 1-2-2V5Zm13 4h3v8a2 2 0 0 1-2 2M8 9h5M8 13h5',
   arrow: 'M9 6l6 6-6 6',
+  coin: 'M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18zM12 7.6l1.3 2.65 2.9.42-2.1 2.05.5 2.9L12 14.25l-2.6 1.37.5-2.9-2.1-2.05 2.9-.42z',
+  megaphone: 'M3 11v2a1 1 0 0 0 1 1h2l5 4V6L6 10H4a1 1 0 0 0-1 1zM15 9a3 3 0 0 1 0 6M18 6a7 7 0 0 1 0 12',
+  check: 'M20 6 9 17l-5-5',
 };
 function HomeIcon({ name, size = 18 }) {
   return (
@@ -153,9 +152,11 @@ export default function InicioPage() {
   const [updates, setUpdates] = useState(null);
   const [events, setEvents] = useState(null);
   const [videos, setVideos] = useState(null);
-  const [featuredPosts, setFeaturedPosts] = useState(null);
   const [stats, setStats] = useState(null);
   const [me, setMe] = useState(null);
+  // A Central mostra as Novidades (anúncios) e o calendário de eventos: abrir
+  // a página apaga a bolinha "novo" das duas.
+  useMarkSectionSeen('eventos');
   // Fase 4: temporada, metas coletivas, post da semana, aniversários, Clubes.
   const communityHome = useCommunityHome();
 
@@ -164,7 +165,6 @@ export default function InicioPage() {
     // Eventos: reaproveita o pacote de abertura se ele acabou de chegar (utils/bootstrap.js).
     (bootSection('events') || listEvents()).then((d) => setEvents(d.events)).catch(() => setEvents([]));
     listYoutubeVideos().then((d) => setVideos(d.videos)).catch(() => setVideos([]));
-    listFeaturedPosts().then((d) => setFeaturedPosts(d.posts)).catch(() => setFeaturedPosts([]));
     getPlatformStats().then(setStats).catch(() => setStats(null));
     // Perfil completo traz o progresso do nível (levelProgress).
     if (user?.id) getUserProfile(user.id).then((d) => setMe(d)).catch(() => setMe(null));
@@ -176,7 +176,6 @@ export default function InicioPage() {
   useLiveRefresh(async (ctx) => {
     const { put } = ctx;
     await Promise.allSettled([
-      listFeaturedPosts().then((d) => put(setFeaturedPosts)(d.posts)),
       user?.id ? getUserProfile(user.id).then(put(setMe)) : null,
     ]);
   }, { interval: 22000 });
@@ -216,18 +215,10 @@ export default function InicioPage() {
     };
   }, [socket]);
 
-  const onVotePost = async (post, value) => {
-    const nextMyVote = post.myVote === value ? 0 : value;
-    const delta = nextMyVote - post.myVote;
-    setFeaturedPosts((list) => list.map((p) => (p.id === post.id ? { ...p, myVote: nextMyVote, score: p.score + delta } : p)));
-    try { await votePost(post.id, value); } catch { listFeaturedPosts().then((d) => setFeaturedPosts(d.posts)).catch(() => {}); }
-  };
 
   const visibleVideos = useMemo(() => videos?.slice(0, VIDEOS_SHOWN) ?? [], [videos]);
 
   const allChannels = useMemo(() => [...channels, ...categories.flatMap((c) => c.channels || [])], [channels, categories]);
-  const firstText = allChannels.find((c) => c.name?.toLowerCase().includes('geral') && !['VOICE', 'STAGE'].includes(c.type))
-    || allChannels.find((c) => !['VOICE', 'STAGE'].includes(c.type));
 
   // Quem está online (sem contar quem está invisível/offline).
   const online = useMemo(() => members
@@ -242,15 +233,13 @@ export default function InicioPage() {
 
   const level = me?.user?.accountLevel ?? user?.accountLevel ?? 1;
   const progress = me?.levelProgress ?? 0;
-  const upcomingEvents = (events || []).filter((e) => e.status !== 'ENDED');
+  const upcomingEvents = (events || []).filter((e) => e.status !== 'ENDED')
+    .sort((a, b) => new Date(a.startsAt || 0) - new Date(b.startsAt || 0));
+  // "Acontecendo agora": só quando tem evento ao vivo.
+  const liveEvent = upcomingEvents.find((e) => e.status === 'ACTIVE');
+  const peopleInCalls = liveCalls.reduce((n, c) => n + c.people.length, 0);
 
   const disabledSystems = useStore((st) => st.disabledSystems) || [];
-  const shortcuts = [
-    firstText && { icon: 'chat', label: 'Conversar', hint: `#${firstText.name}`, to: channelPath(firstText) },
-    { icon: 'feed', label: 'Fórum', hint: 'Posts e temas', to: '/comunidades' },
-    { icon: 'social', label: 'Social', hint: 'Amigos e mensagens', to: '/dms' },
-    { icon: 'star', label: 'Progresso', hint: 'Ranks e conquistas', to: '/progresso' },
-  ].filter(Boolean);
 
   return (
     <div className="home">
@@ -267,26 +256,14 @@ export default function InicioPage() {
           {stats && (
             <dl className="home-hero-stats">
               <div><dt>membros</dt><dd>{fmtNum(stats.memberCount)}</dd></div>
-              <div><dt>online agora</dt><dd>{fmtNum(online.length)}</dd></div>
-              <div><dt>posts</dt><dd>{fmtNum(stats.postCount)}</dd></div>
-              <div><dt>mensagens</dt><dd>{fmtNum(stats.messageCount)}</dd></div>
+              <div><dt>online</dt><dd>{fmtNum(online.length)}</dd></div>
+              <div><dt>em call</dt><dd>{fmtNum(peopleInCalls)}</dd></div>
             </dl>
           )}
         </div>
       </header>
 
-      <nav className="home-shortcuts" aria-label="Atalhos">
-        {shortcuts.map((s) => (
-          <button key={s.to} type="button" className="home-shortcut" onClick={() => navigate(s.to)}>
-            <span className="home-shortcut-icon"><HomeIcon name={s.icon} size={20} /></span>
-            <span className="home-shortcut-text">
-              <strong>{s.label}</strong>
-              <span className="truncate">{s.hint}</span>
-            </span>
-            <HomeIcon name="arrow" size={16} />
-          </button>
-        ))}
-      </nav>
+
 
       {isFeatureEnabled('cardsWar') && (!disabledSystems.includes('cartas') || user?.platformRole === 'ADMIN') && <ArenaPromo />}
 
@@ -294,52 +271,27 @@ export default function InicioPage() {
 
       <div className="home-grid">
         <div className="home-main">
+          {/* Evento ao vivo: só aparece enquanto um evento está acontecendo, em cima das Novidades. */}
+          {liveEvent && (
+            <section className="home-now" aria-label="Acontecendo agora">
+              <p className="home-label">Acontecendo agora</p>
+              <button type="button" className="home-now-card home-now-event is-live" onClick={() => navigate(eventPath(liveEvent))}>
+                <span className="home-now-top">
+                  <span className="home-now-live">Ao vivo</span>
+                  <strong className="truncate">{liveEvent.title}</strong>
+                </span>
+                <span className="home-now-sub">
+                  {(liveEvent.rsvp?.counts?.GOING || 0)} confirmado{(liveEvent.rsvp?.counts?.GOING || 0) === 1 ? '' : 's'}
+                </span>
+                <span className="home-now-cta">Entrar</span>
+              </button>
+            </section>
+          )}
+          {/* Novidades da staff com banner e texto, direto aqui (antes era uma aba). */}
+          <section className="home-section home-news">
+            <AnunciosPage embedded />
+          </section>
           <HomeCommunityMain home={communityHome} />
-          <Section icon="calendar" title="Eventos">
-            {events === null && <Empty>Carregando…</Empty>}
-            {events !== null && upcomingEvents.length === 0 && <Empty>Nenhum evento agendado. Fique de olho: quando a equipe criar um, ele aparece aqui.</Empty>}
-            {upcomingEvents.length > 0 && (
-              <div className="home-events">
-                {upcomingEvents.map((ev) => (
-                  <article key={ev.id} className="home-event">
-                    {ev.bannerUrl
-                      ? <img className="home-event-banner" src={proxyImage(ev.bannerUrl)} alt="" loading="lazy" />
-                      : <div className="home-event-banner home-event-banner-empty"><HomeIcon name="calendar" size={28} /></div>}
-                    <div className="home-event-body">
-                      <div className="home-event-top">
-                        {ev.iconUrl && <img className="home-event-icon" src={proxyImage(ev.iconUrl)} alt="" />}
-                        <h3 className="truncate">{ev.title}</h3>
-                        <span className={`home-pill status-${ev.status.toLowerCase()}`}>{EVENT_STATUS_LABEL[ev.status]}</span>
-                      </div>
-                      {ev.description && <p className="home-event-desc">{ev.description}</p>}
-                      {(ev.startsAt || ev.endsAt) && (
-                        <p className="home-event-dates">
-                          {ev.startsAt && formatEventDate(ev.startsAt)}
-                          {ev.startsAt && ev.endsAt && ' — '}
-                          {ev.endsAt && formatEventDate(ev.endsAt)}
-                        </p>
-                      )}
-                    </div>
-                  </article>
-                ))}
-              </div>
-            )}
-          </Section>
-
-          <Section
-            icon="fire" title="Em alta no Fórum"
-            action={<button type="button" className="home-link" onClick={() => navigate('/comunidades')}>Ver Fórum</button>}
-          >
-            {featuredPosts === null && <Empty>Carregando…</Empty>}
-            {featuredPosts?.length === 0 && <Empty>Ainda não tem posts em destaque este mês. Que tal publicar o primeiro?</Empty>}
-            {featuredPosts?.length > 0 && (
-              <div className="home-posts">
-                {featuredPosts.map((post) => (
-                  <PostCard key={post.id} post={post} onVote={onVotePost} onOpen={() => navigate(postPath(post))} />
-                ))}
-              </div>
-            )}
-          </Section>
 
           {videos?.length > 0 && (
             <Section icon="play" title="Vídeos do MrPinguim">
@@ -359,6 +311,12 @@ export default function InicioPage() {
         </div>
 
         <aside className="home-side">
+          <Section
+            icon="calendar" title="Calendário de eventos" className="home-card"
+            action={<button type="button" className="home-link" onClick={() => navigate('/comunidade/eventos')}>Ver todos</button>}
+          >
+            <EventsCalendar events={events} />
+          </Section>
           <HomeCommunitySide home={communityHome} />
           <Section icon="voice" title="Em chamada agora" className="home-card">
             {liveCalls.length === 0 && <Empty>Ninguém em chamada. Entre numa sala e chame o pessoal.</Empty>}

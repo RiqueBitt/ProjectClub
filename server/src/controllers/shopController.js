@@ -258,6 +258,84 @@ const buyDecoration = (req, res, next) => buyItem('deco', req, res, next);
 const buyFont = (req, res, next) => buyItem('font', req, res, next);
 const buyStyle = (req, res, next) => buyItem('style', req, res, next);
 
+// POST /decorations/checkout — a cestinha da Loja (nov/2026): compra vários
+// itens de uma vez, TUDO OU NADA. Body: { items: [{ kind, id, currency,
+// expectedPrice }] }. Uma transação só: confere cada item (à venda, não
+// exclusivo, ainda não é seu, preço que a pessoa viu), desconta o total de
+// cada moeda com a condição de saldo no próprio update e entrega tudo. Se
+// qualquer coisa falhar, nada é cobrado nem entregue. O erro diz qual item
+// travou (itemIndex) pra cestinha mostrar.
+const CHECKOUT_MAX = 20;
+async function checkout(req, res, next) {
+  try {
+    const raw = Array.isArray(req.body?.items) ? req.body.items : [];
+    if (raw.length === 0) return res.status(400).json({ error: 'A cestinha está vazia.' });
+    if (raw.length > CHECKOUT_MAX) return res.status(400).json({ error: `No máximo ${CHECKOUT_MAX} itens por compra.` });
+    const lines = raw.map((x) => ({ kind: kindOf(x?.kind), id: String(x?.id || ''), currency: x?.currency === 'gems' ? 'gems' : 'coins', expectedPrice: x?.expectedPrice }));
+    const seen = new Set();
+    for (const [i, l] of lines.entries()) {
+      if (!l.kind || !l.id) return res.status(400).json({ error: 'Item inválido na cestinha.', itemIndex: i });
+      const k = `${l.kind}:${l.id}`;
+      if (seen.has(k)) return res.status(400).json({ error: 'O mesmo item está duas vezes na cestinha.', itemIndex: i });
+      seen.add(k);
+    }
+    const userId = req.user.id;
+    const bought = [];
+    try {
+      await prisma.$transaction(async (tx) => {
+        const tier = await tierOf(tx, userId);
+        const totals = { coins: 0, gems: 0 };
+        const ready = [];
+        for (const [i, l] of lines.entries()) {
+          const K = KINDS[l.kind];
+          const at = (e) => Object.assign(e, { extra: { ...(e.extra || {}), itemIndex: i } });
+          // eslint-disable-next-line no-await-in-loop
+          const item = await findItem(tx, l.kind, l.id);
+          if (!item || !item.active) throw at(fail(`Um item da cestinha não está mais à venda.`, 404, { code: 'NOT_FOUND' }));
+          // eslint-disable-next-line no-await-in-loop
+          if (await hiddenFromShop(tx, item)) throw at(fail(`"${item.name}" não está à venda na Loja.`, 403, { code: 'NOT_FOR_SALE' }));
+          if (sup.exclusiveOf(item)) throw at(fail(`"${item.name}" é exclusivo de ${sup.TIER_LABEL[sup.exclusiveOf(item)]}: não é vendido.`, 403, { code: 'EXCLUSIVE' }));
+          const p = sup.priceFor(item, l.currency, tier);
+          if (p.final === null) throw at(fail(`"${item.name}" não é vendido nessa moeda.`));
+          // eslint-disable-next-line no-await-in-loop
+          const already = await tx[K.own].findUnique({ where: K.uniq(userId, item.id) });
+          if (already && !already.expiresAt) throw at(fail(`Você já tem "${item.name}".`, 400, { code: 'ALREADY_OWNED' }));
+          try { checkExpected(l, p.final); } catch (e) { throw at(e); }
+          totals[l.currency] += p.final;
+          ready.push({ l, K, item, price: p, already });
+        }
+        for (const cur of ['coins', 'gems']) {
+          if (totals[cur] <= 0) continue;
+          // eslint-disable-next-line no-await-in-loop
+          const r = await tx.user.updateMany({ where: { id: userId, [cur]: { gte: totals[cur] } }, data: { [cur]: { decrement: totals[cur] } } });
+          if (r.count === 0) throw noFunds(cur);
+        }
+        for (const { l, K, item, price, already } of ready) {
+          if (already) {
+            // eslint-disable-next-line no-await-in-loop
+            await tx[K.own].update({ where: K.uniq(userId, item.id), data: { expiresAt: null } });
+          } else {
+            // eslint-disable-next-line no-await-in-loop
+            const serial = await claimStock(tx, l.kind, item);
+            // eslint-disable-next-line no-await-in-loop
+            await tx[K.own].create({ data: { userId, [K.fk]: item.id, serial } });
+          }
+          bought.push({ kind: l.kind, id: item.id, name: item.name, label: K.label, currency: l.currency, paid: price.final, discount: price.discount });
+        }
+      });
+    } catch (e) {
+      if (e.status) return sendFail(res, e);
+      if (e.code === 'P2002') return res.status(400).json({ error: 'Você já tem um dos itens da cestinha.', code: 'ALREADY_OWNED' });
+      throw e;
+    }
+    for (const b of bought) {
+      if (b.paid > 0) ledger().recordTransaction(userId, { kind: 'SHOP', label: `Loja (cestinha): ${b.label} ${b.name || ''}`.trim() + (b.discount ? ` (-${b.discount}% Assinante)` : ''), [b.currency]: -b.paid });
+    }
+    const me = await prisma.user.findUnique({ where: { id: userId }, select: { coins: true, gems: true } });
+    res.json({ ok: true, bought, ...me });
+  } catch (err) { next(err); }
+}
+
 // Pode usar = comprou OU é exclusivo e a categoria de apoio libera.
 async function usableItem(kind, userId, id) {
   const K = KINDS[kind];
@@ -642,7 +720,7 @@ async function giftItem(req, res, next) {
 
 module.exports = {
   purchaseHistory, giftItem, offerOf,
-  shop, buyEffect, buyDecoration, buyFont, buyStyle, equipEffect, equipFont, equipStyle, buyCollection, usableItem, KINDS,
+  shop, checkout, buyEffect, buyDecoration, buyFont, buyStyle, equipEffect, equipFont, equipStyle, buyCollection, usableItem, KINDS,
   kindOf, findItem, isLimited, claimStock, fontJson, styleKeyOf, parseData,
   adminListEffects, adminCreateEffect, adminUpdateEffect, adminRemoveEffect,
   adminListCollections, adminCreateCollection, adminUpdateCollection, adminRemoveCollection,

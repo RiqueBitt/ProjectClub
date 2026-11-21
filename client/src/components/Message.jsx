@@ -949,8 +949,9 @@ function UploadProgressRow({ message }) {
 // "Mostrar prévia de links" nas configurações.
 function MessageLinkCards({ content }) {
   const enabled = useStore((s) => s.userSettings?.showLinkPreviews !== false);
-  if (!enabled || !content || !content.includes('http')) return null;
-  const links = findInternalLinks(content);
+  if (!content || !content.includes('http')) return null;
+  // O cartão da carteira ("Mostrar cartão") aparece mesmo com as prévias desligadas.
+  const links = findInternalLinks(content).filter((l) => enabled || l.kind === 'wallet');
   return links.length ? <InternalLinkCards links={links} /> : null;
 }
 

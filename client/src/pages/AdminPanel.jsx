@@ -39,7 +39,7 @@ import {
   adminListApplications, approveApplication, rejectApplication,
   adminListAutomodFlags, adminGetFlaggedConversation, adminResolveAutomodFlag,
   adminListReports, adminGetReportedContext, adminResolveReport,
-  getCommunitySettings, deleteCommunity,
+  getCommunitySettings,
   getCommunity,
   adminListHoneypotHits, adminListBlockedIps, adminUnblockIp, adminReloadUserPresence, adminDeleteUserAccount,
   adminListAchievements, adminCreateAchievement, adminUpdateAchievement, adminUploadAchievementIcon, adminDeleteAchievement,
@@ -141,11 +141,10 @@ const TABS = {
   clanIcons: { label: 'Ícones de clube', desc: 'Ícones disponíveis para os clubes.' },
   achievements: { label: 'Conquistas', desc: 'Conquistas, requisitos e raridades.' },
   // Fase 4 — comunidade e economia.
-  metasComunidade: { label: 'Metas coletivas', desc: 'Metas da semana pra comunidade inteira (mensagens, call, Fórum) e a recompensa de quem participar.' },
+  metasComunidade: { label: 'Metas coletivas', desc: 'Metas da semana pra comunidade inteira (mensagens e call) e a recompensa de quem participar.' },
   interesses: { label: 'Cargos por interesse', desc: 'Cargos que os membros escolhem sozinhos (jogos e assuntos que curtem). Só cargos sem permissão.' },
   cupons: { label: 'Cupons', desc: 'Cupons de desconto da Loja: porcentagem ou valor fixo, validade, limite de usos e compra mínima.' },
   gifMove: { label: 'GIFa Move', desc: 'Posição e tamanho do GIF animado na tela da comunidade.' },
-  feeds: { label: 'Fórum', desc: 'Temas do Fórum: crie ou exclua.' },
   updates: { label: 'Atualizações', desc: 'Notas de atualização que aparecem no Início.' },
   events: { label: 'Eventos', desc: 'Eventos com banner, ícone e data.' },
   announcements: { label: 'Comunicado', desc: 'Mensagem em tela cheia para todos os membros.' },
@@ -205,7 +204,7 @@ const TAB_GROUPS = [
   { label: 'Pessoas', icon: 'people', tabs: ['busca', 'inscricoes', 'users', 'badges', 'roles'] },
   { label: 'Moderação', icon: 'shield', tabs: ['reports', 'revisoes', 'automodDm', 'pinguAlertas', 'moderacao', 'modReports', 'logs', 'honeypot'] },
   { label: 'Comunidade', icon: 'community', tabs: ['channels', 'pingu', 'emojis', 'stickers', 'clubs', 'clanIcons', 'achievements', 'metasComunidade', 'interesses', 'gifMove'] },
-  { label: 'Conteúdo', icon: 'content', tabs: ['feeds', 'updates', 'events', 'announcements', 'appCatalog'] },
+  { label: 'Conteúdo', icon: 'content', tabs: ['updates', 'events', 'announcements', 'appCatalog'] },
   { label: 'Economia', icon: 'economy', tabs: ['economia', 'decoracoes', 'cupons', 'criadores', 'apoio', 'metaDoacao', 'casas', 'album'] },
   { label: 'Club Penguin', icon: 'penguin', tabs: ['jogo'] },
   { label: 'Guerra das Cartas', icon: 'cards', tabs: ['cartasEstatisticas', 'cartasCartas', 'cartasPacotes', 'cartasCampanha', 'cartasTorneios', 'cartasFundos', 'cartasRegras', 'cartasJogadores', 'cartasTrocas', 'cartasPartidas'] },
@@ -371,7 +370,6 @@ export default function AdminPanel() {
           {tab === 'automodDm' && <AutomodDmTab />}
           {tab === 'reports' && <ReportsTab />}
           {tab === 'revisoes' && <AppealsAdmin />}
-          {tab === 'feeds' && <FeedsAdminTab />}
           {tab === 'appCatalog' && <AppCatalogTab />}
           {tab === 'modGames' && <ModGamesAdminTab />}
           {tab === 'workshopGames' && <WorkshopGamesAdminTab />}
@@ -1675,61 +1673,6 @@ const SUGGESTED_STRUCTURE = [
 // endpoints de renomear (updateChannel/updateCategory) já existiam
 // há um tempo, só nunca tinham UI que os usasse.
 
-// sido quem criou (poder de moderação da plataforma). Apagar remove
-// também todos os posts/comentários/votos dela em cascata (ver onDelete:
-// Cascade no schema.prisma).
-function FeedsAdminTab() {
-  const communities = useStore((s) => s.clubs);
-  const [deletingSlug, setDeletingSlug] = useState(null);
-
-  const remove = async (community) => {
-    if (!confirm(`Excluir o Tema "${community.name}"? Isso apaga todos os posts e comentários dele e não pode ser desfeito.`)) return;
-    setDeletingSlug(community.slug);
-    try {
-      await deleteCommunity(community.slug);
-      // Não precisa remover manualmente da lista — o evento de socket
-      // club:delete (ver SocketContext.jsx) já atualiza o estado global
-      // sozinho assim que o servidor confirma.
-    } catch (err) {
-      alert(err.response?.data?.error || 'Não foi possível excluir.');
-    } finally {
-      setDeletingSlug(null);
-    }
-  };
-
-  return (
-    <div>
-      <h2>Fórum (Temas)</h2>
-      <p className="dim" style={{ marginBottom: 16 }}>
-        Gerencie os Temas do Fórum — só a staff pode criar/editar/excluir (crie novos direto na página do Fórum,
-        no botão "+ Criar Tema"). Excluir remove os posts e comentários junto.
-      </p>
-      {communities.length === 0 ? (
-        <p className="dim">Nenhum Tema criado ainda.</p>
-      ) : (
-        <div className="admin-users-list">
-          {communities.map((c) => (
-            <div key={c.id} className="admin-user-row">
-              <span className="community-row-icon" style={{ width: 32, height: 32 }}>
-                {c.iconUrl ? <img src={proxyImage(c.iconUrl)} alt="" /> : <UiIcon name="pin" size={18} />}
-              </span>
-              <div className="admin-user-row-info">
-                <div className="admin-user-row-name">{c.name}</div>
-                <div className="admin-user-row-meta dim">
-                  {c.postCount} post{c.postCount === 1 ? '' : 's'} · {(c.categories || []).length} categoria{(c.categories || []).length === 1 ? '' : 's'} · criado por {c.createdBy.displayName}
-                </div>
-              </div>
-              <button className="btn-danger" disabled={deletingSlug === c.slug} onClick={() => remove(c)}>
-                {deletingSlug === c.slug ? 'Excluindo...' : 'Excluir'}
-              </button>
-            </div>
-          ))}
-        </div>
-      )}
-    </div>
-  );
-}
-
 function AnnouncementsTab() {
   const [userQuery, setUserQuery] = useState('');
   const [userResults, setUserResults] = useState([]);
@@ -3015,7 +2958,7 @@ function EconomyAdminTab() {
       <p className="dim" style={{ fontSize: 13 }}>A soma das chances não precisa fechar em 100% — o restante cai no último baú da lista, igual ao bot original.</p>
       <div className="admin-badges-toolbar"><button className="btn-secondary" onClick={create}>+ Novo baú</button></div>
       <table className="admin-table">
-        <thead><tr><th>Imagem</th><th>Nome</th><th>Chance</th><th>Moedas</th><th>Tickets</th><th>Ativo</th><th></th></tr></thead>
+        <thead><tr><th>Imagem</th><th>Nome</th><th>Chance</th><th>Moedas</th><th>Ativo</th><th></th></tr></thead>
         <tbody>
           {chests.map((c) => (
             <tr key={c.id}>
@@ -3029,10 +2972,6 @@ function EconomyAdminTab() {
               <td>
                 <input type="number" style={{ width: 60 }} defaultValue={c.coinsMin} onBlur={(e) => update(c, 'coinsMin', parseInt(e.target.value, 10))} /> -
                 <input type="number" style={{ width: 60 }} defaultValue={c.coinsMax} onBlur={(e) => update(c, 'coinsMax', parseInt(e.target.value, 10))} />
-              </td>
-              <td>
-                <input type="number" style={{ width: 50 }} defaultValue={c.ticketsMin} onBlur={(e) => update(c, 'ticketsMin', parseInt(e.target.value, 10))} /> -
-                <input type="number" style={{ width: 50 }} defaultValue={c.ticketsMax} onBlur={(e) => update(c, 'ticketsMax', parseInt(e.target.value, 10))} />
               </td>
               <td><input type="checkbox" defaultChecked={c.enabled} onChange={(e) => update(c, 'enabled', e.target.checked)} /></td>
               <td><button className="btn-link danger" onClick={() => remove(c)}>Excluir</button></td>

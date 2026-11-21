@@ -31,10 +31,9 @@ const RECENT_MAX = 6;
 const GROUP_LIMIT = 6;
 
 const PAGES = [
-  { path: '/inicio', label: 'Início', keywords: 'home novidades destaques' },
+  { path: '/inicio', label: 'Central', keywords: 'início inicio home novidades anúncios avisos staff destaques' },
   { path: '/', label: 'Comunidade', keywords: 'chat canais servidor' },
-  { path: '/comunidades', label: 'Fórum', keywords: 'forum fórum feed feeds posts temas' },
-  { path: '/dms', label: 'Social', keywords: 'amigos mensagens clubes dm' },
+  { path: '/dms', label: 'Amigos', keywords: 'amigos mensagens clubes dm' },
   { path: '/jogos', label: 'Apps', keywords: 'jogos aplicativos' },
   { path: '/jogos/mods', label: 'Mods', keywords: 'modpacks jogos instalar' },
   { path: '/progresso', label: 'Progresso', keywords: 'ranks conquistas recompensas nível xp' },
@@ -42,14 +41,12 @@ const PAGES = [
   { path: '/wiki', label: 'Wiki', keywords: 'wiki regras ajuda como funciona pingu guia' },
   { path: '/notifications', label: 'Notificações', keywords: 'avisos sino' },
   { path: '/search', label: 'Busca', keywords: 'procurar pesquisar' },
-  { path: '/anuncios', label: 'Novidades', keywords: 'novidades anúncios avisos staff' },
-  { path: '/comunidade/eventos', label: 'Novidades › Eventos', keywords: 'eventos agenda calendário' },
+  { path: '/comunidade/eventos', label: 'Eventos', keywords: 'eventos agenda calendário' },
   { path: '/comunidade/galeria', label: 'Galeria', keywords: 'fotos imagens mídia' },
   { path: '/economia', label: 'Economia e Loja', keywords: 'economia moedas gemas carteira baú diário histórico' },
   { path: '/missoes', label: 'Economia e Loja › Missões', keywords: 'missões tarefas diárias semanais recompensas' },
   { path: '/loja', label: 'Economia e Loja › Loja', keywords: 'loja molduras efeitos comprar decorações fontes' },
   { path: '/economia?aba=temporada', label: 'Economia e Loja › Passe do clube', keywords: 'passe temporada assinante' },
-  { path: '/sorteio', label: 'Economia e Loja › Sorteio', keywords: 'sorteio bilhete prêmio rifa' },
   { path: '/participar', label: 'Participar › Bora Jogar', keywords: 'bora jogar grupo jogatina partida lfg' },
   { path: '/participar?aba=interesses', label: 'Participar › Interesses', keywords: 'interesses cargos jogos' },
   { path: '/participar?aba=reputacao', label: 'Participar › Reputação', keywords: 'reputação agradecer ranking' },

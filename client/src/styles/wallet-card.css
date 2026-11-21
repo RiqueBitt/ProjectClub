@@ -1,0 +1,246 @@
+/* Cartão da carteira 3D (components/WalletCard.jsx). */
+.wcard-stage {
+  display: flex; flex-direction: column; align-items: center; gap: 10px;
+  padding: 18px 0 6px; perspective: 1400px;
+}
+.wcard {
+  --rx: 0deg; --ry: 0deg; --px: 50%; --py: 50%;
+  width: min(400px, 92vw); aspect-ratio: 1.586; position: relative;
+  cursor: grab; touch-action: pan-y; user-select: none; -webkit-user-select: none; transform-style: preserve-3d;
+  outline: none; border-radius: 20px;
+}
+.wcard:focus-visible { box-shadow: 0 0 0 3px color-mix(in srgb, var(--brand) 70%, transparent); }
+.wcard.is-dragging { cursor: grabbing; }
+.wcard-float { width: 100%; height: 100%; animation: wcard-float 6s ease-in-out infinite; transform-style: preserve-3d; }
+.wcard.is-dragging .wcard-float { animation-play-state: paused; }
+.wcard-inner {
+  position: relative; width: 100%; height: 100%; transform-style: preserve-3d;
+  transform: rotateX(var(--rx)) rotateY(var(--ry));
+  transition: transform .18s ease-out;
+}
+.wcard.is-dragging .wcard-inner { transition: none; }
+.wcard.is-snapping .wcard-inner { transition: transform .52s cubic-bezier(.2, .8, .2, 1.08); }
+@keyframes wcard-float {
+  0%, 100% { transform: translateY(0) rotateZ(-.6deg); }
+  50% { transform: translateY(-7px) rotateZ(.6deg); }
+}
+
+.wcard-face {
+  position: absolute; inset: 0; border-radius: 20px; overflow: hidden;
+  backface-visibility: hidden; -webkit-backface-visibility: hidden;
+  color: #fff; box-sizing: border-box; padding: 20px 22px;
+  background:
+    radial-gradient(120% 90% at 100% 0%, rgba(122, 162, 255, .55), transparent 60%),
+    radial-gradient(90% 80% at 0% 100%, rgba(176, 124, 255, .45), transparent 60%),
+    linear-gradient(135deg, #1b2f73 0%, #12204f 55%, #0b1433 100%);
+  border: 1px solid rgba(255, 255, 255, .14);
+  box-shadow: 0 22px 50px -18px rgba(0, 0, 0, .75), inset 0 1px 0 rgba(255, 255, 255, .12);
+}
+.wcard-back { transform: rotateY(180deg); padding: 0; }
+
+/* Reflexo: uma faixa de luz que segue o mouse + um brilho que passa sozinho. */
+.wcard-sheen {
+  position: absolute; inset: 0; pointer-events: none; border-radius: inherit; mix-blend-mode: screen;
+  background:
+    radial-gradient(40% 55% at var(--px) var(--py), rgba(255, 255, 255, .22), transparent 70%),
+    linear-gradient(115deg, transparent 35%, rgba(255, 255, 255, .16) 45%, transparent 55%);
+  background-size: 100% 100%, 250% 100%;
+  animation: wcard-sheen 7s ease-in-out infinite;
+}
+@keyframes wcard-sheen {
+  0%, 60% { background-position: 0 0, 120% 0; }
+  100% { background-position: 0 0, -120% 0; }
+}
+
+.wcard-top { display: flex; align-items: center; justify-content: space-between; }
+.wcard-bank { font-size: 15px; font-weight: 800; letter-spacing: .4px; }
+.wcard-contactless { opacity: .8; display: inline-flex; }
+.wcard-mid { display: flex; align-items: center; justify-content: space-between; margin-top: 14px; }
+.wcard-chip {
+  width: 46px; height: 34px; border-radius: 7px; position: relative; display: grid; grid-template-rows: repeat(3, 1fr);
+  background: linear-gradient(135deg, #f7dc8b, #c99a35 55%, #f2d27a); box-shadow: inset 0 0 0 1px rgba(0, 0, 0, .18);
+}
+.wcard-chip i { border-bottom: 1px solid rgba(90, 60, 10, .35); margin: 0 7px; }
+.wcard-chip i:last-child { border-bottom: 0; }
+.wcard-photo { border-radius: 50%; padding: 2px; background: rgba(255, 255, 255, .55); display: inline-flex; box-shadow: 0 4px 14px rgba(0, 0, 0, .35); }
+.wcard-photo img, .wcard-photo > * { border-radius: 50%; }
+
+.wcard-balances { display: flex; gap: 18px; margin-top: 12px; }
+.wcard-bal { display: inline-flex; align-items: baseline; gap: 6px; font-variant-numeric: tabular-nums; }
+.wcard-bal svg { align-self: center; }
+.wcard-bal b { font-size: 22px; font-weight: 800; letter-spacing: .3px; text-shadow: 0 1px 6px rgba(0, 0, 0, .35); }
+.wcard-bal small { font-size: 11.5px; opacity: .75; }
+.wcard-bal.coins svg { color: #ffd45a; }
+.wcard-bal.gems svg { color: #d3b2ff; }
+
+.wcard-bottom { position: absolute; left: 22px; right: 22px; bottom: 18px; display: flex; align-items: flex-end; justify-content: space-between; gap: 12px; }
+.wcard-holder { display: flex; flex-direction: column; min-width: 0; }
+.wcard-holder small, .wcard-back-info small { font-size: 9.5px; text-transform: uppercase; letter-spacing: 1px; opacity: .65; }
+.wcard-holder strong { font-size: 15px; font-weight: 700; letter-spacing: .6px; text-transform: uppercase; max-width: 220px; }
+
+.wcard-brand { display: inline-flex; align-items: center; gap: 5px; flex-shrink: 0; }
+.wcard-brand-name { font-size: 14px; font-style: italic; font-weight: 600; letter-spacing: .2px; }
+.wcard-brand-name b { font-weight: 900; }
+
+/* Verso */
+.wcard-stripe { display: block; height: 44px; margin-top: 22px; background: linear-gradient(180deg, #0a0a0f, #1b1b22); }
+.wcard-sign { display: flex; align-items: center; gap: 10px; margin: 16px 22px 0; }
+.wcard-sign-strip {
+  flex: 1; height: 34px; border-radius: 4px; display: flex; align-items: center; padding: 0 10px; overflow: hidden;
+  background: repeating-linear-gradient(135deg, #f4f1e6 0 6px, #e7e2d0 6px 12px); color: #1d2a55;
+}
+.wcard-sign-strip em { font-family: 'Segoe Script', 'Brush Script MT', cursive; font-size: 16px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.wcard-cvv { padding: 4px 10px; border-radius: 4px; background: #fff; color: #111; font: 700 13px ui-monospace, monospace; font-style: italic; }
+.wcard-back-info { display: flex; gap: 18px; margin: 14px 22px 0; flex-wrap: wrap; }
+.wcard-back-info span { display: flex; flex-direction: column; }
+.wcard-back-info b { font: 700 13.5px ui-monospace, monospace; letter-spacing: .6px; }
+.wcard-legal { margin: 10px 22px 0; font-size: 9.5px; line-height: 1.35; opacity: .6; max-width: 70%; }
+.wcard-back-bottom { position: absolute; right: 20px; bottom: 16px; }
+
+.wcard-hint { margin: 0; font-size: 12px; color: var(--text-muted); }
+
+@media (max-width: 480px) {
+  .wcard-face { padding: 16px 18px; }
+  .wcard-bal b { font-size: 18px; }
+  .wcard-bottom { left: 18px; right: 18px; bottom: 14px; }
+  .wcard-legal { display: none; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .wcard-float, .wcard-sheen { animation: none; }
+  .wcard-inner, .wcard.is-snapping .wcard-inner { transition: none; }
+}
+
+/* Versão compacta (chat e Loja) */
+.wcard-stage.is-compact { padding: 6px 0 2px; align-items: flex-start; }
+.wcard-stage.is-compact .wcard { width: min(300px, 78vw); border-radius: 16px; }
+.wcard-stage.is-compact .wcard-face { border-radius: 16px; padding: 14px 16px; }
+.wcard-stage.is-compact .wcard-back { padding: 0; }
+.wcard-stage.is-compact .wcard-bank { font-size: 12.5px; }
+.wcard-stage.is-compact .wcard-mid { margin-top: 8px; }
+.wcard-stage.is-compact .wcard-chip { width: 36px; height: 27px; }
+.wcard-stage.is-compact .wcard-balances { margin-top: 8px; gap: 14px; }
+.wcard-stage.is-compact .wcard-bal b { font-size: 17px; }
+.wcard-stage.is-compact .wcard-bottom { left: 16px; right: 16px; bottom: 12px; }
+.wcard-stage.is-compact .wcard-holder strong { font-size: 12.5px; max-width: 150px; }
+.wcard-stage.is-compact .wcard-brand-name { font-size: 12px; }
+.wcard-stage.is-compact .wcard-stripe { height: 34px; margin-top: 16px; }
+.wcard-stage.is-compact .wcard-sign { margin: 10px 16px 0; }
+.wcard-stage.is-compact .wcard-sign-strip { height: 26px; }
+.wcard-stage.is-compact .wcard-back-info { margin: 10px 16px 0; gap: 12px; }
+.wcard-stage.is-compact .wcard-back-info b { font-size: 11.5px; }
+.wcard-stage.is-compact .wcard-legal { display: none; }
+.wcard-stage.is-compact .wcard-back-bottom { right: 14px; bottom: 10px; }
+
+/* Assinante: preto e dourado */
+.wcard--gold .wcard-face {
+  color: #f6e7b8;
+  background:
+    radial-gradient(110% 80% at 100% 0%, rgba(230, 190, 90, .28), transparent 60%),
+    radial-gradient(80% 70% at 0% 100%, rgba(180, 140, 50, .22), transparent 60%),
+    linear-gradient(135deg, #17150f 0%, #0b0a07 60%, #000 100%);
+  border-color: rgba(232, 196, 104, .55);
+  box-shadow: 0 22px 50px -18px rgba(0, 0, 0, .8), inset 0 0 0 1px rgba(255, 220, 140, .12), inset 0 1px 0 rgba(255, 230, 160, .25);
+}
+.wcard--gold .wcard-bank, .wcard--gold .wcard-bal b, .wcard--gold .wcard-holder strong, .wcard--gold .wcard-brand-name {
+  background: linear-gradient(100deg, #fff2c4, #e2b450 45%, #fff0b5 60%, #c8952e);
+  -webkit-background-clip: text; background-clip: text; color: transparent; text-shadow: none;
+}
+.wcard--gold .wcard-bal.coins svg, .wcard--gold .wcard-bal.gems svg, .wcard--gold .wcard-contactless { color: #e8c468; }
+.wcard--gold .wcard-photo { background: linear-gradient(135deg, #fff0b5, #c8952e); }
+.wcard--gold .wcard-brand svg rect { stroke: #e8c468; fill: rgba(232, 196, 104, .14); }
+.wcard--gold .wcard-brand svg path { stroke: #f6dc8c; }
+.wcard--gold .wcard-sheen { background:
+    radial-gradient(40% 55% at var(--px) var(--py), rgba(255, 228, 150, .2), transparent 70%),
+    linear-gradient(115deg, transparent 35%, rgba(255, 220, 140, .22) 45%, transparent 55%);
+  background-size: 100% 100%, 250% 100%; }
+
+/* Super Assinante: preto e arco-íris */
+.wcard--rainbow .wcard-face {
+  background: linear-gradient(135deg, #111 0%, #050505 60%, #000 100%);
+  border: 0;
+  box-shadow: 0 22px 50px -18px rgba(0, 0, 0, .85);
+}
+.wcard--rainbow .wcard-face::before {
+  content: ''; position: absolute; inset: 0; border-radius: inherit; padding: 2px; pointer-events: none;
+  background: conic-gradient(from var(--wcard-hue, 0deg), #ff4d6d, #ffb84d, #f9f871, #4dff9e, #4dc3ff, #8a6bff, #ff4dd8, #ff4d6d);
+  -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+  -webkit-mask-composite: xor; mask-composite: exclude;
+  animation: wcard-hue 6s linear infinite;
+}
+.wcard--rainbow .wcard-face::after {
+  content: ''; position: absolute; inset: 0; border-radius: inherit; pointer-events: none; mix-blend-mode: screen; opacity: .22;
+  background: linear-gradient(120deg, #ff4d6d, #ffb84d, #f9f871, #4dff9e, #4dc3ff, #8a6bff, #ff4dd8);
+  background-size: 300% 100%; animation: wcard-holo 8s ease-in-out infinite;
+}
+.wcard--rainbow .wcard-bank, .wcard--rainbow .wcard-bal b, .wcard--rainbow .wcard-brand-name {
+  background: linear-gradient(90deg, #ff6b8b, #ffc56b, #f9f871, #6bffb0, #6bd0ff, #a08bff, #ff6be2);
+  background-size: 200% 100%; animation: wcard-holo 6s linear infinite;
+  -webkit-background-clip: text; background-clip: text; color: transparent; text-shadow: none;
+}
+.wcard--rainbow .wcard-photo { background: conic-gradient(#ff4d6d, #ffb84d, #f9f871, #4dff9e, #4dc3ff, #8a6bff, #ff4dd8, #ff4d6d); }
+.wcard--rainbow .wcard-bal.coins svg { color: #ffd45a; }
+.wcard--rainbow .wcard-bal.gems svg { color: #c9a5ff; }
+@property --wcard-hue { syntax: '<angle>'; inherits: false; initial-value: 0deg; }
+@keyframes wcard-hue { to { --wcard-hue: 360deg; } }
+@keyframes wcard-holo { 0% { background-position: 0% 50%; } 50% { background-position: 100% 50%; } 100% { background-position: 0% 50%; } }
+@media (prefers-reduced-motion: reduce) {
+  .wcard--rainbow .wcard-face::before, .wcard--rainbow .wcard-face::after,
+  .wcard--rainbow .wcard-bank, .wcard--rainbow .wcard-bal b, .wcard--rainbow .wcard-brand-name { animation: none; }
+}
+
+/* Loja → Cartão da carteira (components/shop/WalletCardStyles.jsx) */
+.wcs-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 16px; margin-top: 18px; }
+.wcs-option {
+  display: flex; flex-direction: column; align-items: flex-start; gap: 10px; padding: 14px 16px 16px;
+  border-radius: 16px; background: var(--room-raised, var(--bg-secondary)); border: 1px solid var(--room-line, var(--border));
+}
+.wcs-option.is-current { border-color: var(--room-accent, var(--brand)); box-shadow: 0 0 0 1px var(--room-accent, var(--brand)); }
+.wcs-option.is-locked .wcard-stage { filter: saturate(.55) brightness(.8); }
+.wcs-info { display: flex; flex-direction: column; gap: 2px; }
+.wcs-info strong { font-size: 15px; }
+.wcs-info span { font-size: 13px; color: var(--room-muted, var(--text-muted)); }
+.wcs-badge { display: inline-flex; align-items: center; gap: 5px; padding: 6px 12px; border-radius: 999px; font-size: 13px; font-weight: 700; color: var(--green); background: color-mix(in srgb, var(--green) 14%, transparent); }
+.wcs-error { color: var(--red); font-size: 13.5px; }
+
+/* Cartão mostrado no chat (InternalLinkCard → kind "wallet") */
+.wcard-chat { margin-top: 6px; display: flex; flex-direction: column; gap: 4px; max-width: 320px; }
+.wcard-chat-caption { font-size: 12px; color: var(--text-muted); }
+
+/* ---------- Verso novo (nov/2026): tarja, "assinatura autorizada",
+   faixa branca com assinatura + final do número, CVV à parte e estrelinha ---------- */
+.wcard-back { display: block; }
+.wcard .wcard-back .wcard-stripe { height: 16%; margin-top: 9%; background: #141414; }
+.wcard-sig-label {
+  display: block; margin: 5% 0 0 7%; font-size: 10px; font-weight: 800; letter-spacing: .6px; text-transform: uppercase;
+  opacity: .8;
+}
+.wcard .wcard-back .wcard-sign { display: flex; align-items: stretch; gap: 4%; margin: 2% 7% 0; height: 15%; }
+.wcard .wcard-back .wcard-sign-strip {
+  flex: 1; position: relative; display: flex; align-items: center; justify-content: space-between; gap: 8px;
+  height: auto; padding: 0 12px; border-radius: 3px; background: #f5f5f2; color: #1d1d1f;
+}
+.wcard-scribble { height: 70%; width: auto; max-width: 62%; color: #222; }
+.wcard-sign-strip b { font: 700 17px ui-monospace, 'SF Mono', Menlo, monospace; letter-spacing: 1px; color: #222; }
+.wcard .wcard-back .wcard-cvv {
+  width: 24%; display: flex; align-items: center; justify-content: center; padding: 0; border-radius: 3px;
+  background: #f5f5f2; color: #222; font: 700 17px ui-monospace, 'SF Mono', Menlo, monospace; font-style: normal; letter-spacing: 1px;
+}
+.wcard-star {
+  position: absolute; left: 7%; bottom: 9%; width: 13%; aspect-ratio: 1; border-radius: 10px;
+  display: flex; align-items: center; justify-content: center;
+  background: rgba(255, 255, 255, .45); color: rgba(255, 255, 255, .95); box-shadow: inset 0 0 0 1px rgba(255, 255, 255, .25);
+}
+.wcard-star svg { width: 55%; height: 55%; }
+/* Verso claro no estilo clássico (azul). */
+.wcard:not(.wcard--gold):not(.wcard--rainbow) .wcard-back {
+  color: #1f2b46;
+  background: linear-gradient(160deg, #a9c3ec 0%, #8fb0e3 55%, #7ea2da 100%);
+  border-color: rgba(255, 255, 255, .5);
+}
+.wcard--gold .wcard-sig-label { color: #e8c468; }
+.wcard--gold .wcard-star { background: rgba(232, 196, 104, .22); color: #f2d27a; }
+.wcard--rainbow .wcard-star { background: conic-gradient(from 0deg, #ff4d6d55, #ffb84d55, #4dff9e55, #4dc3ff55, #8a6bff55, #ff4d6d55); color: #fff; }
+.wcard-stage.is-compact .wcard-sig-label { font-size: 8.5px; }
+.wcard-stage.is-compact .wcard-sign-strip b, .wcard-stage.is-compact .wcard .wcard-back .wcard-cvv { font-size: 13px; }
+.wcard-stage.is-compact .wcard-star { border-radius: 8px; }
+.wcard--gold .wcard-back .wcard-stripe, .wcard--rainbow .wcard-back .wcard-stripe { background: #2a2a2e; }

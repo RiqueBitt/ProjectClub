@@ -1,4 +1,4 @@
-// Fase 4: sorteio semanal, gorjetas (transferência atômica) e cupons da Loja.
+// Fase 4: devolução do sorteio encerrado, gorjetas (transferência atômica) e cupons da Loja.
 const test = require('node:test');
 const assert = require('node:assert');
 const { fase4Db, spies } = require('./helpers/fake-db');
@@ -9,90 +9,33 @@ const tips = require('../src/services/community/tips');
 const coupons = require('../src/services/community/coupons');
 
 const MONDAY = new Date('2026-11-02T18:00:00Z');
-const LAST_WEEK = new Date('2026-10-28T18:00:00Z');
 const reset = () => { common._resetSettled(); common.resetEconomyCache(); };
 const coinsOf = (db, id) => db._store.user.find((u) => u.id === id).coins;
 
-// ---------------- Sorteio ----------------
-test('sorteio: compra desconta moedas, respeita limite semanal e saldo', async () => {
+// ---------------- Sorteio (removido) ----------------
+// O sorteio saiu do app: só sobra a devolução, uma vez, das moedas de
+// bilhetes de semanas que não foram sorteadas.
+test('sorteio encerrado: devolve bilhetes não sorteados uma vez só e avisa', async () => {
   reset();
   const s = spies();
-  const db = fase4Db({ user: [{ id: 'ana', coins: 1000 }, { id: 'pobre', coins: 10 }] });
-  const o = { db, now: LAST_WEEK, ledger: s.ledgerFn };
-  const r = await raffle.buyTickets('ana', 4, o);
-  assert.equal(r.myTickets, 4);
-  assert.equal(coinsOf(db, 'ana'), 1000 - 4 * raffle.TICKET_PRICE);
-  assert.equal(s.ledger[0].coins, -4 * raffle.TICKET_PRICE);
-  await assert.rejects(raffle.buyTickets('ana', 0, o), /1 a/);
-  await assert.rejects(raffle.buyTickets('ana', raffle.MAX_PER_PURCHASE + 1, o), /1 a/);
-  await raffle.buyTickets('ana', 10, o);
-  await assert.rejects(raffle.buyTickets('ana', 10, o), /só pode comprar mais 6/);
-  const before = coinsOf(db, 'ana');
-  await raffle.buyTickets('ana', 6, o);
-  await assert.rejects(raffle.buyTickets('ana', 1, o), /máximo de bilhetes/);
-  assert.equal(coinsOf(db, 'ana'), before - 6 * raffle.TICKET_PRICE);
-  // Sem saldo: nada muda (a transação desfaz o bilhete reservado).
-  await assert.rejects(raffle.buyTickets('pobre', 1, o), (e) => e.status === 402);
-  assert.equal(coinsOf(db, 'pobre'), 10);
-  assert.equal(db._store.raffleTicket.find((t) => t.userId === 'pobre')?.count || 0, 0);
-});
-
-test('sorteio: escolha ponderada pelos bilhetes', () => {
-  const rows = [{ userId: 'a', count: 1 }, { userId: 'b', count: 3 }];
-  assert.equal(raffle.pickWinner(rows, 0), 'a');
-  assert.equal(raffle.pickWinner(rows, 1), 'b');
-  assert.equal(raffle.pickWinner(rows, 3), 'b');
-  assert.equal(raffle.pickWinner(rows, 4), null);
-  assert.equal(raffle.prizeFor(100), raffle.BASE_PRIZE + 80);
-});
-
-test('sorteio: sorteia com randomInt, paga o prêmio, avisa todo mundo e não repete', async () => {
-  reset();
-  const s = spies();
-  const prev = spTime.previousWeekBounds(MONDAY).key;
   const db = fase4Db({
-    user: [{ id: 'ana', coins: 0, displayName: 'Ana' }, { id: 'bia', coins: 0, displayName: 'Bia' }],
+    user: [{ id: 'ana', coins: 0 }, { id: 'bia', coins: 10 }, { id: 'cai', coins: 0 }],
     raffleTicket: [
-      { id: 't1', weekKey: prev, userId: 'ana', count: 2, spent: 50 },
-      { id: 't2', weekKey: prev, userId: 'bia', count: 8, spent: 200 },
+      { id: 't1', weekKey: '2026-W45', userId: 'ana', count: 3, spent: 75 },
+      { id: 't2', weekKey: '2026-W45', userId: 'bia', count: 1, spent: 25 },
+      { id: 't3', weekKey: '2026-W44', userId: 'cai', count: 2, spent: 50 },
     ],
+    raffleDraw: [{ weekKey: '2026-W44', winnerId: 'cai', prize: 140, tickets: 2, participants: 1 }],
   });
-  const asked = [];
-  const o = { db, now: MONDAY, notify: s.notify, ledger: s.ledgerFn, random: (n) => { asked.push(n); return 5; } };
-  const r = await raffle.drawIfDue(o);
-  assert.deepEqual(asked, [10], 'sorteia entre todos os bilhetes');
-  assert.equal(r.winnerId, 'bia');
-  assert.equal(coinsOf(db, 'bia'), raffle.prizeFor(250));
-  assert.equal(s.notices.length, 2);
-  assert.ok(s.notices.find((n) => n.userId === 'bia').title.includes('ganhou'));
-  common._resetSettled();
-  assert.equal(await raffle.drawIfDue(o), null);
-  assert.equal(coinsOf(db, 'bia'), raffle.prizeFor(250));
-});
-
-test('sorteio: tarefa interrompida retoma pagando o MESMO vencedor', async () => {
-  reset();
-  const prev = spTime.previousWeekBounds(MONDAY).key;
-  const db = fase4Db({
-    user: [{ id: 'ana', coins: 0 }, { id: 'bia', coins: 0 }],
-    raffleTicket: [{ id: 't1', weekKey: prev, userId: 'ana', count: 1, spent: 25 }, { id: 't2', weekKey: prev, userId: 'bia', count: 1, spent: 25 }],
-    // Resultado já gravado, pagamento não aconteceu (queda no meio).
-    raffleDraw: [{ weekKey: prev, winnerId: 'ana', prize: 140, tickets: 2, participants: 2 }],
-  });
-  await raffle.drawIfDue({ db, now: MONDAY, notify: async () => {}, ledger: () => {}, random: () => 1 });
-  assert.equal(coinsOf(db, 'ana'), 140);
-  assert.equal(coinsOf(db, 'bia'), 0);
-});
-
-test('sorteio: com menos de 2 pessoas devolve as moedas', async () => {
-  reset();
-  const s = spies();
-  const prev = spTime.previousWeekBounds(MONDAY).key;
-  const db = fase4Db({ user: [{ id: 'ana', coins: 0 }], raffleTicket: [{ id: 't1', weekKey: prev, userId: 'ana', count: 3, spent: 75 }] });
-  const r = await raffle.drawIfDue({ db, now: MONDAY, notify: s.notify, ledger: s.ledgerFn });
-  assert.equal(r.winnerId, null);
+  const r = await raffle.refundOpenTickets({ db, now: MONDAY, notify: s.notify, ledger: s.ledgerFn });
+  assert.equal(r.refunded, 2);
   assert.equal(coinsOf(db, 'ana'), 75);
-  assert.match(s.notices[0].title, /cancelado/);
+  assert.equal(coinsOf(db, 'bia'), 35);
+  assert.equal(coinsOf(db, 'cai'), 0); // semana já sorteada: nada a devolver
+  assert.equal(s.notices.length, 2);
+  reset();
+  assert.equal(await raffle.refundOpenTickets({ db, now: MONDAY, notify: s.notify, ledger: s.ledgerFn }), null);
+  assert.equal(coinsOf(db, 'ana'), 75);
 });
 
 // ---------------- Gorjetas ----------------

@@ -1,12 +1,9 @@
 import { useCallback, useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { getCommunityHome, getPostOfWeek, claimSeasonGift, errText } from '../../api/community';
-import { votePost } from '../../api/endpoints';
+import { getCommunityHome, claimSeasonGift, errText } from '../../api/community';
 import { useSocket } from '../../context/SocketContext.jsx';
 import { useStore } from '../../store/useStore';
 import { useLiveRefresh } from '../../utils/liveRefresh';
-import { postPath } from '../../utils/prettyLinks';
-import { PostCard } from '../../pages/CommunitiesPage.jsx';
 import { Ico } from '../PagesKit.jsx';
 import ClanIcon from '../ClanIcon.jsx';
 import { Countdown, ProgressBar, fmt } from './CommunityBits.jsx';
@@ -18,20 +15,16 @@ import { Countdown, ProgressBar, fmt } from './CommunityBits.jsx';
 
 export function useCommunityHome() {
   const [data, setData] = useState(null);
-  const [potw, setPotw] = useState(null);
   const { socket } = useSocket() || {};
   const load = useCallback(() => getCommunityHome().then(setData).catch(() => setData((d) => d || {})), []);
-  const loadPotw = useCallback(() => getPostOfWeek().then((d) => setPotw(d.post || false)).catch(() => setPotw(false)), []);
-  useEffect(() => { load(); loadPotw(); }, [load, loadPotw]);
+  useEffect(() => { load(); }, [load]);
   useLiveRefresh(() => load(), { interval: 60000 });
   useEffect(() => {
     if (!socket) return undefined;
-    const onPotw = () => loadPotw();
     socket.on('goals:reached', load);
-    socket.on('post:of-week', onPotw);
-    return () => { socket.off('goals:reached', load); socket.off('post:of-week', onPotw); };
-  }, [socket, load, loadPotw]);
-  return { data, potw, setPotw, reload: load };
+    return () => { socket.off('goals:reached', load); };
+  }, [socket, load]);
+  return { data, reload: load };
 }
 
 function SeasonBanner({ season, onClaimed }) {
@@ -81,32 +74,17 @@ function GoalsCard({ goals }) {
           </div>
         ))}
       </div>
-      <p className="c4-small">{participated ? 'Você já está participando desta semana. Valeu!' : 'Mande mensagens, entre em call ou poste no Fórum pra participar das recompensas.'}</p>
+      <p className="c4-small">{participated ? 'Você já está participando desta semana. Valeu!' : 'Mande mensagens e entre em call pra participar das recompensas.'}</p>
     </section>
   );
 }
 
 export function HomeCommunityMain({ home }) {
-  const navigate = useNavigate();
-  const { data, potw, setPotw, reload } = home;
-  const onVote = async (post, value) => {
-    const next = post.myVote === value ? 0 : value;
-    setPotw((p) => (p ? { ...p, myVote: next, score: p.score + (next - (p.myVote || 0)) } : p));
-    try { await votePost(post.id, value); } catch { /* volta no próximo carregamento */ }
-  };
+  const { data, reload } = home;
   return (
     <>
       <SeasonBanner season={data?.season} onClaimed={reload} />
       <GoalsCard goals={data?.goals} />
-      {potw && (
-        <section className="home-section c4-potw">
-          <header className="home-section-head">
-            <h2><Ico name="trophy" size={17} /> Post da semana</h2>
-            <span className="c4-potw-badge">Mais votado da semana passada</span>
-          </header>
-          <PostCard post={potw} onVote={onVote} onOpen={() => navigate(postPath(potw))} />
-        </section>
-      )}
     </>
   );
 }
@@ -116,7 +94,6 @@ export function HomeCommunitySide({ home }) {
   const { data } = home;
   const links = [
     { icon: 'bolt', label: 'Bora Jogar', hint: 'Marque uma jogatina', to: '/participar' },
-    { icon: 'gift', label: 'Sorteio', hint: data?.raffle ? `Prêmio: ${fmt(data.raffle.prize)} moedas` : 'Toda semana', to: '/sorteio' },
     { icon: 'calendar', label: 'Retrospectiva', hint: 'Seu mês em números', to: '/retrospectiva' },
     { icon: 'tag', label: 'Interesses', hint: 'Seus jogos e assuntos', to: '/participar?aba=interesses' },
     { icon: 'users', label: 'Convidar amigos', hint: 'Ganhe moedas', to: '/participar?aba=convites' },

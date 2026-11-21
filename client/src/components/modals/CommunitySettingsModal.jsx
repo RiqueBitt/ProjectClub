@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import Modal from '../Modal.jsx';
 import { useStore } from '../../store/useStore';
 import { getCommunitySettings, updateCommunitySettings, uploadCommunityIcon, uploadCommunityBanner, updateFeaturedChannels } from '../../api/endpoints';
-import { FEATURED, FeaturedGlyph } from '../FeaturedChannels.jsx';
+import { HIDEABLE_FEATURED, FeaturedGlyph } from '../FeaturedChannels.jsx';
 import '../../styles/channels.css';
 
 // Liga/desliga os canais em destaque (Eventos, Feed, Galeria) do topo da
@@ -29,7 +29,7 @@ function FeaturedChannelsSettings() {
       <h3>Canais em destaque</h3>
       <p className="dim">Ficam fixos no topo da lista de canais. Esconda os que a comunidade não usa.</p>
       <div className="featured-settings-list">
-        {FEATURED.map((f) => {
+        {HIDEABLE_FEATURED.map((f) => {
           const on = featured?.[f.key] !== false;
           return (
             <div key={f.key} className={`featured-settings-row featured-${f.key}`}>

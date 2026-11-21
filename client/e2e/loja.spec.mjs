@@ -99,3 +99,30 @@ test('painel: gerenciamento de apoio pede motivo e confirma antes de remover', a
   await expect(page.getByRole('status')).toContainText('agora é Membro');
   expect(errors).toEqual([]);
 });
+
+test('loja de conveniência: pega do gancho, cestinha e paga passando o cartão', async ({ page }) => {
+  await page.addInitScript(() => { try { localStorage.removeItem('shopBasket:v1'); } catch { /* ok */ } });
+  let paidWith = null;
+  await page.route('**/api/decorations/checkout', async (r) => {
+    paidWith = r.request().postDataJSON();
+    await r.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ ok: true, bought: [{ kind: 'deco', id: paidWith.items[0].id, name: 'Brasa', paid: 450, currency: 'coins' }], coins: 2030, gems: 12 }) });
+  });
+  await page.goto('/loja');
+  await page.locator('.room-nav-item', { hasText: 'Molduras de avatar' }).click();
+  const card = page.locator('.room-card', { hasText: 'Brasa' });
+  await expect(card.locator('.room-hook')).toHaveCount(1); // pendurado no gancho
+  await card.getByRole('button', { name: /Pôr Brasa na cestinha/ }).click();
+  const fab = page.locator('.shop-basket-fab');
+  await expect(fab.locator('.shop-basket-count')).toHaveText('1');
+  await fab.click();
+  await expect(page.getByRole('heading', { level: 1, name: 'Checkout' })).toBeVisible();
+  await expect(page.locator('.shop-receipt-row')).toHaveCount(1);
+  await expect(page.locator('.shop-receipt-total')).toContainText('450');
+  await expect(page.locator('.shop-pos-screen')).toContainText('PASSE O CARTÃO');
+  await page.getByRole('button', { name: 'Passar cartão' }).click();
+  await expect(page.locator('.shop-pos-screen')).toContainText('APROVADO');
+  expect(paidWith.items).toHaveLength(1);
+  expect(paidWith.items[0]).toMatchObject({ kind: 'deco', currency: 'coins', expectedPrice: 450 });
+  await expect(page.getByRole('heading', { level: 1, name: 'Meus itens' })).toBeVisible({ timeout: 5000 });
+  await expect(page.locator('.shop-basket-count')).toHaveCount(0);
+});

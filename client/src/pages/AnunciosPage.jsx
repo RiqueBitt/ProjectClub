@@ -89,7 +89,9 @@ function Editor({ initial, onClose, onSaved }) {
   );
 }
 
-export default function AnunciosPage() {
+// `embedded`: mostrado direto na Central (InicioPage.jsx), sem a moldura de
+// página inteira — os anúncios aparecem com banner e texto completos.
+export default function AnunciosPage({ embedded = false }) {
   const socket = useSocket()?.socket || null;
   useMarkSectionSeen('anuncios'); // abriu Novidades: apaga a bolinha "novo"
   const [data, setData] = useState(null);
@@ -113,13 +115,13 @@ export default function AnunciosPage() {
 
   const list = data?.announcements || [];
   return (
-    <div className="an-page">
-      <div className="an-inner">
-        <header className="an-head">
-          <span className="an-head-icon"><Ico d={I.megaphone} size={22} /></span>
+    <div className={embedded ? 'an-embedded' : 'an-page'}>
+      <div className={embedded ? 'an-embedded-inner' : 'an-inner'}>
+        <header className={embedded ? 'an-head an-head-embedded' : 'an-head'}>
+          <span className="an-head-icon"><Ico d={I.megaphone} size={embedded ? 18 : 22} /></span>
           <div>
-            <h1>Novidades</h1>
-            <p>Novidades e avisos oficiais da staff do Project Club.</p>
+            {embedded ? <h2>Novidades</h2> : <h1>Novidades</h1>}
+            {!embedded && <p>Novidades e avisos oficiais da staff do Project Club.</p>}
           </div>
           {data?.canManage && (
             <button type="button" className="an-btn primary" onClick={() => setEditing({})}><Ico d={I.plus} /> Novo anúncio</button>

@@ -473,3 +473,18 @@ button.mention-chip.channel-mention-chip:hover { background: color-mix(in srgb, 
   .top-search-bar-form { display: none; }
   .top-search-mobile-btn { display: flex; }
 }
+
+/* Atividades (barra de mensagem): ação "Mostrar cartão" acima dos Mini-Jogos. */
+.mj-composer-actions { display: flex; flex-direction: column; gap: 6px; margin-bottom: 12px; }
+.mj-composer-action {
+  display: flex; align-items: center; gap: 10px; width: 100%; padding: 9px 10px; border-radius: 10px; text-align: left; cursor: pointer;
+  background: color-mix(in srgb, var(--brand) 10%, var(--bg-secondary)); border: 1px solid color-mix(in srgb, var(--brand) 30%, var(--border)); color: var(--text-normal);
+}
+.mj-composer-action:hover:not(:disabled) { background: color-mix(in srgb, var(--brand) 18%, var(--bg-secondary)); }
+.mj-composer-action:disabled { opacity: .7; cursor: progress; }
+.mj-composer-action-icon { width: 34px; height: 34px; border-radius: 9px; display: inline-flex; align-items: center; justify-content: center; flex-shrink: 0; background: linear-gradient(135deg, #1b2f73, #3b7bff); color: #fff; }
+.mj-composer-action-text { display: flex; flex-direction: column; min-width: 0; }
+.mj-composer-action-text strong { font-size: 14px; color: var(--header-primary); }
+.mj-composer-action-text small { font-size: 12px; color: var(--text-muted); }
+.mj-composer-error { margin: 0; font-size: 12.5px; color: var(--red); }
+.mj-composer-head.mj-composer-sub { margin-bottom: 8px; font-size: 13px; }

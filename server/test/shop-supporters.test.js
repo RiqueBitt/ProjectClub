@@ -234,3 +234,46 @@ test('bônus de XP: Assinante +5%, Super +15%, nunca menos que o base', () => {
   assert.equal(sup.withXpBonus(30, 'SUBSCRIBER'), 31);
   assert.equal(sup.withXpBonus(10, 'HACKER'), 10);
 });
+
+// ---------- Cestinha (checkout): vários itens, tudo ou nada ----------
+test('cestinha: compra vários itens de uma vez com o preço de Assinante', async () => {
+  reset();
+  const r = await call(shop.checkout, { user: 'u2', body: { items: [
+    { kind: 'deco', id: 'd1', currency: 'coins', expectedPrice: 180 },
+    { kind: 'deco', id: 'd2', currency: 'coins', expectedPrice: 100 },
+  ] } });
+  assert.equal(r.status, 200);
+  assert.equal(r.body.bought.length, 2);
+  assert.equal(db.users.get('u2').coins, 1000 - 180 - 100);
+  assert.ok(db.ownD.has(key('u2', 'd1')) && db.ownD.has(key('u2', 'd2')));
+  assert.equal(db.ledger.length, 2);
+});
+
+test('cestinha: se um item falha, nada é cobrado nem entregue', async () => {
+  reset();
+  db.ownD.set(key('u1', 'd2'), { userId: 'u1', decorationId: 'd2' });
+  const r = await call(shop.checkout, { user: 'u1', body: { items: [
+    { kind: 'deco', id: 'd1', currency: 'coins' },
+    { kind: 'deco', id: 'd2', currency: 'coins' },
+  ] } });
+  assert.equal(r.status, 400);
+  assert.equal(r.body.code, 'ALREADY_OWNED');
+  assert.equal(r.body.itemIndex, 1);
+  assert.equal(db.users.get('u1').coins, 1000);
+  assert.equal(db.ownD.has(key('u1', 'd1')), false);
+});
+
+test('cestinha: saldo insuficiente pro total não compra nenhum, exclusivo e repetido são recusados', async () => {
+  reset();
+  db.users.get('u1').coins = 250;
+  const r = await call(shop.checkout, { user: 'u1', body: { items: [{ kind: 'deco', id: 'd1', currency: 'coins' }, { kind: 'deco', id: 'd2', currency: 'coins' }] } });
+  assert.equal(r.body.code, 'INSUFFICIENT_FUNDS');
+  assert.equal(db.users.get('u1').coins, 250);
+  assert.equal(db.ownD.size, 0);
+  const ex = await call(shop.checkout, { user: 'u1', body: { items: [{ kind: 'deco', id: 'dx', currency: 'coins' }] } });
+  assert.equal(ex.body.code, 'EXCLUSIVE');
+  const dup = await call(shop.checkout, { user: 'u1', body: { items: [{ kind: 'deco', id: 'd1' }, { kind: 'deco', id: 'd1' }] } });
+  assert.equal(dup.status, 400);
+  const empty = await call(shop.checkout, { user: 'u1', body: { items: [] } });
+  assert.equal(empty.status, 400);
+});

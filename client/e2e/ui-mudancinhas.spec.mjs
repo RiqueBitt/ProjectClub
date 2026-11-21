@@ -33,7 +33,7 @@ test('barra de mensagem: um botão só abre emoji, figurinhas e GIFs em abas', a
   await expect(page.getByPlaceholder('Buscar GIFs...')).toBeVisible();
 });
 
-test('canal com mensagens novas mostra o número vermelho; Novidades mostra "novo" e apaga ao abrir', async ({ page }) => {
+test('canal com mensagens novas mostra o número vermelho; Central mostra "novo" e apaga ao abrir', async ({ page }) => {
   const seen = [];
   let anuncios = 3;
   await page.route('**/api/**', (route) => {
@@ -52,12 +52,13 @@ test('canal com mensagens novas mostra o número vermelho; Novidades mostra "nov
   if (isPhone) return; // no celular a lista de canais fica atrás do menu; a lógica é a mesma
   await expect(page.locator('.unread-count-badge', { hasText: '7' })).toBeVisible();
   await expect(page.locator('.unread-count-badge.has-mention', { hasText: '99+' })).toBeVisible();
-  // Novidades é um canal em destaque no topo da lista de canais.
-  const novo = page.locator('.featured-anuncios .section-new-badge');
+  // Novidades entrou na Central (canal em destaque no topo da lista): a
+  // bolinha soma Anúncios + Eventos; abrir a Central marca como visto.
+  const novo = page.locator('.featured-inicio .section-new-badge');
   await expect(novo).toHaveText('3');
-  await expect(page.locator('.featured-anuncios')).toContainText('Novidades');
-  await page.locator('.featured-anuncios').click();
-  await expect(page).toHaveURL(/\/anuncios/);
+  await expect(page.locator('.featured-inicio')).toContainText('Central');
+  await page.locator('.featured-inicio').click();
+  await expect(page).toHaveURL(/\/inicio/);
   await expect.poll(() => seen).toContain('/section-badges/anuncios/seen');
   await expect(novo).toHaveCount(0);
 });
@@ -110,4 +111,37 @@ test('perfil completo: até 4 insígnias no topo e barra do Windows 2000 dentro 
   expect(bar.bg).toContain('linear-gradient');
   expect(bar.afterBg).toBe('none');
   expect(bar.width).toBeLessThanOrEqual(bar.host + 1);
+});
+
+test('Economia: cartão da carteira com moedas e gemas vira ao clicar e no teclado', async ({ page }) => {
+  await page.route('**/api/**', handler);
+  await page.route('**/api/economy', (r) => json(r, { coins: 1861, gems: 19, dailyStreak: 1, streakRequired: 5, lastDailyAt: null, nextDailyAt: null, accountLevel: 7 }));
+  await page.route('**/api/economy/chests', (r) => json(r, { chests: [] }));
+  await page.route('**/api/missions', (r) => json(r, { missions: [], resets: {} }));
+  await page.goto('/economia');
+  const card = page.locator('.wcard');
+  await expect(card).toBeVisible({ timeout: 20_000 });
+  await expect(card).toContainText('1.861');
+  await expect(card).toContainText('19');
+  await expect(card).toContainText('ClubPay');
+  await expect(card).toHaveAttribute('aria-label', /Mostrando a frente/);
+  await card.click();
+  await expect(card).toHaveAttribute('aria-label', /Mostrando o verso/);
+  await card.focus();
+  await page.keyboard.press('Enter');
+  await expect(card).toHaveAttribute('aria-label', /Mostrando a frente/);
+  // Histórico e Sorteio saíram das abas.
+  await expect(page.getByRole('tab', { name: /Histórico/ })).toHaveCount(0);
+  await expect(page.getByRole('tab', { name: /Sorteio/ })).toHaveCount(0);
+});
+
+test('Loja: estilos do cartão da carteira (Assinante usa o dourado, arco-íris bloqueado)', async ({ page }) => {
+  await page.route('**/api/**', handler);
+  await page.route('**/api/economy', (r) => json(r, { coins: 500, gems: 2, dailyStreak: 0, streakRequired: 5, accountLevel: 3, cardStyle: 'GOLD', cardStyles: ['DEFAULT', 'GOLD'] }));
+  await page.goto('/loja?secao=cartao');
+  await expect(page.getByRole('heading', { name: 'Cartão da carteira' })).toBeVisible({ timeout: 20_000 });
+  await expect(page.locator('.wcs-option')).toHaveCount(3);
+  await expect(page.locator('.wcs-option.is-current .wcard--gold')).toHaveCount(1);
+  await expect(page.locator('.wcs-option.is-locked')).toHaveCount(1);
+  await expect(page.locator('.wcs-option.is-locked .wcard--rainbow')).toHaveCount(1);
 });

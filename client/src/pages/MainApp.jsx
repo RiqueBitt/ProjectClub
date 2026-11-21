@@ -54,7 +54,7 @@ import '../styles/tokens.css';
 import { StreamerBadge } from '../components/ExtraPrefsRuntime.jsx';
 import { lastRememberedPath, lastRememberedChannelId } from '../utils/appearance';
 import { isFeatureEnabled } from '../utils/features';
-import { ChannelRoute, DmRoute, PostRoute, LibraryRoute } from '../components/PrettyRoutes.jsx';
+import { ChannelRoute, DmRoute, LibraryRoute } from '../components/PrettyRoutes.jsx';
 import { channelPath, isChannelPath, roomFromCurrentPath, useRouteRoom } from '../utils/prettyLinks';
 import PracaKeepAlive from '../praca/PracaKeepAlive.jsx';
 
@@ -114,9 +114,6 @@ const ClanPage = lazy(() => import('./ClanPage.jsx'));
 const TicketsPage = lazy(() => import('./TicketsPage.jsx'));
 // Wiki da comunidade (Fase 9 — Pingu).
 const WikiPage = lazy(() => import('./WikiPage.jsx'));
-const CommunitiesPage = lazy(() => import('./CommunitiesPage.jsx'));
-const CommunityPage = lazy(() => import('./CommunityPage.jsx'));
-const PostDetailPage = lazy(() => import('./PostDetailPage.jsx'));
 const InicioPage = lazy(() => import('./InicioPage.jsx'));
 // Canais em destaque da comunidade (ver FeaturedChannels.jsx).
 const CommunityEventsPage = lazy(() => import('./CommunityEventsPage.jsx'));
@@ -141,7 +138,6 @@ const MiniJogosPage = lazy(() => import('./MiniJogosPage.jsx')); // Mini-Jogos (
 const SecurityShortcutPage = lazy(() => import('./SecurityShortcutPage.jsx'));
 // Fase 4 — comunidade e economia.
 const ParticiparPage = lazy(() => import('./ParticiparPage.jsx')); // Bora Jogar, interesses, reputação, convites
-const SorteioPage = lazy(() => import('./SorteioPage.jsx'));
 const RetrospectivaPage = lazy(() => import('./RetrospectivaPage.jsx'));
 // Fase 8: mascote pinguim e Loja dos criadores. A Praça é o Club Penguin (Waddle Forever).
 const MeuPinguimPage = lazy(() => import('./MeuPinguimPage.jsx'));
@@ -457,8 +453,8 @@ export default function MainApp() {
     if (!isReady) return undefined;
     return preloadPages([
       InicioPage, LojaPage, ProfilePage, NotificationsPage, AmigosPage, EconomyPage, ProgressPage,
-      CommunityPage, CommunityEventsPage, CommunityGalleryPage, ClanPage, TicketsPage, MiniJogosPage,
-      AnunciosPage, AnunciosEventosPage, AtividadePage, SearchPage, PostDetailPage, UserProfileModal, UserSettingsModal,
+      CommunityEventsPage, CommunityGalleryPage, ClanPage, TicketsPage, MiniJogosPage,
+      AnunciosPage, AnunciosEventosPage, AtividadePage, SearchPage, UserProfileModal, UserSettingsModal,
     ]);
   }, [isReady]);
 
@@ -547,12 +543,15 @@ export default function MainApp() {
                     salvo/aberto. */}
                 <Route path="/clans" element={<Navigate to="/dms" replace />} />
                 <Route path="/clans/mine" element={<ClanPage />} />
-                <Route path="/comunidades" element={<CommunitiesPage />} />
-                <Route path="/comunidades/:slug" element={<CommunityPage />} />
-                {/* Links bonitos: /forum/<titulo> (antigo /posts/<id>, que troca sozinho). */}
-                <Route path="/forum/:ref" element={<PostRoute Page={PostDetailPage} />} />
-                <Route path="/posts/:ref" element={<PostRoute legacy Page={PostDetailPage} />} />
-                <Route path="/inicio" element={<InicioPage />} />
+                {/* Fórum removido do app (nov/2026, pedido do dono): os links
+                    antigos (/comunidades, /forum/<titulo>, /posts/<id>) levam pra
+                    Central. Os posts continuam no banco — nada foi apagado. */}
+                <Route path="/comunidades" element={<Navigate to="/inicio" replace />} />
+                <Route path="/comunidades/:slug" element={<Navigate to="/inicio" replace />} />
+                <Route path="/forum/:ref" element={<Navigate to="/inicio" replace />} />
+                <Route path="/posts/:ref" element={<Navigate to="/inicio" replace />} />
+                {/* Central: Novidades + calendário de eventos numa página só (AnunciosEventosPage.jsx). */}
+                <Route path="/inicio" element={<AnunciosEventosPage tab="geral" />} />
                 <Route path="/comunidade/eventos" element={<AnunciosEventosPage tab="eventos" />} />
                 {/* /evento/<titulo>: a página de Eventos já aberta nele (antigo /eventos/<id>). */}
                 <Route path="/evento/:ref" element={<AnunciosEventosPage tab="eventos" />} />
@@ -565,10 +564,10 @@ export default function MainApp() {
                 {/* O jogo fica montado fora das rotas (PracaKeepAlive, logo
                     abaixo): continua rodando em segundo plano ao sair daqui. */}
                 <Route path="/praca" element={null} />
-                {/* Anúncios e Eventos: canal unificado (ver AnunciosEventosPage.jsx). */}
-                <Route path="/anuncios" element={<AnunciosEventosPage tab="anuncios" />} />
-                <Route path="/anuncios-e-eventos" element={<Navigate to="/anuncios" replace />} />
-                <Route path="/forum" element={<Navigate to="/comunidades" replace />} />
+                {/* Anúncios agora aparecem direto na Central (InicioPage.jsx). */}
+                <Route path="/anuncios" element={<Navigate to="/inicio" replace />} />
+                <Route path="/anuncios-e-eventos" element={<Navigate to="/inicio" replace />} />
+                <Route path="/forum" element={<Navigate to="/inicio" replace />} />
                 <Route path="/perfil/:id" element={<DeepLinkPage kind="user" />} />
                 <Route path="/u/:id" element={<DeepLinkPage kind="user" />} />
                 <Route path="/modpack/:id" element={<DeepLinkPage kind="modpack" />} />
@@ -583,7 +582,10 @@ export default function MainApp() {
                 <Route path="/minijogos" element={<MiniJogosPage />} />
                 <Route path="/seguranca/sessoes" element={<SecurityShortcutPage />} />
                 <Route path="/participar" element={<ParticiparPage />} />
-                <Route path="/sorteio" element={<SorteioPage />} />
+                {/* Sorteio removido (nov/2026): link antigo leva pra Economia. */}
+                <Route path="/sorteio" element={<Navigate to="/economia" replace />} />
+                {/* Link do cartão mostrado no chat: abre a Economia (o cartão aparece na própria mensagem). */}
+                <Route path="/carteira/:id" element={<Navigate to="/economia" replace />} />
                 <Route path="/retrospectiva" element={<RetrospectivaPage />} />
                 <Route path="/retrospectiva/:mes" element={<RetrospectivaPage />} />
                 {/* Navegador do Project Club (desligado em utils/features.js). */}

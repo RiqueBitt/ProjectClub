@@ -55,6 +55,8 @@ export function parseInternalLink(raw) {
     case 'comunidades': return id ? { kind: 'club', id, path } : null;
     // Wiki da comunidade (Fase 9): /wiki e /wiki/<página>.
     case 'wiki': return { kind: 'wiki', id: id || '', path };
+    // Cartão da carteira mostrado no chat (Atividades → Mostrar cartão).
+    case 'carteira': return id && /^[0-9a-f-]{36}$/i.test(id) ? { kind: 'wallet', id, path } : null;
     case 'cartas': {
       const sala = u.searchParams.get('sala');
       return sala && /^[A-Za-z0-9]{4,12}$/.test(sala) ? { kind: 'battle', id: sala.toUpperCase(), path } : null;
@@ -101,6 +103,7 @@ async function userIdFor(ref) {
 }
 
 export function openInternalLink(link) {
+  if (link.kind === 'wallet') return; // o cartão já aparece na própria mensagem
   if (link.kind === 'user') { userIdFor(link.id).then((id) => useStore.getState().openProfile(id)); return; }
   if (link.kind === 'modpack') { openInternalPath(`/modpack/${encodeURIComponent(link.id)}`); return; }
   openInternalPath(link.path);

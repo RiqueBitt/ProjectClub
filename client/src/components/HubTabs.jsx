@@ -3,16 +3,12 @@ import { PillTabs } from './PagesKit.jsx';
 import '../styles/hub-tabs.css';
 
 // Barra de abas compartilhada pelas áreas que foram unificadas:
-//  - "Novidades" (/anuncios + /comunidade/eventos), antes "Anúncios e Eventos"
 //  - Economia + Loja (/economia, /missoes, /loja)
 // Cada aba continua sendo a página que já existia (mesmos dados, rotas,
 // permissões e links profundos) — a unificação é de navegação, não de
 // dados: nada é fundido no banco.
 
-export const ANNOUNCE_EVENTS_TABS = [
-  { id: 'anuncios', label: 'Novidades', icon: 'megaphone', to: '/anuncios' },
-  { id: 'eventos', label: 'Eventos', icon: 'calendar', to: '/comunidade/eventos' },
-];
+
 
 // "Loja" fica imediatamente à esquerda do Passe do clube (pedido).
 export const ECONOMY_HUB_TABS = [
@@ -22,8 +18,6 @@ export const ECONOMY_HUB_TABS = [
   // Fase 8: criações dos membros (LojaCriadoresPage.jsx).
   { id: 'criadores', label: 'Criadores', icon: 'sparkles', to: '/loja/criadores' },
   { id: 'temporada', label: 'Passe do clube', icon: 'crown', to: '/economia?aba=temporada', className: 'pk-tab-gold' },
-  { id: 'historico', label: 'Histórico', icon: 'clock', to: '/economia?aba=historico' },
-  { id: 'sorteio', label: 'Sorteio', icon: 'gift', to: '/sorteio' },
 ];
 
 export function hubPathFor(tabs, id) {

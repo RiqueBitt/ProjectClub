@@ -322,3 +322,19 @@ html.layout-n2-root { --n2-sidebar-width: 292px; }
 @media (min-width: 601px) {
   .n2-sidebar .sidebar-banner-img { max-height: 128px; }
 }
+
+/* ---------- Barra do topo enxuta (nov/2026, pedido do dono) ----------
+   Título da seção à esquerda, busca no centro, e à direita só Suporte,
+   Caixa de Entrada, Notificações e o "⋯" (TopSearchBar.jsx). */
+@media (min-width: 601px) {
+  .layout-n2 .n2-top-title {
+    position: static; transform: none; order: 1; max-width: 22%;
+    pointer-events: auto;
+  }
+  .layout-n2 .top-search-bar-form {
+    position: absolute; left: 50%; top: calc(50% + env(safe-area-inset-top, 0px) / 2);
+    transform: translate(-50%, -50%); margin: 0;
+    width: clamp(180px, calc(100% - 520px), 440px);
+  }
+  .layout-n2 .top-search-bar-actions { margin-left: auto; order: 3; }
+}

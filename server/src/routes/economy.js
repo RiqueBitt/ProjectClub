@@ -10,7 +10,10 @@ router.use(requireAuth);
 router.get('/', requireSystemEnabled('economia'), ctrl.getMyEconomy);
 router.post('/daily', requireSystemEnabled('economia'), ctrl.claimDaily);
 router.get('/chests', requireSystemEnabled('economia'), ctrl.listChests);
-router.get('/history', requireSystemEnabled('economia'), ctrl.getHistory);
+// Cartão da carteira: estilo (Loja) e "Mostrar cartão" no chat.
+router.put('/card-style', requireSystemEnabled('economia'), ctrl.setCardStyle);
+router.post('/card/share', requireSystemEnabled('economia'), ctrl.shareCard);
+router.get('/card/:id', ctrl.getSharedCard);
 
 // Rank tem interruptor PRÓPRIO em Sistema (staff pode desligar o
 // ranking sem desligar o resto da economia, ou vice-versa).

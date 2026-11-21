@@ -11,6 +11,8 @@ router.use(requireAuth);
 router.get('/', ctrl.list);
 // Loja completa (molduras + efeitos de perfil + coleções).
 router.get('/shop', shop.shop);
+// Cestinha da Loja: compra vários itens de uma vez (tudo ou nada).
+router.post('/checkout', shop.checkout);
 router.post('/effects/equip', shop.equipEffect);
 router.post('/effects/:id/buy', shop.buyEffect);
 router.post('/collections/:id/buy', shop.buyCollection);
