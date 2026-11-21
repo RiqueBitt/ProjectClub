@@ -60,7 +60,8 @@ Cada fase é publicável sozinha, só quando o dono liberar.
         desativar/excluir conta, troca rápida de conta
   - [x] entrar pelo QR Code (PC e celular) e entrada do app no WebView (app-handoff)
   - [x] chaves de acesso (passkeys): listar, cadastrar, apagar e entrar
-  - [ ] próximo: OAuth (Google/Discord/GitHub) e exportar dados
+  - [x] exportar meus dados (LGPD)
+  - [ ] próximo: OAuth (Google/Discord/GitHub); depois o resto da API por grupos
 
 ### Fase 1 — o que já tem
 
@@ -241,3 +242,17 @@ conta de ninguém.
   `android-key`, `android-safetynet` e `apple` são recusados. Como o site
   pede `attestation: 'none'`, os navegadores mandam `none` — a única chave
   de acesso em produção hoje é ES256.
+
+### Exportar meus dados
+
+- `GET /api/auth/export-data` — o mesmo arquivo do Node: linhas inteiras no
+  formato do Prisma (`src/prisma_json.rs`, com a ordem dos campos lida do
+  próprio `schema.prisma` embutido na compilação), sem os segredos, amigos
+  só com id e nome, mensagens com anexos, JSON com 2 espaços e o mesmo nome
+  de arquivo.
+
+Produção (21/11/2026): `GET /api/auth/passkeys` e `GET /api/auth/export-data`
+de 6 contas reais (as com mais mensagens e a que tem chave de acesso; o
+maior arquivo com 176 KB) — byte a byte igual ao Node, tirando o
+`exportedAt`. A primeira rodada achou os campos da conta fora de ordem
+depois de tirar os segredos; corrigido e conferido de novo.
