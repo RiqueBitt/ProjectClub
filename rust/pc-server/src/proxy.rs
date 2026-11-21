@@ -67,7 +67,17 @@ fn strip_hop_by_hop(headers: &mut HeaderMap) {
     }
 }
 
-pub async fn forward(State(state): State<AppState>, mut req: Request<Body>) -> Response<Body> {
+/// Marca nas respostas que vieram do Node (o Rust não mexe no corpo delas).
+#[derive(Clone, Copy)]
+pub struct Proxied;
+
+pub async fn forward(State(state): State<AppState>, req: Request<Body>) -> Response<Body> {
+    let mut res = forward_inner(state, req).await;
+    res.extensions_mut().insert(Proxied);
+    res
+}
+
+async fn forward_inner(state: AppState, mut req: Request<Body>) -> Response<Body> {
     let path_and_query = req
         .uri()
         .path_and_query()

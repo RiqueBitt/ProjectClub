@@ -75,6 +75,88 @@ pub async fn headers(State(state): State<AppState>, req: Request, next: Next) ->
     res
 }
 
+/// O que o `res.send` do Express faz com o corpo, nas rotas do Rust:
+/// `charset=utf-8` no JSON, `ETag` fraco (`app.set('etag', 'weak')`) e 304
+/// quando o navegador já tem a mesma resposta (`If-None-Match`).
+pub async fn express_send(req: Request, next: Next) -> Response {
+    let method = req.method().clone();
+    let if_none_match = req
+        .headers()
+        .get(header::IF_NONE_MATCH)
+        .and_then(|v| v.to_str().ok())
+        .map(String::from);
+    let no_cache = req
+        .headers()
+        .get(header::CACHE_CONTROL)
+        .and_then(|v| v.to_str().ok())
+        .is_some_and(|v| v.to_ascii_lowercase().contains("no-cache"));
+    let res = next.run(req).await;
+    if res.extensions().get::<crate::proxy::Proxied>().is_some()
+        || res.status().is_redirection()
+        || res.headers().contains_key(header::ETAG)
+    {
+        return res;
+    }
+    let (mut parts, body) = res.into_parts();
+    if parts
+        .headers
+        .get(header::CONTENT_TYPE)
+        .is_some_and(|v| v == "application/json")
+    {
+        parts.headers.insert(
+            header::CONTENT_TYPE,
+            HeaderValue::from_static("application/json; charset=utf-8"),
+        );
+    }
+    let Ok(bytes) = axum::body::to_bytes(body, 256 * 1024 * 1024).await else {
+        return StatusCode::INTERNAL_SERVER_ERROR.into_response();
+    };
+    let tag = weak_etag(&bytes);
+    if let Ok(v) = HeaderValue::from_str(&tag) {
+        parts.headers.insert(header::ETAG, v);
+    }
+    let fresh = (method == axum::http::Method::GET || method == axum::http::Method::HEAD)
+        && (parts.status.is_success() || parts.status == StatusCode::NOT_MODIFIED)
+        && !no_cache
+        && if_none_match.is_some_and(|m| etag_matches(&m, &tag));
+    if fresh {
+        parts.status = StatusCode::NOT_MODIFIED;
+        for h in [
+            header::CONTENT_TYPE,
+            header::CONTENT_LENGTH,
+            header::TRANSFER_ENCODING,
+        ] {
+            parts.headers.remove(h);
+        }
+        return Response::from_parts(parts, Body::empty());
+    }
+    Response::from_parts(parts, Body::from(bytes))
+}
+
+/// `etag(body, { weak: true })`: `W/"<tamanho em hex>-<sha1 base64, 27>"`.
+pub fn weak_etag(body: &[u8]) -> String {
+    use base64::Engine;
+    use sha1::Digest;
+    if body.is_empty() {
+        return "W/\"0-2jmj7l5rSw0yVb/vlWAYkK/YBwk\"".into();
+    }
+    let hash = base64::engine::general_purpose::STANDARD.encode(sha1::Sha1::digest(body));
+    format!("W/\"{:x}-{}\"", body.len(), &hash[..27])
+}
+
+/// `fresh`: o `If-None-Match` tem esta ETag (fraca ou não)?
+fn etag_matches(header: &str, tag: &str) -> bool {
+    let header = header.trim();
+    if header == "*" {
+        return true;
+    }
+    let strong = tag.strip_prefix("W/").unwrap_or(tag);
+    header
+        .split(',')
+        .map(str::trim)
+        .any(|m| m == tag || m == strong || m.strip_prefix("W/") == Some(strong))
+}
+
 /// Bloqueado até (ms; `i64::MAX` = sem prazo; `None` = livre) e quando entrou no cache.
 type BlockEntry = (Option<i64>, Instant);
 
@@ -206,6 +288,17 @@ mod tests {
         let mut m = HeaderMap::new();
         m.insert(header::CONTENT_TYPE, HeaderValue::from_str(ct).unwrap());
         m
+    }
+
+    #[test]
+    fn etag_como_o_express() {
+        // `require('etag')('{"a":1}', { weak: true })`
+        assert_eq!(
+            weak_etag(br#"{"a":1}"#),
+            "W/\"7-n4nHQM60bXQYySSnisV5QdXpZSA\""
+        );
+        assert!(etag_matches("W/\"7-x\", \"7-y\"", "W/\"7-y\""));
+        assert!(!etag_matches("\"8-y\"", "W/\"7-y\""));
     }
 
     #[test]

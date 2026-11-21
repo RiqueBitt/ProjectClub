@@ -198,6 +198,7 @@ fn ported(state: &AppState) -> Router<AppState> {
         .route("/api/internal/{*rest}", any(not_found))
         .method_not_allowed_fallback(proxy::forward)
         .layer(web::body_limit())
+        .layer(axum::middleware::from_fn(web::express_send))
         .layer(CompressionLayer::new())
         .layer(from_fn_with_state(state.clone(), web::headers))
         .layer(from_fn_with_state(state.clone(), web::blocked_ip_guard))

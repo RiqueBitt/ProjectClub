@@ -591,3 +591,37 @@ async fn conectar_e_desconectar_conta() {
     assert_eq!(r.status, 404);
     assert_eq!(r.body["error"], "Nenhuma conta conectada desse provedor.");
 }
+
+/// O `res.json` do Express: `charset=utf-8`, ETag fraco e 304.
+#[tokio::test]
+async fn json_com_etag_e_304_como_o_express() {
+    let Some((env, _)) = env().await else { return };
+    let url = format!("http://{}/api/auth/oauth/providers", env.gw);
+    let r = reqwest::get(&url).await.unwrap();
+    assert_eq!(
+        r.headers()["content-type"],
+        "application/json; charset=utf-8"
+    );
+    let tag = r.headers()["etag"].to_str().unwrap().to_string();
+    let body = r.text().await.unwrap();
+    assert_eq!(tag, pc_server::web::weak_etag(body.as_bytes()));
+    let r = reqwest::Client::new()
+        .get(&url)
+        .header("if-none-match", &tag)
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(r.status(), 304);
+    assert!(r.headers().get("content-type").is_none());
+    assert_eq!(r.text().await.unwrap(), "");
+    // POST não vira 304
+    let r = reqwest::Client::new()
+        .post(format!("http://{}/api/auth/oauth/2fa", env.gw))
+        .header("if-none-match", "*")
+        .json(&json!({}))
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(r.status(), 401);
+    assert!(r.headers().contains_key("etag"));
+}
