@@ -52,7 +52,9 @@ Cada fase é publicável sozinha, só quando o dono liberar.
   - [x] banco (MySQL sem Prisma), token de acesso e `requireAuth`
   - [x] `GET /api/auth/me`
   - [x] `POST /api/auth/refresh` e `POST /api/auth/logout` (com o "lembrar login")
-  - [ ] próximo: login (senha, bloqueio por tentativas, 2FA, aviso de aparelho novo)
+  - [x] `POST /api/auth/login` (senha, bloqueio, 2FA, aviso de aparelho novo)
+  - [x] proteções globais do Node nas rotas do Rust (IP bloqueado, helmet, CORS, corpo)
+  - [ ] próximo: cadastro, verificação de e-mail, esqueci a senha, 2FA (ativar/desativar)
 
 ### Fase 1 — o que já tem
 
@@ -136,3 +138,23 @@ fim), com as variáveis de verdade:
 - `GET /api/system/desktop-latest`: idêntica. Sem login: o mesmo 401.
 - Repasse pro Node: `/api/health`, a página do site (mesmos bytes) e o
   WebSocket do Socket.IO funcionando através do Rust.
+
+### Login
+
+- `routes/login.rs`: o `login` do Node caso a caso — limite de 15 tentativas
+  em 10 min por IP **no mesmo contador do Redis** (`ratelimit:login:<ip>`,
+  mesmo script do `rate-limit-redis`), conta trava 15 min no 10º erro,
+  bcrypt sempre (até sem conta; senhas do `bcryptjs` valem), banida/suspensa
+  (com token de revisão), desativada, 2FA (`totp.rs`, igual ao `otplib`,
+  sem reuso do mesmo código) ou código de recuperação (uso único),
+  reativação de conta desativada pela pessoa.
+- Aviso de aparelho novo: o Rust pede pro Node pela rota interna
+  `POST /api/internal/login-alert` (`server/src/routes/internal.js`), com
+  segredo `HMAC(JWT_ACCESS_SECRET, 'pc-internal-v1')`. Sem o segredo: 404.
+  O Rust também dá 404 pra `/api/internal` vindo de fora.
+- `web.rs`: o que o Node faz em toda requisição, agora também nas rotas do
+  Rust — IP bloqueado (rotas-isca) → 503, cabeçalhos do helmet e do CORS
+  (os mesmos de produção), corpo JSON até 5 MB, compressão; método que o
+  Rust não tem (ex.: OPTIONS) vai pro Node.
+- Diferença conhecida: JSON quebrado dá 400 nos dois, mas a mensagem do
+  Node vem do V8 (`Expected property name…`) e a do Rust é `JSON inválido (…)`.

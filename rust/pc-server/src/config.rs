@@ -32,6 +32,8 @@ pub struct Config {
     pub refresh_token_ttl_days: i64,
     /// `PLATFORM_ADMIN_EMAIL` — dono da plataforma (vira ADMIN no login).
     pub platform_admin_email: String,
+    /// `CLIENT_ORIGIN` — origem do site (CORS), como no Node.
+    pub client_origin: String,
 }
 
 impl Config {
@@ -81,6 +83,7 @@ impl Config {
             access_token_ttl,
             refresh_token_ttl_days,
             platform_admin_email: env_or("PLATFORM_ADMIN_EMAIL", ""),
+            client_origin: env_or("CLIENT_ORIGIN", "http://localhost:5173"),
         })
     }
 }
@@ -129,6 +132,7 @@ impl Config {
             access_token_ttl: std::time::Duration::from_secs(900),
             refresh_token_ttl_days: 90,
             platform_admin_email: String::new(),
+            client_origin: "http://localhost:5173".into(),
         }
     }
 }

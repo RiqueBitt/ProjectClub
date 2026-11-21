@@ -368,6 +368,14 @@ function sendNewLoginAlertInBackground(user, userAgent, ipAddress) {
   }).catch((err) => console.error('[login] falha ao enviar alerta de novo acesso:', err.message));
 }
 
+// Aviso de "novo acesso" (e-mail + Notificações) pedido pelo servidor Rust
+// pela rota interna (routes/internal.js) — o login em Rust ainda usa o
+// e-mail e as notificações do Node até eles também irem pro Rust.
+function notifyNewLogin(app, user, userAgent, ipAddress, sessionId) {
+  sendNewLoginAlertInBackground(user, userAgent, ipAddress);
+  sendNewLoginNoticeInBackground({ app }, user, userAgent, ipAddress, sessionId);
+}
+
 // Token de revisão de punição (Fase 5) — nunca derruba o login se falhar.
 function signAppealTokenSafe(userId) {
   try { return require('../services/appeals').signAppealToken(userId); } catch { return undefined; }
@@ -1090,5 +1098,5 @@ module.exports = {
   recoveryCodesStatus, regenerateRecoveryCodesHandler,
   createEmailVerificationCode, issueSession, REVOKE_REASONS, describeDevice, maskIp,
   completeLogin, verifyTotpOnce, consumeRecoveryCode, registerFailedLogin, isAccountBlocked,
-  signAppealTokenSafe,
+  signAppealTokenSafe, notifyNewLogin,
 };

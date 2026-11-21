@@ -63,6 +63,25 @@ impl Cache {
         }
     }
 
+    /// Roda um script Lua (EVALSHA, carregando se preciso) com uma chave.
+    pub async fn eval<T: redis::FromRedisValue>(
+        &self,
+        script: &str,
+        key: &str,
+        args: &[&str],
+    ) -> Option<T> {
+        let mut conn = self.redis.clone()?;
+        let script = redis::Script::new(script);
+        let mut inv = script.key(key);
+        for a in args {
+            inv.arg(*a);
+        }
+        inv.invoke_async(&mut conn)
+            .await
+            .map_err(|e| tracing::warn!("redis eval: {e}"))
+            .ok()
+    }
+
     pub async fn get_or_set<T, F, Fut>(&self, key: &str, ttl_secs: u64, compute: F) -> T
     where
         T: Serialize + DeserializeOwned,

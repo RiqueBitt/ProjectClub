@@ -10,15 +10,20 @@ pub mod check;
 pub mod config;
 pub mod db;
 pub mod iron;
+pub mod node;
 pub mod proxy;
+pub mod ratelimit;
 pub mod routes;
 pub mod session;
+pub mod totp;
 pub mod users;
+pub mod web;
 
 use axum::Router;
-use axum::http::{HeaderName, HeaderValue};
-use axum::routing::{get, post};
-use tower_http::set_header::SetResponseHeaderLayer;
+use axum::http::StatusCode;
+use axum::middleware::from_fn_with_state;
+use axum::routing::{any, get, post};
+use tower_http::compression::CompressionLayer;
 
 #[derive(Clone)]
 pub struct AppState {
@@ -32,6 +37,8 @@ pub struct AppState {
     pub db: Option<db::Db>,
     pub tokens: auth::Tokens,
     pub auth_cache: auth::AuthCache,
+    /// cache do `blockedIpGuard` (60 s por IP)
+    pub block_cache: web::BlockCache,
 }
 
 impl AppState {
@@ -53,34 +60,42 @@ impl AppState {
             db,
             tokens,
             auth_cache: auth::AuthCache::default(),
+            block_cache: web::BlockCache::default(),
         })
     }
 }
 
-/// Rotas que o Rust responde sozinho. Levam os mesmos cabeçalhos de
-/// segurança básicos que o helmet põe no Node, e `x-served-by: rust` pra
-/// dar pra conferir de fora quem respondeu.
-fn ported() -> Router<AppState> {
-    let h = |name: &'static str, value: &'static str| {
-        SetResponseHeaderLayer::if_not_present(
-            HeaderName::from_static(name),
-            HeaderValue::from_static(value),
-        )
-    };
+/// Rotas que o Rust responde sozinho, com o que o Node faz em toda
+/// requisição antes das rotas (`web.rs`): IP bloqueado → 503, cabeçalhos do
+/// helmet e do cors, corpo até 5 MB e compressão. Método que o Rust não
+/// tem pra aquele caminho (ex.: OPTIONS do CORS) vai pro Node.
+fn ported(state: &AppState) -> Router<AppState> {
     Router::new()
         .route(
             "/api/system/desktop-latest",
             get(routes::system::desktop_latest),
         )
         .route("/api/auth/me", get(routes::auth::me))
+        .route("/api/auth/login", post(routes::login::login))
         .route("/api/auth/refresh", post(routes::session::refresh))
         .route("/api/auth/logout", post(routes::session::logout))
-        .layer(h("x-content-type-options", "nosniff"))
-        .layer(h("x-frame-options", "SAMEORIGIN"))
-        .layer(h("referrer-policy", "no-referrer"))
-        .layer(h("x-served-by", "rust"))
+        // rotas internas (Rust → Node) não existem pra quem vem de fora
+        .route("/api/internal", any(not_found))
+        .route("/api/internal/{*rest}", any(not_found))
+        .method_not_allowed_fallback(proxy::forward)
+        .layer(web::body_limit())
+        .layer(CompressionLayer::new())
+        .layer(from_fn_with_state(state.clone(), web::headers))
+        .layer(from_fn_with_state(state.clone(), web::blocked_ip_guard))
+}
+
+async fn not_found() -> axum::response::Response {
+    auth::error(
+        StatusCode::NOT_FOUND,
+        serde_json::json!({ "error": "Rota não encontrada." }),
+    )
 }
 
 pub fn app(state: AppState) -> Router {
-    ported().fallback(proxy::forward).with_state(state)
+    ported(&state).fallback(proxy::forward).with_state(state)
 }

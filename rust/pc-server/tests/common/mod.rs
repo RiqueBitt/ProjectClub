@@ -24,6 +24,12 @@ pub struct Env {
 }
 
 pub async fn setup() -> Option<Env> {
+    setup_with(|c| c).await
+}
+
+/// Igual ao `setup`, mas deixa ajustar a configuração (ex.: apontar o
+/// "Node" pra um servidor de mentira).
+pub async fn setup_with(adjust: impl FnOnce(Config) -> Config) -> Option<Env> {
     let Ok(base) = std::env::var("PC_TEST_DATABASE_URL") else {
         eprintln!("PC_TEST_DATABASE_URL não definida — pulando teste de banco");
         return None;
@@ -44,13 +50,13 @@ pub async fn setup() -> Option<Env> {
         .unwrap();
 
     let redis_url = std::env::var("PC_TEST_REDIS_URL").ok();
-    let config = Config {
+    let config = adjust(Config {
         database_url: Some(url),
         jwt_access_secret: SECRET.into(),
         jwt_refresh_secret: REFRESH_SECRET.into(),
         redis_url: redis_url.clone(),
         ..Config::for_tests()
-    };
+    });
     let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
     let gw = listener.local_addr().unwrap();
     let router = app(AppState::new(config).await.unwrap());

@@ -1,0 +1,250 @@
+//! O que o Node faz em TODA requisição antes das rotas (`server/src/app.js`)
+//! e o Rust precisa fazer igual nas rotas que ele mesmo responde:
+//!
+//! - `blockedIpGuard` (`middleware/honeypot.js`): IP bloqueado (caiu nas
+//!   rotas-isca) recebe 503 — com o mesmo cache de 60 s;
+//! - cabeçalhos do `helmet` (os mesmos valores, conferidos em produção) e
+//!   do `cors({ origin: CLIENT_ORIGIN, credentials: true })`;
+//! - corpo JSON como o `express.json({ limit: '5mb' })`.
+//!
+//! As rotas-isca do honeypot em si nunca chegam aqui (o Node responde).
+
+use std::collections::HashMap;
+use std::net::SocketAddr;
+use std::sync::Arc;
+use std::time::{Duration, Instant};
+
+use axum::body::{Body, Bytes};
+use axum::extract::{ConnectInfo, Request, State};
+use axum::http::{HeaderMap, HeaderName, HeaderValue, StatusCode, header};
+use axum::middleware::Next;
+use axum::response::{IntoResponse, Response};
+use serde_json::{Value, json};
+use tokio::sync::Mutex;
+
+use crate::AppState;
+use crate::db;
+
+/// CSP do helmet configurada em `server/src/app.js` (com o navegador do
+/// Project Club ligado, `frame-src` inclui `https:`).
+const CSP: &str = "default-src 'self';script-src 'self' 'wasm-unsafe-eval' https://www.youtube.com;\
+script-src-elem 'self' https://www.youtube.com;style-src 'self' 'unsafe-inline' https://fonts.googleapis.com;\
+worker-src 'self' blob:;font-src 'self' https://fonts.gstatic.com;img-src 'self' data: blob: https:;\
+media-src 'self' data: blob: https:;connect-src 'self' https://api.klipy.com https://fonts.googleapis.com \
+wss: ws: stun: turn: turns:;frame-src 'self' https://www.youtube-nocookie.com https://www.youtube.com https:;\
+object-src 'none';base-uri 'self';frame-ancestors 'self';form-action 'self';script-src-attr 'none';\
+upgrade-insecure-requests";
+
+/// Cabeçalhos que o Node manda em toda resposta da API (helmet), copiados
+/// de uma resposta de produção em 21/11/2026.
+const SECURITY_HEADERS: [(&str, &str); 12] = [
+    ("content-security-policy", CSP),
+    ("cross-origin-opener-policy", "same-origin"),
+    ("cross-origin-resource-policy", "same-origin"),
+    ("origin-agent-cluster", "?1"),
+    ("referrer-policy", "no-referrer"),
+    (
+        "strict-transport-security",
+        "max-age=15552000; includeSubDomains",
+    ),
+    ("x-content-type-options", "nosniff"),
+    ("x-dns-prefetch-control", "off"),
+    ("x-download-options", "noopen"),
+    ("x-frame-options", "SAMEORIGIN"),
+    ("x-permitted-cross-domain-policies", "none"),
+    ("x-xss-protection", "0"),
+];
+
+/// Coloca os cabeçalhos do helmet e do cors numa resposta do Rust.
+pub async fn headers(State(state): State<AppState>, req: Request, next: Next) -> Response {
+    let mut res = next.run(req).await;
+    let h = res.headers_mut();
+    for (name, value) in SECURITY_HEADERS {
+        h.entry(HeaderName::from_static(name))
+            .or_insert(HeaderValue::from_static(value));
+    }
+    if let Ok(origin) = HeaderValue::from_str(&state.config.client_origin) {
+        h.insert(header::ACCESS_CONTROL_ALLOW_ORIGIN, origin);
+    }
+    h.insert(
+        header::ACCESS_CONTROL_ALLOW_CREDENTIALS,
+        HeaderValue::from_static("true"),
+    );
+    h.append(header::VARY, HeaderValue::from_static("Origin"));
+    h.insert("x-served-by", HeaderValue::from_static("rust"));
+    res
+}
+
+/// Bloqueado até (ms; `i64::MAX` = sem prazo; `None` = livre) e quando entrou no cache.
+type BlockEntry = (Option<i64>, Instant);
+
+/// IP → [`BlockEntry`].
+#[derive(Clone, Default)]
+pub struct BlockCache(Arc<Mutex<HashMap<String, BlockEntry>>>);
+
+const BLOCK_CACHE_TTL: Duration = Duration::from_secs(60);
+const BLOCK_CACHE_MAX: usize = 10_000;
+
+impl BlockCache {
+    async fn blocked_until(&self, db: &db::Db, ip: &str) -> Result<Option<i64>, db::DbError> {
+        if let Some((v, at)) = self.0.lock().await.get(ip).copied()
+            && at.elapsed() < BLOCK_CACHE_TTL
+        {
+            return Ok(v);
+        }
+        let row = db::first(
+            db,
+            "SELECT expiresAt FROM BlockedIp WHERE ip = ?",
+            crate::params![ip],
+        )
+        .await?;
+        let until = match row {
+            None => None,
+            Some(r) => Some(
+                db::get::<Option<chrono::NaiveDateTime>>(&r, "expiresAt")?
+                    .map(|d| d.and_utc().timestamp_millis())
+                    .unwrap_or(i64::MAX),
+            ),
+        };
+        let mut map = self.0.lock().await;
+        if map.len() >= BLOCK_CACHE_MAX {
+            // simples: esvazia (o Node tira o mais antigo; aqui a próxima consulta repõe)
+            map.clear();
+        }
+        map.insert(ip.to_string(), (until, Instant::now()));
+        Ok(until)
+    }
+}
+
+/// `blockedIpGuard`: IP na lista de bloqueio recebe a mesma página 503 do Node.
+pub async fn blocked_ip_guard(State(state): State<AppState>, req: Request, next: Next) -> Response {
+    let peer = req
+        .extensions()
+        .get::<ConnectInfo<SocketAddr>>()
+        .map(|c| c.0);
+    let ip = crate::session::client_ip(req.headers(), peer).unwrap_or_else(|| "unknown".into());
+    if let Some(db) = state.db.as_ref()
+        && let Ok(Some(until)) = state.block_cache.blocked_until(db, &ip).await
+        && until > chrono::Utc::now().timestamp_millis()
+    {
+        let mut r = (
+            StatusCode::SERVICE_UNAVAILABLE,
+            "<!DOCTYPE html><html><body><h1>503 Service Unavailable</h1><p>The server is temporarily unable to service your request.</p></body></html>",
+        )
+            .into_response();
+        r.headers_mut().insert(
+            header::CONTENT_TYPE,
+            HeaderValue::from_static("text/html; charset=utf-8"),
+        );
+        return r;
+    }
+    next.run(req).await
+}
+
+/// Limite do `express.json`.
+pub const JSON_LIMIT: usize = 5 * 1024 * 1024;
+
+/// Corpo como o `express.json()` deixa em `req.body`: só lê com
+/// `Content-Type: application/json` (senão fica `{}`); JSON quebrado → 400;
+/// grande demais → 413.
+pub fn json_body(headers: &HeaderMap, body: &Bytes) -> Result<Value, Box<Response>> {
+    let is_json = headers
+        .get(header::CONTENT_TYPE)
+        .and_then(|v| v.to_str().ok())
+        .map(|v| {
+            v.split(';')
+                .next()
+                .unwrap_or("")
+                .trim()
+                .to_ascii_lowercase()
+        })
+        .is_some_and(|t| {
+            t == "application/json" || (t.starts_with("application/") && t.ends_with("+json"))
+        });
+    if !is_json || body.is_empty() {
+        return Ok(json!({}));
+    }
+    if body.len() > JSON_LIMIT {
+        return Err(Box::new(
+            (
+                StatusCode::PAYLOAD_TOO_LARGE,
+                axum::Json(json!({ "error": "request entity too large" })),
+            )
+                .into_response(),
+        ));
+    }
+    match serde_json::from_slice::<Value>(body) {
+        // modo estrito do body-parser: só objeto ou lista no topo
+        Ok(v) if v.is_object() || v.is_array() => Ok(v),
+        Ok(_) => Err(Box::new(bad_json("JSON inválido: só objeto ou lista."))),
+        Err(e) => Err(Box::new(bad_json(&format!("JSON inválido ({e})")))),
+    }
+}
+
+fn bad_json(msg: &str) -> Response {
+    (StatusCode::BAD_REQUEST, axum::Json(json!({ "error": msg }))).into_response()
+}
+
+/// Limite de corpo que o axum aplica antes do `json_body` (um pouco acima
+/// de 5 MB, pra o `json_body` responder o 413 no formato do Node).
+pub fn body_limit() -> axum::extract::DefaultBodyLimit {
+    axum::extract::DefaultBodyLimit::max(JSON_LIMIT + 1)
+}
+
+/// Resposta vazia de erro sem corpo (para casos raros).
+pub fn empty(status: StatusCode) -> Response {
+    let mut r = Response::new(Body::empty());
+    *r.status_mut() = status;
+    r
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn h(ct: &str) -> HeaderMap {
+        let mut m = HeaderMap::new();
+        m.insert(header::CONTENT_TYPE, HeaderValue::from_str(ct).unwrap());
+        m
+    }
+
+    #[test]
+    fn corpo_como_o_express() {
+        assert_eq!(
+            json_body(&h("application/json"), &Bytes::from(r#"{"a":1}"#)).unwrap(),
+            json!({ "a": 1 })
+        );
+        assert_eq!(
+            json_body(&h("application/json; charset=utf-8"), &Bytes::from("[1]")).unwrap(),
+            json!([1])
+        );
+        // sem content-type json: corpo vazio
+        assert_eq!(
+            json_body(&h("text/plain"), &Bytes::from(r#"{"a":1}"#)).unwrap(),
+            json!({})
+        );
+        assert_eq!(
+            json_body(&HeaderMap::new(), &Bytes::from("x")).unwrap(),
+            json!({})
+        );
+        assert_eq!(
+            json_body(&h("application/json"), &Bytes::from("{ruim"))
+                .unwrap_err()
+                .status(),
+            400
+        );
+        assert_eq!(
+            json_body(&h("application/json"), &Bytes::from("123"))
+                .unwrap_err()
+                .status(),
+            400
+        );
+        let big = Bytes::from(vec![b' '; JSON_LIMIT + 1]);
+        assert_eq!(
+            json_body(&h("application/json"), &big)
+                .unwrap_err()
+                .status(),
+            413
+        );
+    }
+}
