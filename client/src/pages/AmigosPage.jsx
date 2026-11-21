@@ -51,7 +51,7 @@ export default function AmigosPage() {
     <div className="social">
       <header className="social-hero">
         <div>
-          <h1>Social</h1>
+          <h1>Amigos</h1>
           <p>
             {accepted.length} amigo{accepted.length === 1 ? '' : 's'}
             {' · '}
@@ -61,7 +61,7 @@ export default function AmigosPage() {
         <div className="social-hero-actions">
           <QuickMessageBox />
         </div>
-        <nav className="social-tabs" role="tablist" aria-label="Seções do Social">
+        <nav className="social-tabs" role="tablist" aria-label="Seções de Amigos">
           {TABS.map((t) => {
             const c = counter(t.key);
             return (
