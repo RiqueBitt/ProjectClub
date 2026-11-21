@@ -6704,3 +6704,25 @@ h2 > .ui-stroke-icon:first-child, h3 > .ui-stroke-icon:first-child, h4 > .ui-str
 .member-row.tier-super.is-supporter:not(.has-id-card) { background: linear-gradient(90deg, rgba(245, 180, 0, .14), transparent 70%); }
 .member-row.is-supporter:not(.has-id-card):hover { background: linear-gradient(90deg, rgba(167, 139, 250, .2), var(--bg-modifier-hover) 70%); }
 .member-row.tier-super.is-supporter:not(.has-id-card):hover { background: linear-gradient(90deg, rgba(245, 180, 0, .22), var(--bg-modifier-hover) 70%); }
+
+/* ---------- Menu "⋯" da barra do topo (TopSearchBar.jsx) ---------- */
+.top-more-wrap { position: relative; display: inline-flex; }
+.top-search-bar-icon-btn.top-more-btn.active,
+.top-search-bar-icon-btn.top-support-btn.active { background: var(--bg-modifier-selected, var(--bg-modifier-hover)); color: var(--header-primary); }
+.top-more-menu {
+  position: absolute; top: calc(100% + 8px); right: 0; z-index: 9500; min-width: 230px;
+  display: flex; flex-direction: column; gap: 2px; padding: 6px; border-radius: 10px;
+  background: var(--bg-floating-solid, var(--bg-floating)); border: 1px solid var(--border);
+  box-shadow: 0 14px 40px rgba(0,0,0,.5);
+}
+.top-more-menu > button, .top-more-menu > a {
+  display: flex; align-items: center; gap: 10px; width: 100%; padding: 8px 10px; border: 0; border-radius: 6px;
+  background: none; color: var(--text-normal); font: 500 14px inherit; text-align: left; text-decoration: none; cursor: pointer;
+}
+.top-more-menu > button:hover, .top-more-menu > a:hover,
+.top-more-menu > button.active { background: var(--bg-modifier-hover); color: var(--header-primary); }
+.top-more-menu .top-search-bar-icon-mask { flex-shrink: 0; }
+.top-more-menu > button:hover .top-search-bar-icon-mask { background-color: var(--header-primary); }
+.top-more-menu .top-more-donate svg { color: #ff4d6d; flex-shrink: 0; }
+.top-more-sep { height: 1px; margin: 4px 6px; background: var(--border); }
+@media (max-width: 600px) { .top-more-menu { position: fixed; top: 56px; right: 12px; } }

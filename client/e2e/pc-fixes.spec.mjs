@@ -27,7 +27,8 @@ test.beforeEach(async ({ page }) => {
 async function openSettingsProfile(page) {
   await page.goto('/inicio');
   await expect(page.locator('.home-hero')).toBeVisible({ timeout: 20_000 });
-  await page.locator('.top-search-bar-icon-btn[title="Configurações"]').click();
+  await page.locator('.top-more-btn').click();
+  await page.locator('.top-more-menu').getByRole('menuitem', { name: 'Configurações' }).click();
   await expect(page.locator('.settings-modal-layout')).toBeVisible();
   // Garante que estamos na aba Perfil (onde fica a placa).
   const placaHead = page.getByRole('heading', { name: 'Placa de identificação' });

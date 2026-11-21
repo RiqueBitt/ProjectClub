@@ -20,7 +20,8 @@ import '../styles/socialx.css';
 //
 // Layout "Normal 2.0" (nov/2026, pedido do dono): o menu de botões que
 // ficava acima dos canais (Normal2Sidebar.jsx) virou canais em destaque —
-// Início, Amigos (antes "Social"), Progresso e Suporte. Esses quatro são
+// Início, Amigos (antes "Social") e Progresso (Suporte foi pra barra do
+// topo). Esses são
 // `n2Only` (nos outros layouts eles já estão na barra de ícones, então não
 // duplicam) e `fixed` (a staff não esconde: são a única entrada pra essas
 // páginas nesse layout). O Fórum saiu do menu; a rota /comunidades continua.
@@ -61,7 +62,7 @@ export function FeaturedGlyph({ name, size = 16 }) {
 // Ordem (nov/2026): os jogos em cartão (Club Penguin e, quando ligada, a
 // Guerra das Cartas) no topo; depois a lista "minimalista" — só o ícone
 // colorido, fundo só na página aberta: Início, Novidades, Amigos,
-// Economia, Progresso e Suporte.
+// Economia e Progresso. (Suporte foi pro topo: TopSearchBar.jsx.)
 export const FEATURED = [
   // Club Penguin (Praça): o jogo completo, em azul-marinho (pedido do dono).
   {
@@ -111,11 +112,6 @@ export const FEATURED = [
     key: 'progresso', label: 'Progresso', icon: 'trophy', to: '/progresso',
     hint: 'Ranks, conquistas e recompensas',
     match: (p) => p.startsWith('/progresso') || p.startsWith('/rank') || p.startsWith('/conquistas'),
-    n2Only: true, fixed: true,
-  },
-  {
-    key: 'suporte', label: 'Suporte', icon: 'support', to: '/tickets',
-    hint: 'Ajuda, tickets e denúncias', match: (p) => p.startsWith('/tickets'),
     n2Only: true, fixed: true,
   },
 ].filter((f) => !f.feature || isFeatureEnabled(f.feature));

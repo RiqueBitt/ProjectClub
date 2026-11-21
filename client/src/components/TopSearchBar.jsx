@@ -17,7 +17,7 @@ const svg = (d) => <svg width="20" height="20" viewBox="0 0 24 24" fill="none" s
 import { startManualDrag } from './TitleBar.jsx';
 import { isChannelPath, isDmPath } from '../utils/prettyLinks';
 
-// Barra de topo — logo + busca + atalhos + notificações + Configurações.
+// Barra de topo — logo + busca + Suporte, Caixa de Entrada, Notificações e o menu "⋯".
 // (Criar post, foto de perfil, YouTube, Música e Filmes saíram daqui a
 // pedido: YouTube e Música ficam só dentro das calls — Assistir juntos.)
 // Título da seção atual, mostrado no centro da barra no layout
@@ -111,6 +111,20 @@ export default function TopSearchBar() {
     if (qsFlat[activeIndex]) qsChoose(qsFlat[activeIndex]);
     else goFullSearch();
   };
+  // Menu "⋯" da barra (Atividade, Apoiar, Configurações, Painel).
+  const [moreOpen, setMoreOpen] = useState(false);
+  const moreRef = useRef(null);
+  usePopoverCoordination(moreOpen, () => setMoreOpen(false));
+  useEffect(() => {
+    if (!moreOpen) return undefined;
+    const onDown = (e) => { if (!moreRef.current?.contains(e.target)) setMoreOpen(false); };
+    const onKey = (e) => { if (e.key === 'Escape') setMoreOpen(false); };
+    document.addEventListener('mousedown', onDown, true);
+    document.addEventListener('keydown', onKey);
+    return () => { document.removeEventListener('mousedown', onDown, true); document.removeEventListener('keydown', onKey); };
+  }, [moreOpen]);
+  useEffect(() => { setMoreOpen(false); }, [pathname]);
+  const runMore = (fn) => { setMoreOpen(false); fn(); };
   const isMac = typeof navigator !== 'undefined' && /Mac|iPhone|iPad/.test(navigator.platform || '');
 
   return (
@@ -206,11 +220,11 @@ export default function TopSearchBar() {
         <button type="button" className="top-search-bar-icon-btn top-search-mobile-btn" title="Buscar" aria-label="Buscar em Project Club" onClick={() => useStore.getState().setQuickSwitcherOpen(true)}>
           <span className="top-search-bar-icon-mask" style={{ WebkitMaskImage: `url(${searchIcon})`, maskImage: `url(${searchIcon})`, width: 18, height: 18 }} />
         </button>
-        <a className="top-search-bar-icon-btn top-donate-btn" href={DONATE_URL} target="_blank" rel="noreferrer" title="Apoiar o Project Club (doação)" aria-label="Apoiar o Project Club">
-          {svg('M12 20.5s-7.5-4.6-7.5-10.2A4.3 4.3 0 0 1 12 7.6a4.3 4.3 0 0 1 7.5 2.7c0 5.6-7.5 10.2-7.5 10.2z')}
-        </a>
-        <button type="button" className="top-search-bar-icon-btn" title="Atividade dos amigos" aria-label="Atividade dos amigos" onClick={() => navigate('/atividade')}>
-          <span className="top-search-bar-icon-mask" style={{ WebkitMaskImage: `url("${ACTIVITY_NAV_ICON}")`, maskImage: `url("${ACTIVITY_NAV_ICON}")`, width: 19, height: 19 }} />
+        {/* Barra enxuta (nov/2026, pedido do dono): visíveis só Suporte,
+            Caixa de Entrada, Notificações e o "⋯". Atividade, Apoiar,
+            Configurações e o Painel da staff ficam no menu do "⋯". */}
+        <button type="button" className={`top-search-bar-icon-btn top-support-btn${pathname.startsWith('/tickets') ? ' active' : ''}`} title="Suporte" aria-label="Suporte" onClick={() => navigate('/tickets')}>
+          {svg('M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18zM12 16a4 4 0 1 0 0-8 4 4 0 0 0 0 8zM5.6 5.6l3.6 3.6M14.8 14.8l3.6 3.6M18.4 5.6l-3.6 3.6M9.2 14.8l-3.6 3.6')}
         </button>
         <span className="top-inbox-wrap">
           <button type="button" className={`top-search-bar-icon-btn top-inbox-btn${inboxOpen ? ' active' : ''}`} title="Caixa de Entrada" aria-label="Caixa de Entrada" aria-expanded={inboxOpen} onClick={() => setInboxOpen((v) => !v)}>
@@ -222,21 +236,41 @@ export default function TopSearchBar() {
           <span className="top-search-bar-icon-mask top-search-bar-notif-icon" style={{ WebkitMaskImage: `url(${notificationsIcon})`, maskImage: `url(${notificationsIcon})` }} />
           {notifBadge > 0 && <span className="top-search-bar-badge">{notifBadge > 99 ? '99+' : notifBadge}</span>}
         </button>
-        {/* Item pedido: engrenagem de Configurações, do lado do sino de
-            notificações, no cabeçalho. */}
-        <button type="button" className="top-search-bar-icon-btn" title="Configurações" aria-label="Configurações" onClick={() => useStore.getState().openSettings()}>
-          <span className="top-search-bar-icon-mask" style={{ WebkitMaskImage: `url(${settingsIcon})`, maskImage: `url(${settingsIcon})`, width: 18, height: 18 }} />
-        </button>
-        {/* Painel da staff — logo à direita da engrenagem, só pra quem o
-            servidor reconhece como ADMIN (platformRole vem de /api/auth/me,
-            lido do banco; a rota /api/admin/* também exige ADMIN no
-            servidor via requirePlatformAdmin — esconder o botão é só
-            conveniência, nunca a proteção). */}
-        {canOpenStaffPanel(user) && (
-          <button type="button" className={`top-search-bar-icon-btn top-staff-panel-btn${pathname.startsWith('/admin') ? ' active' : ''}`} title="Painel" aria-label="Painel da staff" onClick={() => navigate('/admin')}>
-            <span className="top-search-bar-icon-mask" style={{ WebkitMaskImage: `url(${STAFF_ITEM.icon})`, maskImage: `url(${STAFF_ITEM.icon})`, width: 18, height: 18 }} />
+        <span className="top-more-wrap" ref={moreRef}>
+          <button
+            type="button" className={`top-search-bar-icon-btn top-more-btn${moreOpen ? ' active' : ''}`}
+            title="Mais" aria-label="Mais opções" aria-haspopup="menu" aria-expanded={moreOpen}
+            onClick={() => setMoreOpen((v) => !v)}
+          >
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3.2" strokeLinecap="round" aria-hidden="true"><path d="M5 12h.01M12 12h.01M19 12h.01" /></svg>
           </button>
-        )}
+          {moreOpen && (
+            <div className="top-more-menu" role="menu" aria-label="Mais opções">
+              <button type="button" role="menuitem" onClick={() => runMore(() => navigate('/atividade'))}>
+                <span className="top-search-bar-icon-mask" style={{ WebkitMaskImage: `url("${ACTIVITY_NAV_ICON}")`, maskImage: `url("${ACTIVITY_NAV_ICON}")`, width: 18, height: 18 }} />
+                Atividade dos amigos
+              </button>
+              <a role="menuitem" className="top-more-donate" href={DONATE_URL} target="_blank" rel="noreferrer" onClick={() => setMoreOpen(false)}>
+                {svg('M12 20.5s-7.5-4.6-7.5-10.2A4.3 4.3 0 0 1 12 7.6a4.3 4.3 0 0 1 7.5 2.7c0 5.6-7.5 10.2-7.5 10.2z')}
+                Apoiar o Project Club
+              </a>
+              <div className="top-more-sep" role="separator" />
+              <button type="button" role="menuitem" onClick={() => runMore(() => useStore.getState().openSettings())}>
+                <span className="top-search-bar-icon-mask" style={{ WebkitMaskImage: `url(${settingsIcon})`, maskImage: `url(${settingsIcon})`, width: 18, height: 18 }} />
+                Configurações
+              </button>
+              {/* Painel da staff: só pra quem o servidor reconhece como ADMIN
+                  (a rota /api/admin/* também exige ADMIN no servidor —
+                  esconder o item é só conveniência, nunca a proteção). */}
+              {canOpenStaffPanel(user) && (
+                <button type="button" role="menuitem" className={pathname.startsWith('/admin') ? 'active' : ''} onClick={() => runMore(() => navigate('/admin'))}>
+                  <span className="top-search-bar-icon-mask" style={{ WebkitMaskImage: `url(${STAFF_ITEM.icon})`, maskImage: `url(${STAFF_ITEM.icon})`, width: 18, height: 18 }} />
+                  Painel da staff
+                </button>
+              )}
+            </div>
+          )}
+        </span>
 
         {/* Foto de perfil saiu da barra superior (pedido): o perfil e o
             status continuam no painel do usuário da barra lateral e na
