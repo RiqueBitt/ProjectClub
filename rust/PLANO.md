@@ -123,3 +123,16 @@ Testes de banco: `PC_TEST_DATABASE_URL=mysql://root@127.0.0.1:3306 cargo test`
   ficou só pra montar os bancos de teste.
 - `pc-server check [redis|mysql]` testa as duas conexões e
   `pc-server check diag` mostra cada etapa (TCP, TLS, PING, login no MySQL).
+
+### Teste em produção (21/11/2026)
+
+Binário da pré-versão `rust-dev` rodando **ao lado** do Node no servidor
+da Shard Cloud (porta 3099, sem receber tráfego de ninguém, desligado no
+fim), com as variáveis de verdade:
+
+- Redis (TLS) e MySQL: conectam (`pc-server check`).
+- `GET /api/auth/me` de 8 contas reais: resposta **idêntica** à do Node,
+  campo por campo.
+- `GET /api/system/desktop-latest`: idêntica. Sem login: o mesmo 401.
+- Repasse pro Node: `/api/health`, a página do site (mesmos bytes) e o
+  WebSocket do Socket.IO funcionando através do Rust.
