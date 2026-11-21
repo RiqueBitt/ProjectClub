@@ -31,7 +31,7 @@ const RECENT_MAX = 6;
 const GROUP_LIMIT = 6;
 
 const PAGES = [
-  { path: '/inicio', label: 'Início', keywords: 'home novidades destaques' },
+  { path: '/inicio', label: 'Central', keywords: 'início inicio home novidades destaques' },
   { path: '/', label: 'Comunidade', keywords: 'chat canais servidor' },
   { path: '/comunidades', label: 'Fórum', keywords: 'forum fórum feed feeds posts temas' },
   { path: '/dms', label: 'Amigos', keywords: 'amigos mensagens clubes dm' },
@@ -42,8 +42,8 @@ const PAGES = [
   { path: '/wiki', label: 'Wiki', keywords: 'wiki regras ajuda como funciona pingu guia' },
   { path: '/notifications', label: 'Notificações', keywords: 'avisos sino' },
   { path: '/search', label: 'Busca', keywords: 'procurar pesquisar' },
-  { path: '/anuncios', label: 'Novidades', keywords: 'novidades anúncios avisos staff' },
-  { path: '/comunidade/eventos', label: 'Novidades › Eventos', keywords: 'eventos agenda calendário' },
+  { path: '/anuncios', label: 'Central › Anúncios', keywords: 'novidades anúncios avisos staff' },
+  { path: '/comunidade/eventos', label: 'Central › Eventos', keywords: 'eventos agenda calendário' },
   { path: '/comunidade/galeria', label: 'Galeria', keywords: 'fotos imagens mídia' },
   { path: '/economia', label: 'Economia e Loja', keywords: 'economia moedas gemas carteira baú diário histórico' },
   { path: '/missoes', label: 'Economia e Loja › Missões', keywords: 'missões tarefas diárias semanais recompensas' },

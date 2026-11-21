@@ -552,7 +552,8 @@ export default function MainApp() {
                 {/* Links bonitos: /forum/<titulo> (antigo /posts/<id>, que troca sozinho). */}
                 <Route path="/forum/:ref" element={<PostRoute Page={PostDetailPage} />} />
                 <Route path="/posts/:ref" element={<PostRoute legacy Page={PostDetailPage} />} />
-                <Route path="/inicio" element={<InicioPage />} />
+                {/* Central: Visão geral (antigo Início) + Anúncios + Eventos (AnunciosEventosPage.jsx). */}
+                <Route path="/inicio" element={<AnunciosEventosPage tab="geral" />} />
                 <Route path="/comunidade/eventos" element={<AnunciosEventosPage tab="eventos" />} />
                 {/* /evento/<titulo>: a página de Eventos já aberta nele (antigo /eventos/<id>). */}
                 <Route path="/evento/:ref" element={<AnunciosEventosPage tab="eventos" />} />
