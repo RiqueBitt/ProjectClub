@@ -27,6 +27,7 @@ import '../styles/contentx.css';
 import '../styles/cards.css';
 import HubTabs, { ECONOMY_HUB_TABS } from '../components/HubTabs.jsx';
 import WalletCardStyles from '../components/shop/WalletCardStyles.jsx';
+import { useBasket, useDragToBasket, BasketFab, CheckoutPage } from '../components/shop/ShopBasket.jsx';
 import { previewCoupon } from '../api/community';
 import '../styles/community4.css';
 
@@ -276,6 +277,22 @@ export default function LojaPage() {
     setBusy('');
   };
 
+  // ---- cestinha (loja de conveniência): ganchos → cesta → maquininha ----
+  const basket = useBasket();
+  const [bump, setBump] = useState(false);
+  const canAdd = useCallback((i) => i.kind !== 'back' && !i.owned && !i.locked && !i.exclusiveTier
+    && !(i.limited && i.remaining <= 0) && i.inShop !== false && sellsIn(i).length > 0, []);
+  const addToBasket = useCallback((item) => {
+    if (!canAdd(item)) return;
+    if (basket.has(item)) { flash(`"${item.name}" já está na cestinha.`, 'info'); return; }
+    if (basket.full) { flash('A cestinha está cheia (20 itens). Finalize a compra primeiro.', 'bad'); return; }
+    const cur = sellsIn(item);
+    basket.add(item, cur.includes('coins') ? 'coins' : cur[0]);
+    setBump(true); setTimeout(() => setBump(false), 450);
+    flash(`"${item.name}" foi pra cestinha.`);
+  }, [basket, canAdd]); // eslint-disable-line react-hooks/exhaustive-deps
+  const drag = useDragToBasket(addToBasket);
+
   const inWish = useCallback((i) => wish.has(`${i.kind}:${i.id}`), [wish]);
   const toggleWish = async (item) => {
     if (item.kind === 'back') return;
@@ -297,7 +314,8 @@ export default function LojaPage() {
   }, [items]);
   const ctx = {
     user, data, supporter, busy, isEquipped, now, open: setDetail, equip, goPlans: () => { setDetail(null); go('plans'); }, askBuy: (item, cur) => setConfirm({ item, currency: cur }), gift: setGiftFor,
-    inWish, toggleWish, ownedStats, shuffleSeed, colorF, setColorF, tagF, setTagF,
+    inWish, toggleWish, ownedStats, shuffleSeed,
+    basket: { has: basket.has, add: addToBasket, canAdd, dragDown: drag.onPointerDown }, colorF, setColorF, tagF, setTagF,
     variantsOf: (i) => (i.variantGroup ? items.filter((x) => x.kind === i.kind && x.variantGroup === i.variantGroup) : []),
     // Link bonito: /loja?item=deco:nome-do-item (o id antigo continua valendo).
     share: (i) => { try { navigator.clipboard.writeText(`${window.location.origin}/loja?item=${i.kind}:${slugify(i.name) || i.id}`); flash('Link do item copiado.', 'info'); } catch { /* sem área de transferência */ } }, reshuffle: () => { setSort('shuffle'); setShuffleSeed(Math.floor(Math.random() * 1e9)); },
@@ -392,6 +410,22 @@ export default function LojaPage() {
   else if (section === 'wishlist') content = <WishlistPage list={items.filter(inWish)} go={go} ctx={ctx} />;
   else if (section === 'gifts') content = <GiftsPage go={go} onWallet={(w) => setData((d) => (d ? { ...d, coins: w.coins ?? d.coins, gems: w.gems ?? d.gems } : d))} reload={load} flash={flash} />;
   else if (section === 'plans') content = <PlansPage supporter={supporter} />;
+  else if (section === 'checkout') {
+    content = (
+      <CheckoutPage
+        basket={basket} items={items} data={data} user={user} priceOf={priceOf} sellsIn={sellsIn}
+        kindLabel={(k) => KIND[k]?.label || 'item'} Preview={Preview} onBack={() => go('home')}
+        onPaid={(r) => {
+          const n = r?.bought?.length || 0;
+          basket.clear();
+          setData((d) => (d && r ? { ...d, coins: r.coins ?? d.coins, gems: r.gems ?? d.gems } : d));
+          flash(`Compra aprovada! ${n} ${n === 1 ? 'item foi' : 'itens foram'} pro seu inventário.`);
+          load();
+          go('owned');
+        }}
+      />
+    );
+  }
   else if (section === 'cartao') content = <WalletCardStyles user={user} flash={flash} onPlans={() => go('plans')} />;
   else if (section === 'cartas') content = <CardsSoonPage />;
   else if (section === 'tryon') content = <ShopTryOn items={items} user={user} data={data} ctx={ctx} />;
@@ -454,6 +488,7 @@ export default function LojaPage() {
         </main>
       </div>
 
+      {data && section !== 'checkout' && <BasketFab count={basket.lines.length} bump={bump} onOpen={() => go('checkout')} />}
       {toast && <div className={`room-toast ${toast.tone}`} role="status" aria-live="polite"><Ico name={toast.tone === 'bad' ? 'close' : 'check'} size={16} strokeWidth={2.4} /> {toast.text}</div>}
       {detail && (
         <ItemDetail
@@ -928,6 +963,7 @@ function StateBadge({ item, on }) {
 
 function ItemCard({ item: base, ctx }) {
   const { user, busy, isEquipped, open, equip, askBuy, now } = ctx;
+  const bk = ctx.basket;
   const variants = ctx.variantsOf ? ctx.variantsOf(base) : [];
   const [shownId, setShown] = useState(base.id);
   const item = variants.find((v) => v.id === shownId) || base;
@@ -935,7 +971,13 @@ function ItemCard({ item: base, ctx }) {
   const discount = Math.max(...sellsIn(item).map((c) => (priceOf(item, c).base - priceOf(item, c).final > 0 ? priceOf(item, c).discount || 0 : 0)), 0);
   const cur = sellsIn(item);
   return (
-    <article className={`room-card k-${item.kind}${on ? ' is-on' : ''}${item.locked ? ' is-locked' : ''}`}>
+    <article
+      className={`room-card k-${item.kind}${on ? ' is-on' : ''}${item.locked ? ' is-locked' : ''}${bk?.canAdd(item) ? ' is-grabbable' : ''}${bk?.has(item) ? ' in-basket' : ''}`}
+      onPointerDown={bk?.canAdd(item) ? (e) => bk.dragDown(e, item) : undefined}
+    >
+      {/* Gancho da loja de conveniência: o pacote fica pendurado pelo furinho. */}
+      <span className="room-hook" aria-hidden="true" />
+      <span className="room-hole" aria-hidden="true" />
       <button type="button" className="room-card-art" onClick={() => open(item)} aria-label={`Ver detalhes de ${item.name}`}>
         <Preview item={item} user={user} />
         <span className="room-card-flags">
@@ -983,7 +1025,13 @@ function ItemCard({ item: base, ctx }) {
           ) : (
             <>
               <PriceTag item={item} />
-              {cur.length > 0 && <button type="button" className="room-btn sm primary" disabled={busy !== ''} onClick={() => (cur.length === 1 ? askBuy(item, cur[0]) : open(item))}>Comprar</button>}
+              {cur.length > 0 && (bk?.canAdd(item) ? (
+                <button type="button" className={`room-btn sm ${bk.has(item) ? 'ghost' : 'primary'} room-basket-btn`} onClick={() => bk.add(item)} aria-label={bk.has(item) ? `${item.name} já está na cestinha` : `Pôr ${item.name} na cestinha`}>
+                  <Ico name={bk.has(item) ? 'check' : 'bag'} size={14} /> {bk.has(item) ? 'Na cesta' : 'Pôr na cesta'}
+                </button>
+              ) : (
+                <button type="button" className="room-btn sm primary" disabled={busy !== ''} onClick={() => (cur.length === 1 ? askBuy(item, cur[0]) : open(item))}>Comprar</button>
+              ))}
             </>
           )}
         </div>
