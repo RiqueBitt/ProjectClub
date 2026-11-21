@@ -98,7 +98,7 @@ pub(crate) async fn password_ok(password: String, hash: String) -> bool {
 }
 
 /// `registerFailedLogin`: +1 erro; no 10º, a conta trava por 15 minutos.
-async fn register_failed_login(db: &Db, user_id: &str) -> DbResult<()> {
+pub(crate) async fn register_failed_login(db: &Db, user_id: &str) -> DbResult<()> {
     db::exec(
         db,
         "UPDATE `User` SET failedLoginAttempts = failedLoginAttempts + 1, updatedAt = ? WHERE id = ?",

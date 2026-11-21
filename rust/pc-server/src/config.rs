@@ -8,6 +8,29 @@ const DEFAULT_REFRESH_SECRET: &str = "dev_refresh_secret_change_me";
 pub const DESKTOP_LATEST_URL: &str =
     "https://github.com/RiqueBitt/ProjectClub/releases/latest/download/latest.yml";
 
+/// App de um provedor de login (Google/Discord/GitHub). O `Debug` não
+/// mostra o segredo.
+#[derive(Clone)]
+pub struct OAuthClient {
+    pub client_id: String,
+    pub client_secret: String,
+}
+
+impl std::fmt::Debug for OAuthClient {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("OAuthClient")
+            .field("client_id", &self.client_id)
+            .finish_non_exhaustive()
+    }
+}
+
+/// Provedor → variáveis do app (`GOOGLE_CLIENT_ID` etc.), como no Node.
+pub const OAUTH_ENV: [(&str, &str, &str); 3] = [
+    ("google", "GOOGLE_CLIENT_ID", "GOOGLE_CLIENT_SECRET"),
+    ("discord", "DISCORD_CLIENT_ID", "DISCORD_CLIENT_SECRET"),
+    ("github", "GITHUB_CLIENT_ID", "GITHUB_CLIENT_SECRET"),
+];
+
 #[derive(Clone, Debug)]
 pub struct Config {
     /// Onde o Rust escuta (a porta pública do app: `PORT`, como no Node).
@@ -34,6 +57,10 @@ pub struct Config {
     pub platform_admin_email: String,
     /// `CLIENT_ORIGIN` — origem do site (CORS), como no Node.
     pub client_origin: String,
+    /// Provedores de login configurados (só os com as DUAS variáveis).
+    pub oauth_clients: std::collections::BTreeMap<String, OAuthClient>,
+    /// Só nos testes: troca os endereços dos provedores por um servidor falso.
+    pub oauth_test_base: Option<String>,
 }
 
 impl Config {
@@ -84,6 +111,23 @@ impl Config {
             refresh_token_ttl_days,
             platform_admin_email: env_or("PLATFORM_ADMIN_EMAIL", ""),
             client_origin: env_or("CLIENT_ORIGIN", "http://localhost:5173"),
+            oauth_clients: OAUTH_ENV
+                .iter()
+                .filter_map(|(p, id, secret)| {
+                    let id = std::env::var(id).unwrap_or_default().trim().to_string();
+                    let secret = std::env::var(secret).unwrap_or_default().trim().to_string();
+                    (!id.is_empty() && !secret.is_empty()).then(|| {
+                        (
+                            p.to_string(),
+                            OAuthClient {
+                                client_id: id,
+                                client_secret: secret,
+                            },
+                        )
+                    })
+                })
+                .collect(),
+            oauth_test_base: None,
         })
     }
 }
@@ -133,6 +177,8 @@ impl Config {
             refresh_token_ttl_days: 90,
             platform_admin_email: String::new(),
             client_origin: "http://localhost:5173".into(),
+            oauth_clients: Default::default(),
+            oauth_test_base: None,
         }
     }
 }

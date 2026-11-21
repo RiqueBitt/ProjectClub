@@ -172,3 +172,123 @@ pub fn js_string(v: Option<&Value>) -> String {
         Some(other) => conv(other),
     }
 }
+
+/// `encodeurl` (o que o Express faz no `Location`): escapa o que não pode
+/// numa URL e deixa as sequências `%XX` como estão.
+pub fn encode_url(p: &str) -> String {
+    let bytes = p.as_bytes();
+    let mut out = String::with_capacity(p.len());
+    for (i, &b) in bytes.iter().enumerate() {
+        let is_escape = b == b'%'
+            && bytes.get(i + 1).is_some_and(u8::is_ascii_hexdigit)
+            && bytes.get(i + 2).is_some_and(u8::is_ascii_hexdigit);
+        if is_escape || b.is_ascii_alphanumeric() || b"!#$&'()*+,-./:;=?@[]_~".contains(&b) {
+            out.push(b as char);
+        } else {
+            out.push_str(&format!("%{b:02X}"));
+        }
+    }
+    out
+}
+
+fn escape_html(s: &str) -> String {
+    s.replace('&', "&amp;")
+        .replace('<', "&lt;")
+        .replace('>', "&gt;")
+        .replace('"', "&quot;")
+        .replace('\'', "&#39;")
+}
+
+/// Quanto o `Accept` quer um tipo: (q, especificidade) da faixa mais
+/// específica que casa (`text/html` > `text/*` > `*/*`).
+fn accept_q(accept: &str, ty: &str) -> (f32, u8) {
+    let (main, _) = ty.split_once('/').unwrap_or((ty, ""));
+    let mut best: Option<(f32, u8)> = None;
+    for part in accept.split(',') {
+        let mut it = part.split(';');
+        let range = it.next().unwrap_or("").trim().to_ascii_lowercase();
+        let q = it
+            .filter_map(|p| p.trim().strip_prefix("q="))
+            .find_map(|v| v.trim().parse::<f32>().ok())
+            .unwrap_or(1.0);
+        let spec = if range == ty {
+            2
+        } else if range == format!("{main}/*") {
+            1
+        } else if range == "*/*" {
+            0
+        } else {
+            continue;
+        };
+        if best.is_none_or(|(_, s)| spec > s) {
+            best = Some((q, spec));
+        }
+    }
+    best.unwrap_or((0.0, 0))
+}
+
+/// `res.redirect(status, to)` do Express 5: `Location` com `encodeurl` e o
+/// corpo pelo `Accept` (texto, HTML ou vazio).
+pub fn redirect(headers: &HeaderMap, status: StatusCode, to: &str) -> Response {
+    let to = encode_url(to);
+    let reason = status.canonical_reason().unwrap_or("");
+    let accept = headers
+        .get(header::ACCEPT)
+        .and_then(|v| v.to_str().ok())
+        .unwrap_or("*/*");
+    let text = accept_q(accept, "text/plain");
+    let html = accept_q(accept, "text/html");
+    let (kind, body) = if text.0 <= 0.0 && html.0 <= 0.0 {
+        (None, String::new())
+    } else if html.0 > text.0 || (html.0 == text.0 && html.1 > text.1) {
+        (
+            Some("text/html; charset=utf-8"),
+            format!("<p>{reason}. Redirecting to {}</p>", escape_html(&to)),
+        )
+    } else {
+        (
+            Some("text/plain; charset=utf-8"),
+            format!("{reason}. Redirecting to {to}"),
+        )
+    };
+    let mut res = Response::new(axum::body::Body::from(body));
+    *res.status_mut() = status;
+    let h = res.headers_mut();
+    if let Ok(v) = axum::http::HeaderValue::from_str(&to) {
+        h.insert(header::LOCATION, v);
+    }
+    if let Some(k) = kind {
+        h.insert(
+            header::CONTENT_TYPE,
+            axum::http::HeaderValue::from_static(k),
+        );
+    }
+    h.insert(header::VARY, axum::http::HeaderValue::from_static("Accept"));
+    res
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn corpo_do_redirect_pelo_accept() {
+        let mut h = HeaderMap::new();
+        let r = redirect(&h, StatusCode::SEE_OTHER, "/login?a=1&b=2");
+        assert_eq!(r.headers()["location"], "/login?a=1&b=2");
+        assert_eq!(r.headers()["content-type"], "text/plain; charset=utf-8");
+        h.insert(
+            header::ACCEPT,
+            "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8"
+                .parse()
+                .unwrap(),
+        );
+        let r = redirect(&h, StatusCode::FOUND, "/praça");
+        assert_eq!(r.headers()["location"], "/pra%C3%A7a");
+        assert_eq!(r.headers()["content-type"], "text/html; charset=utf-8");
+        h.insert(header::ACCEPT, "application/json".parse().unwrap());
+        let r = redirect(&h, StatusCode::FOUND, "/x");
+        assert!(r.headers().get("content-type").is_none());
+        assert_eq!(encode_url("/a%20b c"), "/a%20b%20c");
+    }
+}

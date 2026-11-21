@@ -13,7 +13,7 @@ use std::sync::{LazyLock, Mutex};
 use std::time::{Duration, Instant};
 
 use axum::Json;
-use axum::body::{Body, Bytes};
+use axum::body::Bytes;
 use axum::extract::{Path, RawQuery, State};
 use axum::http::request::Parts;
 use axum::http::{HeaderMap, HeaderValue, StatusCode, header};
@@ -28,7 +28,7 @@ use crate::db::{self, Db};
 use crate::params;
 use crate::qr;
 use crate::ratelimit;
-use crate::routes::ctx::{By, Ctx, err, finish, prelude_or_return, security_log, uid};
+use crate::routes::ctx::{By, Ctx, err, finish, prelude_or_return, redirect, security_log, uid};
 use crate::routes::devices::{describe_device, mask_ip};
 use crate::routes::login::{LoginUser, Req, complete_login_parts, find_user_by_id};
 use crate::session::{self as s};
@@ -269,7 +269,7 @@ pub async fn poll(State(state): State<AppState>, parts: Parts, body: Bytes) -> R
     done(out, c)
 }
 
-fn is_account_blocked(u: &LoginUser) -> bool {
+pub(crate) fn is_account_blocked(u: &LoginUser) -> bool {
     u.is_platform_banned
         || u.account_disabled_at.is_some()
         || u.suspended_until.is_some_and(|s| s > db::now())
@@ -612,26 +612,6 @@ fn safe_path(query: Option<&str>) -> String {
     }
 }
 
-/// `encodeurl` do Express no `Location`: escapa o que não é permitido numa URL.
-fn encode_url(p: &str) -> String {
-    let mut out = String::with_capacity(p.len());
-    let bytes = p.as_bytes();
-    let mut i = 0;
-    while i < bytes.len() {
-        let b = bytes[i];
-        let is_escape = b == b'%'
-            && bytes.get(i + 1).is_some_and(u8::is_ascii_hexdigit)
-            && bytes.get(i + 2).is_some_and(u8::is_ascii_hexdigit);
-        if is_escape || b.is_ascii_alphanumeric() || b"!#$&'()*+,-./:;=?@[]_~".contains(&b) {
-            out.push(b as char);
-        } else {
-            out.push_str(&format!("%{b:02X}"));
-        }
-        i += 1;
-    }
-    out
-}
-
 /// `GET /app-handoff/{code}?to=/praca/app` — cria uma sessão NOVA (cookie)
 /// pro WebView e redireciona.
 pub async fn handoff_consume(
@@ -668,30 +648,9 @@ pub async fn handoff_consume(
             ));
         };
         let (_, cookies) = complete_login_parts(&state, &c.db, &req_of(&c), &user).await?;
-        let to = encode_url(&safe_path(query.as_deref()));
-        // `res.redirect` do Express: corpo em HTML pra navegador, texto pro resto
-        let wants_html = c
-            .headers
-            .get(header::ACCEPT)
-            .and_then(|v| v.to_str().ok())
-            .is_some_and(|a| a.contains("text/html"));
-        let (kind, page) = if wants_html {
-            (
-                "text/html; charset=utf-8",
-                format!("<p>Found. Redirecting to <a href=\"{to}\">{to}</a></p>"),
-            )
-        } else {
-            (
-                "text/plain; charset=utf-8",
-                format!("Found. Redirecting to {to}"),
-            )
-        };
-        let mut res = Response::builder()
-            .status(StatusCode::FOUND)
-            .header(header::LOCATION, &to)
-            .header(header::CONTENT_TYPE, kind)
-            .header(header::CACHE_CONTROL, "no-store")
-            .body(Body::from(page))?;
+        let mut res = redirect(&c.headers, StatusCode::FOUND, &safe_path(query.as_deref()));
+        res.headers_mut()
+            .insert(header::CACHE_CONTROL, HeaderValue::from_static("no-store"));
         for k in cookies {
             res.headers_mut().append(header::SET_COOKIE, k);
         }
@@ -715,8 +674,6 @@ mod tests {
         assert_eq!(safe_path(Some("to=//mal.com")), "/praca/app");
         assert_eq!(safe_path(Some("to=https://mal.com")), "/praca/app");
         assert_eq!(safe_path(Some("to=/a&to=/b")), "/praca/app");
-        assert_eq!(encode_url("/praça app"), "/pra%C3%A7a%20app");
-        assert_eq!(encode_url("/a%20b?c=1"), "/a%20b?c=1");
     }
 
     #[test]

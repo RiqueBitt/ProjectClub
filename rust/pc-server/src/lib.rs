@@ -173,6 +173,26 @@ fn ported(state: &AppState) -> Router<AppState> {
         )
         .route("/api/auth/passkeys/{id}", delete(routes::passkeys::remove))
         .route("/api/auth/export-data", get(routes::export::export_data))
+        .route("/api/auth/oauth/providers", get(routes::oauth::providers))
+        .route("/api/auth/oauth/2fa", post(routes::oauth::complete_2fa))
+        .route(
+            "/api/auth/oauth/signup",
+            get(routes::oauth::signup_info).delete(routes::oauth::cancel_signup),
+        )
+        .route("/api/auth/oauth/accounts", get(routes::oauth::accounts))
+        .route(
+            "/api/auth/oauth/accounts/{provider}",
+            delete(routes::oauth::unlink),
+        )
+        .route(
+            "/api/auth/oauth/{provider}/start",
+            get(routes::oauth::start),
+        )
+        .route("/api/auth/oauth/{provider}/link", post(routes::oauth::link))
+        .route(
+            "/api/auth/oauth/{provider}/callback",
+            get(routes::oauth::callback),
+        )
         // rotas internas (Rust → Node) não existem pra quem vem de fora
         .route("/api/internal", any(not_found))
         .route("/api/internal/{*rest}", any(not_found))

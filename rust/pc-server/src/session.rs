@@ -89,9 +89,20 @@ pub fn read_cookie(headers: &HeaderMap, name: &str) -> Option<String> {
 
 /// `Set-Cookie` igual ao `res.cookie` do Express (httpOnly, sameSite lax, path /api/auth).
 pub fn set_cookie(name: &str, value: &str, max_age_secs: u64, secure: bool) -> HeaderValue {
+    cookie_at(name, value, COOKIE_PATH, max_age_secs, secure)
+}
+
+/// `res.cookie(name, value, { httpOnly, sameSite: 'lax', secure, path, maxAge })`.
+pub fn cookie_at(
+    name: &str,
+    value: &str,
+    path: &str,
+    max_age_secs: u64,
+    secure: bool,
+) -> HeaderValue {
     let expires = chrono::Utc::now() + chrono::Duration::seconds(max_age_secs as i64);
     let mut s = format!(
-        "{name}={value}; Max-Age={max_age_secs}; Path={COOKIE_PATH}; Expires={}; HttpOnly",
+        "{name}={value}; Max-Age={max_age_secs}; Path={path}; Expires={}; HttpOnly",
         expires.format("%a, %d %b %Y %H:%M:%S GMT")
     );
     if secure {
@@ -107,6 +118,16 @@ pub fn clear_cookie(name: &str) -> HeaderValue {
         "{name}=; Path={COOKIE_PATH}; Expires=Thu, 01 Jan 1970 00:00:00 GMT"
     ))
     .expect("cookie válido")
+}
+
+/// `res.clearCookie(name, { httpOnly, sameSite: 'lax', secure, path })`.
+pub fn clear_cookie_at(name: &str, path: &str, secure: bool) -> HeaderValue {
+    let mut s = format!("{name}=; Path={path}; Expires=Thu, 01 Jan 1970 00:00:00 GMT; HttpOnly");
+    if secure {
+        s.push_str("; Secure");
+    }
+    s.push_str("; SameSite=Lax");
+    HeaderValue::from_str(&s).expect("cookie válido")
 }
 
 /// Uma linha de `RefreshToken`.
