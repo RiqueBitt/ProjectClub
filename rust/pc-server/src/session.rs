@@ -334,8 +334,7 @@ pub async fn read_keep(state: &AppState, headers: &HeaderMap) -> Option<(String,
     let revoked_at: f64 = state
         .cache
         .get_raw(&format!("sess:revoked-at:{uid}"))
-        .await
-        .ok()?
+        .await?
         .and_then(|v| v.parse().ok())
         .unwrap_or(0.0);
     if iat < revoked_at {

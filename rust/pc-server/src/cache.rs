@@ -45,11 +45,12 @@ impl Cache {
         }
     }
 
-    /// `GET` direto (sem o prefixo `cache:`). `Err` = sem Redis ou falha
-    /// (quem chama decide o que fazer — o Node costuma recusar).
-    pub async fn get_raw(&self, key: &str) -> Result<Option<String>, ()> {
-        let mut conn = self.redis.clone().ok_or(())?;
-        conn.get::<_, Option<String>>(key).await.map_err(|_| ())
+    /// `GET` direto (sem o prefixo `cache:`). `None` = sem Redis ou falha
+    /// (quem chama decide o que fazer — o Node costuma recusar);
+    /// `Some(None)` = a chave não existe.
+    pub async fn get_raw(&self, key: &str) -> Option<Option<String>> {
+        let mut conn = self.redis.clone()?;
+        conn.get::<_, Option<String>>(key).await.ok()
     }
 
     /// `SET key value EX ttl` direto. Falha só vai pro log.
