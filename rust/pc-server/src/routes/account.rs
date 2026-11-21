@@ -71,13 +71,17 @@ async fn prelude(
     body: &Bytes,
     needs_auth: bool,
     limit: Option<&Limit>,
-) -> Result<Ctx, Response> {
+) -> Result<Ctx, Box<Response>> {
     let Some(db) = state.db.clone() else {
-        return Err(server_error());
+        return Err(Box::new(server_error()));
     };
-    let body = web::json_body(&parts.headers, body).map_err(|r| *r)?;
+    let body = web::json_body(&parts.headers, body)?;
     let user = if needs_auth {
-        Some(AuthUser::from_request_parts(&mut parts, state).await?)
+        Some(
+            AuthUser::from_request_parts(&mut parts, state)
+                .await
+                .map_err(Box::new)?,
+        )
     } else {
         None
     };
@@ -88,11 +92,7 @@ async fn prelude(
                 .get::<ConnectInfo<SocketAddr>>()
                 .map(|c| c.0);
             let ip = s::client_ip(&parts.headers, peer).unwrap_or_else(|| "unknown".into());
-            Some(
-                ratelimit::guard(&state.cache, l, &ip)
-                    .await
-                    .map_err(|r| *r)?,
-            )
+            Some(ratelimit::guard(&state.cache, l, &ip).await?)
         }
         None => None,
     };
@@ -120,7 +120,7 @@ where
 {
     let ctx = match prelude(&state, parts, &body, auth, limit).await {
         Ok(c) => c,
-        Err(r) => return r,
+        Err(r) => return *r,
     };
     let (out, counted) = f(state, ctx).await;
     let mut res = out.unwrap_or_else(|e| {
