@@ -45,6 +45,23 @@ impl Cache {
         }
     }
 
+    /// `GET` direto (sem o prefixo `cache:`). `Err` = sem Redis ou falha
+    /// (quem chama decide o que fazer — o Node costuma recusar).
+    pub async fn get_raw(&self, key: &str) -> Result<Option<String>, ()> {
+        let mut conn = self.redis.clone().ok_or(())?;
+        conn.get::<_, Option<String>>(key).await.map_err(|_| ())
+    }
+
+    /// `SET key value EX ttl` direto. Falha só vai pro log.
+    pub async fn set_raw(&self, key: &str, value: &str, ttl_secs: u64) {
+        if let Some(mut conn) = self.redis.clone() {
+            let r: Result<(), _> = conn.set_ex(key, value, ttl_secs).await;
+            if let Err(e) = r {
+                tracing::warn!("redis: não gravou {key}: {e}");
+            }
+        }
+    }
+
     pub async fn get_or_set<T, F, Fut>(&self, key: &str, ttl_secs: u64, compute: F) -> T
     where
         T: Serialize + DeserializeOwned,

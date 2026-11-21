@@ -2,4 +2,5 @@
 //! o que ainda passa pelo proxy.
 
 pub mod auth;
+pub mod session;
 pub mod system;

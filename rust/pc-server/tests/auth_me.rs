@@ -4,67 +4,14 @@
 //! Precisa de `PC_TEST_DATABASE_URL` (ex.: `mysql://root@127.0.0.1:3306`);
 //! sem ela os testes só avisam e passam. Cada teste cria o próprio banco.
 
-use std::net::SocketAddr;
+mod common;
+
 use std::time::Duration;
 
+use common::{Env, SECRET, add_user, setup};
 use pc_server::auth::Tokens;
-use pc_server::config::Config;
-use pc_server::{AppState, app};
 use serde_json::{Value, json};
-use sqlx::{Executor, MySqlPool};
-
-const SECRET: &str = "segredo-de-teste";
-
-struct Env {
-    gw: SocketAddr,
-    db: MySqlPool,
-}
-
-async fn setup() -> Option<Env> {
-    let Ok(base) = std::env::var("PC_TEST_DATABASE_URL") else {
-        eprintln!("PC_TEST_DATABASE_URL não definida — pulando teste de banco");
-        return None;
-    };
-    let base = base.trim_end_matches('/').to_string();
-    let name = format!("pc_test_{}", uuid::Uuid::new_v4().simple());
-    let admin = MySqlPool::connect(&base).await.unwrap();
-    admin
-        .execute(format!("CREATE DATABASE `{name}`").as_str())
-        .await
-        .unwrap();
-    let url = format!("{base}/{name}");
-    let db = MySqlPool::connect(&url).await.unwrap();
-    db.execute("SET time_zone = '+00:00'").await.unwrap();
-    sqlx::raw_sql(include_str!("fixtures/schema.sql"))
-        .execute(&db)
-        .await
-        .unwrap();
-
-    let config = Config {
-        listen: "127.0.0.1:0".parse().unwrap(),
-        node_upstream: "http://127.0.0.1:9".into(),
-        node_env: "test".into(),
-        redis_url: None,
-        desktop_latest_url: String::new(),
-        database_url: Some(url),
-        jwt_access_secret: SECRET.into(),
-    };
-    let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
-    let gw = listener.local_addr().unwrap();
-    let router = app(AppState::new(config).await.unwrap());
-    tokio::spawn(async move { axum::serve(listener, router).await.unwrap() });
-    Some(Env { gw, db })
-}
-
-async fn add_user(db: &MySqlPool, id: &str, extra: &str) {
-    let sql = format!(
-        "INSERT INTO `User` (id, email, username, displayName, passwordHash, updatedAt, createdAt{cols}) \
-         VALUES ('{id}', '{id}@x.com', '{id}', 'Nome {id}', 'hash', UTC_TIMESTAMP(3), UTC_TIMESTAMP(3){vals})",
-        cols = extra.split('|').next().unwrap_or(""),
-        vals = extra.split('|').nth(1).unwrap_or(""),
-    );
-    db.execute(sql.as_str()).await.unwrap();
-}
+use sqlx::Executor;
 
 async fn me(env: &Env, user: Option<&str>) -> (u16, Value) {
     let mut req = reqwest::Client::new().get(format!("http://{}/api/auth/me", env.gw));

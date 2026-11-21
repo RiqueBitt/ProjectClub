@@ -14,7 +14,8 @@ async fn main() -> anyhow::Result<()> {
     let config = Config::from_env()?;
     // `pc-server check`: só confere Redis e MySQL e sai
     if std::env::args().nth(1).as_deref() == Some("check") {
-        let ok = pc_server::check::run(&config).await;
+        let only = std::env::args().nth(2).unwrap_or_default();
+        let ok = pc_server::check::run(&config, &only).await;
         std::process::exit(if ok { 0 } else { 1 });
     }
     let listen = config.listen;

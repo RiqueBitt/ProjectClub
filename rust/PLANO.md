@@ -51,7 +51,8 @@ Cada fase é publicável sozinha, só quando o dono liberar.
 - [ ] Fase 2 — API rota por rota
   - [x] banco (MySQL sem Prisma), token de acesso e `requireAuth`
   - [x] `GET /api/auth/me`
-  - [ ] próximo: o resto do auth (login, refresh, logout, cadastro, 2FA, senha)
+  - [x] `POST /api/auth/refresh` e `POST /api/auth/logout` (com o "lembrar login")
+  - [ ] próximo: login (senha, bloqueio por tentativas, 2FA, aviso de aparelho novo)
 
 ### Fase 1 — o que já tem
 
@@ -99,3 +100,19 @@ interna + o Rust na porta pública.
 Testes de banco: `PC_TEST_DATABASE_URL=mysql://root@127.0.0.1:3306 cargo test`
 (cada teste cria um banco novo com `tests/fixtures/schema.sql`, gerado do
 `schema.prisma`). No CI roda com MySQL 8.
+
+### Sessões (refresh e logout)
+
+- `iron.rs`: o selo do `iron-session` (formato `Fe26.2`) — o cookie
+  `pcKeep` ("lembrar login") feito pelo Node abre no Rust e o do Rust abre
+  no Node (testado nos dois sentidos).
+- `session.rs` + `routes/session.rs`: o `refresh` do Node caso a caso —
+  rotação (só uma requisição ganha), corrida de duas abas (30 s ou mesmo
+  aparelho: só token de acesso, sem sessão nova), aparelho que perdeu o
+  cookie novo (recupera, substituto vira `ABANDONED`), reuso de token velho
+  (`THEFT`, encerra só aquela sessão), conta bloqueada (`ADMIN`), sessão
+  encerrada, "lembrar login" (com "sair de todos os aparelhos" no Redis) e
+  a promoção do dono a ADMIN. Cookies com o mesmo formato do Express.
+- Redis de produção: certificado público (Let's Encrypt) — o Rust usa a
+  lista de raízes embutida. `pc-server check [redis|mysql]` testa as duas
+  conexões no servidor de verdade.

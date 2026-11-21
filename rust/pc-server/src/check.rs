@@ -25,22 +25,48 @@ fn host_of(url: &str) -> String {
         .unwrap_or_else(|| "?".into())
 }
 
-pub async fn run(config: &Config) -> bool {
+async fn step<T>(
+    name: &str,
+    f: impl std::future::Future<Output = anyhow::Result<T>>,
+) -> anyhow::Result<T> {
+    println!("  … {name}");
+    match tokio::time::timeout(std::time::Duration::from_secs(15), f).await {
+        Ok(r) => r,
+        Err(_) => anyhow::bail!("{name}: passou de 15 s sem resposta"),
+    }
+}
+
+/// `only`: "redis", "mysql" ou vazio (os dois).
+pub async fn run(config: &Config, only: &str) -> bool {
     let mut ok = true;
 
-    match config.redis_url.as_deref() {
+    match config
+        .redis_url
+        .as_deref()
+        .filter(|_| only.is_empty() || only == "redis")
+    {
         None => println!("redis: REDIS_URL não definida"),
         Some(url) => {
             let t = Instant::now();
+            println!("redis {}:", host_of(url));
             let r: anyhow::Result<String> = async {
                 let client = redis::Client::open(url)?;
-                let mut conn = client.get_multiplexed_async_connection().await?;
-                let pong: String = redis::cmd("PING").query_async(&mut conn).await?;
+                let mut conn = step("conectar (TLS + senha)", async {
+                    Ok(client.get_multiplexed_async_connection().await?)
+                })
+                .await?;
+                let pong: String = step("PING", async {
+                    Ok(redis::cmd("PING").query_async(&mut conn).await?)
+                })
+                .await?;
                 let key = format!("pc:rust:check:{}", uuid::Uuid::new_v4().simple());
-                let _: () = conn.set_ex(&key, "ok", 30).await?;
-                let back: String = conn.get(&key).await?;
-                let _: () = conn.del(&key).await?;
-                Ok(format!("{pong}, gravou e leu \"{back}\""))
+                step("gravar e ler", async {
+                    let _: () = conn.set_ex(&key, "ok", 30).await?;
+                    let back: String = conn.get(&key).await?;
+                    let _: () = conn.del(&key).await?;
+                    Ok(format!("{pong}, gravou e leu \"{back}\""))
+                })
+                .await
             }
             .await;
             match r {
@@ -53,15 +79,23 @@ pub async fn run(config: &Config) -> bool {
         }
     }
 
-    match config.database_url.as_deref() {
+    match config
+        .database_url
+        .as_deref()
+        .filter(|_| only.is_empty() || only == "mysql")
+    {
         None => println!("mysql: DATABASE_URL não definida"),
         Some(url) => {
             let t = Instant::now();
+            println!("mysql {}:", host_of(url));
             let r: anyhow::Result<String> = async {
                 let db = crate::db::connect_lazy(url)?;
-                let version: String = sqlx::query_scalar("SELECT VERSION()")
-                    .fetch_one(&db)
-                    .await?;
+                let version: String = step("conectar e SELECT VERSION()", async {
+                    Ok(sqlx::query_scalar("SELECT VERSION()")
+                        .fetch_one(&db)
+                        .await?)
+                })
+                .await?;
                 let users: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM `User`")
                     .fetch_one(&db)
                     .await?;

@@ -9,13 +9,15 @@ pub mod cache;
 pub mod check;
 pub mod config;
 pub mod db;
+pub mod iron;
 pub mod proxy;
 pub mod routes;
+pub mod session;
 pub mod users;
 
 use axum::Router;
 use axum::http::{HeaderName, HeaderValue};
-use axum::routing::get;
+use axum::routing::{get, post};
 use tower_http::set_header::SetResponseHeaderLayer;
 
 #[derive(Clone)]
@@ -71,6 +73,8 @@ fn ported() -> Router<AppState> {
             get(routes::system::desktop_latest),
         )
         .route("/api/auth/me", get(routes::auth::me))
+        .route("/api/auth/refresh", post(routes::session::refresh))
+        .route("/api/auth/logout", post(routes::session::logout))
         .layer(h("x-content-type-options", "nosniff"))
         .layer(h("x-frame-options", "SAMEORIGIN"))
         .layer(h("referrer-policy", "no-referrer"))
