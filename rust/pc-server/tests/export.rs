@@ -60,6 +60,11 @@ async fn exporta_sem_segredos() {
 
     let account = v["account"].as_object().unwrap();
     assert_eq!(account.keys().next().map(String::as_str), Some("id"));
+    // os campos seguem a ordem do schema mesmo tirando os segredos
+    let keys: Vec<&str> = account.keys().map(String::as_str).collect();
+    let pos = |k: &str| keys.iter().position(|x| *x == k).unwrap();
+    assert_eq!(pos("displayName") + 1, pos("avatarUrl"));
+    assert_eq!(keys.last(), Some(&"selfDeactivatedAt"));
     assert!(!account.contains_key("passwordHash"));
     assert!(!account.contains_key("twoFactorSecret"));
     assert_eq!(account["chatZoom"], 1.25);

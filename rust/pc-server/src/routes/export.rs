@@ -165,7 +165,8 @@ pub async fn export_data(State(state): State<AppState>, parts: Parts, body: Byte
             return Ok(err(StatusCode::NOT_FOUND, "Conta não encontrada."));
         };
         for k in SECRET_USER_FIELDS {
-            account.remove(k);
+            // `shift_remove` mantém a ordem (o `remove` puxaria o último campo pro lugar)
+            account.shift_remove(k);
         }
         let username = account["username"].as_str().unwrap_or_default().to_string();
         let lim = format!("LIMIT {LIMIT}");
