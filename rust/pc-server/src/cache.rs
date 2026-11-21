@@ -26,7 +26,18 @@ impl Cache {
         let redis = match url {
             None => None,
             Some(url) => match redis::Client::open(url) {
-                Ok(client) => match ConnectionManager::new(client).await {
+                // Redis caído não pode travar o pedido: o Node (ioredis com
+                // `maxRetriesPerRequest: 3`) desiste e responde erro.
+                Ok(client) => match ConnectionManager::new_with_config(
+                    client,
+                    redis::aio::ConnectionManagerConfig::new()
+                        .set_connection_timeout(std::time::Duration::from_secs(3))
+                        .set_response_timeout(std::time::Duration::from_secs(3))
+                        .set_number_of_retries(3)
+                        .set_max_delay(1000),
+                )
+                .await
+                {
                     Ok(conn) => Some(conn),
                     Err(err) => {
                         tracing::warn!("redis indisponível, seguindo sem cache: {err}");

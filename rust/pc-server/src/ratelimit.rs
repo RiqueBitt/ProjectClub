@@ -69,6 +69,46 @@ pub const CODE: Limit = Limit {
     legacy: false,
 };
 
+/// "Entrar com o celular" — PC sem login: gerar o QR (10 em 10 min por IP).
+pub const QR_START: Limit = Limit {
+    prefix: "qr-start",
+    window_ms: 10 * 60 * 1000,
+    max: 10,
+    message: Some("Muitos QR Codes gerados. Espere alguns minutos e tente de novo."),
+    standard: true,
+    legacy: false,
+};
+
+/// Consultar o estado do QR (90 por minuto, uma consulta a cada 2 s folgada).
+pub const QR_POLL: Limit = Limit {
+    prefix: "qr-poll",
+    window_ms: 60 * 1000,
+    max: 90,
+    message: Some("Muitas consultas. Espere um pouco."),
+    standard: true,
+    legacy: false,
+};
+
+/// Trocar o QR aprovado por sessão, e abrir o link do app-handoff.
+pub const QR_EXCHANGE: Limit = Limit {
+    prefix: "qr-exchange",
+    window_ms: 10 * 60 * 1000,
+    max: 20,
+    message: Some("Muitas tentativas. Tente novamente em alguns minutos."),
+    standard: true,
+    legacy: false,
+};
+
+/// Celular logado (ler/aprovar/recusar QR, pedir app-handoff): por conta.
+pub const QR_PHONE: Limit = Limit {
+    prefix: "qr-phone",
+    window_ms: 10 * 60 * 1000,
+    max: 30,
+    message: Some("Muitas tentativas. Tente novamente em alguns minutos."),
+    standard: true,
+    legacy: false,
+};
+
 /// Cabeçalhos de uma contagem, pra pôr na resposta.
 pub struct Counted {
     pub headers: Vec<(&'static str, String)>,

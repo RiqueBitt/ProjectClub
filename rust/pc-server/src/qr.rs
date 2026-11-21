@@ -5,23 +5,33 @@
 use base64::Engine;
 use qrcode::{EcLevel, QrCode};
 
-const MARGIN: usize = 4;
-const SCALE: usize = 4;
-
+/// Padrão do `qrcode.toDataURL(texto)` (tela do 2FA).
 pub fn data_url(text: &str) -> anyhow::Result<String> {
+    data_url_with(text, 4, None)
+}
+
+/// `qrcode.toDataURL(texto, { margin, width })`: com `width`, a imagem tem
+/// exatamente essa largura (escala fracionária, como o `qrcode` do Node).
+pub fn data_url_with(text: &str, margin: usize, width: Option<usize>) -> anyhow::Result<String> {
     let code = QrCode::with_error_correction_level(text.as_bytes(), EcLevel::M)?;
     let n = code.width();
     let colors = code.to_colors();
-    let side = (n + 2 * MARGIN) * SCALE;
+    let full = (n + 2 * margin) as f64;
+    let scale = match width {
+        Some(w) if w as f64 >= full => w as f64 / full,
+        _ => 4.0,
+    };
+    let side = (full * scale).floor() as usize;
+    let m = margin as f64 * scale;
     let mut pixels = vec![255u8; side * side];
-    for y in 0..n {
-        for x in 0..n {
-            if colors[y * n + x] == qrcode::Color::Dark {
-                for dy in 0..SCALE {
-                    let row = ((y + MARGIN) * SCALE + dy) * side;
-                    for dx in 0..SCALE {
-                        pixels[row + (x + MARGIN) * SCALE + dx] = 0;
-                    }
+    for i in 0..side {
+        for j in 0..side {
+            let (fi, fj) = (i as f64, j as f64);
+            if fi >= m && fj >= m && fi < side as f64 - m && fj < side as f64 - m {
+                let si = ((fi - m) / scale).floor() as usize;
+                let sj = ((fj - m) / scale).floor() as usize;
+                if si < n && sj < n && colors[si * n + sj] == qrcode::Color::Dark {
+                    pixels[i * side + j] = 0;
                 }
             }
         }

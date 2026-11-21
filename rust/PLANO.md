@@ -58,7 +58,8 @@ Cada fase é publicável sozinha, só quando o dono liberar.
         2FA (ativar, códigos de recuperação, desativar), trocar senha
   - [x] aparelhos conectados (listar, encerrar um, sair dos outros),
         desativar/excluir conta, troca rápida de conta
-  - [ ] próximo: passkeys, login por QR, app-handoff, OAuth e exportar dados
+  - [x] entrar pelo QR Code (PC e celular) e entrada do app no WebView (app-handoff)
+  - [ ] próximo: passkeys, OAuth (Google/Discord/GitHub) e exportar dados
 
 ### Fase 1 — o que já tem
 
@@ -206,3 +207,18 @@ Produção (21/11/2026): `GET /api/auth/sessions` de 8 contas reais (com
 aparelhos de verdade na lista) — idêntico ao Node. As rotas que mudam algo
 (encerrar, desativar, excluir, trocar) só nos testes, pra não mexer em
 conta de ninguém.
+
+### Entrar pelo QR Code e app-handoff
+
+- `POST /api/auth/qr/start|poll|exchange` (PC, sem login) e
+  `/qr/scan|approve|deny` (celular logado, com e-mail confirmado e cookie de
+  sessão viva desta conta). Mesma máquina de estados, mesmos erros
+  (`{ error, code }`) e os 4 limitadores do Node (`qr-start`, `qr-poll`,
+  `qr-exchange` por IP e `qr-phone` por conta, `u:<id>`). O QR sai com
+  260 px e margem 1, como o `qrcode` do Node; o teste lê o QR de volta.
+- `POST /api/auth/app-handoff` e `GET /api/auth/app-handoff/{code}` — código
+  de uso único de 2 minutos guardado na memória (como no Node: as duas rotas
+  passam juntas pro Rust), sessão nova pro WebView e redirecionamento só pra
+  caminho do próprio site.
+- Redis fora do ar não trava mais o pedido: 3 tentativas com prazo de 3 s e
+  depois 500, como o ioredis do Node (`maxRetriesPerRequest: 3`).

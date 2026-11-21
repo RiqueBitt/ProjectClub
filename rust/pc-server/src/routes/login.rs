@@ -417,6 +417,22 @@ pub(crate) async fn complete_login(
     req: &Req,
     user: &LoginUser,
 ) -> anyhow::Result<Response> {
+    let (body, cookies) = complete_login_parts(state, db, req, user).await?;
+    let mut res = Json(body).into_response();
+    for c in cookies {
+        res.headers_mut().append(header::SET_COOKIE, c);
+    }
+    Ok(res)
+}
+
+/// O mesmo `completeLogin`, devolvendo o corpo (`{ user, accessToken }`) e
+/// os cookies separados (o QR acrescenta `via`, o handoff redireciona).
+pub(crate) async fn complete_login_parts(
+    state: &AppState,
+    db: &Db,
+    req: &Req,
+    user: &LoginUser,
+) -> anyhow::Result<(Value, Vec<axum::http::HeaderValue>)> {
     if let Some(acc) = s::account(db, &user.id).await? {
         s::maybe_promote_to_platform_admin(state, db, &acc).await;
     }
@@ -470,11 +486,7 @@ pub(crate) async fn complete_login(
     }
     // sem req.user no login: o Node mascara até o invisível da própria pessoa
     mask_invisible(&mut body, None);
-    let mut res = Json(body).into_response();
-    for c in issued.cookies {
-        res.headers_mut().append(header::SET_COOKIE, c);
-    }
-    Ok(res)
+    Ok((body, issued.cookies))
 }
 
 #[cfg(test)]

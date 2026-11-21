@@ -3,38 +3,27 @@
 //! `deactivateAccount`, `deleteAccount` (`authController.js`) e de
 //! `accountSwitchController.js`.
 
-use std::net::SocketAddr;
 use std::sync::LazyLock;
 
 use axum::Json;
 use axum::body::Bytes;
-use axum::extract::{ConnectInfo, FromRequestParts, Path, State};
+use axum::extract::{Path, State};
 use axum::http::request::Parts;
-use axum::http::{HeaderMap, StatusCode, header};
+use axum::http::{StatusCode, header};
 use axum::response::{IntoResponse, Response};
 use base64::Engine;
 use regex::{Regex, RegexBuilder};
 use serde_json::{Value, json};
 
 use crate::AppState;
-use crate::auth::{AuthUser, error};
+use crate::auth::error;
 use crate::db::{self, Db};
+use crate::node;
 use crate::params;
-use crate::ratelimit::{self, Limit};
+use crate::ratelimit;
+use crate::routes::ctx::{By, err, finish, js_string, prelude_or_return, security_log, uid};
 use crate::routes::login::{Req, complete_login, find_user_by_id, password_ok};
 use crate::session::{self as s};
-use crate::{node, web};
-
-fn server_error() -> Response {
-    error(
-        StatusCode::INTERNAL_SERVER_ERROR,
-        json!({ "error": "Erro interno do servidor." }),
-    )
-}
-
-fn err(status: StatusCode, msg: &str) -> Response {
-    error(status, json!({ "error": msg }))
-}
 
 fn re(p: &str) -> Regex {
     RegexBuilder::new(p)
@@ -115,102 +104,6 @@ pub fn mask_ip(ip: Option<&str>) -> Option<String> {
         ));
     }
     None
-}
-
-/// `logSecurityEvent`: registro de segurança (nunca derruba a ação).
-async fn security_log(db: &Db, user_id: &str, action: &str, headers: &HeaderMap, ip: Option<&str>) {
-    let ua = headers
-        .get(header::USER_AGENT)
-        .and_then(|v| v.to_str().ok())
-        .unwrap_or("");
-    // `.slice(0, 200)` do JavaScript conta em UTF-16
-    let device: String =
-        String::from_utf16_lossy(&ua.encode_utf16().take(200).collect::<Vec<u16>>());
-    let ip_hash = ip.map(|i| s::sha256_hex(i)[..32].to_string());
-    let r = db::exec(
-        db,
-        "INSERT INTO SecurityLog (id, userId, action, device, ipHash, createdAt) VALUES (?, ?, ?, ?, ?, ?)",
-        params![db::new_id(), user_id, action, (!device.is_empty()).then_some(device), ip_hash, db::now()],
-    )
-    .await;
-    if let Err(e) = r {
-        tracing::error!("[securityLog] falha ao registrar evento: {e}");
-    }
-}
-
-/// Pedido já com corpo, login (se pede) e limitador (se tem).
-struct Ctx {
-    db: Db,
-    body: Value,
-    headers: HeaderMap,
-    ip: Option<String>,
-    user: Option<AuthUser>,
-    counted: Option<ratelimit::Counted>,
-}
-
-async fn prelude(
-    state: &AppState,
-    mut parts: Parts,
-    body: &Bytes,
-    needs_auth: bool,
-    limit: Option<&Limit>,
-) -> Result<Ctx, Box<Response>> {
-    let Some(db) = state.db.clone() else {
-        return Err(Box::new(server_error()));
-    };
-    let body = web::json_body(&parts.headers, body)?;
-    let user = if needs_auth {
-        Some(
-            AuthUser::from_request_parts(&mut parts, state)
-                .await
-                .map_err(Box::new)?,
-        )
-    } else {
-        None
-    };
-    let peer = parts
-        .extensions
-        .get::<ConnectInfo<SocketAddr>>()
-        .map(|c| c.0);
-    let ip = s::client_ip(&parts.headers, peer);
-    let counted = match limit {
-        Some(l) => {
-            Some(ratelimit::guard(&state.cache, l, ip.as_deref().unwrap_or("unknown")).await?)
-        }
-        None => None,
-    };
-    Ok(Ctx {
-        db,
-        body,
-        headers: parts.headers,
-        ip,
-        user,
-        counted,
-    })
-}
-
-fn finish(out: anyhow::Result<Response>, counted: Option<ratelimit::Counted>) -> Response {
-    let mut res = out.unwrap_or_else(|e| {
-        tracing::error!("[auth] {e}");
-        server_error()
-    });
-    if let Some(c) = counted {
-        c.apply(&mut res);
-    }
-    res
-}
-
-macro_rules! prelude_or_return {
-    ($state:expr, $parts:expr, $body:expr, $auth:expr, $limit:expr) => {
-        match prelude(&$state, $parts, &$body, $auth, $limit).await {
-            Ok(c) => c,
-            Err(r) => return *r,
-        }
-    };
-}
-
-fn uid(c: &Ctx) -> &str {
-    c.user.as_ref().map(|u| u.id.as_str()).unwrap_or_default()
 }
 
 // ---------------------------------------------------------------- sessões
@@ -381,7 +274,7 @@ fn logged_out(body: Value) -> Response {
 
 /// `POST /deactivate` — desativa por um tempo (entrar de novo reativa).
 pub async fn deactivate(State(state): State<AppState>, parts: Parts, body: Bytes) -> Response {
-    let c = prelude_or_return!(state, parts, body, true, Some(&ratelimit::AUTH));
+    let c = prelude_or_return!(state, parts, body, true, Some((&ratelimit::AUTH, By::Ip)));
     let out = async {
         if !check_password(&c.db, uid(&c), c.body.get("password").and_then(Value::as_str)).await? {
             return Ok(err(StatusCode::UNAUTHORIZED, "Senha incorreta."));
@@ -411,7 +304,7 @@ pub async fn deactivate(State(state): State<AppState>, parts: Parts, body: Bytes
 
 /// `POST /delete-account` — na verdade desativa de vez (nada é apagado).
 pub async fn delete_account(State(state): State<AppState>, parts: Parts, body: Bytes) -> Response {
-    let c = prelude_or_return!(state, parts, body, true, Some(&ratelimit::AUTH));
+    let c = prelude_or_return!(state, parts, body, true, Some((&ratelimit::AUTH, By::Ip)));
     let out = async {
         if !check_password(&c.db, uid(&c), c.body.get("password").and_then(Value::as_str)).await? {
             return Ok(err(StatusCode::UNAUTHORIZED, "Senha incorreta."));
@@ -440,36 +333,6 @@ pub async fn delete_account(State(state): State<AppState>, parts: Parts, body: B
 // ---------------------------------------------------------------- troca rápida de conta
 
 const SWITCH_TTL_DAYS: i64 = 90;
-
-/// `String(x || '')` do JavaScript.
-fn js_string(v: Option<&Value>) -> String {
-    fn conv(v: &Value) -> String {
-        match v {
-            Value::Null => "null".into(),
-            Value::Bool(b) => b.to_string(),
-            Value::Number(n) => match n.as_f64() {
-                Some(f) => match db::js_number(f) {
-                    Value::Number(m) => m.to_string(),
-                    other => other.to_string(),
-                },
-                None => n.to_string(),
-            },
-            Value::String(s) => s.clone(),
-            Value::Array(a) => a
-                .iter()
-                .map(|x| if x.is_null() { String::new() } else { conv(x) })
-                .collect::<Vec<_>>()
-                .join(","),
-            Value::Object(_) => "[object Object]".into(),
-        }
-    }
-    match v {
-        None | Some(Value::Null) | Some(Value::Bool(false)) => String::new(),
-        Some(Value::String(s)) if s.is_empty() => String::new(),
-        Some(Value::Number(n)) if n.as_f64() == Some(0.0) => String::new(),
-        Some(other) => conv(other),
-    }
-}
 
 /// `POST /switch/remember` — guarda esta conta pra troca rápida neste aparelho (até 10).
 pub async fn switch_remember(State(state): State<AppState>, parts: Parts, body: Bytes) -> Response {
@@ -508,7 +371,7 @@ pub async fn switch_remember(State(state): State<AppState>, parts: Parts, body: 
 
 /// `POST /switch` — entra na conta salva (sai da sessão atual deste aparelho).
 pub async fn switch(State(state): State<AppState>, parts: Parts, body: Bytes) -> Response {
-    let c = prelude_or_return!(state, parts, body, false, Some(&ratelimit::AUTH));
+    let c = prelude_or_return!(state, parts, body, false, Some((&ratelimit::AUTH, By::Ip)));
     let out = async {
         let raw = js_string(c.body.get("token"));
         if raw.encode_utf16().count() < 20 {

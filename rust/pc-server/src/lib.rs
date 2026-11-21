@@ -138,6 +138,20 @@ fn ported(state: &AppState) -> Router<AppState> {
             "/api/auth/switch/forget",
             post(routes::devices::switch_forget),
         )
+        .route("/api/auth/qr/start", post(routes::qr_login::start))
+        .route("/api/auth/qr/poll", post(routes::qr_login::poll))
+        .route("/api/auth/qr/exchange", post(routes::qr_login::exchange))
+        .route("/api/auth/qr/scan", post(routes::qr_login::scan))
+        .route("/api/auth/qr/approve", post(routes::qr_login::approve))
+        .route("/api/auth/qr/deny", post(routes::qr_login::deny))
+        .route(
+            "/api/auth/app-handoff",
+            post(routes::qr_login::handoff_create),
+        )
+        .route(
+            "/api/auth/app-handoff/{code}",
+            get(routes::qr_login::handoff_consume),
+        )
         // rotas internas (Rust → Node) não existem pra quem vem de fora
         .route("/api/internal", any(not_found))
         .route("/api/internal/{*rest}", any(not_found))
