@@ -126,7 +126,7 @@ impl FromRequestParts<AppState> for AuthUser {
         // qualquer falha daqui pra frente vira 401, como o try/catch do Node
         check_user(db, &state.auth_cache, &claims.sub)
             .await
-            .map_err(|e| e.unwrap_or_else(unauthorized))
+            .map_err(|e| e.map(|b| *b).unwrap_or_else(unauthorized))
     }
 }
 
@@ -135,7 +135,7 @@ async fn check_user(
     db: &Db,
     cache: &AuthCache,
     user_id: &str,
-) -> Result<AuthUser, Option<Response>> {
+) -> Result<AuthUser, Option<Box<Response>>> {
     let row = sqlx::query(
         "SELECT id, platformRole, isPlatformBanned, platformBanReason, suspendedUntil, accountDisabledAt \
          FROM `User` WHERE id = ?",
@@ -145,10 +145,10 @@ async fn check_user(
     .await
     .map_err(|_| None)?;
     let Some(row) = row else {
-        return Err(Some(error(
+        return Err(Some(Box::new(error(
             StatusCode::UNAUTHORIZED,
             json!({ "error": "Usuário não encontrado." }),
-        )));
+        ))));
     };
     let get = |c: &str| row.try_get::<Option<String>, _>(c).ok().flatten();
     let banned: bool = row.try_get("isPlatformBanned").map_err(|_| None)?;
@@ -158,31 +158,31 @@ async fn check_user(
         if let Some(reason) = get("platformBanReason").filter(|r| !r.is_empty()) {
             body["reason"] = json!(reason);
         }
-        return Err(Some(error(StatusCode::FORBIDDEN, body)));
+        return Err(Some(Box::new(error(StatusCode::FORBIDDEN, body))));
     }
     let suspended: Option<NaiveDateTime> = row.try_get("suspendedUntil").map_err(|_| None)?;
     if let Some(until) = suspended.filter(|u| *u > db::now()) {
-        return Err(Some(error(
+        return Err(Some(Box::new(error(
             StatusCode::FORBIDDEN,
             json!({ "error": "Sua conta está temporariamente suspensa.", "suspendedUntil": db::iso(until) }),
-        )));
+        ))));
     }
     let disabled: Option<NaiveDateTime> = row.try_get("accountDisabledAt").map_err(|_| None)?;
     if disabled.is_some() {
-        return Err(Some(error(
+        return Err(Some(Box::new(error(
             StatusCode::FORBIDDEN,
             json!({ "error": "Essa conta foi desativada.", "accountDisabled": true }),
-        )));
+        ))));
     }
     let user = AuthUser {
         id: user_id.to_string(),
         platform_role: get("platformRole").unwrap_or_default(),
     };
     if cache.maintenance_on(db).await.map_err(|_| None)? && !user.is_staff() {
-        return Err(Some(error(
+        return Err(Some(Box::new(error(
             StatusCode::SERVICE_UNAVAILABLE,
             json!({ "error": "A plataforma está em manutenção no momento.", "maintenance": true }),
-        )));
+        ))));
     }
     cache.mark_active(db, &user.id).await;
     Ok(user)
