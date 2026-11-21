@@ -5,8 +5,8 @@
 //! SELF: só a própria pessoa (`/auth/me`) — inclui e-mail, 2FA, situação da
 //! conta, aniversário completo e preferências.
 
+use crate::db::{DbResult, Row};
 use serde_json::{Map, Value, json};
-use sqlx::mysql::MySqlRow;
 
 use crate::db::{self, Ty};
 
@@ -120,7 +120,7 @@ pub fn self_select_sql() -> String {
     )
 }
 
-fn relations(row: &MySqlRow) -> Result<(Value, Value), sqlx::Error> {
+fn relations(row: &Row) -> DbResult<(Value, Value)> {
     // clanTag: { tag, clan: { icon: ClanIcon | null, iconColor } } ou null
     let clan_tag = if db::col(row, "_ct_id", Ty::Str)?.is_null() {
         Value::Null
@@ -160,7 +160,7 @@ fn relations(row: &MySqlRow) -> Result<(Value, Value), sqlx::Error> {
 }
 
 /// Usuário com os campos públicos + os da própria pessoa.
-pub fn self_user(row: &MySqlRow) -> Result<Map<String, Value>, sqlx::Error> {
+pub fn self_user(row: &Row) -> DbResult<Map<String, Value>> {
     let mut out = Map::new();
     let (clan_tag, pendant) = relations(row)?;
     for (key, column, ty) in PUBLIC_FIELDS {

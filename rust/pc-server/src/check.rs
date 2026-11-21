@@ -91,27 +91,25 @@ pub async fn run(config: &Config, only: &str) -> bool {
             let r: anyhow::Result<String> = async {
                 let db = crate::db::connect_lazy(url)?;
                 let version: String = step("conectar e SELECT VERSION()", async {
-                    Ok(sqlx::query_scalar("SELECT VERSION()")
-                        .fetch_one(&db)
-                        .await?)
+                    Ok(crate::db::scalar(&db, "SELECT VERSION()", vec![])
+                        .await?
+                        .unwrap_or_default())
                 })
                 .await?;
-                let users: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM `User`")
-                    .fetch_one(&db)
-                    .await?;
-                let tz: String = sqlx::query_scalar("SELECT @@session.time_zone")
-                    .fetch_one(&db)
-                    .await?;
-                let tls: Option<(String, String)> =
-                    sqlx::query_as("SHOW SESSION STATUS LIKE 'Ssl_version'")
-                        .fetch_optional(&db)
+                let users: i64 = crate::db::scalar(&db, "SELECT COUNT(*) FROM `User`", vec![])
+                    .await?
+                    .unwrap_or(0);
+                let tz: String = crate::db::scalar(&db, "SELECT @@session.time_zone", vec![])
+                    .await?
+                    .unwrap_or_default();
+                let tls: String =
+                    crate::db::first(&db, "SHOW SESSION STATUS LIKE 'Ssl_version'", vec![])
                         .await
                         .ok()
-                        .flatten();
-                let tls = tls
-                    .map(|(_, v)| v)
-                    .filter(|v| !v.is_empty())
-                    .unwrap_or_else(|| "sem TLS".into());
+                        .flatten()
+                        .and_then(|r| crate::db::get::<String>(&r, "Value").ok())
+                        .filter(|v| !v.is_empty())
+                        .unwrap_or_else(|| "sem TLS".into());
                 Ok(format!(
                     "versão {version}, {users} contas, fuso da sessão {tz}, {tls}"
                 ))
@@ -231,45 +229,6 @@ pub async fn mysql_async_probe(url: &str) {
     match r {
         Ok(m) => println!("  mysql_async: OK ({m})"),
         Err(e) => println!("  mysql_async: {e}"),
-    }
-}
-
-/// Tenta o MySQL com cada modo de TLS (preferido, desligado, obrigatório).
-pub async fn mysql_modes(url: &str) {
-    use sqlx::ConnectOptions;
-    use sqlx::mysql::{MySqlConnectOptions, MySqlSslMode};
-    use std::str::FromStr;
-    for (label, mode) in [
-        ("preferido", MySqlSslMode::Preferred),
-        ("sem TLS", MySqlSslMode::Disabled),
-        ("TLS obrigatório", MySqlSslMode::Required),
-    ] {
-        let Ok(opts) = MySqlConnectOptions::from_str(url) else {
-            return println!("  url inválida");
-        };
-        let r = tokio::time::timeout(
-            std::time::Duration::from_secs(10),
-            opts.ssl_mode(mode).connect(),
-        )
-        .await;
-        match r {
-            Ok(Ok(mut c)) => {
-                let tls: Option<(String, String)> =
-                    sqlx::query_as("SHOW SESSION STATUS LIKE 'Ssl_version'")
-                        .fetch_optional(&mut c)
-                        .await
-                        .ok()
-                        .flatten();
-                println!(
-                    "  {label}: OK ({})",
-                    tls.map(|t| t.1)
-                        .filter(|v| !v.is_empty())
-                        .unwrap_or("sem TLS".into())
-                );
-            }
-            Ok(Err(e)) => println!("  {label}: {e}"),
-            Err(_) => println!("  {label}: passou de 10 s"),
-        }
     }
 }
 

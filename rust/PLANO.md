@@ -114,5 +114,12 @@ Testes de banco: `PC_TEST_DATABASE_URL=mysql://root@127.0.0.1:3306 cargo test`
   encerrada, "lembrar login" (com "sair de todos os aparelhos" no Redis) e
   a promoção do dono a ADMIN. Cookies com o mesmo formato do Express.
 - Redis de produção: certificado público (Let's Encrypt) — o Rust usa a
-  lista de raízes embutida. `pc-server check [redis|mysql]` testa as duas
-  conexões no servidor de verdade.
+  lista de raízes embutida, e **não** manda o `CLIENT SETINFO` ao conectar
+  (o Redis da Shard Cloud não responde esse comando e a conexão travava).
+- MySQL de produção: fica atrás de um intermediário da Shard Cloud sem TLS
+  que começa com `mysql_native_password` e troca de método no meio do
+  login. O `sqlx` levava "acesso negado"; o servidor agora usa o
+  `mysql_async` (o mesmo motor do Prisma), que entra normalmente. O `sqlx`
+  ficou só pra montar os bancos de teste.
+- `pc-server check [redis|mysql]` testa as duas conexões e
+  `pc-server check diag` mostra cada etapa (TCP, TLS, PING, login no MySQL).

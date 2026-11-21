@@ -1,53 +1,130 @@
 //! Banco MySQL — o mesmo do Node (`DATABASE_URL`), sem Prisma.
 //!
-//! Convenções do Prisma que o Rust precisa seguir pra o Node e o Rust
-//! lerem/gravarem a mesma coisa:
-//! - datas são gravadas em **UTC** (DATETIME(3)) e saem no JSON como
+//! Driver: `mysql_async`, o mesmo motor que o Prisma usa por baixo. Em
+//! produção o MySQL fica atrás de um intermediário da Shard Cloud (sem TLS,
+//! que começa com `mysql_native_password` e troca de método no meio do
+//! login); o `sqlx` levava "acesso negado" ali e o `mysql_async` entra igual
+//! ao Prisma (testado no servidor de verdade com `pc-server check diag`).
+//!
+//! Convenções do Prisma que o Rust segue pra o Node e o Rust lerem/gravarem
+//! a mesma coisa:
+//! - datas gravadas em **UTC** (DATETIME(3)), no JSON como
 //!   `2026-11-21T12:00:00.000Z` ([`iso`]);
-//! - campos `@updatedAt` (ex.: `User.updatedAt`) são atualizados à mão em
-//!   todo UPDATE ([`now`]);
-//! - ids `@default(uuid())` são UUID v4 gerados aqui ([`new_id`]).
+//! - campos `@updatedAt` (ex.: `User.updatedAt`) atualizados à mão ([`now`]);
+//! - ids `@default(uuid())` são UUID v4 ([`new_id`]).
 
-use chrono::{NaiveDateTime, Utc};
-use serde_json::{Map, Number, Value};
-use sqlx::mysql::{MySqlConnectOptions, MySqlPool, MySqlPoolOptions, MySqlRow};
-use sqlx::{ConnectOptions, Executor, Row};
-use std::str::FromStr;
+use std::fmt;
 
-pub type Db = MySqlPool;
+use chrono::{NaiveDateTime, Timelike, Utc};
+use mysql_async::prelude::{FromValue, Queryable};
+use mysql_async::{Opts, OptsBuilder, PoolConstraints, PoolOpts};
+use serde_json::{Map, Number, Value as Json};
+
+pub use mysql_async::Row;
+pub use mysql_async::Value;
+
+pub type Db = mysql_async::Pool;
+
+/// Erro de banco: do driver, ou de uma coluna com tipo inesperado.
+#[derive(Debug)]
+pub enum DbError {
+    Driver(mysql_async::Error),
+    Column(String),
+}
+
+impl fmt::Display for DbError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            DbError::Driver(e) => write!(f, "{e}"),
+            DbError::Column(c) => write!(f, "coluna {c}: tipo inesperado ou ausente"),
+        }
+    }
+}
+
+impl std::error::Error for DbError {}
+
+impl From<mysql_async::Error> for DbError {
+    fn from(e: mysql_async::Error) -> Self {
+        DbError::Driver(e)
+    }
+}
+
+pub type DbResult<T> = Result<T, DbError>;
+
+/// Lista de parâmetros posicionais: `params![a, b, c]`.
+#[macro_export]
+macro_rules! params {
+    ($($v:expr),* $(,)?) => { vec![$($crate::db::Value::from($v)),*] };
+}
 
 /// Pool que conecta na hora do primeiro uso (o servidor sobe mesmo com o
-/// banco fora do ar, igual ao Node).
+/// banco fora do ar, igual ao Node). Cada conexão começa em UTC.
 pub fn connect_lazy(url: &str) -> anyhow::Result<Db> {
-    let opts = MySqlConnectOptions::from_str(url)?.log_statements(tracing::log::LevelFilter::Trace);
-    Ok(MySqlPoolOptions::new()
-        .max_connections(10)
-        .acquire_timeout(std::time::Duration::from_secs(10))
-        // sessão em UTC: CURRENT_TIMESTAMP e NOW() batem com o que o Prisma grava
-        .after_connect(|conn, _| {
-            Box::pin(async move {
-                conn.execute("SET time_zone = '+00:00'").await?;
-                Ok(())
-            })
-        })
-        .connect_lazy_with(opts))
+    let opts = OptsBuilder::from_opts(Opts::from_url(url)?)
+        .init(vec!["SET time_zone = '+00:00'"])
+        .pool_opts(
+            PoolOpts::default()
+                .with_constraints(PoolConstraints::new(0, 10).expect("limites do pool")),
+        );
+    Ok(mysql_async::Pool::new(opts))
+}
+
+/// Primeira linha (ou nenhuma).
+pub async fn first(db: &Db, sql: &str, params: Vec<Value>) -> DbResult<Option<Row>> {
+    let mut c = db.get_conn().await?;
+    Ok(c.exec_first(sql, params).await?)
+}
+
+/// Todas as linhas.
+pub async fn all(db: &Db, sql: &str, params: Vec<Value>) -> DbResult<Vec<Row>> {
+    let mut c = db.get_conn().await?;
+    Ok(c.exec(sql, params).await?)
+}
+
+/// INSERT/UPDATE/DELETE — devolve quantas linhas mudaram.
+pub async fn exec(db: &Db, sql: &str, params: Vec<Value>) -> DbResult<u64> {
+    let mut c = db.get_conn().await?;
+    c.exec_drop(sql, params).await?;
+    Ok(c.affected_rows())
+}
+
+/// Um valor só (primeira coluna da primeira linha).
+pub async fn scalar<T: FromValue>(db: &Db, sql: &str, params: Vec<Value>) -> DbResult<Option<T>> {
+    match first(db, sql, params).await? {
+        Some(row) => Ok(Some(get_idx(&row, 0)?)),
+        None => Ok(None),
+    }
+}
+
+/// Primeira coluna de todas as linhas.
+pub async fn column<T: FromValue>(db: &Db, sql: &str, params: Vec<Value>) -> DbResult<Vec<T>> {
+    all(db, sql, params)
+        .await?
+        .iter()
+        .map(|r| get_idx(r, 0))
+        .collect()
+}
+
+/// Coluna `name` da linha, convertida pra `T` (`Option<T>` aceita NULL).
+pub fn get<T: FromValue>(row: &Row, name: &str) -> DbResult<T> {
+    match row.get_opt::<T, _>(name) {
+        Some(Ok(v)) => Ok(v),
+        _ => Err(DbError::Column(name.to_string())),
+    }
+}
+
+fn get_idx<T: FromValue>(row: &Row, i: usize) -> DbResult<T> {
+    match row.get_opt::<T, _>(i) {
+        Some(Ok(v)) => Ok(v),
+        _ => Err(DbError::Column(format!("#{i}"))),
+    }
 }
 
 /// Agora, em UTC, com milissegundos (como o Prisma grava).
 pub fn now() -> NaiveDateTime {
     let n = Utc::now().naive_utc();
-    n.with_nanosecond_ms()
-}
-
-trait TruncMs {
-    fn with_nanosecond_ms(self) -> Self;
-}
-impl TruncMs for NaiveDateTime {
-    fn with_nanosecond_ms(self) -> Self {
-        use chrono::Timelike;
-        let ns = self.nanosecond() / 1_000_000 * 1_000_000;
-        self.with_nanosecond(ns).unwrap_or(self)
-    }
+    n.with_nanosecond(n.nanosecond() / 1_000_000 * 1_000_000)
+        .unwrap_or(n)
 }
 
 /// Data no formato do `Date.toJSON()` do JavaScript.
@@ -60,13 +137,11 @@ pub fn new_id() -> String {
 }
 
 /// Número como o `JSON.stringify` do JavaScript escreve: `1.0` vira `1`.
-pub fn js_number(f: f64) -> Value {
+pub fn js_number(f: f64) -> Json {
     if f.is_finite() && f.fract() == 0.0 && f.abs() < 9.007_199_254_740_992e15 {
-        Value::Number(Number::from(f as i64))
+        Json::Number(Number::from(f as i64))
     } else {
-        Number::from_f64(f)
-            .map(Value::Number)
-            .unwrap_or(Value::Null)
+        Number::from_f64(f).map(Json::Number).unwrap_or(Json::Null)
     }
 }
 
@@ -81,36 +156,28 @@ pub enum Ty {
 }
 
 /// Lê `col` da linha como o Prisma devolveria (null quando NULL).
-pub fn col(row: &MySqlRow, col: &str, ty: Ty) -> Result<Value, sqlx::Error> {
+pub fn col(row: &Row, col: &str, ty: Ty) -> DbResult<Json> {
     Ok(match ty {
-        Ty::Str => row
-            .try_get::<Option<String>, _>(col)?
-            .map(Value::String)
-            .unwrap_or(Value::Null),
-        Ty::Int => row
-            .try_get::<Option<i64>, _>(col)?
-            .map(|v| Value::Number(v.into()))
-            .unwrap_or(Value::Null),
-        Ty::Float => row
-            .try_get::<Option<f64>, _>(col)?
+        Ty::Str => get::<Option<String>>(row, col)?
+            .map(Json::String)
+            .unwrap_or(Json::Null),
+        Ty::Int => get::<Option<i64>>(row, col)?
+            .map(|v| Json::Number(v.into()))
+            .unwrap_or(Json::Null),
+        Ty::Float => get::<Option<f64>>(row, col)?
             .map(js_number)
-            .unwrap_or(Value::Null),
-        Ty::Bool => row
-            .try_get::<Option<bool>, _>(col)?
-            .map(Value::Bool)
-            .unwrap_or(Value::Null),
-        Ty::Date => row
-            .try_get::<Option<NaiveDateTime>, _>(col)?
-            .map(|d| Value::String(iso(d)))
-            .unwrap_or(Value::Null),
+            .unwrap_or(Json::Null),
+        Ty::Bool => get::<Option<bool>>(row, col)?
+            .map(Json::Bool)
+            .unwrap_or(Json::Null),
+        Ty::Date => get::<Option<NaiveDateTime>>(row, col)?
+            .map(|d| Json::String(iso(d)))
+            .unwrap_or(Json::Null),
     })
 }
 
 /// Monta um objeto JSON com as colunas listadas (`(nome no JSON, coluna, tipo)`).
-pub fn object(
-    row: &MySqlRow,
-    fields: &[(&str, &str, Ty)],
-) -> Result<Map<String, Value>, sqlx::Error> {
+pub fn object(row: &Row, fields: &[(&str, &str, Ty)]) -> DbResult<Map<String, Json>> {
     let mut out = Map::with_capacity(fields.len());
     for (key, column, ty) in fields {
         out.insert((*key).to_string(), col(row, column, *ty)?);
@@ -118,9 +185,9 @@ pub fn object(
     Ok(out)
 }
 
-/// Erro de chave única duplicada (o P2002 do Prisma).
-pub fn is_unique_violation(err: &sqlx::Error) -> bool {
-    matches!(err, sqlx::Error::Database(e) if e.is_unique_violation())
+/// Erro de chave única duplicada (o P2002 do Prisma; MySQL 1062).
+pub fn is_unique_violation(err: &DbError) -> bool {
+    matches!(err, DbError::Driver(mysql_async::Error::Server(e)) if e.code == 1062)
 }
 
 #[cfg(test)]
@@ -146,7 +213,13 @@ mod tests {
 
     #[test]
     fn agora_tem_so_milissegundos() {
-        use chrono::Timelike;
         assert_eq!(now().nanosecond() % 1_000_000, 0);
+    }
+
+    #[test]
+    fn parametros() {
+        let v: Vec<Value> = params!["a", 1i64, true, None::<String>];
+        assert_eq!(v.len(), 4);
+        assert_eq!(v[3], Value::NULL);
     }
 }

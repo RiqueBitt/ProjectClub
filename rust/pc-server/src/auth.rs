@@ -17,7 +17,6 @@ use chrono::NaiveDateTime;
 use jsonwebtoken::{Algorithm, DecodingKey, EncodingKey, Header, Validation};
 use serde::{Deserialize, Serialize};
 use serde_json::json;
-use sqlx::Row;
 use tokio::sync::Mutex;
 
 use crate::AppState;
@@ -136,12 +135,12 @@ async fn check_user(
     cache: &AuthCache,
     user_id: &str,
 ) -> Result<AuthUser, Option<Box<Response>>> {
-    let row = sqlx::query(
+    let row = db::first(
+        db,
         "SELECT id, platformRole, isPlatformBanned, platformBanReason, suspendedUntil, accountDisabledAt \
          FROM `User` WHERE id = ?",
+        crate::params![user_id],
     )
-    .bind(user_id)
-    .fetch_optional(db)
     .await
     .map_err(|_| None)?;
     let Some(row) = row else {
@@ -150,8 +149,8 @@ async fn check_user(
             json!({ "error": "Usuário não encontrado." }),
         ))));
     };
-    let get = |c: &str| row.try_get::<Option<String>, _>(c).ok().flatten();
-    let banned: bool = row.try_get("isPlatformBanned").map_err(|_| None)?;
+    let get = |c: &str| db::get::<Option<String>>(&row, c).ok().flatten();
+    let banned: bool = db::get(&row, "isPlatformBanned").map_err(|_| None)?;
     if banned {
         let mut body =
             json!({ "error": "Sua conta foi banida da plataforma.", "platformBanned": true });
@@ -160,14 +159,14 @@ async fn check_user(
         }
         return Err(Some(Box::new(error(StatusCode::FORBIDDEN, body))));
     }
-    let suspended: Option<NaiveDateTime> = row.try_get("suspendedUntil").map_err(|_| None)?;
+    let suspended: Option<NaiveDateTime> = db::get(&row, "suspendedUntil").map_err(|_| None)?;
     if let Some(until) = suspended.filter(|u| *u > db::now()) {
         return Err(Some(Box::new(error(
             StatusCode::FORBIDDEN,
             json!({ "error": "Sua conta está temporariamente suspensa.", "suspendedUntil": db::iso(until) }),
         ))));
     }
-    let disabled: Option<NaiveDateTime> = row.try_get("accountDisabledAt").map_err(|_| None)?;
+    let disabled: Option<NaiveDateTime> = db::get(&row, "accountDisabledAt").map_err(|_| None)?;
     if disabled.is_some() {
         return Err(Some(Box::new(error(
             StatusCode::FORBIDDEN,
@@ -196,17 +195,18 @@ pub struct AuthCache {
 }
 
 impl AuthCache {
-    async fn maintenance_on(&self, db: &Db) -> Result<bool, sqlx::Error> {
+    async fn maintenance_on(&self, db: &Db) -> db::DbResult<bool> {
         let mut m = self.maintenance.lock().await;
         if let Some((value, at)) = *m
             && at.elapsed() < Duration::from_secs(5)
         {
             return Ok(value);
         }
-        let value: Option<bool> = sqlx::query_scalar(
+        let value: Option<bool> = db::scalar(
+            db,
             "SELECT maintenanceMode FROM PlatformSettings WHERE id = 'singleton'",
+            vec![],
         )
-        .fetch_optional(db)
         .await?;
         let value = value.unwrap_or(false);
         *m = Some((value, Instant::now()));
@@ -228,13 +228,12 @@ impl AuthCache {
         }
         let (db, cache, uid) = (db.clone(), self.clone(), user_id.to_string());
         tokio::spawn(async move {
-            let r =
-                sqlx::query("INSERT IGNORE INTO UserActiveDay (userId, day, at) VALUES (?, ?, ?)")
-                    .bind(&uid)
-                    .bind(&day)
-                    .bind(db::now())
-                    .execute(&db)
-                    .await;
+            let r = db::exec(
+                &db,
+                "INSERT IGNORE INTO UserActiveDay (userId, day, at) VALUES (?, ?, ?)",
+                crate::params![uid.as_str(), day.as_str(), db::now()],
+            )
+            .await;
             if r.is_err() {
                 cache.active.lock().await.1.remove(&uid);
             }

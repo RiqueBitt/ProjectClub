@@ -12,7 +12,7 @@ use serde_json::{Value, json};
 
 use crate::AppState;
 use crate::auth::{error, mask_invisible};
-use crate::db::{self, Db};
+use crate::db::{self, Db, DbResult};
 use crate::session::{self as s, reason};
 use crate::users;
 
@@ -68,11 +68,8 @@ fn server_error() -> Response {
 
 /// `{ user: SELF_USER_FIELDS, accessToken }` — sem `req.user`, o Node
 /// mascara o invisível até da própria pessoa nesta resposta.
-async fn session_body(db: &Db, user_id: &str, access_token: &str) -> Result<Value, sqlx::Error> {
-    let row = sqlx::query(&users::self_select_sql())
-        .bind(user_id)
-        .fetch_optional(db)
-        .await?;
+async fn session_body(db: &Db, user_id: &str, access_token: &str) -> DbResult<Value> {
+    let row = db::first(db, &users::self_select_sql(), crate::params![user_id]).await?;
     let user = match row {
         Some(r) => Value::Object(users::self_user(&r)?),
         None => Value::Null,
@@ -115,11 +112,7 @@ pub async fn refresh(State(state): State<AppState>, parts: axum::http::request::
 }
 
 /// `restoreFromKeep`: sem refresh válido, tenta o cookie "lembrar login".
-async fn restore_from_keep(
-    state: &AppState,
-    db: &Db,
-    req: &Req,
-) -> Result<Option<Out>, sqlx::Error> {
+async fn restore_from_keep(state: &AppState, db: &Db, req: &Req) -> DbResult<Option<Out>> {
     let Some((uid, rid)) = s::read_keep(state, &req.headers).await else {
         return Ok(None);
     };
@@ -147,7 +140,7 @@ async fn restore_from_keep(
     Ok(Some(out))
 }
 
-async fn refresh_inner(state: &AppState, db: &Db, req: &Req) -> Result<Out, sqlx::Error> {
+async fn refresh_inner(state: &AppState, db: &Db, req: &Req) -> DbResult<Out> {
     let Some(raw) = s::read_cookie(&req.headers, s::REFRESH_COOKIE) else {
         return Ok(restore_from_keep(state, db, req)
             .await?

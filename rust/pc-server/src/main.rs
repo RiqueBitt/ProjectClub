@@ -21,8 +21,7 @@ async fn main() -> anyhow::Result<()> {
                 pc_server::check::redis_raw(u).await;
             }
             if let Some(u) = config.database_url.as_deref() {
-                println!("mysql (modos de TLS):");
-                pc_server::check::mysql_modes(u).await;
+                println!("mysql:");
                 pc_server::check::mysql_async_probe(u).await;
             }
             return Ok(());

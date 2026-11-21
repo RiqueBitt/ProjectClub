@@ -14,12 +14,11 @@ use hmac::{Hmac, Mac};
 use rand::RngCore;
 use serde_json::{Value, json};
 use sha2::{Digest, Sha256};
-use sqlx::Row;
-use sqlx::mysql::MySqlRow;
 
 use crate::AppState;
-use crate::db::{self, Db};
+use crate::db::{self, Db, DbResult, Row};
 use crate::iron;
+use crate::params;
 
 pub const REFRESH_COOKIE: &str = "refreshToken";
 pub const KEEP_COOKIE: &str = "pcKeep";
@@ -127,19 +126,19 @@ pub struct RefreshRow {
 }
 
 impl RefreshRow {
-    fn from_row(r: &MySqlRow) -> Result<Self, sqlx::Error> {
+    fn from_row(r: &Row) -> DbResult<Self> {
         Ok(Self {
-            id: r.try_get("id")?,
-            user_id: r.try_get("userId")?,
-            user_agent: r.try_get("userAgent")?,
-            ip_address: r.try_get("ipAddress")?,
-            created_at: r.try_get("createdAt")?,
-            expires_at: r.try_get("expiresAt")?,
-            revoked: r.try_get("revoked")?,
-            revoked_at: r.try_get("revokedAt")?,
-            revoked_reason: r.try_get("revokedReason")?,
-            replaced_by_id: r.try_get("replacedById")?,
-            session_started_at: r.try_get("sessionStartedAt")?,
+            id: db::get(r, "id")?,
+            user_id: db::get(r, "userId")?,
+            user_agent: db::get(r, "userAgent")?,
+            ip_address: db::get(r, "ipAddress")?,
+            created_at: db::get(r, "createdAt")?,
+            expires_at: db::get(r, "expiresAt")?,
+            revoked: db::get(r, "revoked")?,
+            revoked_at: db::get(r, "revokedAt")?,
+            revoked_reason: db::get(r, "revokedReason")?,
+            replaced_by_id: db::get(r, "replacedById")?,
+            session_started_at: db::get(r, "sessionStartedAt")?,
         })
     }
 }
@@ -147,22 +146,18 @@ impl RefreshRow {
 const REFRESH_COLS: &str = "id, userId, userAgent, ipAddress, createdAt, expiresAt, revoked, revokedAt, \
      revokedReason, replacedById, sessionStartedAt";
 
-pub async fn refresh_by_hash(db: &Db, hash: &str) -> Result<Option<RefreshRow>, sqlx::Error> {
+pub async fn refresh_by_hash(db: &Db, hash: &str) -> DbResult<Option<RefreshRow>> {
     let sql = format!("SELECT {REFRESH_COLS} FROM RefreshToken WHERE tokenHash = ?");
-    sqlx::query(&sql)
-        .bind(hash)
-        .fetch_optional(db)
+    db::first(db, &sql, params![hash])
         .await?
         .as_ref()
         .map(RefreshRow::from_row)
         .transpose()
 }
 
-pub async fn refresh_by_id(db: &Db, id: &str) -> Result<Option<RefreshRow>, sqlx::Error> {
+pub async fn refresh_by_id(db: &Db, id: &str) -> DbResult<Option<RefreshRow>> {
     let sql = format!("SELECT {REFRESH_COLS} FROM RefreshToken WHERE id = ?");
-    sqlx::query(&sql)
-        .bind(id)
-        .fetch_optional(db)
+    db::first(db, &sql, params![id])
         .await?
         .as_ref()
         .map(RefreshRow::from_row)
@@ -170,7 +165,7 @@ pub async fn refresh_by_id(db: &Db, id: &str) -> Result<Option<RefreshRow>, sqlx
 }
 
 /// `refreshChain`/`followChain`: a corrente de rotação a partir de `start`.
-pub async fn chain(db: &Db, start: &str) -> Result<Vec<RefreshRow>, sqlx::Error> {
+pub async fn chain(db: &Db, start: &str) -> DbResult<Vec<RefreshRow>> {
     let mut out: Vec<RefreshRow> = Vec::new();
     let mut id = Some(start.to_string());
     while let Some(cur) = id.take() {
@@ -187,7 +182,7 @@ pub async fn chain(db: &Db, start: &str) -> Result<Vec<RefreshRow>, sqlx::Error>
 }
 
 /// `revokeRefreshTokens({ id: { in: ids } }, reason)` (só os ainda válidos).
-pub async fn revoke_ids(db: &Db, ids: &[String], why: &str) -> Result<u64, sqlx::Error> {
+pub async fn revoke_ids(db: &Db, ids: &[String], why: &str) -> DbResult<u64> {
     if ids.is_empty() {
         return Ok(0);
     }
@@ -195,51 +190,48 @@ pub async fn revoke_ids(db: &Db, ids: &[String], why: &str) -> Result<u64, sqlx:
     let sql = format!(
         "UPDATE RefreshToken SET revoked = 1, revokedAt = ?, revokedReason = ? WHERE revoked = 0 AND id IN ({marks})"
     );
-    let mut q = sqlx::query(&sql).bind(db::now()).bind(why);
-    for id in ids {
-        q = q.bind(id);
-    }
-    Ok(q.execute(db).await?.rows_affected())
+    let mut p = params![db::now(), why];
+    p.extend(ids.iter().map(|i| db::Value::from(i.as_str())));
+    db::exec(db, &sql, p).await
 }
 
-pub async fn revoke_hash(db: &Db, hash: &str, why: &str) -> Result<u64, sqlx::Error> {
-    Ok(sqlx::query(
+pub async fn revoke_hash(db: &Db, hash: &str, why: &str) -> DbResult<u64> {
+    db::exec(
+        db,
         "UPDATE RefreshToken SET revoked = 1, revokedAt = ?, revokedReason = ? WHERE revoked = 0 AND tokenHash = ?",
+        params![db::now(), why, hash],
     )
-    .bind(db::now())
-    .bind(why)
-    .bind(hash)
-    .execute(db)
-    .await?
-    .rows_affected())
+    .await
 }
 
 /// Revoga uma linha se ainda não estava revogada; `true` = esta chamada ganhou.
-pub async fn claim(
-    db: &Db,
-    id: &str,
-    why: &str,
-    touch_last_used: bool,
-) -> Result<bool, sqlx::Error> {
+pub async fn claim(db: &Db, id: &str, why: &str, touch_last_used: bool) -> DbResult<bool> {
     let now = db::now();
-    let sql = if touch_last_used {
-        "UPDATE RefreshToken SET revoked = 1, revokedAt = ?, revokedReason = ?, lastUsedAt = ? WHERE id = ? AND revoked = 0"
+    let n = if touch_last_used {
+        db::exec(
+            db,
+            "UPDATE RefreshToken SET revoked = 1, revokedAt = ?, revokedReason = ?, lastUsedAt = ? WHERE id = ? AND revoked = 0",
+            params![now, why, now, id],
+        )
+        .await?
     } else {
-        "UPDATE RefreshToken SET revoked = 1, revokedAt = ?, revokedReason = ? WHERE id = ? AND revoked = 0"
+        db::exec(
+            db,
+            "UPDATE RefreshToken SET revoked = 1, revokedAt = ?, revokedReason = ? WHERE id = ? AND revoked = 0",
+            params![now, why, id],
+        )
+        .await?
     };
-    let mut q = sqlx::query(sql).bind(now).bind(why);
-    if touch_last_used {
-        q = q.bind(now);
-    }
-    Ok(q.bind(id).execute(db).await?.rows_affected() == 1)
+    Ok(n == 1)
 }
 
 pub async fn set_replaced_by(db: &Db, id: &str, new_id: &str) {
-    let _ = sqlx::query("UPDATE RefreshToken SET replacedById = ? WHERE id = ?")
-        .bind(new_id)
-        .bind(id)
-        .execute(db)
-        .await;
+    let _ = db::exec(
+        db,
+        "UPDATE RefreshToken SET replacedById = ? WHERE id = ?",
+        params![new_id, id],
+    )
+    .await;
 }
 
 /// Senha do selo do "lembrar login": HMAC-SHA256(JWT_REFRESH_SECRET, 'pc-keep-session-v1') em hex.
@@ -264,27 +256,29 @@ pub async fn issue(
     user_agent: Option<&str>,
     ip: Option<&str>,
     session_started_at: Option<NaiveDateTime>,
-) -> Result<Issued, sqlx::Error> {
+) -> DbResult<Issued> {
     let cfg = &state.config;
     let access_token = state.tokens.sign(user_id, cfg.access_token_ttl);
     let raw = new_refresh_token();
     let now = db::now();
     let expires_at = now + chrono::Duration::days(cfg.refresh_token_ttl_days);
     let id = db::new_id();
-    sqlx::query(
+    db::exec(
+        db,
         "INSERT INTO RefreshToken (id, tokenHash, userId, userAgent, ipAddress, createdAt, expiresAt, revoked, \
          sessionStartedAt, lastUsedAt) VALUES (?, ?, ?, ?, ?, ?, ?, 0, ?, ?)",
+        params![
+            id.as_str(),
+            sha256_hex(&raw),
+            user_id,
+            user_agent,
+            ip,
+            now,
+            expires_at,
+            session_started_at.unwrap_or(now),
+            now
+        ],
     )
-    .bind(&id)
-    .bind(sha256_hex(&raw))
-    .bind(user_id)
-    .bind(user_agent)
-    .bind(ip)
-    .bind(now)
-    .bind(expires_at)
-    .bind(session_started_at.unwrap_or(now))
-    .bind(now)
-    .execute(db)
     .await?;
     let secure = cfg.node_env == "production";
     let mut cookies = vec![set_cookie(
@@ -345,7 +339,7 @@ pub async fn read_keep(state: &AppState, headers: &HeaderMap) -> Option<(String,
 }
 
 /// `keepSessionAlive`: o aparelho do cookie "lembrar login" não foi encerrado.
-pub async fn keep_session_alive(db: &Db, rid: Option<&str>) -> Result<bool, sqlx::Error> {
+pub async fn keep_session_alive(db: &Db, rid: Option<&str>) -> DbResult<bool> {
     let Some(rid) = rid else { return Ok(true) };
     let c = chain(db, rid).await?;
     Ok(!c.iter().any(|t| {
@@ -366,24 +360,24 @@ pub struct AccountState {
     pub account_disabled_at: Option<NaiveDateTime>,
 }
 
-pub async fn account(db: &Db, user_id: &str) -> Result<Option<AccountState>, sqlx::Error> {
-    let row = sqlx::query(
+pub async fn account(db: &Db, user_id: &str) -> DbResult<Option<AccountState>> {
+    let row = db::first(
+        db,
         "SELECT id, email, emailVerified, platformRole, platformAdminBootstrappedAt, isPlatformBanned, \
          suspendedUntil, accountDisabledAt FROM `User` WHERE id = ?",
+        params![user_id],
     )
-    .bind(user_id)
-    .fetch_optional(db)
     .await?;
     row.map(|r| {
         Ok(AccountState {
-            id: r.try_get("id")?,
-            email: r.try_get("email")?,
-            email_verified: r.try_get("emailVerified")?,
-            platform_role: r.try_get("platformRole")?,
-            platform_admin_bootstrapped_at: r.try_get("platformAdminBootstrappedAt")?,
-            is_platform_banned: r.try_get("isPlatformBanned")?,
-            suspended_until: r.try_get("suspendedUntil")?,
-            account_disabled_at: r.try_get("accountDisabledAt")?,
+            id: db::get(&r, "id")?,
+            email: db::get(&r, "email")?,
+            email_verified: db::get(&r, "emailVerified")?,
+            platform_role: db::get(&r, "platformRole")?,
+            platform_admin_bootstrapped_at: db::get(&r, "platformAdminBootstrappedAt")?,
+            is_platform_banned: db::get(&r, "isPlatformBanned")?,
+            suspended_until: db::get(&r, "suspendedUntil")?,
+            account_disabled_at: db::get(&r, "accountDisabledAt")?,
         })
     })
     .transpose()
@@ -410,13 +404,11 @@ pub async fn maybe_promote_to_platform_admin(state: &AppState, db: &Db, user: &A
     }
     if user.platform_role == "ADMIN" {
         if user.platform_admin_bootstrapped_at.is_none() {
-            let _ = sqlx::query(
+            let _ = db::exec(
+                db,
                 "UPDATE `User` SET platformAdminBootstrappedAt = ?, updatedAt = ? WHERE id = ?",
+                params![db::now(), db::now(), user.id.as_str()],
             )
-            .bind(db::now())
-            .bind(db::now())
-            .bind(&user.id)
-            .execute(db)
             .await;
         }
         return;
@@ -424,13 +416,11 @@ pub async fn maybe_promote_to_platform_admin(state: &AppState, db: &Db, user: &A
     if !user.email_verified || user.platform_admin_bootstrapped_at.is_some() {
         return;
     }
-    let r = sqlx::query(
+    let r = db::exec(
+        db,
         "UPDATE `User` SET platformRole = 'ADMIN', platformAdminBootstrappedAt = ?, updatedAt = ? WHERE id = ?",
+        params![db::now(), db::now(), user.id.as_str()],
     )
-    .bind(db::now())
-    .bind(db::now())
-    .bind(&user.id)
-    .execute(db)
     .await;
     if r.is_ok() {
         tracing::info!(
@@ -445,21 +435,17 @@ pub async fn maybe_promote_to_platform_admin(state: &AppState, db: &Db, user: &A
 
 /// `grantBadgeByKey` (upsert sem mudar nada se já tiver).
 pub async fn grant_badge_by_key(db: &Db, user_id: &str, key: &str) {
-    let badge: Option<String> = sqlx::query_scalar("SELECT id FROM Badge WHERE `key` = ?")
-        .bind(key)
-        .fetch_optional(db)
-        .await
-        .ok()
-        .flatten();
+    let badge: Option<String> =
+        db::scalar(db, "SELECT id FROM Badge WHERE `key` = ?", params![key])
+            .await
+            .ok()
+            .flatten();
     if let Some(badge_id) = badge {
-        let _ = sqlx::query(
+        let _ = db::exec(
+            db,
             "INSERT IGNORE INTO UserBadge (id, userId, badgeId, awardedAt) VALUES (?, ?, ?, ?)",
+            params![db::new_id(), user_id, badge_id, db::now()],
         )
-        .bind(db::new_id())
-        .bind(user_id)
-        .bind(badge_id)
-        .bind(db::now())
-        .execute(db)
         .await;
     }
 }

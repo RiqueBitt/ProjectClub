@@ -10,11 +10,11 @@ use axum::http::StatusCode;
 use axum::response::{IntoResponse, Response};
 use rand::Rng;
 use serde_json::{Value, json};
-use sqlx::Row;
 
 use crate::AppState;
 use crate::auth::{AuthUser, error, mask_invisible};
-use crate::db::{self, Db};
+use crate::db::{self, Db, DbResult};
+use crate::params;
 use crate::users;
 
 fn server_error() -> Response {
@@ -38,12 +38,8 @@ pub async fn me(State(state): State<AppState>, user: AuthUser) -> Response {
     }
 }
 
-async fn load_me(db: &Db, user_id: &str) -> Result<Option<Value>, sqlx::Error> {
-    let Some(row) = sqlx::query(&users::self_select_sql())
-        .bind(user_id)
-        .fetch_optional(db)
-        .await?
-    else {
+async fn load_me(db: &Db, user_id: &str) -> DbResult<Option<Value>> {
+    let Some(row) = db::first(db, &users::self_select_sql(), params![user_id]).await? else {
         return Ok(None);
     };
     let mut user = users::self_user(&row)?;
@@ -56,7 +52,7 @@ async fn load_me(db: &Db, user_id: &str) -> Result<Option<Value>, sqlx::Error> {
         );
     }
 
-    let created: chrono::NaiveDateTime = row.try_get("createdAt")?;
+    let created: chrono::NaiveDateTime = db::get(&row, "createdAt")?;
     grant_due_age_badges(db, user_id, created).await;
 
     clear_if_expired(db, user_id, &mut user).await;
@@ -71,15 +67,15 @@ pub fn generate_public_id() -> String {
 }
 
 /// `ensurePublicId`: até 5 tentativas se bater com o de outra pessoa.
-async fn ensure_public_id(db: &Db, user_id: &str) -> Result<Option<String>, sqlx::Error> {
+async fn ensure_public_id(db: &Db, user_id: &str) -> DbResult<Option<String>> {
     for _ in 0..5 {
         let candidate = generate_public_id();
-        let r = sqlx::query("UPDATE `User` SET publicId = ?, updatedAt = ? WHERE id = ?")
-            .bind(&candidate)
-            .bind(db::now())
-            .bind(user_id)
-            .execute(db)
-            .await;
+        let r = db::exec(
+            db,
+            "UPDATE `User` SET publicId = ?, updatedAt = ? WHERE id = ?",
+            params![candidate.as_str(), db::now(), user_id],
+        )
+        .await;
         match r {
             Ok(_) => return Ok(Some(candidate)),
             Err(e) if db::is_unique_violation(&e) => continue,
@@ -101,24 +97,20 @@ async fn grant_due_age_badges(db: &Db, user_id: &str, created: chrono::NaiveDate
     if years < 1 {
         return;
     }
-    let result: Result<(), sqlx::Error> = async {
-        let missing: Vec<String> = sqlx::query_scalar(
+    let result: DbResult<()> = async {
+        let missing: Vec<String> = db::column(
+            db,
             "SELECT b.id FROM Badge b WHERE b.ageYears IS NOT NULL AND b.ageYears <= ? \
              AND NOT EXISTS (SELECT 1 FROM UserBadge ub WHERE ub.userId = ? AND ub.badgeId = b.id)",
+            params![years, user_id],
         )
-        .bind(years)
-        .bind(user_id)
-        .fetch_all(db)
         .await?;
         for badge_id in missing {
-            sqlx::query(
+            db::exec(
+                db,
                 "INSERT IGNORE INTO UserBadge (id, userId, badgeId, awardedAt) VALUES (?, ?, ?, ?)",
+                params![db::new_id(), user_id, badge_id, db::now()],
             )
-            .bind(db::new_id())
-            .bind(user_id)
-            .bind(&badge_id)
-            .bind(db::now())
-            .execute(db)
             .await?;
         }
         Ok(())
@@ -144,12 +136,11 @@ async fn clear_if_expired(db: &Db, user_id: &str, user: &mut serde_json::Map<Str
     }
     let (db, id) = (db.clone(), user_id.to_string());
     tokio::spawn(async move {
-        let _ = sqlx::query(
+        let _ = db::exec(
+            &db,
             "UPDATE `User` SET customStatus = NULL, customStatusEmoji = NULL, customStatusExpiresAt = NULL, updatedAt = ? WHERE id = ?",
+            params![db::now(), id],
         )
-        .bind(db::now())
-        .bind(&id)
-        .execute(&db)
         .await;
     });
 }
