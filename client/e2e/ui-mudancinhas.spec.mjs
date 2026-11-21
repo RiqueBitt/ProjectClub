@@ -112,3 +112,25 @@ test('perfil completo: até 4 insígnias no topo e barra do Windows 2000 dentro 
   expect(bar.afterBg).toBe('none');
   expect(bar.width).toBeLessThanOrEqual(bar.host + 1);
 });
+
+test('Economia: cartão da carteira com moedas e gemas vira ao clicar e no teclado', async ({ page }) => {
+  await page.route('**/api/**', handler);
+  await page.route('**/api/economy', (r) => json(r, { coins: 1861, gems: 19, dailyStreak: 1, streakRequired: 5, lastDailyAt: null, nextDailyAt: null, accountLevel: 7 }));
+  await page.route('**/api/economy/chests', (r) => json(r, { chests: [] }));
+  await page.route('**/api/missions', (r) => json(r, { missions: [], resets: {} }));
+  await page.goto('/economia');
+  const card = page.locator('.wcard');
+  await expect(card).toBeVisible({ timeout: 20_000 });
+  await expect(card).toContainText('1.861');
+  await expect(card).toContainText('19');
+  await expect(card).toContainText('ClubPay');
+  await expect(card).toHaveAttribute('aria-label', /Mostrando a frente/);
+  await card.click();
+  await expect(card).toHaveAttribute('aria-label', /Mostrando o verso/);
+  await card.focus();
+  await page.keyboard.press('Enter');
+  await expect(card).toHaveAttribute('aria-label', /Mostrando a frente/);
+  // Histórico e Sorteio saíram das abas.
+  await expect(page.getByRole('tab', { name: /Histórico/ })).toHaveCount(0);
+  await expect(page.getByRole('tab', { name: /Sorteio/ })).toHaveCount(0);
+});

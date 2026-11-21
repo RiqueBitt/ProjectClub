@@ -40,7 +40,6 @@ async function claimDaily(userId) {
   const chest = await selectChest();
   if (!chest) { const e = new Error('Nenhum baú diário configurado.'); e.status = 400; throw e; }
   const coins = randInt(chest.coinsMin, chest.coinsMax);
-  const tickets = randInt(chest.ticketsMin, chest.ticketsMax);
 
   let streak = user.dailyStreak || 0;
   streak = (lastDaily && now - lastDaily <= STREAK_GRACE_MS) ? streak + 1 : 1;
@@ -68,7 +67,7 @@ async function claimDaily(userId) {
 
   return {
     chestName: chest.name, chestImageClosed: chest.imageClosed, chestImageOpened: chest.imageOpened,
-    coins, tickets, streak, streakRequired: MEGA_CHEST_STREAK_REQUIRED,
+    coins, streak, streakRequired: MEGA_CHEST_STREAK_REQUIRED,
     megaAwarded, megaGems: earnedMegaGems, balance: updated,
   };
 }

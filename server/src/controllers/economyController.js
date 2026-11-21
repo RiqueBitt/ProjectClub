@@ -4,7 +4,6 @@ const achievements = require('../services/achievements');
 const { LEVELS, nextLevel, titleForLevel } = require('../data/levelsCatalog');
 const { MEGA_CHEST_STREAK_REQUIRED } = require('../data/chestsCatalog');
 const missions = require('../services/missions');
-const { listTransactions } = require('../services/economyLedger');
 
 async function getMyEconomy(req, res, next) {
   try {
@@ -33,12 +32,6 @@ async function claimDaily(req, res, next) {
 }
 
 // Histórico da carteira (só registra daqui pra frente — ver services/economyLedger.js).
-async function getHistory(req, res, next) {
-  try {
-    res.json(await listTransactions(req.user.id, { limit: req.query.limit, before: req.query.before }));
-  } catch (err) { next(err); }
-}
-
 // Galeria pública dos baús possíveis (só nome+imagem, sem as chances —
 // isso fica só na tela de admin) — mostrada na página de Economia, igual
 // o bot Robbie mostrava com /daily.
@@ -157,6 +150,6 @@ async function adminDeleteChest(req, res, next) {
 }
 
 module.exports = {
-  getMyEconomy, claimDaily, listChests, getRank, listLeaderboard, getHistory,
+  getMyEconomy, claimDaily, listChests, getRank, listLeaderboard,
   adminListChests, adminCreateChest, adminUpdateChest, adminDeleteChest,
 };
