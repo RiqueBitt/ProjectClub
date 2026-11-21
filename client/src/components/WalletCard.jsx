@@ -91,8 +91,6 @@ export default function WalletCard({ user, coins, gems, level, variant = 'DEFAUL
   const showingBack = Math.abs(Math.round(rotY / 180)) % 2 === 1;
   const number = useMemo(() => fakeNumber(user?.id), [user?.id]);
   const name = user?.displayName || user?.username || 'Membro';
-  const since = user?.createdAt ? new Date(user.createdAt) : null;
-  const sinceText = since ? `${String(since.getMonth() + 1).padStart(2, '0')}/${String(since.getFullYear()).slice(-2)}` : '--/--';
 
   return (
     <div className={`wcard-stage${compact ? ' is-compact' : ''}`}>
@@ -100,7 +98,7 @@ export default function WalletCard({ user, coins, gems, level, variant = 'DEFAUL
         ref={cardRef}
         className={`wcard${VARIANTS[variant] || ''}${drag ? ' is-dragging' : ''}${snapping ? ' is-snapping' : ''}`}
         role="button" tabIndex={0}
-        aria-label={`Cartão da carteira de ${name}: ${fmt(coins)} moedas e ${fmt(gems)} gemas. ${showingBack ? 'Mostrando o verso' : 'Mostrando a frente'}. Enter vira o cartão.`}
+        aria-label={`Cartão da carteira de ${name}: ${fmt(coins)} moedas e ${fmt(gems)} gemas${level ? `, nível ${level}` : ''}. ${showingBack ? 'Mostrando o verso' : 'Mostrando a frente'}. Enter vira o cartão.`}
         onPointerDown={onPointerDown} onPointerMove={onPointerMove} onPointerUp={endDrag} onPointerCancel={endDrag}
         onPointerLeave={onPointerLeave} onKeyDown={onKeyDown}
         style={{ '--rx': `${drag ? 0 : tilt.x}deg`, '--ry': `${rotY + (drag ? 0 : tilt.y)}deg`, '--px': `${tilt.px}%`, '--py': `${tilt.py}%` }}
@@ -133,21 +131,24 @@ export default function WalletCard({ user, coins, gems, level, variant = 'DEFAUL
               </div>
             </div>
 
-            {/* Verso */}
+            {/* Verso: tarja, "assinatura autorizada", assinatura + final do número, CVV e a estrelinha. */}
             <div className="wcard-face wcard-back">
               <span className="wcard-sheen" aria-hidden="true" />
               <span className="wcard-stripe" aria-hidden="true" />
+              <span className="wcard-sig-label">Assinatura autorizada</span>
               <div className="wcard-sign">
-                <span className="wcard-sign-strip"><em>{name}</em></span>
-                <span className="wcard-cvv">{number.slice(0, 3)}</span>
+                <span className="wcard-sign-strip">
+                  <svg className="wcard-scribble" viewBox="0 0 120 30" aria-hidden="true">
+                    <path d="M4 20c6-10 10-14 13-12s-4 14-1 14 7-14 11-14-1 12 3 12 6-9 9-9 2 8 6 8 5-6 8-6c4 0 3 5 7 5s5-4 9-4 7 3 11 2 10-3 15-6" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" />
+                  </svg>
+                  <span style={{ position: 'absolute', width: 1, height: 1, overflow: 'hidden', clip: 'rect(0 0 0 0)' }}>Assinatura de {name}</span>
+                  <b>{number}</b>
+                </span>
+                <span className="wcard-cvv">{number.slice(1, 4)}</span>
               </div>
-              <div className="wcard-back-info">
-                <span><small>Número</small><b>•••• •••• •••• {number}</b></span>
-                <span><small>Membro desde</small><b>{sinceText}</b></span>
-                {level ? <span><small>Nível</small><b>{level}</b></span> : null}
-              </div>
-              <p className="wcard-legal">Cartão fictício do Project Club. Não é um meio de pagamento: moedas e gemas só valem dentro do app.</p>
-              <div className="wcard-back-bottom"><ClubPayMark /></div>
+              <span className="wcard-star" aria-hidden="true">
+                <svg width="22" height="22" viewBox="0 0 24 24"><path d="m12 3 2.7 5.6 6.1.9-4.4 4.3 1 6.1L12 17l-5.4 2.9 1-6.1-4.4-4.3 6.1-.9z" fill="currentColor" /></svg>
+              </span>
             </div>
           </div>
         </div>
