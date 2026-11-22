@@ -10,6 +10,7 @@ pub mod login;
 pub mod me;
 pub mod oauth;
 pub mod passkeys;
+pub mod profile;
 pub mod qr_login;
 pub mod session;
 pub mod system;

@@ -227,6 +227,7 @@ fn ported(state: &AppState) -> Router<AppState> {
         )
         .route("/api/users/search", get(routes::users::search))
         .route("/api/users/me/ignored", get(routes::users::list_ignored))
+        .route("/api/users/{id}", get(routes::profile::get_user))
         .route("/api/users/{id}/ignore", post(routes::users::toggle_ignore))
         .route("/api/users/{id}/note", put(routes::users::set_note))
         .route(

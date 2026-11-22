@@ -67,7 +67,7 @@ pub fn generate_public_id() -> String {
 }
 
 /// `ensurePublicId`: até 5 tentativas se bater com o de outra pessoa.
-async fn ensure_public_id(db: &Db, user_id: &str) -> DbResult<Option<String>> {
+pub(crate) async fn ensure_public_id(db: &Db, user_id: &str) -> DbResult<Option<String>> {
     for _ in 0..5 {
         let candidate = generate_public_id();
         let r = db::exec(
