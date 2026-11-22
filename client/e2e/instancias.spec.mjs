@@ -110,3 +110,17 @@ test('lista de membros: fecha pelo X do cabeçalho e reabre pela setinha', async
   await page.getByRole('button', { name: 'Mostrar painel lateral' }).click();
   await expect(page.getByRole('complementary', { name: 'Membros' })).toBeVisible();
 });
+
+test('barra do topo: só a barra de busca, sem lupa solta e sem "Ctrl K"', async ({ page }, testInfo) => {
+  await page.goto('/');
+  const bar = page.locator('.top-search-bar');
+  await expect(bar).toBeVisible({ timeout: 20_000 });
+  await expect(bar.locator('.top-search-bar-kbd')).toHaveCount(0);
+  if (testInfo.project.name === 'pc') {
+    await expect(bar.locator('.top-search-bar-form')).toBeVisible();
+    await expect(bar.locator('.top-search-mobile-btn')).toBeHidden();
+  } else {
+    // No celular a barra não cabe: a lupa continua sendo o jeito de buscar.
+    await expect(bar.locator('.top-search-mobile-btn')).toBeVisible();
+  }
+});
