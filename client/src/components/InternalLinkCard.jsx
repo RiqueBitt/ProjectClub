@@ -8,6 +8,8 @@ import UserAvatar from './UserAvatar.jsx';
 import BattleInviteCard from '../cards/BattleInviteCard.jsx';
 import { isFeatureEnabled } from '../utils/features';
 import WalletCard from './WalletCard.jsx';
+import { DiceChatCard } from './activities/Dice.jsx';
+import { YouTubeVideoCard, MusicTrackCard } from './activities/MediaCards.jsx';
 import { getSharedWalletCard } from '../api/endpoints';
 import '../styles/socialx.css';
 
@@ -38,6 +40,10 @@ export default function InternalLinkCard({ link }) {
   // Guerra das Cartas desligada: o convite vira só o link comum (abre o "Em breve").
   if (link.kind === 'battle') return isFeatureEnabled('cardsWar') ? <BattleInviteCard code={link.id} /> : null;
   if (link.kind === 'wallet') return <SharedWalletCard id={link.id} />;
+  // Atividades do chat: dados, vídeo do YouTube e música.
+  if (link.kind === 'dice') return <DiceChatCard id={link.id} />;
+  if (link.kind === 'ytvideo') return <YouTubeVideoCard videoId={link.id} />;
+  if (link.kind === 'ytmusic') return <MusicTrackCard videoId={link.id} />;
   return <LinkPreviewCard link={link} />;
 }
 

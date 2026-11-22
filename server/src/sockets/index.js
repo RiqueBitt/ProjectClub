@@ -960,6 +960,8 @@ function initSockets(httpServer) {
 
     // YouTube "Assistir juntos" na chamada (yt:open/play/pause/seek/next/close/queue:add) — ver ytWatch.js.
     ytWatch.register(io, socket, userId);
+    // Rolagem de dados na call (popup de 2 s pra todos) — ver diceRoll.js.
+    require('./diceRoll').register(io, socket, userId);
     // Sala de estudos (Pomodoro compartilhado na call) — ver focusRoom.js.
     require('./focusRoom').register(io, socket, userId);
 

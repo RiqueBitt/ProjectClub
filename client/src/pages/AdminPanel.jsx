@@ -83,6 +83,8 @@ import PinguAlertsAdmin from '../components/admin/PinguAlertsAdmin.jsx';
 import { CardsAdminCards, CardsAdminPacks, CardsAdminSettings, CardsAdminPlayers, CardsAdminTrades, CardsAdminMatches, CardsAdminStats, CardsAdminCampaign, CardsAdminTournaments, CardsAdminBoards } from '../cards/CardsAdmin.jsx';
 import RoleIcon from '../components/RoleIcon.jsx';
 import InstancesAdmin from '../components/admin/InstancesAdmin.jsx';
+import MusicKeysAdmin from '../components/admin/MusicKeysAdmin.jsx';
+import '../styles/instances-admin.css';
 
 // ============================================================
 // Painel da Equipe — shell redesenhado do zero.
@@ -166,6 +168,7 @@ const TABS = {
   pingu: { label: 'Pingu (IA)', desc: 'Perfil do assistente de IA, o que ele sabe sobre o Project Club e as funções: boas-vindas, moderação assistida, resumo, tradução e Quiz do Pingu.' },
   pinguAlertas: { label: 'Alertas do Pingu', desc: 'Mensagens de canal que o assistente de moderação do Pingu achou suspeitas. Ele só avisa: a decisão é da equipe.' },
   servidorVoz: { label: 'Servidor de voz', desc: 'Servidor de mídia próprio das chamadas: status e chaves (URL, segredo e TURN).' },
+  musica: { label: 'Música (Spotify e Last.fm)', desc: 'Chaves do Spotify e do Last.fm pra atividade Música (buscar e conectar contas). Sem elas, só o YouTube Music funciona.' },
   maintenance: { label: 'Manutenção', desc: 'Coloca a plataforma "em reforma" para todos, menos a equipe.' },
   reload: { label: 'Reload', desc: 'Recarrega a presença online de usuários.' },
   cartasCartas: { label: 'Cartas', desc: 'Crie, edite e exclua cartas: imagem, nome, descrição, raridade, elemento, força e habilidades.' },
@@ -208,7 +211,7 @@ const TAB_GROUPS = [
   { label: 'Economia', icon: 'economy', tabs: ['economia', 'decoracoes', 'cupons', 'criadores', 'apoio', 'metaDoacao', 'casas', 'album'] },
   { label: 'Guerra das Cartas', icon: 'cards', tabs: ['cartasEstatisticas', 'cartasCartas', 'cartasPacotes', 'cartasCampanha', 'cartasTorneios', 'cartasFundos', 'cartasRegras', 'cartasJogadores', 'cartasTrocas', 'cartasPartidas'] },
   { label: 'Mods', icon: 'mods', tabs: ['modGames', 'workshopGames', 'gamebananaGames'] },
-  { label: 'Sistema', icon: 'system', tabs: ['numeros', 'painelSaude', 'saude', 'servidorVoz', 'integracoes', 'sistema', 'maintenance', 'reload'] },
+  { label: 'Sistema', icon: 'system', tabs: ['numeros', 'painelSaude', 'saude', 'servidorVoz', 'musica', 'integracoes', 'sistema', 'maintenance', 'reload'] },
 ].map((g) => ({ ...g, tabs: g.tabs.filter((t) => !HIDDEN_TABS.has(t)) })).filter((g) => g.tabs.length > 0);
 
 const groupOf = (tab) => TAB_GROUPS.find((g) => g.tabs.includes(tab));
@@ -445,6 +448,7 @@ export default function AdminPanel() {
           {tab === 'roles' && <RolesAdminTab />}
           {tab === 'channels' && <ChannelsAdminTab />}
           {tab === 'instancias' && <InstancesAdmin />}
+          {tab === 'musica' && <MusicKeysAdmin />}
           {tab === 'gifMove' && <GifMoveAdminTab />}
           {tab === 'emojis' && <EmojisAdminTab />}
           {tab === 'stickers' && <StickersAdminTab />}

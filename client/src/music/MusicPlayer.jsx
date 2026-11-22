@@ -2,6 +2,8 @@ import { useEffect, useRef, useState } from 'react';
 import { useMusic } from './musicStore';
 import { loadYouTubeApi } from '../youtube/loadYouTubeApi.js';
 import { ytSearch, ytTrending } from '../api/endpoints';
+// eslint-disable-next-line import/no-cycle
+import { MusicSources } from './MusicSources.jsx';
 import '../styles/music.css';
 
 // YouTube Music no Project Club: player pessoal (toca só pra você), com busca,
@@ -10,10 +12,10 @@ const thumb = (id) => `https://i.ytimg.com/vi/${id}/mqdefault.jpg`;
 const fmt = (s) => { s = Math.max(0, Math.floor(s || 0)); return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`; };
 const toTrack = (v) => ({ videoId: v.videoId, title: v.title, artist: v.channel || '', thumbnail: v.thumbnail || thumb(v.videoId), duration: v.duration || '' });
 
-function Ico({ d, size = 18, fill }) {
+export function Ico({ d, size = 18, fill }) {
   return <svg width={size} height={size} viewBox="0 0 24 24" fill={fill ? 'currentColor' : 'none'} stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d={d} /></svg>;
 }
-const I = {
+export const I = {
   play: 'M8 5.5v13l10-6.5z', pause: 'M7 5h3.5v14H7zM13.5 5H17v14h-3.5z',
   next: 'M6 5.5v13l8.5-6.5zM17 5v14', prev: 'M18 5.5v13l-8.5-6.5zM7 5v14',
   note: 'M9 18V5l11-2v13M9 18a3 3 0 1 1-3-3 3 3 0 0 1 3 3zM20 16a3 3 0 1 1-3-3 3 3 0 0 1 3 3z',
@@ -21,7 +23,7 @@ const I = {
   vol: 'M4 9v6h4l5 4V5L8 9zM16 9a4 4 0 0 1 0 6', list: 'M8 6h12M8 12h12M8 18h12M4 6h.01M4 12h.01M4 18h.01',
 };
 
-const GENRES = [
+export const GENRES = [
   { id: 'hot', label: 'Em alta', q: null },
   { id: 'funk', label: 'Funk', q: 'funk lançamento 2026' },
   { id: 'sertanejo', label: 'Sertanejo', q: 'sertanejo mais tocadas' },
@@ -86,25 +88,25 @@ export function MusicEngine() {
   return <div ref={hostRef} className="mu-engine" aria-hidden="true" />;
 }
 
-function Results({ items, onPlay, onAdd, loading }) {
+export function Results({ items, onPlay, onAdd, loading, busyId = null }) {
   if (loading) return <div className="mu-list">{Array.from({ length: 8 }).map((_, i) => <div key={i} className="mu-row mu-skel" />)}</div>;
   if (!items.length) return <p className="mu-empty">Nada encontrado.</p>;
   return (
     <div className="mu-list">
       {items.map((t) => (
-        <div key={t.videoId} className="mu-row">
+        <div key={t.videoId || `${t.source}:${t.id}`} className={`mu-row${busyId && busyId === (t.videoId || t.id) ? ' is-busy' : ''}`}>
           <button type="button" className="mu-row-main" onClick={() => onPlay(t)}>
-            <img src={t.thumbnail} alt="" loading="lazy" />
-            <span className="mu-row-text"><b data-no-translate>{t.title}</b><small data-no-translate>{t.artist}{t.duration ? ` · ${t.duration}` : ''}</small></span>
+            {t.thumbnail ? <img src={t.thumbnail} alt="" loading="lazy" /> : <span className="mu-noart" aria-hidden="true"><Ico d={I.note} size={18} /></span>}
+            <span className="mu-row-text"><b data-no-translate>{t.title}</b><small data-no-translate>{t.artist}{t.duration ? ` · ${t.duration}` : ''}{!t.duration && t.durationSec ? ` · ${Math.floor(t.durationSec / 60)}:${String(t.durationSec % 60).padStart(2, '0')}` : ''}</small></span>
           </button>
-          <button type="button" className="mu-icon-btn" onClick={() => onAdd(t)} title="Adicionar à fila" aria-label="Adicionar à fila"><Ico d={I.plus} size={16} /></button>
+          {onAdd && <button type="button" className="mu-icon-btn" onClick={() => onAdd(t)} title="Adicionar à fila" aria-label="Adicionar à fila"><Ico d={I.plus} size={16} /></button>}
         </div>
       ))}
     </div>
   );
 }
 
-function useMusicSearch() {
+export function useMusicSearch() {
   const [q, setQ] = useState('');
   const [genre, setGenre] = useState('hot');
   const [items, setItems] = useState([]);
@@ -122,7 +124,7 @@ function useMusicSearch() {
 }
 
 // Busca + gêneros + resultados (usado no player pessoal e na call).
-function MusicBrowse({ ms, onPlay, onAdd }) {
+export function MusicBrowse({ ms, onPlay, onAdd }) {
   const { q, setQ, genre, setGenre, items, loading, run } = ms;
   return (
     <>
@@ -140,11 +142,10 @@ function MusicBrowse({ ms, onPlay, onAdd }) {
   );
 }
 
-// YouTube Music na call (Atividades): toca pra todo mundo, sincronizado.
+// Música na call (Atividades): toca pra todo mundo, sincronizado. O
+// serviço (YouTube Music, Spotify ou Last.fm) é escolhido em MusicSources.
 export function CallMusicPicker({ yt, onClose }) {
-  const ms = useMusicSearch();
   const [added, setAdded] = useState(null);
-  useEffect(() => { ms.run(null, GENRES[0]); }, []); // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => {
     const onKey = (e) => { if (e.key === 'Escape') onClose(); };
     window.addEventListener('keydown', onKey);
@@ -153,16 +154,15 @@ export function CallMusicPicker({ yt, onClose }) {
   const playing = yt.state?.videoId && yt.state?.mode === 'music';
   return (
     <div className="mu-overlay" onMouseDown={(e) => { if (e.target === e.currentTarget) onClose(); }}>
-      <div className="mu-panel" role="dialog" aria-label="YouTube Music na chamada">
+      <div className="mu-panel" role="dialog" aria-label="Música na chamada">
         <div className="mu-head">
           <span className="mu-logo"><Ico d={I.note} size={18} /></span>
-          <span className="mu-head-text"><strong>YouTube Music</strong><small>Toca na chamada para todo mundo</small></span>
+          <span className="mu-head-text"><strong>Música</strong><small>Toca na chamada para todo mundo</small></span>
           <span style={{ flex: 1 }} />
           {added && <span className="mu-added" role="status">Adicionada à fila</span>}
           <button type="button" className="mu-icon-btn" onClick={onClose} aria-label="Fechar"><Ico d={I.x} /></button>
         </div>
-        <MusicBrowse
-          ms={ms}
+        <MusicSources
           onPlay={(t) => {
             useMusic.getState().setPlaying(false); // pausa o player pessoal
             if (playing) { yt.emit('yt:queue:add', { videoId: t.videoId, title: t.title, mode: 'music' }); setAdded(t.videoId); setTimeout(() => setAdded(null), 1800); }
@@ -178,9 +178,7 @@ export function CallMusicPicker({ yt, onClose }) {
 
 export function MusicPanel() {
   const m = useMusic();
-  const ms = useMusicSearch();
   const [tab, setTab] = useState('browse');
-  useEffect(() => { if (m.panelOpen && !ms.items.length) ms.run(null, GENRES[0]); }, [m.panelOpen]); // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => {
     if (!m.panelOpen) return undefined;
     const onKey = (e) => { if (e.key === 'Escape') m.openPanel(false); };
@@ -191,7 +189,7 @@ export function MusicPanel() {
 
   return (
     <div className="mu-overlay" onMouseDown={(e) => { if (e.target === e.currentTarget) m.openPanel(false); }}>
-      <div className="mu-panel" role="dialog" aria-label="YouTube Music">
+      <div className="mu-panel" role="dialog" aria-label="Música">
         <div className="mu-head">
           <span className="mu-logo"><Ico d={I.note} size={18} /></span>
           <strong>Música</strong>
@@ -202,7 +200,7 @@ export function MusicPanel() {
           <button type="button" className="mu-icon-btn" onClick={() => m.openPanel(false)} aria-label="Fechar"><Ico d={I.x} /></button>
         </div>
         {tab === 'browse' ? (
-          <MusicBrowse ms={ms} onPlay={(t) => m.playNow(t, ms.items)} onAdd={(t) => m.enqueue(t)} />
+          <MusicSources onPlay={(t) => m.playNow(t)} onAdd={(t) => m.enqueue(t)} />
         ) : (
           <div className="mu-list">
             {!m.queue.length && <p className="mu-empty">A fila está vazia. Toque uma música em Explorar.</p>}

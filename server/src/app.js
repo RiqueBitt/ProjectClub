@@ -390,6 +390,10 @@ function createApp() {
   app.use('/api/ui-layout', uiEditorRoutes);
   app.use('/api/platform', platformRoutes);
   app.use('/api/admin/instances', require('./routes/instancesAdmin'));
+  // Atividades do chat (dados, cartões de YouTube/Música).
+  app.use('/api/activities', require('./routes/activities'));
+  // Música (YouTube Music, Spotify, Last.fm) — ver services/music.js.
+  app.use('/api/music', require('./routes/music'));
   app.use('/api/admin', adminRoutes);
   app.use('/api/dev', require('./routes/dev'));
   app.use('/api/app-catalog', appCatalogRoutes);

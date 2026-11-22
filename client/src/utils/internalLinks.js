@@ -57,6 +57,13 @@ export function parseInternalLink(raw) {
     case 'wiki': return { kind: 'wiki', id: id || '', path };
     // Cartão da carteira mostrado no chat (Atividades → Mostrar cartão).
     case 'carteira': return id && /^[0-9a-f-]{36}$/i.test(id) ? { kind: 'wallet', id, path } : null;
+    // Atividades do chat: /atividade/dados/<id>, /atividade/video/<videoId>, /atividade/musica/<videoId>.
+    case 'atividade': {
+      const ref = parts[2];
+      if (id === 'dados') return ref && /^[0-9a-f-]{36}$/i.test(ref) ? { kind: 'dice', id: ref, path } : null;
+      if (id === 'video' || id === 'musica') return ref && /^[A-Za-z0-9_-]{11}$/.test(ref) ? { kind: id === 'video' ? 'ytvideo' : 'ytmusic', id: ref, path } : null;
+      return null;
+    }
     case 'cartas': {
       const sala = u.searchParams.get('sala');
       return sala && /^[A-Za-z0-9]{4,12}$/.test(sala) ? { kind: 'battle', id: sala.toUpperCase(), path } : null;
@@ -236,4 +243,13 @@ async function resolve(link) {
     }
     default: return null;
   }
+}
+
+// Links que são "atividade" (cartão da carteira, dados, vídeo, música): o
+// cartão aparece sempre (mesmo com prévias desligadas) e o endereço some
+// do texto da mensagem.
+export const ACTIVITY_KINDS = new Set(['wallet', 'dice', 'ytvideo', 'ytmusic']);
+export function stripActivityLinks(text) {
+  if (!text || !text.includes('http')) return text;
+  return text.replace(LINK_RE, (m) => (ACTIVITY_KINDS.has(parseInternalLink(m)?.kind) ? '' : m)).replace(/[ \t]+\n/g, '\n').trim();
 }

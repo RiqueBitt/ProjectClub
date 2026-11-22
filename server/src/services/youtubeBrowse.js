@@ -146,6 +146,9 @@ function collectVideos(root, { exclude } = {}) {
     if (node.videoRenderer) v = fromRenderer(node.videoRenderer);
     else if (node.gridVideoRenderer) v = fromRenderer(node.gridVideoRenderer);
     else if (node.compactVideoRenderer) v = fromRenderer(node.compactVideoRenderer);
+    // Itens de playlist (página /playlist e painel do player).
+    else if (node.playlistVideoRenderer) v = fromRenderer(node.playlistVideoRenderer);
+    else if (node.playlistPanelVideoRenderer) v = fromRenderer(node.playlistPanelVideoRenderer);
     else if (node.lockupViewModel) v = fromLockup(node.lockupViewModel);
     if (v) {
       if (!seen.has(v.videoId) && v.title) { seen.add(v.videoId); out.push(v); }
@@ -410,7 +413,52 @@ async function videoInfo(videoId) {
   return info;
 }
 
+// Playlist pública/não listada do YouTube (Música → YouTube Music → "Minhas
+// playlists"): título + até ~100 vídeos. Com YOUTUBE_API_KEY usa a API
+// oficial; sem ela, a página pública (innertube "browse" VL<id>).
+const PLAYLIST_RE = /^[A-Za-z0-9_-]{10,64}$/;
+function parsePlaylistId(input) {
+  const s = String(input || '').trim();
+  if (PLAYLIST_RE.test(s) && /^(PL|OL|UU|FL|LL|RD|LM|OLAK)/.test(s)) return s;
+  try {
+    const u = new URL(/^https?:\/\//i.test(s) ? s : `https://${s}`);
+    const id = u.searchParams.get('list');
+    return id && PLAYLIST_RE.test(id) ? id : null;
+  } catch { return null; }
+}
+
+async function playlist(playlistId) {
+  if (!PLAYLIST_RE.test(playlistId || '')) return null;
+  if (apiKey()) {
+    try {
+      const meta = await apiGet('playlists', { part: 'snippet', id: playlistId });
+      const p = meta.items?.[0];
+      if (!p) return null;
+      const items = [];
+      let pageToken;
+      for (let page = 0; page < 2; page += 1) {
+        // eslint-disable-next-line no-await-in-loop
+        const d = await apiGet('playlistItems', { part: 'snippet', playlistId, maxResults: 50, ...(pageToken ? { pageToken } : {}) });
+        for (const it of d.items || []) {
+          const vid = it.snippet?.resourceId?.videoId;
+          if (vid && ID_RE.test(vid)) items.push({ videoId: vid, title: clean(it.snippet.title), channel: clean(it.snippet.videoOwnerChannelTitle || '', 100), thumbnail: `https://i.ytimg.com/vi/${vid}/mqdefault.jpg`, duration: '' });
+        }
+        pageToken = d.nextPageToken;
+        if (!pageToken) break;
+      }
+      return { id: playlistId, title: clean(p.snippet?.title) || 'Playlist', videos: items.filter((v) => v.title && !/^(Private|Deleted) video$/i.test(v.title)) };
+    } catch { /* cai pra página pública */ }
+  }
+  const data = await innertube('browse', { browseId: `VL${playlistId}` });
+  const { videos } = collectVideos(data);
+  const title = clean(data?.metadata?.playlistMetadataRenderer?.title || data?.header?.playlistHeaderRenderer?.title?.simpleText
+    || data?.header?.pageHeaderRenderer?.pageTitle) || 'Playlist';
+  if (!videos.length) return null;
+  return { id: playlistId, title, videos: videos.slice(0, 100) };
+}
+
 module.exports = {
+  playlist, parsePlaylistId,
   search, trending, related, channelVideos, suggest, videoInfo,
   parsePlayerResponse,
   // exportados pros testes

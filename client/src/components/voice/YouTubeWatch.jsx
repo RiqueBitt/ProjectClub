@@ -76,6 +76,7 @@ export function useYouTubeWatch(channelId) {
 }
 
 const MUSIC_ICON = 'M9 18V5l11-2v13M9 18a3 3 0 1 1-3-3 3 3 0 0 1 3 3zM20 16a3 3 0 1 1-3-3 3 3 0 0 1 3 3z';
+const DICE_ICON = 'M12 2.5 20.5 7.3v9.4L12 21.5l-8.5-4.8V7.3zM12 2.5v19M3.5 7.3l8.5 4.9 8.5-4.9';
 
 function YIcon({ d, size = 18 }) {
   return (
@@ -454,7 +455,12 @@ export function ActivitiesButton({ onPick, active = null }) {
           </button>
           <button type="button" role="menuitem" className="ytw-act-item" disabled={!!active && active !== 'music'} onClick={() => { setOpen(false); onPick('music'); }}>
             <span className="ytw-yt ytw-ytm"><YIcon d={MUSIC_ICON} size={22} /></span>
-            <span><strong>YouTube Music - Ouvir juntos</strong><small>{active === 'music' ? 'Rolando agora' : (active ? 'Encerre a atividade atual antes' : 'Músicas tocando para todo mundo da chamada')}</small></span>
+            <span><strong>Música - Ouvir juntos</strong><small>{active === 'music' ? 'Rolando agora' : (active ? 'Encerre a atividade atual antes' : 'YouTube Music, Spotify ou Last.fm pra todo mundo')}</small></span>
+          </button>
+          {/* Dados não ocupam a "vaga" de atividade: dá pra rolar com vídeo/música rolando. */}
+          <button type="button" role="menuitem" className="ytw-act-item" onClick={() => { setOpen(false); onPick('dice'); }}>
+            <span className="ytw-yt ytw-dice"><YIcon d={DICE_ICON} size={22} /></span>
+            <span><strong>Rolar dados</strong><small>Do D2 ao D100 — todo mundo vê o resultado</small></span>
           </button>
         </div>
       )}

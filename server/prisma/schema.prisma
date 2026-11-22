@@ -4964,3 +4964,33 @@ model UserInstancePref {
   instanceId String   @db.VarChar(64)
   updatedAt  DateTime @default(now()) @updatedAt
 }
+
+// Rolagem de dados mandada no chat (Atividades → Rolar dados). O sorteio é
+// no servidor (services/dice.js); a mensagem leva só o link /dados/<id> e o
+// cartão busca o resultado daqui — ninguém consegue editar o resultado.
+model DiceRoll {
+  id        String   @id @default(uuid())
+  userId    String
+  // JSON: { groups: [{ sides, count, results: [] }], modifier, label }
+  data      String   @db.Text
+  total     Int
+  createdAt DateTime @default(now())
+
+  @@index([userId])
+}
+
+// Música (Atividades → Música): conta conectada de cada serviço.
+//   spotify: tokens do login (criptografados, ver services/music.js)
+//   lastfm:  só o nome de usuário (os dados do Last.fm são públicos)
+//   youtube: playlists que a pessoa colou (links), sem login
+model MusicAccount {
+  userId       String
+  service      String   @db.VarChar(16)
+  externalName String?  @db.VarChar(120)
+  // JSON (criptografado no caso do Spotify).
+  data         String?  @db.Text
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  @@id([userId, service])
+}
