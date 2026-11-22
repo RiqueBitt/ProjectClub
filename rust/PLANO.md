@@ -71,8 +71,13 @@ Cada fase é publicável sozinha, só quando o dono liberar.
   - [x] `/api/users`: configurações, jogos, atalhos, GIFs favoritos,
         emojis que posso usar, ignorar, notas e o perfil de outra pessoa
         (`GET /api/users/:id`) com as regras de privacidade
-  - [ ] próximo: resto de `/api/users` (editar perfil, trocar o nome,
-        votar, conquistas exibidas, extras do perfil, resumo, denúncia, uploads)
+  - [x] `/api/users`: editar perfil, trocar a ClubTag, votar, conquistas
+        exibidas, denúncia de perfil, mural, lista de desejos, atividade e
+        estatísticas do perfil
+  - [ ] falta em `/api/users`: resumo do perfil (depende de fãs, traços,
+        enquetes e visitas) e os envios de imagem
+  - [ ] próximo: amigos (`/api/friends`) e as partes do perfil (fãs,
+        traços, enquetes, visitas, recados, depoimentos)
   - [ ] depois: amigos, mensagens, comunidades, economia, staff…
 
 ### Fase 1 — o que já tem
@@ -348,3 +353,28 @@ contas e 4 recusas de escrita — 44 de 44 iguais; perfil de 11 pessoas
 (inclusive com perfil privado e com insígnias) visto por 4 contas, mais
 lista de ignorados e as recusas de nota/ignorar a si mesmo — 50 de 50
 iguais.
+
+### `/api/users` — terceira parte
+
+- `PATCH /me` (editar perfil) com as mesmas regras: só os campos
+  permitidos, links ganham `https://`, enquadramento do banner, ordem das
+  seções, cores (respeitando "cores_perfil" desligado pela staff), vitrine
+  de jogos. Tipo errado num campo dá 500 como no Prisma. Pedido sem nada
+  válido não grava (o `updatedAt` fica igual, conferido no Node).
+- `PATCH /me/username` (ClubTag: regras, nomes reservados, 7 dias entre
+  trocas, data no horário de Brasília), `POST /:id/vote`,
+  `PATCH /me/displayed-achievements`, `POST /:id/report` (com o
+  limitador `profile-report`).
+- Extras do perfil: `GET /:id/extras` (mural, lista de desejos só pra
+  amigos, atividade dos últimos 30 dias com "Novo jogador"/"Retornando
+  após N meses", estatísticas e nota), `PUT /me/widgets`,
+  `GET|POST /me/wishlist`.
+- Ponte nova `POST /api/internal/after`: serviços do Node que o Rust ainda
+  não tem, disparados depois da ação (recalcular os ups, conferir
+  conquistas, avisar os amigos que o perfil mudou). Só aceita essas três.
+
+Produção (22/11/2026): extras de 11 perfis vistos por 4 contas, lista de
+desejos e 11 pedidos recusados ou sem efeito (ClubTag curta, reservada e
+igual à atual; votar em si; voto inválido; denunciar a si; motivo
+inválido; item inválido; conquistas inválidas; perfil sem mudança) —
+59 de 59 iguais ao Node.
