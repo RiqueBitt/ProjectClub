@@ -141,6 +141,45 @@ test('Economia: cartão da carteira com moedas e gemas vira ao clicar e no tecla
   await expect(page.getByRole('tab', { name: /Sorteio/ })).toHaveCount(0);
 });
 
+test('Economia nova: abas no topo, cartão com espessura, baú e missões em linha, sem vazar pros lados', async ({ page }) => {
+  await page.route('**/api/**', handler);
+  await page.route('**/api/economy', (r) => json(r, { coins: 12480, gems: 37, dailyStreak: 3, streakRequired: 5, lastDailyAt: null, nextDailyAt: null, accountLevel: 7, cardStyle: 'DEFAULT', cardStyles: ['DEFAULT', 'GOLD'] }));
+  await page.route('**/api/economy/chests', (r) => json(r, { chests: [] }));
+  await page.route('**/api/missions', (r) => json(r, { multiplier: 1, resets: {}, missions: [
+    { id: 'm1', period: 'DAILY', type: 'MESSAGES', title: 'Mande 20 mensagens', target: 20, progress: 20, completed: true, claimed: false, rewardCoins: 60, finalCoins: 60, rewardGems: 0, rewardXp: 30, unit: 'mensagens' },
+    { id: 'm2', period: 'DAILY', type: 'REACTIONS', title: 'Reaja a 5 mensagens', target: 5, progress: 3, completed: false, claimed: false, rewardCoins: 30, finalCoins: 30, rewardGems: 0, rewardXp: 0, unit: 'reações' },
+  ] }));
+  await page.goto('/economia');
+  const card = page.locator('.wcard');
+  await expect(card).toBeVisible({ timeout: 20_000 });
+  // A barra de abas fica no topo (igual à Loja) e a visão geral tem o cartão e o baú.
+  await expect(page.locator('.hub-tabs-bar [role="tab"]')).toHaveCount(5);
+  await expect(page.locator('.eco-top .eco-daily')).toBeVisible();
+  await expect(page.locator('.eco-streak li.done')).toHaveCount(3);
+  await expect(page.getByRole('button', { name: /Resgatar baú diário/ })).toBeEnabled();
+  // O cartão tem frente, verso e as fatias da espessura.
+  await expect(card.locator('.wcard-slab')).toHaveCount(5);
+  await expect(card.locator('.wcard-front')).toContainText('Nível 7');
+  // Arrastar gira o cartão junto com o dedo/mouse.
+  const box = await card.boundingBox();
+  await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
+  await page.mouse.down();
+  await page.mouse.move(box.x + box.width / 2 + 70, box.y + box.height / 2, { steps: 8 });
+  const ry = await page.locator('.wcard-scene').evaluate((el) => parseFloat(el.style.getPropertyValue('--ry')));
+  expect(ry).toBeGreaterThan(20);
+  await page.mouse.up();
+  // Missões: uma linha cada; a pronta mostra o botão.
+  await expect(page.locator('.eco-mission')).toHaveCount(2);
+  await expect(page.locator('.eco-mission.ready .eco-mission-claim')).toBeVisible();
+  // Nada vaza pros lados (PC e celular).
+  const overflow = await page.locator('.pk-page.eco').evaluate((el) => el.scrollWidth - el.clientWidth);
+  expect(overflow).toBeLessThanOrEqual(1);
+  // A aba Missões mostra o saldo em linha e as duas listas.
+  await page.getByRole('tab', { name: /Missões/ }).click();
+  await expect(page.locator('.eco-purse')).toContainText('12.480');
+  await expect(page.locator('.eco-panel')).toHaveCount(2);
+});
+
 test('Loja: estilos do cartão da carteira (Assinante usa o dourado, arco-íris bloqueado)', async ({ page }) => {
   await page.route('**/api/**', handler);
   await page.route('**/api/economy', (r) => json(r, { coins: 500, gems: 2, dailyStreak: 0, streakRequired: 5, accountLevel: 3, cardStyle: 'GOLD', cardStyles: ['DEFAULT', 'GOLD'] }));

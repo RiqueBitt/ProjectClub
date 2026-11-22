@@ -51,16 +51,24 @@ async function claimDaily(userId) {
     streak = 0;
   }
 
-  const updated = await prisma.user.update({
-    where: { id: userId },
+  // Trava contra resgate duplo (duas abas ou dois cliques ao mesmo tempo): só
+  // grava se, na hora de gravar, o último resgate ainda está fora das 24h.
+  // (Igual ao Rust — rust/pc-server/src/routes/economy.rs, claim_daily.)
+  const locked = await prisma.user.updateMany({
+    where: { id: userId, OR: [{ lastDailyAt: null }, { lastDailyAt: { lte: new Date(now - DAILY_COOLDOWN_MS) } }] },
     data: {
       coins: { increment: coins },
       dailyStreak: streak,
       gems: { increment: earnedMegaGems },
       lastDailyAt: new Date(now),
     },
-    select: { coins: true, gems: true, dailyStreak: true },
   });
+  if (locked.count !== 1) {
+    const err = new Error('Você já resgatou a recompensa diária hoje.');
+    err.status = 400;
+    throw err;
+  }
+  const updated = await prisma.user.findUnique({ where: { id: userId }, select: { coins: true, gems: true, dailyStreak: true } });
 
   recordTransaction(userId, { kind: 'DAILY', label: `Baú diário: ${chest.name}`, coins });
   if (megaAwarded) recordTransaction(userId, { kind: 'DAILY', label: 'Mega Baú (sequência completa)', gems: earnedMegaGems });

@@ -427,3 +427,165 @@ async fn admin_dos_baus() {
         );
     }
 }
+
+async fn internal_calls(calls: &Calls, path: &str) -> Vec<Value> {
+    calls
+        .lock()
+        .unwrap()
+        .iter()
+        .filter(|(p, _, _)| p == path)
+        .map(|(_, _, b)| b.clone())
+        .collect()
+}
+
+#[tokio::test]
+async fn bau_diario() {
+    let Some((env, calls)) = env().await else {
+        return;
+    };
+    let me = uid("eu");
+    add_user(&env.db, &me, ", coins, gems, dailyStreak|, 100, 2, 3").await;
+
+    // sem nenhum baú ligado
+    env.db
+        .execute("INSERT INTO DailyChest (id, name, chanceRegular, coinsMin, coinsMax, position, enabled) VALUES ('off', 'Desligado', 1, 900, 900, 0, 0)")
+        .await
+        .unwrap();
+    let (st, b) = call(&env, "POST", "/api/economy/daily", &me, Value::Null).await;
+    assert_eq!(
+        (st, b["error"].as_str()),
+        (400, Some("Nenhum baú diário configurado."))
+    );
+
+    env.db
+        .execute("INSERT INTO DailyChest (id, name, chanceRegular, coinsMin, coinsMax, position, enabled, imageClosed, imageOpened) VALUES ('c1', 'Comum', 1, 10, 20, 1, 1, 'fechado.png', 'aberto.png')")
+        .await
+        .unwrap();
+
+    // primeiro resgate da vida: sequência vira 1 (nunca resgatou antes)
+    let (st, b) = call(&env, "POST", "/api/economy/daily", &me, Value::Null).await;
+    assert_eq!(st, 200, "{b}");
+    let keys: Vec<&str> = b.as_object().unwrap().keys().map(String::as_str).collect();
+    assert_eq!(
+        keys,
+        [
+            "chestName",
+            "chestImageClosed",
+            "chestImageOpened",
+            "coins",
+            "streak",
+            "streakRequired",
+            "megaAwarded",
+            "megaGems",
+            "balance",
+            "newAchievements"
+        ]
+    );
+    let coins = b["coins"].as_i64().unwrap();
+    assert!((10..=20).contains(&coins), "{coins}");
+    assert_eq!(
+        (
+            &b["chestName"],
+            &b["chestImageClosed"],
+            &b["chestImageOpened"]
+        ),
+        (&json!("Comum"), &json!("fechado.png"), &json!("aberto.png"))
+    );
+    assert_eq!(
+        (
+            &b["streak"],
+            &b["streakRequired"],
+            &b["megaAwarded"],
+            &b["megaGems"]
+        ),
+        (&json!(1), &json!(5), &json!(false), &json!(0))
+    );
+    assert_eq!(
+        b["balance"],
+        json!({ "coins": 100 + coins, "gems": 2, "dailyStreak": 1 })
+    );
+    assert_eq!(b["newAchievements"], json!([]));
+    // o Node foi avisado (missão "baú do dia" + conquistas) com o segredo interno
+    let told = internal_calls(&calls, "/api/internal/daily-claimed").await;
+    assert_eq!(told, vec![json!({ "userId": me })]);
+    // ficou no registro da carteira
+    let (kind, label, c, g): (String, String, i32, i32) =
+        sqlx::query_as("SELECT kind, label, coins, gems FROM EconomyTransaction WHERE userId = ?")
+            .bind(&me)
+            .fetch_one(&env.db)
+            .await
+            .unwrap();
+    assert_eq!(
+        (kind.as_str(), label.as_str(), c as i64, g),
+        ("DAILY", "Baú diário: Comum", coins, 0)
+    );
+
+    // de novo no mesmo dia: 400 e nada muda
+    let (st, b) = call(&env, "POST", "/api/economy/daily", &me, Value::Null).await;
+    assert_eq!(
+        (st, b["error"].as_str()),
+        (400, Some("Você já resgatou a recompensa diária hoje."))
+    );
+    let (now_coins,): (i32,) = sqlx::query_as("SELECT coins FROM `User` WHERE id = ?")
+        .bind(&me)
+        .fetch_one(&env.db)
+        .await
+        .unwrap();
+    assert_eq!(now_coins as i64, 100 + coins);
+
+    // 4 dias seguidos + resgate dentro das 48h = Mega Baú: gemas e a sequência zera
+    let mega = uid("mg");
+    add_user(
+        &env.db,
+        &mega,
+        ", coins, gems, dailyStreak, lastDailyAt|, 0, 1, 4, UTC_TIMESTAMP(3) - INTERVAL 25 HOUR",
+    )
+    .await;
+    let (st, b) = call(&env, "POST", "/api/economy/daily", &mega, Value::Null).await;
+    assert_eq!(st, 200, "{b}");
+    let gems = b["megaGems"].as_i64().unwrap();
+    assert!((1..=6).contains(&gems), "{gems}");
+    assert_eq!((&b["megaAwarded"], &b["streak"]), (&json!(true), &json!(0)));
+    assert_eq!(b["balance"]["gems"], json!(1 + gems));
+    assert_eq!(b["balance"]["dailyStreak"], json!(0));
+    let (n,): (i64,) = sqlx::query_as(
+        "SELECT COUNT(*) FROM EconomyTransaction WHERE userId = ? AND label = 'Mega Baú (sequência completa)' AND gems = ?",
+    )
+    .bind(&mega)
+    .bind(gems)
+    .fetch_one(&env.db)
+    .await
+    .unwrap();
+    assert_eq!(n, 1);
+
+    // mais de 48h sem resgatar: a sequência recomeça do 1
+    let late = uid("lt");
+    add_user(
+        &env.db,
+        &late,
+        ", dailyStreak, lastDailyAt|, 3, UTC_TIMESTAMP(3) - INTERVAL 49 HOUR",
+    )
+    .await;
+    let (st, b) = call(&env, "POST", "/api/economy/daily", &late, Value::Null).await;
+    assert_eq!(
+        (st, &b["streak"], &b["megaAwarded"]),
+        (200, &json!(1), &json!(false))
+    );
+
+    // dois cliques ao mesmo tempo: só um abre o baú
+    let twice = uid("tw");
+    add_user(&env.db, &twice, ", coins|, 0").await;
+    let (a, b) = tokio::join!(
+        call(&env, "POST", "/api/economy/daily", &twice, Value::Null),
+        call(&env, "POST", "/api/economy/daily", &twice, Value::Null)
+    );
+    let mut sts = [a.0, b.0];
+    sts.sort_unstable();
+    assert_eq!(sts, [200, 400]);
+    let (n,): (i64,) = sqlx::query_as("SELECT COUNT(*) FROM EconomyTransaction WHERE userId = ?")
+        .bind(&twice)
+        .fetch_one(&env.db)
+        .await
+        .unwrap();
+    assert_eq!(n, 1);
+}

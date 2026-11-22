@@ -11,6 +11,7 @@ pub mod friends;
 pub mod gifs;
 pub mod login;
 pub mod me;
+pub mod missions;
 pub mod oauth;
 pub mod passkeys;
 pub mod profile;

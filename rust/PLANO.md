@@ -417,8 +417,7 @@ mexeu no servidor foi trazido pro Rust:
   o aviso `chests:update` pra comunidade). A trava "sistema desligado
   pela staff" (`requireSystemEnabled`) também foi portada. Os níveis, os
   títulos e a meta do Mega Baú são lidos dos catálogos do Node.
-  O `POST /daily` (abrir o baú) fica no Node por enquanto: ele devolve as
-  conquistas novas na mesma resposta e mexe em missões.
+  O `POST /daily` (abrir o baú) veio depois — ver "Menu de Economia".
 - `/api/gifs` (#158): busca e categorias da Klipy com `width`/`height`,
   o limitador `gifs` (90/min por conta) e o mesmo cache do Node no Redis
   (`cache:gifs:...`), então um lado aproveita o que o outro buscou.
@@ -457,3 +456,28 @@ bloqueios) em `GET /friends` e `/friends/blocked`, mais 6 pedidos
 recusados por conta (nome que não existe, pedir a si mesmo, responder e
 desfazer pedido inexistente, bloquear sem nome, desbloquear quem não
 está bloqueado) — 72 de 72 iguais ao Node.
+
+### Menu de Economia (22/11/2026)
+
+Junto com o redesenho do menu de Economia e do cartão 3D (isso é do site:
+`client/src/pages/EconomyPage.jsx` e `components/WalletCard.jsx`), vieram
+pro Rust as rotas que o menu chama e ainda eram do Node:
+
+- `POST /api/economy/daily` (abrir o baú diário): sorteio por peso, moedas,
+  sequência (48h de tolerância), Mega Baú com gemas e o registro da
+  carteira. O que ainda mora no Node é pedido pela ponte nova
+  `POST /api/internal/daily-claimed`: somar na missão "baú do dia" e
+  conferir conquistas (a lista volta na resposta, como antes).
+  **Diferença de propósito**: a gravação é uma só, com a trava das 24h na
+  própria condição do `UPDATE` — dois cliques (ou duas abas) ao mesmo tempo
+  não abrem dois baús. O Node lia e gravava em passos separados; ele
+  ganhou a mesma trava (`services/economy.js`).
+- `GET /api/missions/season` e `POST /api/missions/season/claim` (Passe do
+  clube): temporada do mês em Brasília, níveis, prêmios das duas faixas,
+  trava otimista contra resgate duplo e registro da carteira. Os temas e
+  as constantes são lidos do `missionSeason.js`.
+
+Continuam no Node: `GET /api/missions`, `POST /api/missions/:id/claim` e
+`POST /api/missions/track` (o progresso das missões é contado dentro do
+Node, a cada mensagem/reação/call, com memória própria; o resgate mexe em
+XP, nível, itens da Loja e pontos do passe).

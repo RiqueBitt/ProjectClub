@@ -49,6 +49,22 @@ pub static MEGA_CHEST_STREAK_REQUIRED: LazyLock<i64> = LazyLock::new(|| {
         .unwrap_or(5)
 });
 
+fn chest_const(name: &str, default: i64) -> i64 {
+    regex::Regex::new(&format!(r"{name}\s*=\s*(\d+)"))
+        .expect("regex")
+        .captures(CHESTS_JS)
+        .and_then(|c| c[1].parse().ok())
+        .unwrap_or(default)
+}
+
+/// `MEGA_CHEST_GEMS_MIN` e `MEGA_CHEST_GEMS_MAX` do `chestsCatalog.js`.
+pub static MEGA_CHEST_GEMS: LazyLock<(i64, i64)> = LazyLock::new(|| {
+    (
+        chest_const("MEGA_CHEST_GEMS_MIN", 1),
+        chest_const("MEGA_CHEST_GEMS_MAX", 6),
+    )
+});
+
 /// `LEVELS.find((l) => l.level === level) || LEVELS[0]`.
 pub fn current(level: i64) -> Option<&'static Level> {
     LEVELS.iter().find(|l| l.level == level).or(LEVELS.first())
@@ -107,5 +123,6 @@ mod tests {
         assert_eq!(title_for(0), "Novato");
         assert_eq!(title_for(250), "Supremo");
         assert_eq!(*MEGA_CHEST_STREAK_REQUIRED, 5);
+        assert_eq!(*MEGA_CHEST_GEMS, (1, 6));
     }
 }

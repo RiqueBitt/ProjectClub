@@ -2,8 +2,8 @@
 //! services/walletCard.js): carteira, cartão da carteira, baús, nível/rank,
 //! ranking e a administração dos baús diários.
 //!
-//! O `POST /daily` (resgate do baú) continua no Node por enquanto: ele
-//! devolve as conquistas novas na mesma resposta e mexe em missões.
+//! O `POST /daily` (resgate do baú) grava tudo aqui e pede ao Node só o que
+//! ainda mora lá: somar na missão "baú do dia" e conferir conquistas novas.
 
 use axum::Json;
 use axum::body::Bytes;
@@ -29,6 +29,9 @@ use crate::users;
 
 /// `DAILY_COOLDOWN_MS` do services/economy.js.
 const DAILY_COOLDOWN: Duration = Duration::hours(24);
+/// `STREAK_GRACE_MS`: passou disso sem resgatar, a sequência recomeça.
+const STREAK_GRACE: Duration = Duration::hours(48);
+const ALREADY_CLAIMED: &str = "Você já resgatou a recompensa diária hoje.";
 /// `SHARE_COOLDOWN_MS` do walletCard.js.
 const SHARE_COOLDOWN: Duration = Duration::seconds(10);
 
@@ -326,6 +329,147 @@ pub async fn list_chests(State(state): State<AppState>, parts: Parts, body: Byte
         })
         .collect();
         Ok(reply(&c, json!({ "chests": chests })))
+    }
+    .await;
+    finish(out, c.counted)
+}
+
+// ---------------------------------------------------------------- baú diário
+
+/// `randInt(min, max)` do services/economy.js (com min > max o JS devolve um
+/// número entre os dois, nunca erro: aqui a faixa é só posta em ordem).
+fn rand_int(min: i64, max: i64) -> i64 {
+    let (lo, hi) = if min <= max { (min, max) } else { (max, min) };
+    rand::random_range(lo..=hi)
+}
+
+/// `selectChest`: sorteio por peso (`chanceRegular`), na ordem dos baús; se
+/// os pesos somam menos que o número sorteado, vale o último.
+fn pick_chest(chests: &[mysql_async::Row], roll: f64) -> db::DbResult<Option<&mysql_async::Row>> {
+    let mut cumulative = 0.0;
+    for chest in chests {
+        cumulative += db::get::<Option<f64>>(chest, "chanceRegular")?.unwrap_or(0.0);
+        if roll <= cumulative {
+            return Ok(Some(chest));
+        }
+    }
+    Ok(chests.last())
+}
+
+/// O que muda na sequência com este resgate: `(nova sequência, ganhou o Mega Baú)`.
+fn next_streak(streak: i64, last: Option<NaiveDateTime>, now: NaiveDateTime) -> (i64, bool) {
+    let next = match last {
+        Some(l) if now - l <= STREAK_GRACE => streak + 1,
+        _ => 1,
+    };
+    if next >= *levels::MEGA_CHEST_STREAK_REQUIRED {
+        (0, true)
+    } else {
+        (next, false)
+    }
+}
+
+async fn ledger_daily(db: &db::Db, user_id: &str, label: &str, coins: i64, gems: i64) {
+    if coins == 0 && gems == 0 {
+        return;
+    }
+    let r = db::exec(
+        db,
+        "INSERT INTO EconomyTransaction (id, userId, kind, label, coins, gems, xp, createdAt) \
+         VALUES (?, ?, 'DAILY', ?, ?, ?, 0, ?)",
+        params![db::new_id(), user_id, label, coins, gems, db::now()],
+    )
+    .await;
+    if let Err(e) = r {
+        tracing::warn!("[economyLedger] {e}");
+    }
+}
+
+/// `POST /api/economy/daily`: abre o baú do dia.
+pub async fn claim_daily(State(state): State<AppState>, parts: Parts, body: Bytes) -> Response {
+    let c = prelude_or_return!(state, parts, body, true, None);
+    let out = async {
+        system_or_return!(c, "economia");
+        let me = uid(&c);
+        let row = db::first(
+            &c.db,
+            "SELECT dailyStreak, lastDailyAt FROM `User` WHERE id = ?",
+            params![me],
+        )
+        .await?
+        .ok_or_else(|| anyhow::anyhow!("Cannot read properties of null (reading 'lastDailyAt')"))?;
+        let now = db::now();
+        let last: Option<NaiveDateTime> = db::get(&row, "lastDailyAt")?;
+        if last.is_some_and(|l| now - l < DAILY_COOLDOWN) {
+            return Ok(err(StatusCode::BAD_REQUEST, ALREADY_CLAIMED));
+        }
+
+        let chests = db::all(
+            &c.db,
+            "SELECT name, chanceRegular, coinsMin, coinsMax, imageClosed, imageOpened \
+             FROM DailyChest WHERE enabled = 1 ORDER BY position ASC",
+            vec![],
+        )
+        .await?;
+        let Some(chest) = pick_chest(&chests, rand::random::<f64>())? else {
+            return Ok(err(StatusCode::BAD_REQUEST, "Nenhum baú diário configurado."));
+        };
+        let chest_name: String = db::get(chest, "name")?;
+        let coins = rand_int(db::get(chest, "coinsMin")?, db::get(chest, "coinsMax")?);
+
+        let streak_before: i64 = db::get::<Option<i64>>(&row, "dailyStreak")?.unwrap_or(0);
+        let (streak, mega) = next_streak(streak_before, last, now);
+        let mega_gems = if mega {
+            rand_int(levels::MEGA_CHEST_GEMS.0, levels::MEGA_CHEST_GEMS.1)
+        } else {
+            0
+        };
+
+        // Uma gravação só, com a trava das 24h na própria condição: dois
+        // cliques (ou duas abas) ao mesmo tempo não abrem dois baús.
+        let changed = db::exec(
+            &c.db,
+            "UPDATE `User` SET coins = coins + ?, gems = gems + ?, dailyStreak = ?, lastDailyAt = ?, updatedAt = ? \
+             WHERE id = ? AND (lastDailyAt IS NULL OR lastDailyAt <= ?)",
+            params![coins, mega_gems, streak, now, now, me, now - DAILY_COOLDOWN],
+        )
+        .await?;
+        if changed != 1 {
+            return Ok(err(StatusCode::BAD_REQUEST, ALREADY_CLAIMED));
+        }
+        let balance = db::first(
+            &c.db,
+            "SELECT coins, gems, dailyStreak FROM `User` WHERE id = ?",
+            params![me],
+        )
+        .await?
+        .ok_or_else(|| anyhow::anyhow!("Record to update not found."))?;
+
+        ledger_daily(&c.db, me, &format!("Baú diário: {chest_name}"), coins, 0).await;
+        if mega {
+            ledger_daily(&c.db, me, "Mega Baú (sequência completa)", 0, mega_gems).await;
+        }
+        let new_achievements = node::daily_claimed(&state, me).await;
+
+        Ok(reply(
+            &c,
+            json!({
+                "chestName": chest_name,
+                "chestImageClosed": db::col(chest, "imageClosed", Ty::Str)?,
+                "chestImageOpened": db::col(chest, "imageOpened", Ty::Str)?,
+                "coins": coins,
+                "streak": streak,
+                "streakRequired": *levels::MEGA_CHEST_STREAK_REQUIRED,
+                "megaAwarded": mega,
+                "megaGems": mega_gems,
+                "balance": {
+                    "coins": db::col(&balance, "coins", Ty::Int)?,
+                    "gems": db::col(&balance, "gems", Ty::Int)?,
+                    "dailyStreak": db::col(&balance, "dailyStreak", Ty::Int)?,
+                },
+                "newAchievements": new_achievements,
+            }),
+        ))
     }
     .await;
     finish(out, c.counted)

@@ -56,7 +56,7 @@ function SharedWalletCard({ id }) {
     return () => { alive = false; };
   }, [id]);
   if (data === null) return null;
-  if (data === undefined) return <div className="wcard-chat" aria-hidden="true"><span className="ilc-skel" style={{ width: 300, height: 189, borderRadius: 16 }} /></div>;
+  if (data === undefined) return <div className="wcard-chat" aria-hidden="true"><span className="ilc-skel" style={{ width: '100%', aspectRatio: '1.586', borderRadius: 14 }} /></div>;
   const when = new Date(data.card.createdAt).toLocaleString('pt-BR', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' });
   return (
     <div className="wcard-chat">

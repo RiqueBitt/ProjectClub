@@ -297,6 +297,14 @@ fn ported(state: &AppState) -> Router<AppState> {
         )
         // rotas internas (Rust → Node) não existem pra quem vem de fora
         .route("/api/economy", get(routes::economy::get_economy))
+        .route("/api/economy/daily", post(routes::economy::claim_daily))
+        // Passe do clube. O resto de /api/missions (lista, progresso e resgate
+        // das missões) ainda é do Node.
+        .route("/api/missions/season", get(routes::missions::get_season))
+        .route(
+            "/api/missions/season/claim",
+            post(routes::missions::claim_season),
+        )
         .route("/api/economy/chests", get(routes::economy::list_chests))
         .route(
             "/api/economy/card-style",

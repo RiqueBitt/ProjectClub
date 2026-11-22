@@ -120,6 +120,24 @@ const AFTER_ACTIONS = {
     return require('../services/offlineEmailNotifier').maybeSendOfflineEmail(userId, { type: p.type, actorName: typeof p.actorName === 'string' ? p.actorName : undefined });
   },
 };
+// Baú diário resgatado no Rust (POST /api/economy/daily): soma na missão
+// "baú do dia" sem esperar, como a rota do Node fazia, e devolve as
+// conquistas novas — elas vão na própria resposta do resgate.
+router.post('/daily-claimed', async (req, res) => {
+  const userId = req.body?.userId;
+  if (typeof userId !== 'string' || !userId) return res.status(400).json({ error: 'userId obrigatório.' });
+  const io = req.app.get('io');
+  Promise.resolve()
+    .then(() => require('../services/missions').track(userId, 'DAILY_CHEST', 1, io))
+    .catch((err) => console.error('[internal/daily-claimed] missão:', err?.message || err));
+  let newAchievements = [];
+  try {
+    const list = await require('../services/achievements').checkAndUnlock(userId, io);
+    if (Array.isArray(list)) newAchievements = list;
+  } catch (err) { console.error('[internal/daily-claimed] conquistas:', err?.message || err); }
+  res.json({ ok: true, newAchievements });
+});
+
 router.post('/after', async (req, res) => {
   const list = Array.isArray(req.body?.actions) ? req.body.actions : [];
   let done = 0;
