@@ -373,7 +373,8 @@ fn like_contains(q: &str) -> String {
     format!("%{q}%")
 }
 
-fn query_one(query: Option<&str>, key: &str) -> Option<Value> {
+/// Um parâmetro de `req.query` (parser "simple" do Express 5: repetido vira array).
+pub(crate) fn query_one(query: Option<&str>, key: &str) -> Option<Value> {
     let vals: Vec<String> = query
         .map(|q| {
             url::form_urlencoded::parse(q.as_bytes())

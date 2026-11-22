@@ -4,7 +4,6 @@
 //! (`modpackController.js`).
 
 use std::collections::HashSet;
-use std::sync::LazyLock;
 
 use axum::body::Bytes;
 use axum::extract::{Path, State};
@@ -108,30 +107,9 @@ pub(crate) async fn has_activity_access(db: &Db, viewer: &str, target: &str) -> 
 
 // ---------------------------------------------------------------- níveis
 
-/// `LEVELS` de `server/src/data/levelsCatalog.js` (nível → XP mínimo).
-static LEVELS: LazyLock<Vec<(i64, i64)>> = LazyLock::new(|| {
-    let src = include_str!("../../../../server/src/data/levelsCatalog.js");
-    let re = regex::Regex::new(r"\{\s*level:\s*(\d+),\s*name:\s*[^,]+,\s*minXp:\s*(\d+)")
-        .expect("regex");
-    re.captures_iter(src)
-        .filter_map(|c| Some((c[1].parse().ok()?, c[2].parse().ok()?)))
-        .collect()
-});
-
 /// Quanto (0–100) do nível atual já foi.
 fn level_progress(level: i64, xp: i64) -> i64 {
-    let current = LEVELS
-        .iter()
-        .find(|(l, _)| *l == level)
-        .or(LEVELS.first())
-        .copied()
-        .unwrap_or((1, 0));
-    let Some((_, next_min)) = LEVELS.iter().find(|(l, _)| *l == level + 1).copied() else {
-        return 100;
-    };
-    let in_level = (xp - current.1) as f64;
-    let needed = (next_min - current.1) as f64;
-    ((in_level / needed) * 100.0).floor().clamp(0.0, 100.0) as i64
+    crate::levels::progress(level, xp)
 }
 
 // ---------------------------------------------------------------- partes do perfil
@@ -619,20 +597,4 @@ pub async fn get_user(
     }
     .await;
     finish(out, c.counted)
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn niveis_lidos_do_catalogo_do_node() {
-        assert!(LEVELS.len() >= 40, "{}", LEVELS.len());
-        assert_eq!(LEVELS[0], (1, 0));
-        assert_eq!(LEVELS[1], (2, 556));
-        assert_eq!(level_progress(1, 278), 50);
-        assert_eq!(level_progress(1, -5), 0);
-        let last = LEVELS.last().unwrap().0;
-        assert_eq!(level_progress(last, 0), 100);
-    }
 }

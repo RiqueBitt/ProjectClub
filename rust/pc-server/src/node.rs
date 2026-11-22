@@ -100,6 +100,9 @@ pub struct Emit {
     pub except: Vec<String>,
     pub event: String,
     pub payload: serde_json::Value,
+    /// `emit(evento)` sem argumento nenhum (o `payload` é ignorado).
+    #[serde(skip_serializing_if = "std::ops::Not::not")]
+    pub bare: bool,
 }
 
 impl Emit {
@@ -109,6 +112,15 @@ impl Emit {
             except: vec![],
             event: event.into(),
             payload,
+            bare: false,
+        }
+    }
+
+    /// `io.to(...).emit(evento)` sem payload.
+    pub fn bare(rooms: &[&str], event: &str) -> Self {
+        Self {
+            bare: true,
+            ..Self::to(rooms, event, serde_json::Value::Null)
         }
     }
 

@@ -76,6 +76,9 @@ Cada fase é publicável sozinha, só quando o dono liberar.
         estatísticas do perfil
   - [ ] falta em `/api/users`: resumo do perfil (depende de fãs, traços,
         enquetes e visitas) e os envios de imagem
+  - [x] o que entrou no `main` depois do começo do branch (PRs #152–#162,
+        de outras pessoas): cartão da carteira e o resto de `/api/economy`,
+        busca de GIFs com largura/altura e a cestinha da Loja
   - [ ] próximo: amigos (`/api/friends`) e as partes do perfil (fãs,
         traços, enquetes, visitas, recados, depoimentos)
   - [ ] depois: amigos, mensagens, comunidades, economia, staff…
@@ -378,3 +381,32 @@ desejos e 11 pedidos recusados ou sem efeito (ClubTag curta, reservada e
 igual à atual; votar em si; voto inválido; denunciar a si; motivo
 inválido; item inválido; conquistas inválidas; perfil sem mudança) —
 59 de 59 iguais ao Node.
+
+### O que veio do `main` (PRs #152–#162)
+
+O `main` andou enquanto o Rust era feito (PRs de outras pessoas). O que
+mexeu no servidor foi trazido pro Rust:
+
+- `/api/economy` (#157/#158): carteira (`GET /`, com a meta da sequência,
+  quando o próximo baú libera e o cartão), cartão da carteira
+  (`PUT /card-style` com as regras de Assinante/Super, `POST /card/share`
+  com espera de 10 s, `GET /card/:id`), galeria dos baús, nível/rank com
+  o título da faixa, ranking (top 50 + a própria pessoa no fim com
+  `outsideTop50`) e o admin dos baús (listar, criar, editar, apagar, com
+  o aviso `chests:update` pra comunidade). A trava "sistema desligado
+  pela staff" (`requireSystemEnabled`) também foi portada. Os níveis, os
+  títulos e a meta do Mega Baú são lidos dos catálogos do Node.
+  O `POST /daily` (abrir o baú) fica no Node por enquanto: ele devolve as
+  conquistas novas na mesma resposta e mexe em missões.
+- `/api/gifs` (#158): busca e categorias da Klipy com `width`/`height`,
+  o limitador `gifs` (90/min por conta) e o mesmo cache do Node no Redis
+  (`cache:gifs:...`), então um lado aproveita o que o outro buscou.
+- `POST /api/decorations/checkout` (#160): a cestinha da Loja, tudo ou
+  nada numa transação, com as mesmas travas e mensagens (à venda, coleção
+  oculta, exclusivo, moeda, já tem, preço mudou, saldo, esgotado),
+  desconto de Assinante, número de série dos limitados e o histórico da
+  carteira.
+- A ponte `/api/internal/realtime` aceita `bare: true` (emit sem
+  argumento, igual a `emit('chests:update')`).
+- #161 só apagou coisas; o `raffle.js` e os emotes do CP (#158) são
+  tarefas do Node que rodam sozinhas, não rotas.

@@ -229,34 +229,139 @@ pub fn uid(c: &Ctx) -> &str {
     c.user.as_ref().map(|u| u.id.as_str()).unwrap_or_default()
 }
 
+/// `String(x)` do JavaScript (pra um valor que veio de JSON).
+pub fn js_to_string(v: &Value) -> String {
+    match v {
+        Value::Null => "null".into(),
+        Value::Bool(b) => b.to_string(),
+        Value::Number(n) => match n.as_f64() {
+            Some(f) => match db::js_number(f) {
+                Value::Number(m) => m.to_string(),
+                other => other.to_string(),
+            },
+            None => n.to_string(),
+        },
+        Value::String(s) => s.clone(),
+        Value::Array(a) => a
+            .iter()
+            .map(|x| {
+                if x.is_null() {
+                    String::new()
+                } else {
+                    js_to_string(x)
+                }
+            })
+            .collect::<Vec<_>>()
+            .join(","),
+        Value::Object(_) => "[object Object]".into(),
+    }
+}
+
 /// `String(x || '')` do JavaScript.
 pub fn js_string(v: Option<&Value>) -> String {
-    fn conv(v: &Value) -> String {
-        match v {
-            Value::Null => "null".into(),
-            Value::Bool(b) => b.to_string(),
-            Value::Number(n) => match n.as_f64() {
-                Some(f) => match db::js_number(f) {
-                    Value::Number(m) => m.to_string(),
-                    other => other.to_string(),
-                },
-                None => n.to_string(),
-            },
-            Value::String(s) => s.clone(),
-            Value::Array(a) => a
-                .iter()
-                .map(|x| if x.is_null() { String::new() } else { conv(x) })
-                .collect::<Vec<_>>()
-                .join(","),
-            Value::Object(_) => "[object Object]".into(),
-        }
-    }
     match v {
         None | Some(Value::Null) | Some(Value::Bool(false)) => String::new(),
         Some(Value::String(s)) if s.is_empty() => String::new(),
         Some(Value::Number(n)) if n.as_f64() == Some(0.0) => String::new(),
-        Some(other) => conv(other),
+        Some(other) => js_to_string(other),
     }
+}
+
+/// Espaço que o `parseInt`/`parseFloat` pulam no começo.
+fn js_trim_start(s: &str) -> &str {
+    s.trim_start_matches(|c: char| c.is_whitespace() || c == '\u{feff}')
+}
+
+/// `parseInt(x, 10)` do JavaScript (`None` = `undefined`).
+pub fn js_parse_int(v: Option<&Value>) -> f64 {
+    let text = v.map(js_to_string).unwrap_or_else(|| "undefined".into());
+    let t = js_trim_start(&text);
+    let (neg, digits) = match t.as_bytes().first() {
+        Some(b'-') => (true, &t[1..]),
+        Some(b'+') => (false, &t[1..]),
+        _ => (false, t),
+    };
+    let end = digits
+        .bytes()
+        .position(|b| !b.is_ascii_digit())
+        .unwrap_or(digits.len());
+    if end == 0 {
+        return f64::NAN;
+    }
+    let n: f64 = digits[..end].parse().unwrap_or(f64::NAN);
+    if neg { -n } else { n }
+}
+
+/// `parseFloat(x)` do JavaScript (`None` = `undefined`).
+pub fn js_parse_float(v: Option<&Value>) -> f64 {
+    static RE: std::sync::LazyLock<regex::Regex> = std::sync::LazyLock::new(|| {
+        regex::Regex::new(r"^[+-]?(Infinity|(\d+\.?\d*|\.\d+)([eE][+-]?\d+)?)").expect("regex")
+    });
+    let text = v.map(js_to_string).unwrap_or_else(|| "undefined".into());
+    let t = js_trim_start(&text);
+    let Some(m) = RE.find(t) else {
+        return f64::NAN;
+    };
+    let s = m.as_str();
+    match s.trim_start_matches(['+', '-']) {
+        "Infinity" if s.starts_with('-') => f64::NEG_INFINITY,
+        "Infinity" => f64::INFINITY,
+        _ => s.parse().unwrap_or(f64::NAN),
+    }
+}
+
+/// `requireSystemEnabled(chave)`: quem não é ADMIN da plataforma leva 503
+/// se o sistema estiver na lista `PlatformSettings.disabledSystems`.
+pub async fn require_system(db: &Db, user_id: &str, key: &str) -> anyhow::Result<Option<Response>> {
+    let role: Option<Option<String>> = db::scalar(
+        db,
+        "SELECT platformRole FROM `User` WHERE id = ?",
+        crate::params![user_id],
+    )
+    .await?;
+    if role.flatten().as_deref() == Some("ADMIN") {
+        return Ok(None);
+    }
+    let raw: Option<String> = db::scalar(
+        db,
+        "SELECT disabledSystems FROM `PlatformSettings` WHERE id = 'singleton'",
+        vec![],
+    )
+    .await?;
+    let raw = raw.filter(|r| !r.is_empty()).unwrap_or_else(|| "[]".into());
+    let disabled = crate::js::parse(&raw).unwrap_or(Value::Array(vec![]));
+    // `disabled.includes(chave)`: array compara itens, texto procura pedaço,
+    // o resto não tem `includes` (TypeError → 500).
+    let off = match &disabled {
+        Value::Array(a) => a.iter().any(|x| x.as_str() == Some(key)),
+        Value::String(s) => s.contains(key),
+        _ => anyhow::bail!("disabled.includes is not a function"),
+    };
+    Ok(off.then(|| {
+        error(
+            StatusCode::SERVICE_UNAVAILABLE,
+            json!({
+                "error": "Este sistema está temporariamente desativado pela equipe.",
+                "systemDisabled": key,
+            }),
+        )
+    }))
+}
+
+/// `requirePlatformAdmin`: 403 pra quem não é ADMIN da plataforma.
+pub async fn require_platform_admin(db: &Db, user_id: &str) -> anyhow::Result<Option<Response>> {
+    let role: Option<Option<String>> = db::scalar(
+        db,
+        "SELECT platformRole FROM `User` WHERE id = ?",
+        crate::params![user_id],
+    )
+    .await?;
+    Ok((role.flatten().as_deref() != Some("ADMIN")).then(|| {
+        err(
+            StatusCode::FORBIDDEN,
+            "Acesso restrito a administradores da plataforma.",
+        )
+    }))
 }
 
 /// `encodeurl` (o que o Express faz no `Location`): escapa o que não pode

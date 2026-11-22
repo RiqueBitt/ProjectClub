@@ -24,6 +24,23 @@ impl std::fmt::Debug for OAuthClient {
     }
 }
 
+/// Texto secreto: o `Debug` não mostra o valor.
+#[derive(Clone, Default)]
+pub struct Secret(pub String);
+
+impl std::fmt::Debug for Secret {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(if self.0.is_empty() {
+            "Secret(vazio)"
+        } else {
+            "Secret(***)"
+        })
+    }
+}
+
+/// `KLIPY_BASE` do gifController.js.
+pub const KLIPY_BASE: &str = "https://api.klipy.com/v2";
+
 /// Provedor → variáveis do app (`GOOGLE_CLIENT_ID` etc.), como no Node.
 pub const OAUTH_ENV: [(&str, &str, &str); 3] = [
     ("google", "GOOGLE_CLIENT_ID", "GOOGLE_CLIENT_SECRET"),
@@ -61,6 +78,10 @@ pub struct Config {
     pub oauth_clients: std::collections::BTreeMap<String, OAuthClient>,
     /// Só nos testes: troca os endereços dos provedores por um servidor falso.
     pub oauth_test_base: Option<String>,
+    /// `KLIPY_KEY` (ou `VITE_KLIPY_KEY`): chave da busca de GIFs.
+    pub klipy_key: Secret,
+    /// Endereço da API da Klipy (os testes apontam pra um servidor falso).
+    pub klipy_base: String,
 }
 
 impl Config {
@@ -128,6 +149,14 @@ impl Config {
                 })
                 .collect(),
             oauth_test_base: None,
+            klipy_key: Secret(
+                std::env::var("KLIPY_KEY")
+                    .ok()
+                    .filter(|v| !v.is_empty())
+                    .or_else(|| std::env::var("VITE_KLIPY_KEY").ok())
+                    .unwrap_or_default(),
+            ),
+            klipy_base: KLIPY_BASE.into(),
         })
     }
 }
@@ -179,6 +208,8 @@ impl Config {
             client_origin: "http://localhost:5173".into(),
             oauth_clients: Default::default(),
             oauth_test_base: None,
+            klipy_key: Secret::default(),
+            klipy_base: KLIPY_BASE.into(),
         }
     }
 }

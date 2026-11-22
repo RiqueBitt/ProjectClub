@@ -72,7 +72,7 @@ test('/realtime emite na ordem, com salas e exceções, e repassa a presença', 
   const chain = (to = [], except = []) => ({
     to: (r) => chain([...to, r], except),
     except: (r) => chain(to, [...except, r]),
-    emit: (event, payload) => log.push({ to, except, event, payload }),
+    emit: (...args) => log.push(args.length === 1 ? { to, except, event: args[0], bare: true } : { to, except, event: args[0], payload: args[1] }),
   });
   const io = chain();
   io.emitPresenceUpdate = (u) => log.push({ presence: u.id });
@@ -89,6 +89,7 @@ test('/realtime emite na ordem, com salas e exceções, e repassa a presença', 
         emits: [
           { to: ['user:u1'], event: 'user:update', payload: { id: 'u1' } },
           { to: ['community'], except: ['user:u1'], event: 'user:update', payload: { id: 'u1', p: 1 } },
+          { to: ['community'], event: 'chests:update', payload: null, bare: true },
         ],
         presence: { user: { id: 'u1', status: 'DND' }, manualStatus: 'DND' },
       }),
@@ -97,6 +98,7 @@ test('/realtime emite na ordem, com salas e exceções, e repassa a presença', 
     assert.deepStrictEqual(log, [
       { to: ['user:u1'], except: [], event: 'user:update', payload: { id: 'u1' } },
       { to: ['community'], except: ['user:u1'], event: 'user:update', payload: { id: 'u1', p: 1 } },
+      { to: ['community'], except: [], event: 'chests:update', bare: true },
       { presence: 'u1' },
       { manual: 'u1:DND' },
     ]);

@@ -75,7 +75,8 @@ router.post('/kick', (req, res) => {
 // processada NA ORDEM, pra um pedido só levar tudo o que a rota do Node
 // emitia: { emits: [{ to: [salas], except: [salas], event, payload }],
 //           presence?: { user, manualStatus? } }.
-// Sala vazia (`to: []`) = todo mundo (io.emit). Os emits passam pela mesma
+// Sala vazia (`to: []`) = todo mundo (io.emit); `bare: true` = emit sem
+// argumento nenhum (igual a `emit('evento')`). Os emits passam pela mesma
 // máscara do "invisível" (installSocketMasking).
 router.post('/realtime', (req, res) => {
   const io = req.app.get('io');
@@ -87,7 +88,8 @@ router.post('/realtime', (req, res) => {
     let target = io;
     for (const r of rooms(e.to)) target = target.to(r);
     for (const r of rooms(e.except)) target = target.except(r);
-    target.emit(e.event, e.payload === undefined ? null : e.payload);
+    if (e.bare === true) target.emit(e.event);
+    else target.emit(e.event, e.payload === undefined ? null : e.payload);
   }
   if (presence && presence.user && typeof presence.user.id === 'string' && io) {
     io.emitPresenceUpdate?.(presence.user);

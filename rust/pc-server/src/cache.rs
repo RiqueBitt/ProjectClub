@@ -151,6 +151,57 @@ impl Cache {
         }
         fresh
     }
+
+    /// `cacheGetOrSet` com um cálculo que pode falhar: o erro não vai pro
+    /// cache (e quem esperava calcula de novo por conta própria).
+    pub async fn try_get_or_set<T, E, F, Fut>(
+        &self,
+        key: &str,
+        ttl_secs: u64,
+        compute: F,
+    ) -> Result<T, E>
+    where
+        T: Serialize + DeserializeOwned,
+        F: FnOnce() -> Fut,
+        Fut: Future<Output = Result<T, E>>,
+    {
+        let full = format!("cache:{key}");
+        if let Some(mut conn) = self.redis.clone()
+            && let Ok(Some(text)) = conn.get::<_, Option<String>>(&full).await
+            && let Ok(v) = serde_json::from_str(&text)
+        {
+            return Ok(v);
+        }
+        let waiter = {
+            let mut map = self.inflight.lock().await;
+            match map.get(key) {
+                Some(tx) => Some(tx.subscribe()),
+                None => {
+                    map.insert(key.to_string(), broadcast::channel(1).0);
+                    None
+                }
+            }
+        };
+        if let Some(mut rx) = waiter {
+            if let Ok(text) = rx.recv().await
+                && let Ok(v) = serde_json::from_str(&text)
+            {
+                return Ok(v);
+            }
+            return compute().await;
+        }
+        let fresh = compute().await;
+        let tx = self.inflight.lock().await.remove(key);
+        let fresh = fresh?;
+        let text = serde_json::to_string(&fresh).unwrap_or_default();
+        if let Some(mut conn) = self.redis.clone() {
+            let _: Result<(), _> = conn.set_ex(&full, &text, ttl_secs).await;
+        }
+        if let Some(tx) = tx {
+            let _ = tx.send(text);
+        }
+        Ok(fresh)
+    }
 }
 
 #[cfg(test)]

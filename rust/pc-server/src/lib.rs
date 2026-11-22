@@ -11,6 +11,7 @@ pub mod config;
 pub mod db;
 pub mod iron;
 pub mod js;
+pub mod levels;
 pub mod node;
 pub mod prisma_json;
 pub mod proxy;
@@ -293,6 +294,33 @@ fn ported(state: &AppState) -> Router<AppState> {
             delete(routes::me::delete_shortcut),
         )
         // rotas internas (Rust → Node) não existem pra quem vem de fora
+        .route("/api/economy", get(routes::economy::get_economy))
+        .route("/api/economy/chests", get(routes::economy::list_chests))
+        .route(
+            "/api/economy/card-style",
+            put(routes::economy::set_card_style),
+        )
+        .route("/api/economy/card/share", post(routes::economy::share_card))
+        .route(
+            "/api/economy/card/{id}",
+            get(routes::economy::get_shared_card),
+        )
+        .route("/api/economy/rank", get(routes::economy::get_rank))
+        .route(
+            "/api/economy/leaderboard",
+            get(routes::economy::leaderboard),
+        )
+        .route(
+            "/api/economy/admin/chests",
+            get(routes::economy::admin_list_chests).post(routes::economy::admin_create_chest),
+        )
+        .route(
+            "/api/economy/admin/chests/{id}",
+            patch(routes::economy::admin_update_chest).delete(routes::economy::admin_delete_chest),
+        )
+        .route("/api/gifs/search", get(routes::gifs::search))
+        .route("/api/gifs/categories", get(routes::gifs::categories))
+        .route("/api/decorations/checkout", post(routes::shop::checkout))
         .route("/api/internal", any(not_found))
         .route("/api/internal/{*rest}", any(not_found))
         .method_not_allowed_fallback(proxy::forward)
