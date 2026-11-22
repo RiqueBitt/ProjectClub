@@ -13,7 +13,7 @@ use serde_json::{Map, Value, json};
 use crate::AppState;
 use crate::db::{self, Db};
 use crate::params;
-use crate::prisma_json::{pick, row};
+use crate::prisma_json::pick;
 use crate::ratelimit;
 use crate::routes::ctx::{By, err, finish, prelude_or_return, uid};
 
@@ -30,11 +30,10 @@ const SECRET_USER_FIELDS: [&str; 7] = [
 
 /// Linhas inteiras de um modelo (`SELECT *`), como o `findMany` sem `select`.
 async fn rows(db: &Db, model: &str, rest: &str, p: Vec<db::Value>) -> db::DbResult<Vec<Value>> {
-    let sql = format!("SELECT * FROM `{model}` {rest}");
-    Ok(db::all(db, &sql, p)
+    Ok(crate::prisma_json::find_many(db, model, rest, p)
         .await?
         .into_iter()
-        .map(|r| Value::Object(row(model, r)))
+        .map(Value::Object)
         .collect())
 }
 

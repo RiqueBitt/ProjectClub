@@ -141,6 +141,48 @@ pub fn row(model: &str, mut r: Row) -> Map<String, Value> {
     out
 }
 
+/// `findMany` sem `select`: linhas inteiras de um modelo (`SELECT *`).
+pub async fn find_many(
+    db: &crate::db::Db,
+    model: &str,
+    rest: &str,
+    p: Vec<My>,
+) -> crate::db::DbResult<Vec<Map<String, Value>>> {
+    let sql = format!("SELECT * FROM `{model}` {rest}");
+    Ok(crate::db::all(db, &sql, p)
+        .await?
+        .into_iter()
+        .map(|r| row(model, r))
+        .collect())
+}
+
+/// `findFirst`/`findUnique` sem `select`.
+pub async fn find_one(
+    db: &crate::db::Db,
+    model: &str,
+    rest: &str,
+    p: Vec<My>,
+) -> crate::db::DbResult<Option<Map<String, Value>>> {
+    let sql = format!("SELECT * FROM `{model}` {rest} LIMIT 1");
+    Ok(crate::db::first(db, &sql, p).await?.map(|r| row(model, r)))
+}
+
+/// Um valor JSON como parâmetro do MySQL (booleano vira 0/1).
+pub fn param(v: &Value) -> My {
+    match v {
+        Value::Null => My::NULL,
+        Value::Bool(b) => My::Int(i64::from(*b)),
+        Value::Number(n) => match (n.as_i64(), n.as_f64()) {
+            (Some(i), _) => My::Int(i),
+            (None, Some(f)) if f.fract() == 0.0 && f.abs() < 9.0e15 => My::Int(f as i64),
+            (None, Some(f)) => My::Double(f),
+            _ => My::NULL,
+        },
+        Value::String(s) => My::Bytes(s.clone().into_bytes()),
+        other => My::Bytes(other.to_string().into_bytes()),
+    }
+}
+
 /// Só alguns campos (`select`), na ordem pedida.
 pub fn pick(mut obj: Map<String, Value>, keys: &[&str]) -> Map<String, Value> {
     let mut out = Map::new();

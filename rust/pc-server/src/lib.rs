@@ -10,6 +10,7 @@ pub mod check;
 pub mod config;
 pub mod db;
 pub mod iron;
+pub mod js;
 pub mod node;
 pub mod prisma_json;
 pub mod proxy;
@@ -225,6 +226,39 @@ fn ported(state: &AppState) -> Router<AppState> {
             delete(routes::users::remove_id_card),
         )
         .route("/api/users/search", get(routes::users::search))
+        .route(
+            "/api/users/me/settings",
+            get(routes::me::get_settings).patch(routes::me::update_settings),
+        )
+        .route(
+            "/api/users/me/settings/reset",
+            post(routes::me::reset_settings),
+        )
+        .route(
+            "/api/users/me/usable-emojis",
+            get(routes::me::usable_emojis),
+        )
+        .route(
+            "/api/users/me/favorite-gifs",
+            get(routes::me::list_gifs).post(routes::me::add_gif),
+        )
+        .route(
+            "/api/users/me/favorite-gifs/{gif_id}",
+            delete(routes::me::remove_gif),
+        )
+        .route(
+            "/api/users/me/games",
+            get(routes::me::list_games).post(routes::me::add_game),
+        )
+        .route("/api/users/me/games/{id}", delete(routes::me::remove_game))
+        .route(
+            "/api/users/me/shortcuts",
+            get(routes::me::list_shortcuts).put(routes::me::set_shortcut),
+        )
+        .route(
+            "/api/users/me/shortcuts/{id}",
+            delete(routes::me::delete_shortcut),
+        )
         // rotas internas (Rust → Node) não existem pra quem vem de fora
         .route("/api/internal", any(not_found))
         .route("/api/internal/{*rest}", any(not_found))

@@ -24,7 +24,16 @@ async fn redis_caido_responde_500_rapido() {
         .stdout(std::process::Stdio::null())
         .spawn()
         .unwrap();
-    tokio::time::sleep(Duration::from_millis(300)).await;
+    // espera o Redis de teste aceitar conexão (até 5 s)
+    for _ in 0..50 {
+        if tokio::net::TcpStream::connect(("127.0.0.1", port))
+            .await
+            .is_ok()
+        {
+            break;
+        }
+        tokio::time::sleep(Duration::from_millis(100)).await;
+    }
     let Some(env) = common::setup_with(|c| pc_server::config::Config {
         redis_url: Some(format!("redis://127.0.0.1:{port}")),
         ..c
