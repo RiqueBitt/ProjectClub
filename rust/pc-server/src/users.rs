@@ -120,6 +120,29 @@ pub fn self_select_sql() -> String {
     )
 }
 
+/// `SELECT` com os campos públicos (`PUBLIC_USER_FIELDS`) e um `WHERE`/resto
+/// à escolha (`u` é o apelido da tabela).
+pub fn public_select_sql(rest: &str) -> String {
+    format!(
+        "SELECT {pub_cols}, {RELATION_COLUMNS} FROM `User` u {RELATION_JOINS} {rest}",
+        pub_cols = columns(PUBLIC_FIELDS),
+    )
+}
+
+/// Usuário só com os campos públicos.
+pub fn public_user(row: &Row) -> DbResult<Map<String, Value>> {
+    let mut out = Map::new();
+    let (clan_tag, pendant) = relations(row)?;
+    for (key, column, ty) in PUBLIC_FIELDS {
+        if *key == "customPendantUrl" {
+            out.insert("clanTag".into(), clan_tag.clone());
+            out.insert("selectedPendant".into(), pendant.clone());
+        }
+        out.insert((*key).into(), db::col(row, column, *ty)?);
+    }
+    Ok(out)
+}
+
 fn relations(row: &Row) -> DbResult<(Value, Value)> {
     // clanTag: { tag, clan: { icon: ClanIcon | null, iconColor } } ou null
     let clan_tag = if db::col(row, "_ct_id", Ty::Str)?.is_null() {

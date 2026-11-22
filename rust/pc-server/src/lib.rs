@@ -25,7 +25,7 @@ pub mod webauthn;
 use axum::Router;
 use axum::http::StatusCode;
 use axum::middleware::from_fn_with_state;
-use axum::routing::{any, delete, get, post};
+use axum::routing::{any, delete, get, patch, post};
 use tower_http::compression::CompressionLayer;
 
 #[derive(Clone)]
@@ -42,6 +42,8 @@ pub struct AppState {
     pub auth_cache: auth::AuthCache,
     /// cache do `blockedIpGuard` (60 s por IP)
     pub block_cache: web::BlockCache,
+    /// fila de tempo real pro Socket.IO do Node
+    pub realtime: node::Realtime,
 }
 
 impl AppState {
@@ -59,11 +61,12 @@ impl AppState {
             config,
             cache,
             http: proxy::client(),
-            web,
             db,
             tokens,
             auth_cache: auth::AuthCache::default(),
             block_cache: web::BlockCache::default(),
+            realtime: node::Realtime::start(web.clone()),
+            web,
         })
     }
 }
@@ -193,12 +196,42 @@ fn ported(state: &AppState) -> Router<AppState> {
             "/api/auth/oauth/{provider}/callback",
             get(routes::oauth::callback),
         )
+        // /api/users (parte)
+        .route("/api/users/me/theme", patch(routes::users::set_theme))
+        .route(
+            "/api/users/me/layout-style",
+            patch(routes::users::set_layout_style),
+        )
+        .route(
+            "/api/users/me/chat-zoom",
+            patch(routes::users::set_chat_zoom),
+        )
+        .route(
+            "/api/users/me/interface-zoom",
+            patch(routes::users::set_interface_zoom),
+        )
+        .route(
+            "/api/users/me/emoji-style",
+            patch(routes::users::set_emoji_style),
+        )
+        .route("/api/users/me/status", patch(routes::users::set_status))
+        .route(
+            "/api/users/me/custom-status",
+            patch(routes::users::set_custom_status),
+        )
+        .route("/api/users/me/tag", patch(routes::users::set_active_tag))
+        .route(
+            "/api/users/me/id-card",
+            delete(routes::users::remove_id_card),
+        )
+        .route("/api/users/search", get(routes::users::search))
         // rotas internas (Rust → Node) não existem pra quem vem de fora
         .route("/api/internal", any(not_found))
         .route("/api/internal/{*rest}", any(not_found))
         .method_not_allowed_fallback(proxy::forward)
         .layer(web::body_limit())
         .layer(axum::middleware::from_fn(web::express_send))
+        .layer(from_fn_with_state(state.clone(), web::invalidate_on_write))
         .layer(CompressionLayer::new())
         .layer(from_fn_with_state(state.clone(), web::headers))
         .layer(from_fn_with_state(state.clone(), web::blocked_ip_guard))

@@ -71,4 +71,29 @@ router.post('/kick', (req, res) => {
   res.json({ ok: true });
 });
 
+// Tempo real pedido pelo Rust (o Socket.IO continua no Node). Uma lista
+// processada NA ORDEM, pra um pedido só levar tudo o que a rota do Node
+// emitia: { emits: [{ to: [salas], except: [salas], event, payload }],
+//           presence?: { user, manualStatus? } }.
+// Sala vazia (`to: []`) = todo mundo (io.emit). Os emits passam pela mesma
+// máscara do "invisível" (installSocketMasking).
+router.post('/realtime', (req, res) => {
+  const io = req.app.get('io');
+  const { emits, presence } = req.body || {};
+  const list = Array.isArray(emits) ? emits : [];
+  const rooms = (v) => (Array.isArray(v) ? v.filter((r) => typeof r === 'string' && r) : []);
+  for (const e of list) {
+    if (!e || typeof e.event !== 'string' || !io) continue;
+    let target = io;
+    for (const r of rooms(e.to)) target = target.to(r);
+    for (const r of rooms(e.except)) target = target.except(r);
+    target.emit(e.event, e.payload === undefined ? null : e.payload);
+  }
+  if (presence && presence.user && typeof presence.user.id === 'string' && io) {
+    io.emitPresenceUpdate?.(presence.user);
+    if (typeof presence.manualStatus === 'string') io.onManualStatusChange?.(presence.user.id, presence.manualStatus);
+  }
+  res.json({ ok: true, emitted: list.length });
+});
+
 module.exports = { router, internalSecret };

@@ -102,6 +102,86 @@ pub async fn headers(State(state): State<AppState>, req: Request, next: Next) ->
     res
 }
 
+/// `invalidateOnWrite` (`services/sharedCache.js`): escrita que deu certo
+/// (2xx) nessas rotas apaga o cache compartilhado do carregamento.
+const WRITE_PREFIXES: [(&str, &[&str]); 7] = [
+    ("/community", &["community"]),
+    ("/users", &["community"]),
+    ("/clans", &["community"]),
+    ("/decorations", &["community"]),
+    (
+        "/admin",
+        &[
+            "community",
+            "status",
+            "announcement",
+            "uiLayout",
+            "events",
+            "appCatalog",
+        ],
+    ),
+    ("/platform", &["status", "announcement", "community"]),
+    ("/ui-layout", &["uiLayout"]),
+];
+const EVENTS_PREFIX: (&str, &[&str]) = ("/events", &["events"]);
+
+fn shared_key(name: &str) -> &'static str {
+    match name {
+        "community" => "shared:community",
+        "status" => "shared:platform-status",
+        "events" => "shared:events",
+        "uiLayout" => "shared:ui-layout",
+        "announcement" => "shared:announcement",
+        _ => "shared:app-catalog",
+    }
+}
+
+/// As seções afetadas por uma escrita em `path` (sem o `/api`).
+pub fn sections_for_path(path: &str) -> Vec<&'static str> {
+    let mut hit: Vec<&'static str> = Vec::new();
+    for (prefix, names) in WRITE_PREFIXES.iter().chain(std::iter::once(&EVENTS_PREFIX)) {
+        let starts = path
+            .strip_prefix(prefix)
+            .is_some_and(|rest| rest.is_empty() || rest.starts_with('/'));
+        if starts {
+            for n in *names {
+                if !hit.contains(n) {
+                    hit.push(n);
+                }
+            }
+        }
+    }
+    hit
+}
+
+pub async fn invalidate_on_write(
+    State(state): State<AppState>,
+    req: Request,
+    next: Next,
+) -> Response {
+    let method = req.method().clone();
+    let path = req.uri().path().to_string();
+    let res = next.run(req).await;
+    if matches!(method.as_str(), "GET" | "HEAD" | "OPTIONS")
+        || res.extensions().get::<crate::proxy::Proxied>().is_some()
+        || !res.status().is_success()
+    {
+        return res;
+    }
+    if let Some(path) = path.strip_prefix("/api") {
+        let names = sections_for_path(path);
+        if !names.is_empty() {
+            let cache = state.cache.clone();
+            tokio::spawn(async move {
+                for n in names {
+                    let _ = cache.del(&format!("cache:{}", shared_key(n))).await;
+                }
+            });
+        }
+    }
+    res
+}
+
 /// O que o `res.send` do Express faz com o corpo, nas rotas do Rust:
 /// `charset=utf-8` no JSON, `ETag` fraco (`app.set('etag', 'weak')`) e 304
 /// quando o navegador já tem a mesma resposta (`If-None-Match`).
@@ -315,6 +395,18 @@ mod tests {
         let mut m = HeaderMap::new();
         m.insert(header::CONTENT_TYPE, HeaderValue::from_str(ct).unwrap());
         m
+    }
+
+    #[test]
+    fn secoes_do_cache_como_o_node() {
+        assert_eq!(sections_for_path("/users/me/theme"), ["community"]);
+        assert_eq!(sections_for_path("/usersx"), Vec::<&str>::new());
+        assert_eq!(
+            sections_for_path("/platform"),
+            ["status", "announcement", "community"]
+        );
+        assert_eq!(sections_for_path("/events/1"), ["events"]);
+        assert!(sections_for_path("/messages/1").is_empty());
     }
 
     #[test]

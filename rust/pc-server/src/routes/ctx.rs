@@ -70,7 +70,79 @@ pub struct Ctx {
     pub headers: HeaderMap,
     pub ip: Option<String>,
     pub user: Option<AuthUser>,
-    pub counted: Option<ratelimit::Counted>,
+    /// Cabeçalhos dos limitadores que contaram (os de `/api` e o da rota).
+    pub counted: Vec<ratelimit::Counted>,
+}
+
+/// Os três limitadores montados em `app.use('/api', ...)` no Node, que
+/// valem pra tudo menos `/api/auth` e `/api/platform/status`:
+/// leituras (GET, 4000/15 min por IP), "marcar como lido" (3000) e
+/// escritas (400/15 min, pela conta quando o token é válido).
+pub const READS: Limit = Limit {
+    prefix: "reads",
+    window_ms: 15 * 60 * 1000,
+    max: 4000,
+    message: None,
+    standard: true,
+    legacy: false,
+};
+pub const READMARKS: Limit = Limit {
+    prefix: "readmarks",
+    window_ms: 15 * 60 * 1000,
+    max: 3000,
+    message: None,
+    standard: false,
+    legacy: false,
+};
+pub const WRITES: Limit = Limit {
+    prefix: "writes",
+    window_ms: 15 * 60 * 1000,
+    max: 400,
+    message: None,
+    standard: true,
+    legacy: false,
+};
+
+/// `/conversations/<id>/read` e `/community/channels/<id>/read`.
+fn is_read_mark(path: &str) -> bool {
+    let seg: Vec<&str> = path.trim_start_matches('/').split('/').collect();
+    let ok_id = |s: &str| !s.is_empty();
+    matches!(seg.as_slice(), ["conversations", id, "read"] if ok_id(id))
+        || matches!(seg.as_slice(), ["community", "channels", id, "read"] if ok_id(id))
+}
+
+async fn api_limits(
+    state: &AppState,
+    parts: &Parts,
+    ip: Option<&str>,
+) -> Result<Vec<ratelimit::Counted>, Box<Response>> {
+    let Some(path) = parts.uri.path().strip_prefix("/api") else {
+        return Ok(vec![]);
+    };
+    if path.starts_with("/auth") || path == "/platform/status" || path.starts_with("/internal") {
+        return Ok(vec![]);
+    }
+    let ip_key = ip.unwrap_or("unknown");
+    let user_or_ip = || {
+        parts
+            .headers
+            .get(header::AUTHORIZATION)
+            .and_then(|v| v.to_str().ok())
+            .and_then(|v| v.strip_prefix("Bearer "))
+            .and_then(|t| state.tokens.verify(t))
+            .map(|c| format!("u:{}", c.sub))
+            .unwrap_or_else(|| format!("ip:{ip_key}"))
+    };
+    let mut out = Vec::new();
+    let method = &parts.method;
+    if method == axum::http::Method::GET {
+        out.push(ratelimit::guard(&state.cache, &READS, ip_key).await?);
+    } else if method == axum::http::Method::POST && is_read_mark(path) {
+        out.push(ratelimit::guard(&state.cache, &READMARKS, &user_or_ip()).await?);
+    } else {
+        out.push(ratelimit::guard(&state.cache, &WRITES, &user_or_ip()).await?);
+    }
+    Ok(out)
 }
 
 pub async fn prelude(
@@ -84,30 +156,44 @@ pub async fn prelude(
         return Err(Box::new(server_error()));
     };
     let body = web::json_body(&parts.headers, body)?;
-    let user = if needs_auth {
-        Some(
-            AuthUser::from_request_parts(&mut parts, state)
-                .await
-                .map_err(Box::new)?,
-        )
-    } else {
-        None
-    };
     let peer = parts
         .extensions
         .get::<ConnectInfo<SocketAddr>>()
         .map(|c| c.0);
     let ip = s::client_ip(&parts.headers, peer);
-    let counted = match limit {
+    let mut counted = api_limits(state, &parts, ip.as_deref()).await?;
+    let user = if needs_auth {
+        match AuthUser::from_request_parts(&mut parts, state).await {
+            Ok(u) => Some(u),
+            Err(mut r) => {
+                for c in &counted {
+                    c.apply(&mut r);
+                }
+                return Err(Box::new(r));
+            }
+        }
+    } else {
+        None
+    };
+    let route_limit = match limit {
         Some((l, by)) => {
             let key = match (by, &user) {
                 (By::User, Some(u)) => format!("u:{}", u.id),
                 _ => ip.clone().unwrap_or_else(|| "unknown".into()),
             };
-            Some(ratelimit::guard(&state.cache, l, &key).await?)
+            match ratelimit::guard(&state.cache, l, &key).await {
+                Ok(c) => Some(c),
+                Err(mut r) => {
+                    for c in &counted {
+                        c.apply(&mut r);
+                    }
+                    return Err(r);
+                }
+            }
         }
         None => None,
     };
+    counted.extend(route_limit);
     Ok(Ctx {
         db,
         body,
@@ -118,12 +204,12 @@ pub async fn prelude(
     })
 }
 
-pub fn finish(out: anyhow::Result<Response>, counted: Option<ratelimit::Counted>) -> Response {
+pub fn finish(out: anyhow::Result<Response>, counted: Vec<ratelimit::Counted>) -> Response {
     let mut res = out.unwrap_or_else(|e| {
-        tracing::error!("[auth] {e}");
+        tracing::error!("[api] {e}");
         server_error()
     });
-    if let Some(c) = counted {
+    for c in counted {
         c.apply(&mut res);
     }
     res
@@ -265,6 +351,78 @@ pub fn redirect(headers: &HeaderMap, status: StatusCode, to: &str) -> Response {
     }
     h.insert(header::VARY, axum::http::HeaderValue::from_static("Accept"));
     res
+}
+
+/// `Number(x)` do JavaScript (`None` = `undefined` → NaN).
+pub fn js_to_number(v: Option<&Value>) -> f64 {
+    fn from_str(s: &str) -> f64 {
+        let t = s.trim_matches(|c: char| c.is_whitespace() || c == '\u{feff}');
+        if t.is_empty() {
+            return 0.0;
+        }
+        let radix = |p: &str, r: u32| {
+            t.strip_prefix(p)
+                .or_else(|| t.strip_prefix(&p.to_uppercase()))
+                .map(|d| {
+                    u64::from_str_radix(d, r)
+                        .map(|n| n as f64)
+                        .unwrap_or(f64::NAN)
+                })
+        };
+        if let Some(n) = radix("0x", 16)
+            .or_else(|| radix("0b", 2))
+            .or_else(|| radix("0o", 8))
+        {
+            return n;
+        }
+        match t {
+            "Infinity" | "+Infinity" => f64::INFINITY,
+            "-Infinity" => f64::NEG_INFINITY,
+            _ => {
+                // só o formato decimal do JS (nada de "inf", "nan", "1_000")
+                let ok = t
+                    .bytes()
+                    .all(|b| b.is_ascii_digit() || b"+-.eE".contains(&b));
+                if ok {
+                    t.parse::<f64>().unwrap_or(f64::NAN)
+                } else {
+                    f64::NAN
+                }
+            }
+        }
+    }
+    match v {
+        None => f64::NAN,
+        Some(Value::Null) => 0.0,
+        Some(Value::Bool(b)) => f64::from(u8::from(*b)),
+        Some(Value::Number(n)) => n.as_f64().unwrap_or(f64::NAN),
+        Some(Value::String(s)) => from_str(s),
+        Some(Value::Array(a)) => match a.as_slice() {
+            [] => 0.0,
+            [one] if !one.is_array() && !one.is_object() => match one {
+                Value::Null => 0.0,
+                other => from_str(&js_string(Some(other))),
+            },
+            _ => f64::NAN,
+        },
+        Some(Value::Object(_)) => f64::NAN,
+    }
+}
+
+/// `Math.round` do JavaScript (meio arredonda pra cima, inclusive negativo).
+pub fn js_round(x: f64) -> f64 {
+    let f = x.floor();
+    if x - f >= 0.5 { f + 1.0 } else { f }
+}
+
+/// `.slice(0, n)` do JavaScript (conta em UTF-16).
+pub fn js_slice(v: &str, n: usize) -> String {
+    String::from_utf16_lossy(&v.encode_utf16().take(n).collect::<Vec<u16>>())
+}
+
+/// `.trim()` do JavaScript.
+pub fn js_trim(v: &str) -> &str {
+    v.trim_matches(|c: char| c.is_whitespace() || c == '\u{feff}')
 }
 
 #[cfg(test)]

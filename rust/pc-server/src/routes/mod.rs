@@ -12,3 +12,4 @@ pub mod passkeys;
 pub mod qr_login;
 pub mod session;
 pub mod system;
+pub mod users;

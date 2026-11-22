@@ -63,3 +63,44 @@ test('/kick derruba os sockets da pessoa pelo io do app', async () => {
     server.close();
   }
 });
+
+test('/realtime emite na ordem, com salas e exceções, e repassa a presença', async () => {
+  const express = require('express');
+  const { router } = require('../src/routes/internal');
+  const app = express();
+  const log = [];
+  const chain = (to = [], except = []) => ({
+    to: (r) => chain([...to, r], except),
+    except: (r) => chain(to, [...except, r]),
+    emit: (event, payload) => log.push({ to, except, event, payload }),
+  });
+  const io = chain();
+  io.emitPresenceUpdate = (u) => log.push({ presence: u.id });
+  io.onManualStatusChange = (id, st) => log.push({ manual: `${id}:${st}` });
+  app.set('io', io);
+  app.use(express.json());
+  app.use('/api/internal', router);
+  const server = app.listen(0);
+  const port = server.address().port;
+  try {
+    const r = await fetch(`http://127.0.0.1:${port}/api/internal/realtime`, {
+      method: 'POST', headers: { 'x-pc-internal': internalSecret(), 'content-type': 'application/json' },
+      body: JSON.stringify({
+        emits: [
+          { to: ['user:u1'], event: 'user:update', payload: { id: 'u1' } },
+          { to: ['community'], except: ['user:u1'], event: 'user:update', payload: { id: 'u1', p: 1 } },
+        ],
+        presence: { user: { id: 'u1', status: 'DND' }, manualStatus: 'DND' },
+      }),
+    });
+    assert.strictEqual(r.status, 200);
+    assert.deepStrictEqual(log, [
+      { to: ['user:u1'], except: [], event: 'user:update', payload: { id: 'u1' } },
+      { to: ['community'], except: ['user:u1'], event: 'user:update', payload: { id: 'u1', p: 1 } },
+      { presence: 'u1' },
+      { manual: 'u1:DND' },
+    ]);
+  } finally {
+    server.close();
+  }
+});

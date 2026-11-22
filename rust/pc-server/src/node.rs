@@ -92,6 +92,73 @@ pub fn kick(state: &AppState, user_id: &str, event: &str, payload: serde_json::V
     });
 }
 
+/// Um `emit` do Socket.IO pedido ao Node: `to` vazio = todo mundo.
+#[derive(Clone, Debug, serde::Serialize)]
+pub struct Emit {
+    pub to: Vec<String>,
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub except: Vec<String>,
+    pub event: String,
+    pub payload: serde_json::Value,
+}
+
+impl Emit {
+    pub fn to(rooms: &[&str], event: &str, payload: serde_json::Value) -> Self {
+        Self {
+            to: rooms.iter().map(|r| r.to_string()).collect(),
+            except: vec![],
+            event: event.into(),
+            payload,
+        }
+    }
+
+    pub fn except(mut self, rooms: &[&str]) -> Self {
+        self.except = rooms.iter().map(|r| r.to_string()).collect();
+        self
+    }
+}
+
+/// Fila única de tempo real: os pedidos ao Node saem um de cada vez, na
+/// ordem em que as rotas pediram (dois emits seguidos nunca se invertem).
+#[derive(Clone)]
+pub struct Realtime(tokio::sync::mpsc::UnboundedSender<(String, String, serde_json::Value)>);
+
+impl Realtime {
+    pub fn start(web: reqwest::Client) -> Self {
+        let (tx, mut rx) =
+            tokio::sync::mpsc::unbounded_channel::<(String, String, serde_json::Value)>();
+        tokio::spawn(async move {
+            while let Some((url, secret, body)) = rx.recv().await {
+                let r = web
+                    .post(&url)
+                    .header("x-pc-internal", secret)
+                    .json(&body)
+                    .send()
+                    .await;
+                if let Err(e) = r {
+                    tracing::error!("[realtime] {e}");
+                }
+            }
+        });
+        Self(tx)
+    }
+}
+
+/// Manda emits (e, se tiver, a presença) pro Socket.IO do Node, sem esperar.
+pub fn realtime(
+    state: &AppState,
+    emits: Vec<Emit>,
+    presence: Option<(serde_json::Value, Option<&str>)>,
+) {
+    let mut body = json!({ "emits": emits });
+    if let Some((user, manual)) = presence {
+        body["presence"] = json!({ "user": user, "manualStatus": manual });
+    }
+    let url = format!("{}/api/internal/realtime", state.config.node_upstream);
+    let secret = internal_secret(&state.config.jwt_access_secret);
+    let _ = state.realtime.0.send((url, secret, body));
+}
+
 #[cfg(test)]
 mod tests {
     #[test]
