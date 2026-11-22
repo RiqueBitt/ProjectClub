@@ -132,7 +132,7 @@ test('loja de conveniência: o pacote sai do gancho e vai arrastado até a cesti
   await page.addInitScript(() => { try { localStorage.removeItem('shopBasket:v1'); } catch { /* ok */ } });
   await page.goto('/loja');
   await page.locator('.room-nav-item', { hasText: 'Molduras de avatar' }).click();
-  const card = page.locator('.room-card', { hasText: 'Brasa' });
+  const card = page.locator('.room-grid .room-card', { hasText: 'Brasa' }); // o do gancho (não o que voa)
   await card.scrollIntoViewIfNeeded();
   const from = await card.locator('.room-card-art').boundingBox();
   const to = await page.locator('.shop-basket-fab').boundingBox();
