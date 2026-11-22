@@ -56,7 +56,7 @@ function pickFromZip(buf, key) {
   const lic = [];
   const walk2 = (d) => fs.readdirSync(d, { withFileTypes: true }).forEach((e) => {
     const p = path.join(d, e.name);
-    if (e.isDirectory()) walk2(p); else if (/\.(txt|md)$/i.test(e.name) || /licen/i.test(e.name)) lic.push(p);
+    if (e.isDirectory()) walk2(p); else if (/\.(txt|md|pdf)$/i.test(e.name) && (/licen|read|leia|eula|ofl/i.test(e.name) || /\.txt$/i.test(e.name))) lic.push(p);
   });
   walk2(dir);
   return { file: all[0], license: lic[0] || null };
@@ -126,7 +126,8 @@ for (const f of FONTS) {
     if (!r) throw new Error('nenhum arquivo de fonte encontrado');
     const ext = path.extname(r.file).slice(1).toLowerCase();
     fs.copyFileSync(r.file, path.join(OUT, `${f.key}.${ext}`));
-    if (r.license) fs.copyFileSync(r.license, path.join(OUT, `${f.key}-LEIA-ME.txt`));
+    // Licença do pacote com a extensão de verdade (.txt, .md ou .pdf).
+    if (r.license) fs.copyFileSync(r.license, path.join(OUT, `${f.key}-LICENCA${path.extname(r.license).toLowerCase()}`));
     manifest.push({ key: f.key, family: f.family, file: `${f.key}.${ext}` });
   } catch (err) {
     // Mantém a versão já baixada antes, se existir.
