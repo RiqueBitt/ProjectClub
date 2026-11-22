@@ -404,3 +404,122 @@ async fn busca_de_pessoas() {
     let r = call(&env, "GET", "/api/users/search?q=a", Some(&me), Value::Null).await;
     assert_eq!(r.body["users"], json!([]));
 }
+
+#[tokio::test]
+async fn ignorar_e_notas() {
+    let Some((env, _)) = env().await else { return };
+    let me = uid();
+    let other = uid();
+    add_user(&env.db, &me, "").await;
+    add_user(&env.db, &other, "").await;
+
+    let r = call(
+        &env,
+        "POST",
+        &format!("/api/users/{me}/ignore"),
+        Some(&me),
+        json!({}),
+    )
+    .await;
+    assert_eq!(r.body["error"], "Você não pode se ignorar.");
+    let r = call(
+        &env,
+        "POST",
+        "/api/users/ninguem/ignore",
+        Some(&me),
+        json!({}),
+    )
+    .await;
+    assert_eq!(r.status, 404);
+    let r = call(
+        &env,
+        "POST",
+        &format!("/api/users/{other}/ignore"),
+        Some(&me),
+        json!({}),
+    )
+    .await;
+    assert_eq!(r.body, json!({ "ignored": true, "userId": other }));
+    let r = call(&env, "GET", "/api/users/me/ignored", Some(&me), Value::Null).await;
+    assert_eq!(r.body["ids"], json!([other]));
+    assert_eq!(r.body["users"][0]["username"], other.as_str());
+    assert_eq!(
+        r.body["users"][0]
+            .as_object()
+            .unwrap()
+            .keys()
+            .collect::<Vec<_>>(),
+        ["id", "displayName", "username", "avatarUrl"]
+    );
+    // { on: true } de novo não desliga
+    let r = call(
+        &env,
+        "POST",
+        &format!("/api/users/{other}/ignore"),
+        Some(&me),
+        json!({ "on": true }),
+    )
+    .await;
+    assert_eq!(r.body["ignored"], true);
+    let r = call(
+        &env,
+        "POST",
+        &format!("/api/users/{other}/ignore"),
+        Some(&me),
+        json!({}),
+    )
+    .await;
+    assert_eq!(r.body["ignored"], false);
+
+    let r = call(
+        &env,
+        "PUT",
+        &format!("/api/users/{other}/note"),
+        Some(&me),
+        json!({ "text": "  amigo do trabalho  " }),
+    )
+    .await;
+    assert_eq!(r.body, json!({ "note": "amigo do trabalho" }));
+    let r = call(
+        &env,
+        "PUT",
+        &format!("/api/users/{other}/note"),
+        Some(&me),
+        json!({ "text": "outra" }),
+    )
+    .await;
+    assert_eq!(r.body["note"], "outra");
+    let n: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM UserNote WHERE ownerId = ?")
+        .bind(&me)
+        .fetch_one(&env.db)
+        .await
+        .unwrap();
+    assert_eq!(n, 1);
+    let r = call(
+        &env,
+        "PUT",
+        &format!("/api/users/{other}/note"),
+        Some(&me),
+        json!({ "text": 5 }),
+    )
+    .await;
+    assert_eq!(r.body["note"], "", "texto que não é texto apaga");
+    let r = call(
+        &env,
+        "PUT",
+        "/api/users/ninguem/note",
+        Some(&me),
+        json!({ "text": "x" }),
+    )
+    .await;
+    assert_eq!(r.status, 404);
+    let r = call(
+        &env,
+        "PUT",
+        &format!("/api/users/{me}/note"),
+        Some(&me),
+        json!({ "text": "x" }),
+    )
+    .await;
+    assert_eq!(r.status, 400);
+}

@@ -26,7 +26,7 @@ pub mod webauthn;
 use axum::Router;
 use axum::http::StatusCode;
 use axum::middleware::from_fn_with_state;
-use axum::routing::{any, delete, get, patch, post};
+use axum::routing::{any, delete, get, patch, post, put};
 use tower_http::compression::CompressionLayer;
 
 #[derive(Clone)]
@@ -226,6 +226,9 @@ fn ported(state: &AppState) -> Router<AppState> {
             delete(routes::users::remove_id_card),
         )
         .route("/api/users/search", get(routes::users::search))
+        .route("/api/users/me/ignored", get(routes::users::list_ignored))
+        .route("/api/users/{id}/ignore", post(routes::users::toggle_ignore))
+        .route("/api/users/{id}/note", put(routes::users::set_note))
         .route(
             "/api/users/me/settings",
             get(routes::me::get_settings).patch(routes::me::update_settings),

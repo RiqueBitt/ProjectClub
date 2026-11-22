@@ -414,6 +414,165 @@ pub async fn search(
     finish(out, c.counted)
 }
 
+// ---------------------------------------------------------------- ignorar e notas
+
+/// `GET /me/ignored` — quem a pessoa está ignorando.
+pub async fn list_ignored(State(state): State<AppState>, parts: Parts, body: Bytes) -> Response {
+    let c = prelude_or_return!(state, parts, body, true, None);
+    let out = async {
+        let ids: Vec<String> = db::column(
+            &c.db,
+            "SELECT targetId FROM UserIgnore WHERE userId = ? ORDER BY createdAt DESC",
+            params![uid(&c)],
+        )
+        .await?;
+        let mut list = Vec::new();
+        if !ids.is_empty() {
+            let marks = vec!["?"; ids.len()].join(", ");
+            let p = ids.iter().map(|i| db::Value::from(i.as_str())).collect();
+            let rows = db::all(
+                &c.db,
+                &format!(
+                    "SELECT id, displayName, username, avatarUrl FROM `User` WHERE id IN ({marks})"
+                ),
+                p,
+            )
+            .await?;
+            for r in &rows {
+                list.push(json!({
+                    "id": db::get::<String>(r, "id")?,
+                    "displayName": db::get::<String>(r, "displayName")?,
+                    "username": db::get::<String>(r, "username")?,
+                    "avatarUrl": db::get::<Option<String>>(r, "avatarUrl")?,
+                }));
+            }
+        }
+        Ok(reply(&c, json!({ "ids": ids, "users": list })))
+    }
+    .await;
+    finish(out, c.counted)
+}
+
+async fn user_exists(db: &Db, id: &str) -> db::DbResult<bool> {
+    Ok(
+        db::scalar::<String>(db, "SELECT id FROM `User` WHERE id = ?", params![id])
+            .await?
+            .is_some(),
+    )
+}
+
+/// `POST /{id}/ignore { on? }` — liga/desliga (ou alterna) ignorar alguém.
+pub async fn toggle_ignore(
+    State(state): State<AppState>,
+    axum::extract::Path(target): axum::extract::Path<String>,
+    parts: Parts,
+    body: Bytes,
+) -> Response {
+    let c = prelude_or_return!(state, parts, body, true, None);
+    let out = async {
+        if target == uid(&c) {
+            return Ok(err(StatusCode::BAD_REQUEST, "Você não pode se ignorar."));
+        }
+        if !user_exists(&c.db, &target).await? {
+            return Ok(err(StatusCode::NOT_FOUND, "Usuário não encontrado."));
+        }
+        let has = db::scalar::<String>(
+            &c.db,
+            "SELECT id FROM UserIgnore WHERE userId = ? AND targetId = ?",
+            params![uid(&c), target.as_str()],
+        )
+        .await?
+        .is_some();
+        let want = c.body.get("on").and_then(Value::as_bool).unwrap_or(!has);
+        if want && !has {
+            // `.catch(() => null)`: corrida com outro pedido não é erro
+            let _ = db::exec(
+                &c.db,
+                "INSERT INTO UserIgnore (id, userId, targetId, createdAt) VALUES (?, ?, ?, ?)",
+                params![db::new_id(), uid(&c), target.as_str(), db::now()],
+            )
+            .await;
+        }
+        if !want && has {
+            db::exec(
+                &c.db,
+                "DELETE FROM UserIgnore WHERE userId = ? AND targetId = ?",
+                params![uid(&c), target.as_str()],
+            )
+            .await?;
+        }
+        Ok(reply(&c, json!({ "ignored": want, "userId": target })))
+    }
+    .await;
+    finish(out, c.counted)
+}
+
+/// `PUT /{id}/note { text }` — nota particular sobre alguém (vazia apaga).
+pub async fn set_note(
+    State(state): State<AppState>,
+    axum::extract::Path(target): axum::extract::Path<String>,
+    parts: Parts,
+    body: Bytes,
+) -> Response {
+    let c = prelude_or_return!(state, parts, body, true, None);
+    let out = async {
+        if target == uid(&c) {
+            return Ok(err(
+                StatusCode::BAD_REQUEST,
+                "Não dá pra escrever nota sobre você mesmo.",
+            ));
+        }
+        let text = c
+            .body
+            .get("text")
+            .and_then(Value::as_str)
+            .map(|t| js_slice(js_trim(t), 256))
+            .unwrap_or_default();
+        if text.is_empty() {
+            db::exec(
+                &c.db,
+                "DELETE FROM UserNote WHERE ownerId = ? AND targetId = ?",
+                params![uid(&c), target.as_str()],
+            )
+            .await?;
+            return Ok(reply(&c, json!({ "note": "" })));
+        }
+        if !user_exists(&c.db, &target).await? {
+            return Ok(err(StatusCode::NOT_FOUND, "Usuário não encontrado."));
+        }
+        let now = db::now();
+        let updated = db::exec(
+            &c.db,
+            "UPDATE UserNote SET text = ?, updatedAt = ? WHERE ownerId = ? AND targetId = ?",
+            params![text.as_str(), now, uid(&c), target.as_str()],
+        )
+        .await?;
+        if updated == 0 {
+            let r = db::exec(
+                &c.db,
+                "INSERT INTO UserNote (id, ownerId, targetId, text, updatedAt) VALUES (?, ?, ?, ?, ?)",
+                params![db::new_id(), uid(&c), target.as_str(), text.as_str(), now],
+            )
+            .await;
+            match r {
+                Ok(_) => {}
+                Err(e) if db::is_unique_violation(&e) => {
+                    db::exec(
+                        &c.db,
+                        "UPDATE UserNote SET text = ?, updatedAt = ? WHERE ownerId = ? AND targetId = ?",
+                        params![text.as_str(), now, uid(&c), target.as_str()],
+                    )
+                    .await?;
+                }
+                Err(e) => return Err(e.into()),
+            }
+        }
+        Ok(reply(&c, json!({ "note": text })))
+    }
+    .await;
+    finish(out, c.counted)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
