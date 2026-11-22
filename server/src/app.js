@@ -293,6 +293,7 @@ function createApp() {
     windowMs: 15 * 60 * 1000, max: 400, standardHeaders: true, legacyHeaders: false,
     store: createRateLimitStore('writes'),
     skip: (req) => req.method === 'GET' || req.path.startsWith('/auth') || req.path === '/platform/status'
+      || req.path.startsWith('/internal') // chamadas do servidor Rust (ver routes/internal.js)
       || (req.method === 'POST' && READ_MARK_RE.test(req.path)),
     keyGenerator: userOrIpKey,
   }));
@@ -419,6 +420,7 @@ function createApp() {
   app.use('/api/posts', postsRoutes);
   app.use('/api/achievements', achievementsRoutes);
   app.use('/api/system', systemRoutes);
+  app.use('/api/internal', require('./routes/internal').router);
   // Atualizações do app Android (ver docs/android-updates.md).
   app.use('/api/mobile', require('./routes/mobile'));
   // Widget do Android (Fase 7) — com login, por isso fora do router público acima.

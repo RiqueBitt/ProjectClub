@@ -1,0 +1,3 @@
+target/
+# binário que o CI compila e manda no branch deploy (nunca na main)
+bin/

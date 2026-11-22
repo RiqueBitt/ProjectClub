@@ -11,6 +11,7 @@ Responda sempre em **português do Brasil**. Dono: RiqueBitt.
 | Parte | Onde | Pasta |
 |---|---|---|
 | Site + API (Node/Express/Prisma) | Shard Cloud, app **ProjectClub** (`f9ba88be-b4b5-4c12-aa4a-699e94d41570`), https://projectclub.shardweb.app | `server/`, `client/` |
+| Servidor em Rust (na frente do Node) | dentro do mesmo app: fica na porta do app, responde as rotas já portadas e repassa o resto pro Node (porta interna 3001). Ver "Rust na frente do Node" abaixo | `rust/`, `scripts/rustGateway.js` |
 | Banco | MySQL e Redis da Shard Cloud (`DATABASE_URL`, `REDIS_URL` nas variáveis do app) | `server/prisma/` |
 | Club Penguin (Praça) | dentro do mesmo app (Waddle Forever, TS → `dist` commitado) | `server/waddle/` |
 | Servidor de voz/vídeo/tela (mediasoup + TURN) | VPS da **Hostinger** `srv2072093` (179.197.228.137), código em `/opt/projectclub/media-server`. `wss://179-197-228-137.sslip.io` (saúde: `https://179-197-228-137.sslip.io/health`) | `media-server/` |
@@ -31,6 +32,24 @@ Responda sempre em **português do Brasil**. Dono: RiqueBitt.
 
 Mudanças no Club Penguin (`server/waddle/src`): rode `npm run waddle:build`
 na pasta `server/` e commite o `server/waddle/dist` junto.
+
+## Rust na frente do Node
+
+A reescrita em Rust vai entrando aos poucos (plano e o que já foi portado: `rust/PLANO.md`).
+O CI compila o binário (`rust/bin/pc-server`, só no branch `deploy`) e o `scripts/deploy.js` sobe
+o Node numa porta interna e o Rust na porta do app. Rota portada → o Rust responde (a resposta
+sai com `x-served-by: rust`); o resto → Node.
+
+- Está no ar? `curl https://projectclub.shardweb.app/api/system/rust` (no Node puro dá 404).
+- **Mudou uma rota que já está em Rust? Tem que mudar nos dois** (Node em `server/src`, Rust em
+  `rust/pc-server/src/routes`) — senão o site continua com o comportamento antigo. As rotas
+  portadas estão em `rust/pc-server/src/lib.rs`.
+- Desligar uma parte sem publicar nada: variável `PC_RUST_SKIP` com os começos de caminho que
+  devem ir direto pro Node (ex.: `/api/economy,/api/friends`) e reiniciar o app.
+- Desligar tudo: variável `PC_RUST=0` (ou um arquivo vazio `/app/.pc-rust-off`) e reiniciar o app.
+- Proteções automáticas: leitura (GET) que der erro interno no Rust é respondida pelo Node; se o
+  Rust cair 3 vezes em 2 minutos, o app volta sozinho pro Node puro até a próxima publicação.
+- Testes do Rust: `cd rust && ./verificar.sh` (precisa de MySQL e Redis locais; o CI roda igual).
 
 ## Testes
 
