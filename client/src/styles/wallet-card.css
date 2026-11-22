@@ -64,11 +64,15 @@
   box-shadow: inset 0 0 0 1px rgba(255, 255, 255, .13), inset 0 1px 0 rgba(255, 255, 255, .42), inset 0 -1px 0 rgba(0, 0, 0, .4);
 }
 .wcard-front { transform: translateZ(calc(var(--t) / 2)); }
+/* Verso claro em todos os estilos (referência do dono): fundo claro na cor
+   do estilo, tarja preta, faixa branca da assinatura, código e a estrelinha. */
 .wcard-back {
+  --ink: #1f2b46; --ink-soft: rgba(31, 43, 70, .72);
   transform: rotateY(180deg) translateZ(calc(var(--t) / 2)); padding: 0;
   background:
-    radial-gradient(90% 100% at 100% 0%, rgba(150, 205, 255, .3), rgba(150, 205, 255, 0) 60%),
-    linear-gradient(200deg, #1d43b0 0%, #10257c 50%, #081349 100%);
+    radial-gradient(90% 80% at 100% 0%, rgba(255, 255, 255, .5), rgba(255, 255, 255, 0) 60%),
+    linear-gradient(160deg, #a9c3ec 0%, #8fb0e3 55%, #7ea2da 100%);
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, .45), inset 0 1px 0 rgba(255, 255, 255, .85), inset 0 -1px 0 rgba(20, 40, 90, .28);
 }
 
 /* Arte da frente: anéis finos (gelo), floco em marca d'água e grão do material. */
@@ -155,40 +159,37 @@
 
 /* ---------- Verso ---------- */
 .wcard-stripe {
-  display: block; height: calc(var(--u) * 10.5); margin-top: calc(var(--u) * 6.6);
+  display: block; height: calc(var(--u) * 10); margin-top: calc(var(--u) * 5.7);
   background:
-    repeating-linear-gradient(180deg, rgba(255, 255, 255, .035) 0 calc(var(--u) * .2), rgba(255, 255, 255, 0) calc(var(--u) * .2) calc(var(--u) * .7)),
-    linear-gradient(180deg, #16161b, #050507 55%, #131317);
+    repeating-linear-gradient(180deg, rgba(255, 255, 255, .04) 0 calc(var(--u) * .2), rgba(255, 255, 255, 0) calc(var(--u) * .2) calc(var(--u) * .7)),
+    linear-gradient(180deg, #1c1c1f, #0c0c0e 55%, #171719);
 }
-.wcard-sign { display: flex; align-items: stretch; gap: calc(var(--u) * 2.6); height: calc(var(--u) * 8.8); margin: calc(var(--u) * 5) calc(var(--u) * 5.6) 0; }
+.wcard-sig-label {
+  display: block; margin: calc(var(--u) * 3.2) 0 0 calc(var(--u) * 7);
+  font-size: max(7px, calc(var(--u) * 2.4)); font-weight: 700; letter-spacing: .07em; text-transform: uppercase; color: var(--ink); opacity: .82;
+}
+.wcard-sign { display: flex; align-items: stretch; gap: calc(var(--u) * 3.4); height: calc(var(--u) * 9.5); margin: calc(var(--u) * 1.3) calc(var(--u) * 7) 0; }
 .wcard-sign-strip {
-  position: relative; flex: 1; min-width: 0; display: flex; align-items: center; padding: 0 calc(var(--u) * 2.6); border-radius: calc(var(--u) * .8);
-  color: #1c2433; background: repeating-linear-gradient(135deg, #f6f5ef 0 calc(var(--u) * 1), #e9e7dc calc(var(--u) * 1) calc(var(--u) * 2));
+  position: relative; flex: 1; min-width: 0; display: flex; align-items: center; justify-content: space-between; gap: calc(var(--u) * 2);
+  padding: 0 calc(var(--u) * 2.8); border-radius: calc(var(--u) * .7); color: #20222a;
+  background: repeating-linear-gradient(135deg, #f7f7f3 0 calc(var(--u) * 1), #efeee8 calc(var(--u) * 1) calc(var(--u) * 2));
+  box-shadow: inset 0 0 0 calc(var(--u) * .15) rgba(0, 0, 0, .06);
 }
-.wcard-scribble { height: 72%; width: auto; max-width: 70%; }
+.wcard-scribble { height: 70%; width: auto; max-width: 62%; }
+.wcard-sign-strip b { font-size: calc(var(--u) * 4.1); font-weight: 700; letter-spacing: .08em; }
 .wcard-cvv {
-  width: calc(var(--u) * 14); display: flex; align-items: center; justify-content: center; border-radius: calc(var(--u) * .8);
-  background: #f6f5ef; color: #1c2433; font-size: calc(var(--u) * 3.9); font-weight: 600; font-style: italic; letter-spacing: .08em;
+  width: calc(var(--u) * 20.6); display: flex; align-items: center; justify-content: center; border-radius: calc(var(--u) * .7);
+  background: #f7f7f3; color: #20222a; font-size: calc(var(--u) * 4.1); font-weight: 700; letter-spacing: .08em;
+  box-shadow: inset 0 0 0 calc(var(--u) * .15) rgba(0, 0, 0, .06);
 }
 .wcard-sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
-.wcard-facts { display: flex; gap: calc(var(--u) * 6.4); margin: calc(var(--u) * 4.4) calc(var(--u) * 5.6) 0; }
-.wcard-facts div { display: flex; flex-direction: column; gap: calc(var(--u) * .5); min-width: 0; }
-.wcard-facts dt { font-size: max(7px, calc(var(--u) * 2.5)); font-weight: 500; color: var(--ink-soft); white-space: nowrap; }
-.wcard-facts dd { margin: 0; font-size: calc(var(--u) * 3.7); font-weight: 600; letter-spacing: .05em; white-space: nowrap; }
-.wcard-legal {
-  position: absolute; left: calc(var(--u) * 5.6); bottom: calc(var(--u) * 4.6); width: calc(var(--u) * 60); margin: 0;
-  font-family: inherit; font-size: calc(var(--u) * 2.2); line-height: 1.4; color: var(--ink-soft); opacity: .8;
+.wcard-star {
+  position: absolute; left: calc(var(--u) * 7); bottom: calc(var(--u) * 5.7); width: calc(var(--u) * 13); height: calc(var(--u) * 13);
+  display: flex; align-items: center; justify-content: center; border-radius: calc(var(--u) * 2.4);
+  color: rgba(255, 255, 255, .96); background: rgba(255, 255, 255, .45);
+  box-shadow: inset 0 0 0 calc(var(--u) * .25) rgba(255, 255, 255, .3);
 }
-.wcard-holo {
-  position: absolute; right: calc(var(--u) * 5.6); bottom: calc(var(--u) * 4.6); width: calc(var(--u) * 12.5); height: calc(var(--u) * 12.5);
-  display: flex; align-items: center; justify-content: center; border-radius: calc(var(--u) * 2.6); color: rgba(255, 255, 255, .92);
-  background:
-    linear-gradient(135deg, rgba(255, 255, 255, .5), rgba(255, 255, 255, 0) 50%),
-    conic-gradient(from var(--holo, 0deg) at 50% 50%, #7ef3ff, #a48bff, #ff8ad8, #ffe37e, #7effb4, #7ef3ff);
-  box-shadow: inset 0 0 0 calc(var(--u) * .25) rgba(255, 255, 255, .55), 0 calc(var(--u) * .4) calc(var(--u) * 1.2) rgba(0, 0, 0, .3);
-}
-.wcard-holo svg { width: 58%; height: 58%; filter: drop-shadow(0 0 calc(var(--u) * .6) rgba(20, 30, 90, .55)); }
-@container (max-width: 340px) { .wcard-legal { display: none; } }
+.wcard-star svg { width: 55%; height: 55%; filter: drop-shadow(0 calc(var(--u) * .2) calc(var(--u) * .7) rgba(20, 40, 90, .28)); }
 
 /* ---------- Sombra no chão e dica ---------- */
 /* No escuro uma sombra preta some: o chão ganha uma "poça" da luz que o
@@ -250,7 +251,7 @@ html[data-lite] .wcard-float, html[data-lite] .wcard-shadow { animation: none; }
   -webkit-mask-image: none; mask-image: none; border: calc(var(--u) * .22) solid rgba(232, 196, 104, .42);
 }
 .wcard--gold .wcard-watermark { color: rgba(232, 196, 104, .13); }
-.wcard--gold .wcard-bank, .wcard--gold .wcard-bal b, .wcard--gold .wcard-holder strong, .wcard--gold .wcard-brand-name, .wcard--gold .wcard-facts dd {
+.wcard--gold .wcard-bank, .wcard--gold .wcard-bal b, .wcard--gold .wcard-holder strong, .wcard--gold .wcard-brand-name {
   background: var(--foil); background-size: 240% 100%; background-position: var(--gx, 26%) 0;
   -webkit-background-clip: text; background-clip: text; color: transparent; -webkit-text-fill-color: transparent; text-shadow: none;
 }
@@ -261,13 +262,20 @@ html[data-lite] .wcard-float, html[data-lite] .wcard-shadow { animation: none; }
     radial-gradient(circle calc(var(--u) * 44) at var(--gx, 26%) var(--gy, 18%), rgba(255, 228, 150, .2), rgba(255, 228, 150, .05) 46%, rgba(255, 228, 150, 0) 72%),
     linear-gradient(104deg, rgba(255, 220, 140, 0) calc(var(--gx, 26%) - 20%), rgba(255, 220, 140, .12) var(--gx, 26%), rgba(255, 220, 140, 0) calc(var(--gx, 26%) + 20%));
 }
-.wcard--gold .wcard-holo {
+.wcard--gold .wcard-back {
+  --ink: #4a3a12; --ink-soft: rgba(74, 58, 18, .72);
   background:
-    linear-gradient(135deg, rgba(255, 255, 255, .45), rgba(255, 255, 255, 0) 50%),
-    conic-gradient(from var(--holo, 0deg) at 50% 50%, #fff1bf, #c8952e, #fff6d6, #a87a22, #f6dc8c, #fff1bf);
-  color: rgba(43, 31, 4, .82);
+    radial-gradient(90% 70% at 100% 0%, rgba(255, 255, 255, .45), rgba(255, 255, 255, 0) 60%),
+    linear-gradient(160deg, #f3e6bd 0%, #e2c98a 55%, #cfae63 100%);
+  box-shadow: inset 0 0 0 1px rgba(201, 160, 72, .7), inset 0 1px 0 rgba(255, 250, 230, .9), inset 0 -1px 0 rgba(90, 64, 10, .3);
 }
-.wcard--gold .wcard-holo svg { filter: none; }
+.wcard--gold .wcard-back .wcard-sig-label { color: #6b5216; }
+.wcard--gold .wcard-back .wcard-star { color: #fffaf0; }
+.wcard--gold .wcard-back .wcard-glare {
+  background:
+    radial-gradient(circle calc(var(--u) * 44) at var(--gx, 26%) var(--gy, 18%), rgba(255, 255, 255, .3), rgba(255, 255, 255, .07) 46%, rgba(255, 255, 255, 0) 72%),
+    linear-gradient(104deg, rgba(255, 255, 255, 0) calc(var(--gx, 26%) - 20%), rgba(255, 255, 255, .11) var(--gx, 26%), rgba(255, 255, 255, 0) calc(var(--gx, 26%) + 20%));
+}
 
 /* ============================================================
    Super Assinante: preto e arco-íris (vidro escuro, holográfico)
@@ -294,23 +302,28 @@ html[data-lite] .wcard-float, html[data-lite] .wcard-shadow { animation: none; }
   -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
   -webkit-mask-composite: xor; mask-composite: exclude;
 }
-.wcard--rainbow .wcard-back::after {
-  content: ''; position: absolute; inset: 0; padding: calc(var(--u) * .5); border-radius: inherit; pointer-events: none;
-  background: conic-gradient(from calc(var(--holo, 0deg) + var(--wcard-hue)), var(--spectrum), #ff5d7a);
-  -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
-  -webkit-mask-composite: xor; mask-composite: exclude;
+.wcard--rainbow .wcard-back {
+  --ink: #2f2b55; --ink-soft: rgba(47, 43, 85, .72);
+  background: linear-gradient(120deg, #ffd6e0, #ffe9c7, #fffbc7, #d4ffe6, #d6f1ff, #e5dcff, #ffd6f3);
+  background-size: 300% 100%; animation: wcard-holo 10s ease-in-out infinite;
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, .6), inset 0 1px 0 rgba(255, 255, 255, .9), inset 0 -1px 0 rgba(60, 50, 110, .22);
 }
+@keyframes wcard-holo { 0% { background-position: 0% 50%; } 50% { background-position: 100% 50%; } 100% { background-position: 0% 50%; } }
+.wcard--rainbow .wcard-back .wcard-sig-label { color: #3b3760; }
+.wcard--rainbow .wcard-back .wcard-star { background: rgba(255, 255, 255, .55); color: #fff; box-shadow: inset 0 0 0 calc(var(--u) * .25) rgba(255, 255, 255, .9), 0 calc(var(--u) * .4) calc(var(--u) * 1.6) rgba(70, 60, 130, .18); }
+.wcard--rainbow .wcard-back .wcard-star svg { filter: drop-shadow(0 calc(var(--u) * .2) calc(var(--u) * .8) rgba(90, 80, 170, .5)); }
 /* Película holográfica: as cores correm conforme o cartão inclina. */
 .wcard--rainbow .wcard-art { background: linear-gradient(calc(118deg + var(--holo, 0deg) * .5), rgba(255, 93, 122, .1), rgba(255, 182, 92, .05), rgba(92, 247, 166, .05), rgba(92, 200, 255, .1), rgba(154, 123, 255, .12), rgba(255, 93, 220, .09)); }
 .wcard--rainbow .wcard-bank-mark { color: #fff; }
 .wcard--rainbow .wcard-watermark { color: rgba(255, 255, 255, .1); stroke: currentColor; }
-.wcard--rainbow .wcard-bank, .wcard--rainbow .wcard-bal b, .wcard--rainbow .wcard-brand-name, .wcard--rainbow .wcard-facts dd {
+.wcard--rainbow .wcard-bank, .wcard--rainbow .wcard-bal b, .wcard--rainbow .wcard-brand-name {
   background: var(--foil); background-size: 220% 100%; background-position: var(--gx, 26%) 0;
   -webkit-background-clip: text; background-clip: text; color: transparent; -webkit-text-fill-color: transparent; text-shadow: none;
 }
 .wcard--rainbow .wcard-chip { color: rgba(40, 46, 60, .6); background: linear-gradient(135deg, #f4f7fb 0%, #9aa7ba 38%, #eef2f8 58%, #7f8da3 100%); box-shadow: inset 0 0 0 calc(var(--u) * .18) rgba(20, 26, 40, .4), 0 calc(var(--u) * .3) calc(var(--u) * .8) rgba(0, 0, 0, .3); }
-@media (prefers-reduced-motion: reduce) { .wcard--rainbow { animation: none; } }
-html.reduced-motion-pref .wcard--rainbow, html[data-lite] .wcard--rainbow { animation: none; }
+@media (prefers-reduced-motion: reduce) { .wcard--rainbow, .wcard--rainbow .wcard-back { animation: none; } }
+html.reduced-motion-pref .wcard--rainbow, html[data-lite] .wcard--rainbow,
+html.reduced-motion-pref .wcard--rainbow .wcard-back, html[data-lite] .wcard--rainbow .wcard-back { animation: none; }
 
 /* ============================================================
    Loja → Cartão da carteira (components/shop/WalletCardStyles.jsx)

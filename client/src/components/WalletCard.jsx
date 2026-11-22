@@ -27,14 +27,7 @@ function fakeNumber(seed) {
   return String(h % 10000).padStart(4, '0');
 }
 
-// "03/24" a partir da data de criação da conta (se vier).
-function memberSince(createdAt) {
-  const d = createdAt ? new Date(createdAt) : null;
-  if (!d || Number.isNaN(d.getTime())) return null;
-  return `${String(d.getMonth() + 1).padStart(2, '0')}/${String(d.getFullYear()).slice(-2)}`;
-}
-
-// Floco de neve da bandeira (traço). Usado no selo, na marca d'água e no holograma.
+// Floco de neve da bandeira (traço). Usado no selo e na marca d'água.
 const FLAKE = 'M12 2.5v19M3.8 7.25l16.4 9.5M20.2 7.25 3.8 16.75M9.6 4.3 12 6.2l2.4-1.9M9.6 19.7l2.4-1.9 2.4 1.9M4.2 10.6l2.85-1.1-.45-3M19.8 13.4l-2.85 1.1.45 3M19.8 10.6l-2.85-1.1.45-3M4.2 13.4l2.85 1.1-.45 3';
 
 function Flake({ className, strokeWidth = 1.5 }) {
@@ -215,7 +208,6 @@ export default function WalletCard({ user, coins, gems, level, variant = 'DEFAUL
   };
 
   const number = useMemo(() => fakeNumber(user?.id), [user?.id]);
-  const since = useMemo(() => memberSince(user?.createdAt), [user?.createdAt]);
   const name = user?.displayName || user?.username || 'Membro';
   const lvl = Number(level) > 0 ? Math.floor(Number(level)) : null;
 
@@ -275,25 +267,24 @@ export default function WalletCard({ user, coins, gems, level, variant = 'DEFAUL
               <span className="wcard-side l" aria-hidden="true" />
               <span className="wcard-side r" aria-hidden="true" />
 
-              {/* Verso: tarja, assinatura + final do número, código, dados e o holograma. */}
+              {/* Verso (como na referência do dono): fundo claro na cor do estilo, tarja,
+                  "assinatura autorizada", assinatura + final do número, código e a estrelinha. */}
               <div className="wcard-face wcard-back" aria-hidden={!back || undefined}>
                 <span className="wcard-stripe" aria-hidden="true" />
+                <span className="wcard-sig-label">Assinatura autorizada</span>
                 <div className="wcard-sign">
                   <span className="wcard-sign-strip">
                     <svg className="wcard-scribble" viewBox="0 0 120 30" aria-hidden="true">
                       <path d="M4 20c6-10 10-14 13-12s-4 14-1 14 7-14 11-14-1 12 3 12 6-9 9-9 2 8 6 8 5-6 8-6c4 0 3 5 7 5s5-4 9-4 7 3 11 2 10-3 15-6" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" />
                     </svg>
                     <span className="wcard-sr">Assinatura de {name}</span>
+                    <b>{number}</b>
                   </span>
                   <span className="wcard-cvv" aria-hidden="true">{number.slice(1, 4)}</span>
                 </div>
-                <dl className="wcard-facts">
-                  <div><dt>Final</dt><dd>•••• {number}</dd></div>
-                  {since && <div><dt>Membro desde</dt><dd>{since}</dd></div>}
-                  {lvl && <div><dt>Nível</dt><dd>{lvl}</dd></div>}
-                </dl>
-                <p className="wcard-legal">ClubPay é a bandeira de faz de conta do Project Club. Moedas e gemas valem só aqui dentro.</p>
-                <span className="wcard-holo" aria-hidden="true"><Flake strokeWidth={1.6} /></span>
+                <span className="wcard-star" aria-hidden="true">
+                  <svg viewBox="0 0 24 24"><path d="m12 3 2.7 5.6 6.1.9-4.4 4.3 1 6.1L12 17l-5.4 2.9 1-6.1-4.4-4.3 6.1-.9z" fill="currentColor" /></svg>
+                </span>
                 <span className="wcard-shade" aria-hidden="true" />
                 <span className="wcard-glare" aria-hidden="true" />
               </div>
