@@ -26,14 +26,12 @@ import PhotoAlbumModal from './PhotoAlbumModal.jsx';
 import BadgeIcon from '../BadgeIcon.jsx';
 import { nameStyleProps, nameStyleClassName } from '../../utils/nameStyle';
 import cancelIcon from '../../assets/icons/close-x.png';
-import settingsIcon from '../../assets/icons/settings.png';
 import likeIcon from '../../assets/icons/like.png';
 import dislikeIcon from '../../assets/icons/dislike.png';
 import youtubeIcon from '../../assets/icons/social-youtube.png';
 import steamIcon from '../../assets/icons/social-steam.png';
 import robloxIcon from '../../assets/icons/social-roblox.png';
 import xIcon from '../../assets/icons/social-x.png';
-import levelStarIcon from '../../assets/icons/level-star.png';
 import { proxyImage } from '../../utils/imageProxy';
 import { getProfileSummary } from '../../api/profileSummary';
 import { visibleProfileSectionOrder } from '../../utils/profileSections';
@@ -44,6 +42,7 @@ import { lookQuery, shareProfile, IgnoreButton } from '../profile/ProfileActions
 import { useProfileExtras, MuralCard, RecentActivityCard, StatBadgesCard, WishlistCard, MuralEditorModal } from '../profile/ProfileExtras.jsx';
 import '../../styles/profile.css';
 import '../../styles/profile-edit.css';
+import '../../styles/profile-layout.css';
 import BannerImage from '../ProfileBanner.jsx';
 import ProfileEffectOverlay from '../ProfileEffectOverlay.jsx';
 import ImageCropperModal from './ImageCropperModal.jsx';
@@ -75,31 +74,44 @@ function PfEmpty({ icon, children, action }) {
   );
 }
 
-// Perfil completo numa página só (sem abas), nesta ordem: Sobre,
-// Conexões, Recados, Insígnias, Conquistas (e por fim o resto da
-// atividade: posts, enquetes, álbum, modpack). Cada seção (chave de
-// profileSections.js) cai num grupo; a ordem DENTRO do grupo continua
+// Perfil completo em duas partes (redesenho de nov/2026, pedido do dono:
+// "mais organizado e minimalista"). À esquerda fica quem a pessoa é — Sobre,
+// cargos, conexões, amigos em comum — sempre à vista. À direita, o resto em
+// abas, pra não virar uma página sem fim. Cada seção (chave de
+// profileSections.js) cai num lugar; a ordem DENTRO de cada um continua
 // sendo a que a pessoa escolheu em Configurações → Colunas.
+const PF_ASIDE = 'aside';
 const PF_TABS = [
-  { id: 'about', label: 'Sobre', icon: 'user' },
-  { id: 'mural', label: 'Mural', icon: 'grid' },
-  { id: 'showcase', label: 'Vitrine', icon: 'star' },
-  { id: 'wishlist', label: 'Lista de desejos', icon: 'sparkle' },
-  { id: 'connections', label: 'Conexões', icon: 'link' },
+  { id: 'overview', label: 'Visão geral', icon: 'grid' },
+  { id: 'games', label: 'Jogos', icon: 'bolt' },
+  { id: 'badges', label: 'Conquistas', icon: 'trophy' },
   { id: 'wall', label: 'Recados', icon: 'chat' },
-  { id: 'badges', label: 'Insígnias', icon: 'medal' },
-  { id: 'achievements', label: 'Conquistas', icon: 'trophy' },
-  { id: 'activity', label: 'Atividade', icon: 'bolt' },
 ];
 const PF_SECTION_TAB = {
-  about: 'about', roles: 'about', connections: 'connections', mutual_friends: 'about', relationship: 'about', traits: 'about', member_since: 'about',
-  community_activity: 'activity', polls: 'activity', album: 'activity', featured_modpack: 'activity',
-  achievements: 'achievements',
-  // Recados ficam na aba Sobre, no lugar onde aparecia a Nota (pedido:
-  // "remova as notas da aba Sobre e coloque os recados no lugar") — ver o
-  // push explícito no fim de tabContent.about mais abaixo.
-  scraps: 'about', testimonials: 'wall', visitors: 'wall',
+  about: PF_ASIDE, roles: PF_ASIDE, connections: PF_ASIDE, mutual_friends: PF_ASIDE, relationship: PF_ASIDE, traits: PF_ASIDE, member_since: PF_ASIDE,
+  polls: 'overview', album: 'overview',
+  community_activity: 'games', featured_modpack: 'games',
+  achievements: 'badges',
+  scraps: 'wall', testimonials: 'wall', visitors: 'wall',
 };
+
+// Tela estreita (celular, tablet, janela pequena): não cabe coluna ao lado,
+// então o "Sobre" vira a primeira aba. Mesma medida do CSS (profile-layout.css).
+const PF_NARROW_QUERY = '(max-width: 1020px)';
+const PF_ABOUT_TAB = { id: 'about', label: 'Sobre', icon: 'user' };
+function useNarrowScreen() {
+  const read = () => typeof window !== 'undefined' && !!window.matchMedia?.(PF_NARROW_QUERY).matches;
+  const [narrow, setNarrow] = useState(read);
+  useEffect(() => {
+    const mq = window.matchMedia?.(PF_NARROW_QUERY);
+    if (!mq) return undefined;
+    const onChange = () => setNarrow(mq.matches);
+    onChange();
+    mq.addEventListener?.('change', onChange);
+    return () => mq.removeEventListener?.('change', onChange);
+  }, []);
+  return narrow;
+}
 
 // Rendered once at the app root (see MainApp.jsx) and driven entirely by
 // `viewingProfileUserId` in the zustand store — call `openProfile(userId)`
@@ -192,7 +204,6 @@ export default function UserProfileModal() {
   const navigate = useNavigate();
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(false);
-  const topRowRef = useRef(null);
   const [friendSent, setFriendSent] = useState(false);
   const [badgeListOpen, setBadgeListOpen] = useState(false); // false | true | id da insígnia clicada
   // Edição direto no próprio perfil (rodada 7): nome, bio, foto, banner
@@ -208,10 +219,30 @@ export default function UserProfileModal() {
   const [muralOpen, setMuralOpen] = useState(false);
   useEffect(() => { setMuralOpen(false); }, [userId]);
   useEffect(() => { setNameDraft(null); setBioDraft(null); setInlineError(''); setShowcaseOpen(false); }, [userId]);
-  // Aba ativa do perfil (Sobre / Atividade / Conquistas / Recados) —
+  // Aba ativa do perfil (Visão geral / Jogos / Conquistas / Recados) —
   // volta pra primeira sempre que abre outro perfil.
-  const [activeTab, setActiveTab] = useState('about');
-  useEffect(() => { setActiveTab('about'); }, [userId]);
+  // (null = a primeira que existir: "Sobre" no celular, "Visão geral" no computador.)
+  const [activeTab, setActiveTab] = useState(null);
+  useEffect(() => { setActiveTab(null); }, [userId]);
+  const narrow = useNarrowScreen();
+  // Menu "Mais" (compartilhar, ignorar, denunciar…) e se a pessoa tem jogos.
+  const [moreOpen, setMoreOpen] = useState(false);
+  const moreRef = useRef(null);
+  const [gamesHas, setGamesHas] = useState(false);
+  useEffect(() => { setMoreOpen(false); setGamesHas(false); }, [userId]);
+  useEffect(() => {
+    if (!moreOpen) return undefined;
+    const onDown = (e) => { if (!moreRef.current?.contains(e.target)) setMoreOpen(false); };
+    const onKey = (e) => { if (e.key === 'Escape') { e.stopPropagation(); setMoreOpen(false); } };
+    document.addEventListener('mousedown', onDown);
+    document.addEventListener('touchstart', onDown);
+    document.addEventListener('keydown', onKey, true);
+    return () => {
+      document.removeEventListener('mousedown', onDown);
+      document.removeEventListener('touchstart', onDown);
+      document.removeEventListener('keydown', onKey, true);
+    };
+  }, [moreOpen]);
   // Item pedido: "centralizar em Configurações" — tag da comunidade
   // voltou pra lá (UserSettingsModal.jsx), removida daqui.
   const [roleMenuOpen, setRoleMenuOpen] = useState(false);
@@ -369,8 +400,7 @@ export default function UserProfileModal() {
   useEffect(() => {
     if (!profileAutoOpenRoleMenu || !member) return;
     if (canManageRoles) {
-      // Cargos ficam na aba "Sobre" — garante que ela esteja aberta.
-      setActiveTab('about');
+      // Cargos ficam na coluna da esquerda, sempre à vista.
       setRolesExpanded(true);
       setRoleMenuOpen(true);
       setTimeout(() => rolesSectionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' }), 0);
@@ -403,8 +433,7 @@ export default function UserProfileModal() {
       top = Math.max(8, rect.top - ROLE_MENU_MAX_HEIGHT - 4);
     }
     setRoleMenuStyle({ position: 'fixed', top: `${top}px`, left: `${left}px` });
-    // activeTab: o botão "+" só existe na aba Sobre — remede quando ela abre.
-  }, [roleMenuOpen, activeTab]);
+  }, [roleMenuOpen]);
 
   useEffect(() => {
     if (!roleMenuOpen) return;
@@ -657,29 +686,6 @@ export default function UserProfileModal() {
   // Banner do perfil completo: estica o banner pra trás do cabeçalho até
   // logo depois de onde termina o texto (nome + tags/cargo do clube), e o
   // esmaecido fica só nessa pontinha — não "come" metade da imagem.
-  useEffect(() => {
-    const row = topRowRef.current;
-    if (!row || typeof ResizeObserver === 'undefined') return undefined;
-    const measure = () => {
-      const banner = row.querySelector('.profile-banner');
-      const textEls = row.querySelectorAll('.profile-display-name, .profile-username');
-      if (!banner || !textEls.length || window.matchMedia('(max-width: 720px)').matches) { row.style.removeProperty('--pf-banner-pull'); return; }
-      let textRight = 0;
-      textEls.forEach((el) => {
-        const range = document.createRange();
-        range.selectNodeContents(el);
-        textRight = Math.max(textRight, range.getBoundingClientRect().right);
-      });
-      const bannerLeft = banner.getBoundingClientRect().left + (parseFloat(row.style.getPropertyValue('--pf-banner-pull')) || 0);
-      const pull = Math.max(0, Math.round(bannerLeft - (textRight + 12)));
-      row.style.setProperty('--pf-banner-pull', `${pull}px`);
-    };
-    measure();
-    const ro = new ResizeObserver(measure);
-    ro.observe(row);
-    return () => ro.disconnect();
-  }, [userId, loading, data?.user?.id]);
-
   if (!userId) return null;
 
                 /* Item pedido: "sistema igual da Steam" — a pessoa escolhe
@@ -737,7 +743,7 @@ export default function UserProfileModal() {
     achievements: (
       (isMe || data.displayedAchievements?.length > 0) && (
         <PfCard
-          icon="trophy" title="Conquistas em destaque" count={data.displayedAchievements?.length}
+          icon="trophy" title="Em destaque" count={data.displayedAchievements?.length}
           action={isMe && <button type="button" className="pf-link" onClick={() => setShowcaseOpen(true)}>Editar vitrine</button>}
         >
           {data.displayedAchievements?.length > 0 ? (
@@ -1186,40 +1192,65 @@ export default function UserProfileModal() {
     </PfCard>
   );
 
-  // Distribui as seções visíveis (na ordem escolhida) pelas abas.
+  // Distribui as seções visíveis (na ordem escolhida) entre a coluna da
+  // esquerda e as abas.
   const visibleKeys = user ? visibleProfileSectionOrder(user.profileSectionOrder) : [];
-  const tabContent = { about: [], mural: [], showcase: [], wishlist: [], connections: [], wall: [], badges: [], achievements: [], activity: [] };
+  const tabContent = { [PF_ASIDE]: [], overview: [], games: [], badges: [], wall: [] };
   if (user && extras && !extras.failed) {
     const muralCard = <MuralCard user={user} extras={extras} isMe={isMe} onEdit={() => setMuralOpen(true)} />;
-    if (isMe || extras.widgets) tabContent.mural.push(['mural', muralCard]);
-    if (extras.wishlist && (isMe || extras.wishlist.length)) tabContent.wishlist.push(['wishlist', <WishlistCard user={user} extras={extras} isMe={isMe} setExtras={setExtras} />]);
+    if (isMe || extras.widgets) tabContent.overview.push(['mural', muralCard]);
     if (extras.stats?.length) tabContent.badges.push(['stat_badges', <StatBadgesCard extras={extras} />]);
-    if (extras.activity && (isMe || extras.activity.length)) tabContent.activity.push(['recent_activity', <RecentActivityCard extras={extras} isMe={isMe} />]);
+    if (extras.activity && (isMe || extras.activity.length)) tabContent.games.push(['recent_activity', <RecentActivityCard extras={extras} isMe={isMe} />]);
   }
   if (user) {
-    if (showcaseCard) tabContent.showcase.push(['showcase_games', showcaseCard]);
-    if (cardsGameCard) tabContent.showcase.push(['cards_game', cardsGameCard]);
-    if (badgesCard) tabContent.badges.push(['badges', badgesCard]);
+    if (showcaseCard) tabContent.overview.push(['showcase_games', showcaseCard]);
+    if (cardsGameCard) tabContent.overview.push(['cards_game', cardsGameCard]);
+    if (badgesCard) tabContent.badges.unshift(['badges', badgesCard]);
     visibleKeys.forEach((key) => {
-      if (key === 'scraps') return; // vai pro fim da aba Sobre (abaixo)
       const el = SECTION_ELEMENTS[key];
       const tab = PF_SECTION_TAB[key];
       if (el && tab) tabContent[tab].push([key, el]);
     });
-    if (birthdaysCard) tabContent.about.push(['birthdays', birthdaysCard]);
-    // A Nota privada (NoteCard) saiu da aba Sobre a pedido — os dados
-    // continuam no banco (UserNote) e a API /users/:id/note segue igual.
-    // No lugar dela entram os Recados (se a pessoa não os escondeu).
-    if (visibleKeys.includes('scraps') && SECTION_ELEMENTS.scraps) tabContent.about.push(['scraps', SECTION_ELEMENTS.scraps]);
+    if (birthdaysCard) tabContent[PF_ASIDE].push(['birthdays', birthdaysCard]);
+    if (extras && !extras.failed && extras.wishlist && (isMe || extras.wishlist.length)) {
+      tabContent.overview.push(['wishlist', <WishlistCard user={user} extras={extras} isMe={isMe} setExtras={setExtras} />]);
+    }
   }
-  const sections = PF_TABS.filter((t) => tabContent[t.id].length > 0);
   const showMemberSince = visibleKeys.includes('member_since');
   const createdAt = user ? new Date(user.createdAt) : null;
+  const friendsSince = user && !isMe && data.friendsSince ? new Date(data.friendsSince) : null;
+  const longDate = (d) => d.toLocaleDateString('pt-BR', { day: 'numeric', month: 'long', year: 'numeric' });
+  const metaLines = user ? [
+    showMemberSince && !Number.isNaN(createdAt.getTime()) && ['calendar', `No Project Club desde ${longDate(createdAt)}`],
+    friendsSince && !Number.isNaN(friendsSince.getTime()) && ['heart', `Amigos desde ${longDate(friendsSince)}`],
+  ].filter(Boolean) : [];
+  // O "Sobre": cartões da esquerda + as datas. No computador fica na coluna;
+  // em tela estreita vira a primeira aba.
+  const hasAbout = tabContent[PF_ASIDE].length > 0 || metaLines.length > 0;
+  const aboutBody = (
+    <>
+      {tabContent[PF_ASIDE].map(([key, el]) => (
+        <div key={key} className="pf-grid-item">{el}</div>
+      ))}
+      {metaLines.length > 0 && (
+        <ul className="pfl-meta">
+          {metaLines.map(([icon, text]) => <li key={icon}><PfIcon name={icon} size={15} /> {text}</li>)}
+        </ul>
+      )}
+    </>
+  );
+  // A biblioteca de jogos carrega sozinha (ProfileGamesSection) e avisa se tem o que mostrar.
+  const tabs = [
+    ...(narrow && hasAbout ? [PF_ABOUT_TAB] : []),
+    ...PF_TABS.filter((t) => tabContent[t.id].length > 0 || (t.id === 'games' && gamesHas)),
+  ];
+  const currentTab = tabs.some((t) => t.id === activeTab) ? activeTab : tabs[0]?.id;
+  const levelPct = Math.max(0, Math.min(100, Number(data?.levelProgress ?? 0)));
 
   return (
     <div className="modal-overlay profile-fullscreen-overlay" onMouseDown={(e) => { if (e.target === e.currentTarget) closeProfile(); }}>
       <div
-        className={`modal-box profile-modal-box profile-modal-fullscreen ${user ? 'profile-modal-accented' : ''}${profileStyleClass(user)}`}
+        className={`modal-box profile-modal-box profile-modal-fullscreen pfl ${user ? 'profile-modal-accented' : ''}${profileStyleClass(user)}`}
         style={user ? {
           ...profileAccentVars(user.profileColor),
           // Item pedido: "opacidade das caixas das colunas" — 0-100
@@ -1227,12 +1258,7 @@ export default function UserProfileModal() {
           '--profile-section-opacity': user.profileSectionOpacity != null ? user.profileSectionOpacity / 100 : undefined,
         } : undefined}
       >
-        <button className="icon-btn profile-modal-close" onClick={closeProfile}><img className="ui-icon" src={cancelIcon} alt="x" /></button>
-        {isMe && (
-          <button className="icon-btn profile-modal-edit" onClick={() => useStore.getState().openSettings()} title="Editar perfil">
-            <img className="ui-icon" src={settingsIcon} alt="" />
-          </button>
-        )}
+        <button className="icon-btn profile-modal-close" onClick={closeProfile} aria-label="Fechar perfil" title="Fechar"><img className="ui-icon" src={cancelIcon} alt="" /></button>
         {loading && (
           <div className="pf-skeleton" aria-label="Carregando perfil">
             <div className="pf-sk pf-sk-banner" />
@@ -1245,7 +1271,8 @@ export default function UserProfileModal() {
         )}
         {!loading && user && (
           <>
-            <div className="profile-top-row" ref={topRowRef}>
+            {/* Topo: banner, foto, nome e insígnias. Só o que identifica a pessoa. */}
+            <div className="profile-top-row">
               <div className="profile-banner" style={{ background: user.bannerUrl ? undefined : 'transparent' }}>
                 {/* Enquadramento escolhido no editor de banner (ProfileBanner.jsx). */}
                 <BannerImage url={user.bannerUrl} framing={user.bannerFraming} />
@@ -1308,23 +1335,12 @@ export default function UserProfileModal() {
                   {isMe && inlineError && <div className="pfe-error" role="alert"><PfIcon name="alert" size={13} /> {inlineError}</div>}
                   <div className="profile-username">@{user.username}{user.pronouns && <span className="profile-pronouns-inline"> · {user.pronouns}</span>}</div>
                   {/* Só o status personalizado aqui — a atividade (jogo/
-                      música) aparece uma vez só, na caixa grande ao lado. */}
+                      música) aparece uma vez só, na coluna da esquerda. */}
                   {(user.customStatus || user.customStatusEmoji) && (
                     <div className="profile-custom-status-balloon">
                       <ActivityIcon userId={user.id} customStatusEmoji={user.customStatusEmoji} customStatus={user.customStatus} hideActivity />
                     </div>
                   )}
-                  {/* Barra de nível redesenhada — mostra XP atual/necessário
-                      e o número de porcentagem, não só uma barrinha muda. */}
-                  <div className="profile-level-bar-wrap pfx-head-level">
-                    <div className="profile-level-bar-labels">
-                      <span className="profile-level-bar-chip"><img className="ui-icon-sm" src={levelStarIcon} alt="" /> Nível {user.accountLevel ?? 1}</span>
-                      <span className="dim">{data.levelProgress ?? 0}% para o próximo nível</span>
-                    </div>
-                    <div className="profile-level-progress-track">
-                      <div className="profile-level-progress-fill" style={{ width: `${data.levelProgress ?? 0}%`, background: user.levelBarColor || undefined }} />
-                    </div>
-                  </div>
                 </div>
                 <div className="pfx-head-side">
                   {/* Até 4 insígnias no canto de cima, perto do nome. */}
@@ -1340,9 +1356,6 @@ export default function UserProfileModal() {
                       )}
                     </div>
                   )}
-                  <div className="pfx-head-activity">
-                    <ActivityBadge userId={user.id} />
-                  </div>
                 </div>
               </div>
             </div>
@@ -1362,109 +1375,69 @@ export default function UserProfileModal() {
                     Esta pessoa limitou quem pode ver os detalhes completos do perfil — você está vendo só as informações públicas.
                   </div>
                 )}
-                {!isMe && (
-                  <div className="profile-ig-actions-row">
-                    <div className="profile-actions profile-ig-actions">
-                      <button className="btn-primary" onClick={openDM}>Enviar mensagem</button>
-                      <button className="btn-secondary" onClick={addFriend} disabled={friendSent}>
-                        {friendSent ? 'Solicitado' : 'Adicionar amigo'}
-                      </button>
-                      <button className={`btn-secondary ${fanStatus.isFan ? 'active' : ''}`} onClick={toggleFanStatus}>
-                        {fanStatus.isFan ? 'Seguindo' : 'Seguir'}
-                      </button>
-                      <button className="btn-secondary" onClick={() => setReportOpen(true)} title="Denunciar este perfil para a equipe">
-                        Denunciar
-                      </button>
-                      {lookQuery(user) && (
-                        <button className="btn-secondary" title="Ver na Loja os itens que essa pessoa usa" onClick={() => { closeProfile(); navigate(`/loja?look=${encodeURIComponent(lookQuery(user))}&from=${encodeURIComponent(user.displayName)}`); }}>
-                          Adquira este visual
-                        </button>
-                      )}
-                      <button className="btn-secondary" title="Copiar o link do perfil" onClick={() => shareProfile(user)}>Compartilhar</button>
-                      <IgnoreButton user={user} />
-                    </div>
-                    {/* Botões de voto num grupo próprio (antes ficavam
-                        espremidos ao lado dos botões grandes). */}
-                    <div className="profile-vote-group">
-                      <button
-                        type="button"
-                        className={`icon-btn profile-vote-icon-btn like ${data.myVote === 1 ? 'active' : ''}`}
-                        title="Dar Up"
-                        onClick={() => vote(1)}
-                      >
-                        <img className="ui-icon-sm" src={likeIcon} alt="" />
-                      </button>
-                      <button
-                        type="button"
-                        className={`icon-btn profile-vote-icon-btn dislike ${data.myVote === -1 ? 'active' : ''}`}
-                        title={`Dar Down (${data.dislikeCount ?? 0})`}
-                        onClick={() => vote(-1)}
-                      >
-                        <img className="ui-icon-sm" src={dislikeIcon} alt="" /> {data.dislikeCount ?? 0}
-                      </button>
-                    </div>
-                  </div>
-                )}
 
-                {isMe && (
-                  <div className="pfe-ownbar">
-                    <span className="pfe-ownbar-icon"><PfIcon name="sparkle" size={15} /></span>
-                    <span className="pfe-ownbar-text">Este é o seu perfil. Clique na foto, no banner, no nome ou na bio pra editar.</span>
-                    <button type="button" className="pf-btn" onClick={() => setShowcaseOpen(true)}><PfIcon name="star" size={14} /> Editar vitrine</button>
-                  </div>
-                )}
-                {/* Números do perfil em bloquinhos (antes ficavam soltos no
-                    cabeçalho, em caixa alta). Ups atualiza em tempo real. */}
-                <div className="pf-stats">
-                  <div className="pf-stat">
-                    <span className="pf-stat-icon"><PfIcon name="up" size={16} strokeWidth={2.2} /></span>
-                    <span className="pf-stat-text"><b>{liveUps}</b><span>Ups</span></span>
-                  </div>
-                  <div className="pf-stat">
-                    <span className="pf-stat-icon"><PfIcon name="star" size={16} /></span>
-                    <span className="pf-stat-text"><b>{user.accountLevel ?? 1}</b><span>Nível</span></span>
-                  </div>
-                  {reputation !== null && (
-                    <div className="pf-stat" title="Agradecimentos recebidos da comunidade">
-                      <span className="pf-stat-icon"><PfIcon name="heart" size={16} /></span>
-                      <span className="pf-stat-text"><b>{reputation}</b><span>Reputação</span></span>
+                {/* Uma faixa só: os números à esquerda e as ações à direita.
+                    Três botões com nome; o resto vai no menu "Mais". */}
+                <div className="pfl-bar">
+                  <div className="pf-stats" aria-label="Números do perfil">
+                    <div className="pf-stat pfl-level" title={`${levelPct}% para o próximo nível`}>
+                      <span className="pf-stat-text"><b>{user.accountLevel ?? 1}</b><span>Nível</span></span>
+                      <span className="profile-level-progress-track" role="progressbar" aria-label="Progresso para o próximo nível" aria-valuemin={0} aria-valuemax={100} aria-valuenow={levelPct}>
+                        <span className="profile-level-progress-fill" style={{ width: `${levelPct}%`, background: user.levelBarColor || undefined }} />
+                      </span>
                     </div>
-                  )}
-                  {/* Item pedido: "seguir" do lado de Ups — o número fica
-                      junto dos outros contadores; o botão fica junto dos
-                      outros botões de ação. */}
-                  <div className="pf-stat">
-                    <span className="pf-stat-icon"><PfIcon name="users" size={16} /></span>
-                    <span className="pf-stat-text"><b>{fanStatus.count}</b><span>{fanStatus.count === 1 ? 'Seguidor' : 'Seguidores'}</span></span>
-                  </div>
-                  {data.badges?.length > 0 && (
-                    <button type="button" className="pf-stat pf-stat-btn" onClick={() => setBadgeListOpen(true)} title="Ver insígnias">
-                      <span className="pf-stat-icon"><PfIcon name="medal" size={16} /></span>
-                      <span className="pf-stat-text"><b>{data.badges.length}</b><span>Insígnias</span></span>
-                    </button>
-                  )}
-                  {!isMe && data.mutualFriends?.length > 0 && (
                     <div className="pf-stat">
-                      <span className="pf-stat-icon"><PfIcon name="users" size={16} /></span>
-                      <span className="pf-stat-text"><b>{data.mutualFriends.length}</b><span>Em comum</span></span>
+                      <span className="pf-stat-text"><b>{liveUps}</b><span>Ups</span></span>
                     </div>
-                  )}
-                  {showMemberSince && !Number.isNaN(createdAt.getTime()) && (
-                    <div className="pf-stat" title={`Membro desde ${createdAt.toLocaleDateString('pt-BR', { day: '2-digit', month: 'long', year: 'numeric' })}`}>
-                      <span className="pf-stat-icon"><PfIcon name="calendar" size={16} /></span>
-                      <span className="pf-stat-text">
-                        <b className="pf-stat-date">{(() => { const m = createdAt.toLocaleDateString('pt-BR', { month: 'short' }).replace('.', ''); return `${m.charAt(0).toUpperCase()}${m.slice(1)} ${createdAt.getFullYear()}`; })()}</b>
-                        <span>Entrou em</span>
-                      </span>
+                    {reputation !== null && (
+                      <div className="pf-stat" title="Agradecimentos recebidos da comunidade">
+                        <span className="pf-stat-text"><b>{reputation}</b><span>Reputação</span></span>
+                      </div>
+                    )}
+                    <div className="pf-stat">
+                      <span className="pf-stat-text"><b>{fanStatus.count}</b><span>{fanStatus.count === 1 ? 'Seguidor' : 'Seguidores'}</span></span>
                     </div>
-                  )}
-                  {!isMe && data.friendsSince && !Number.isNaN(new Date(data.friendsSince).getTime()) && (
-                    <div className="pf-stat" title={`Amigos desde ${new Date(data.friendsSince).toLocaleDateString('pt-BR', { day: '2-digit', month: 'long', year: 'numeric' })}`}>
-                      <span className="pf-stat-icon"><PfIcon name="heart" size={16} /></span>
-                      <span className="pf-stat-text">
-                        <b className="pf-stat-date">{new Date(data.friendsSince).toLocaleDateString('pt-BR', { day: '2-digit', month: 'short', year: 'numeric' }).replace(/\./g, '')}</b>
-                        <span>Amigos desde</span>
-                      </span>
+                  </div>
+
+                  {!isMe ? (
+                    <div className="pfl-actions">
+                      <button type="button" className="btn-primary" onClick={openDM}>Mensagem</button>
+                      <button type="button" className="btn-secondary" onClick={addFriend} disabled={friendSent}>{friendSent ? 'Solicitado' : 'Adicionar amigo'}</button>
+                      <button type="button" className={`btn-secondary ${fanStatus.isFan ? 'active' : ''}`} aria-pressed={fanStatus.isFan} onClick={toggleFanStatus}>{fanStatus.isFan ? 'Seguindo' : 'Seguir'}</button>
+                      <div className="profile-vote-group" role="group" aria-label="Avaliar perfil">
+                        <button type="button" className={`icon-btn profile-vote-icon-btn like ${data.myVote === 1 ? 'active' : ''}`} title="Dar Up" aria-label="Dar Up" aria-pressed={data.myVote === 1} onClick={() => vote(1)}>
+                          <img className="ui-icon-sm" src={likeIcon} alt="" />
+                        </button>
+                        <button type="button" className={`icon-btn profile-vote-icon-btn dislike ${data.myVote === -1 ? 'active' : ''}`} title={`Dar Down (${data.dislikeCount ?? 0})`} aria-label="Dar Down" aria-pressed={data.myVote === -1} onClick={() => vote(-1)}>
+                          <img className="ui-icon-sm" src={dislikeIcon} alt="" /> {data.dislikeCount ?? 0}
+                        </button>
+                      </div>
+                      <div className="pfl-more" ref={moreRef}>
+                        <button type="button" className="icon-btn pfl-more-btn" aria-haspopup="menu" aria-expanded={moreOpen} aria-label="Mais opções" title="Mais opções" onClick={() => setMoreOpen((v) => !v)}>
+                          <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><circle cx="5" cy="12" r="1.9" /><circle cx="12" cy="12" r="1.9" /><circle cx="19" cy="12" r="1.9" /></svg>
+                        </button>
+                        {moreOpen && (
+                          <div className="pfl-menu" role="menu">
+                            {lookQuery(user) && (
+                              <button type="button" role="menuitem" className="pfl-menu-item" onClick={() => { setMoreOpen(false); closeProfile(); navigate(`/loja?look=${encodeURIComponent(lookQuery(user))}&from=${encodeURIComponent(user.displayName)}`); }}>
+                                <PfIcon name="sparkle" size={16} /> Adquira este visual
+                              </button>
+                            )}
+                            <button type="button" role="menuitem" className="pfl-menu-item" onClick={() => { setMoreOpen(false); shareProfile(user); }}>
+                              <PfIcon name="link" size={16} /> Compartilhar perfil
+                            </button>
+                            <IgnoreButton user={user} className="pfl-menu-item" role="menuitem" icon={<PfIcon name="eye" size={16} />} onDone={() => setMoreOpen(false)} />
+                            <button type="button" role="menuitem" className="pfl-menu-item danger" onClick={() => { setMoreOpen(false); setReportOpen(true); }}>
+                              <PfIcon name="alert" size={16} /> Denunciar perfil
+                            </button>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="pfl-actions">
+                      <button type="button" className="btn-primary" onClick={() => useStore.getState().openSettings()}>Editar perfil</button>
+                      <button type="button" className="btn-secondary" onClick={() => setShowcaseOpen(true)}>Editar vitrine</button>
                     </div>
                   )}
                 </div>
@@ -1473,22 +1446,71 @@ export default function UserProfileModal() {
                   <BadgeListModal userName={user.displayName} badges={data.badges} initialId={typeof badgeListOpen === 'string' ? badgeListOpen : undefined} onClose={() => setBadgeListOpen(false)} />
                 )}
 
-                {/* Tudo numa página só, rolando: uma seção por grupo. */}
-                {sections.map((sec) => (
-                  <section key={sec.id} className={`pf-onepage-section pf-onepage-${sec.id}`} aria-label={sec.label}>
-                    {sections.length > 1 && (
-                      <h3 className="pf-onepage-title"><PfIcon name={sec.icon} size={16} /> {sec.label}</h3>
+                <div className={`pfl-layout${tabs.length === 0 ? ' is-solo' : ''}`}>
+                  {/* Esquerda (computador): quem a pessoa é. */}
+                  {!narrow && (
+                    <aside className="pfl-aside" aria-label="Sobre">
+                      <div className="pfx-head-activity"><ActivityBadge userId={user.id} /></div>
+                      {aboutBody}
+                    </aside>
+                  )}
+
+                  {/* Direita: o resto, em abas. Todas ficam montadas (a que não
+                      está aberta só fica escondida), então nada recarrega ao trocar. */}
+                  <div className="pfl-main">
+                    {narrow && <div className="pfx-head-activity"><ActivityBadge userId={user.id} /></div>}
+                    {tabs.length > 1 && (
+                      <div className="pf-tabs" role="tablist" aria-label="Seções do perfil">
+                        {tabs.map((t) => (
+                          <button
+                            key={t.id} type="button" role="tab" id={`pf-tab-${t.id}`} aria-controls={`pf-panel-${t.id}`}
+                            aria-selected={currentTab === t.id} tabIndex={currentTab === t.id ? 0 : -1}
+                            className={`pf-tab${currentTab === t.id ? ' active' : ''}`}
+                            onClick={() => setActiveTab(t.id)}
+                            onKeyDown={(e) => {
+                              if (e.key !== 'ArrowRight' && e.key !== 'ArrowLeft') return;
+                              const i = tabs.findIndex((x) => x.id === currentTab);
+                              const next = tabs[(i + (e.key === 'ArrowRight' ? 1 : tabs.length - 1)) % tabs.length];
+                              setActiveTab(next.id);
+                              requestAnimationFrame(() => document.getElementById(`pf-tab-${next.id}`)?.focus());
+                            }}
+                          >
+                            <PfIcon name={t.icon} size={16} /> {t.label}
+                          </button>
+                        ))}
+                      </div>
                     )}
-                    <div className={`pf-grid ${tabContent[sec.id].length === 1 ? 'single' : ''}`}>
-                      {tabContent[sec.id].map(([key, el]) => (
-                        <div key={key} className="pf-grid-item">{el}</div>
-                      ))}
-                    </div>
-                  </section>
-                ))}
-                {/* Fase 8: mascote pinguim do perfil. */}
-                {isFeatureEnabled('profilePet') && <ProfilePet userId={user.id} isMe={isMe} onNavigate={closeProfile} />}
-                <ProfileGamesSection userId={user.id} />
+                    {narrow && hasAbout && (
+                      <div
+                        role="tabpanel" id="pf-panel-about" aria-labelledby={tabs.length > 1 ? 'pf-tab-about' : undefined} aria-label={tabs.length > 1 ? undefined : 'Sobre'}
+                        className="pf-tabpanel pf-tabpanel-about pfl-aside" hidden={currentTab !== 'about'}
+                      >
+                        {aboutBody}
+                      </div>
+                    )}
+                    {PF_TABS.map((t) => {
+                      const shown = tabs.some((x) => x.id === t.id);
+                      // A biblioteca de jogos fica sempre montada: é ela que diz se a aba Jogos aparece.
+                      if (!shown && t.id !== 'games') return null;
+                      return (
+                        <div
+                          key={t.id} role="tabpanel" id={`pf-panel-${t.id}`} aria-labelledby={tabs.length > 1 ? `pf-tab-${t.id}` : undefined}
+                          aria-label={tabs.length > 1 ? undefined : t.label}
+                          className={`pf-tabpanel pf-tabpanel-${t.id}`} hidden={!shown || currentTab !== t.id}
+                        >
+                          <div className={`pf-grid${t.id === 'overview' || tabContent[t.id].length === 1 ? ' single' : ''}`}>
+                            {tabContent[t.id].map(([key, el]) => (
+                              <div key={key} className="pf-grid-item">{el}</div>
+                            ))}
+                          </div>
+                          {t.id === 'games' && <ProfileGamesSection userId={user.id} onContent={setGamesHas} />}
+                          {/* Fase 8: mascote pinguim do perfil. */}
+                          {t.id === 'games' && isFeatureEnabled('profilePet') && <ProfilePet userId={user.id} isMe={isMe} onNavigate={closeProfile} />}
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
               </div>
 
               {scrapListOpen && (

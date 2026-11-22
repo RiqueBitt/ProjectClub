@@ -33,11 +33,13 @@ export async function shareProfile(user) {
   } catch { /* cancelado */ }
 }
 
-export function IgnoreButton({ user }) {
+// `className`/`icon`/`onDone` deixam o mesmo botão servir de item do menu
+// "Mais" do perfil completo.
+export function IgnoreButton({ user, className = 'btn-secondary', icon = null, role, onDone }) {
   const ignored = useMsgExtras((s) => s.ignored.has(user.id));
   return (
-    <button type="button" className="btn-secondary" title="Esconde as mensagens dessa pessoa pra você (ela não fica sabendo)" onClick={() => toggleIgnore(user)}>
-      {ignored ? 'Parar de ignorar' : 'Ignorar'}
+    <button type="button" role={role} className={className} title="Esconde as mensagens dessa pessoa pra você (ela não fica sabendo)" onClick={() => { toggleIgnore(user); onDone?.(); }}>
+      {icon}{icon ? ' ' : ''}{ignored ? 'Parar de ignorar' : 'Ignorar'}
     </button>
   );
 }

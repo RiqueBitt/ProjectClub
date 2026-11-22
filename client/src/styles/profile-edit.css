@@ -3,18 +3,6 @@
    "Editar vitrine" (ProfileShowcaseModal.jsx). Prefixos pfe-/pfv-.
    ============================================================ */
 
-/* Barra "este é o seu perfil" */
-.pfe-ownbar {
-  display: flex; align-items: center; gap: 10px; flex-wrap: wrap; padding: 10px 12px; border-radius: 14px; margin-bottom: 12px;
-  background: color-mix(in srgb, var(--pf-accent, var(--brand)) 10%, var(--bg-secondary));
-  border: 1px solid color-mix(in srgb, var(--pf-accent, var(--brand)) 32%, transparent);
-}
-.pfe-ownbar-icon {
-  width: 30px; height: 30px; flex-shrink: 0; border-radius: 9px; display: inline-flex; align-items: center; justify-content: center;
-  color: var(--pf-accent, var(--brand)); background: color-mix(in srgb, var(--pf-accent, var(--brand)) 16%, transparent);
-}
-.pfe-ownbar-text { flex: 1; min-width: 180px; font-size: 13px; color: var(--text-normal); }
-
 /* Trocar banner (canto de BAIXO do banner: em cima ficam a engrenagem e o
    X do modal — antes este botão cobria os dois e ninguém conseguia clicar) */
 .pfe-banner-edit {

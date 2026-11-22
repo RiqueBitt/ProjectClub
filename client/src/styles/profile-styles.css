@@ -1064,14 +1064,6 @@
   background: var(--ps-chip-bg, var(--ps-section-bg)) !important; border: 1px solid var(--ps-section-border);
   border-radius: var(--ps-chip-radius, 8px);
 }
-/* Barra "Este é o seu perfil": texto escuro em fundo azul-marinho ficava ilegível. */
-.pstyle .pfe-ownbar {
-  background: var(--ps-section-bg) !important; box-shadow: var(--ps-section-shadow, none);
-  border: var(--ps-section-borderw, 1px) var(--ps-section-borderstyle, solid) var(--ps-section-border) !important;
-  border-radius: var(--ps-radius) !important;
-}
-.pstyle .pfe-ownbar-text { color: var(--ps-text) !important; }
-.pstyle .pfe-ownbar-icon { color: var(--ps-accent); background: color-mix(in srgb, var(--ps-accent) 16%, transparent); border-radius: var(--ps-chip-radius, 9px); }
 /* Texto do "Sobre" encostava na borda da caixinha. */
 .pstyle .pf-card .profile-section-body { padding: 10px 12px; }
 .pstyle-win2000 .pf-card .profile-section-body { padding: 4px 6px; }
