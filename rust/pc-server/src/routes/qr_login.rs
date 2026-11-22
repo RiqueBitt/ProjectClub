@@ -667,10 +667,7 @@ mod tests {
     #[test]
     fn caminho_seguro() {
         assert_eq!(safe_path(None), "/inicio");
-        assert_eq!(
-            safe_path(Some("to=%2Fadmin%3Fx%3D1")),
-            "/admin?x=1"
-        );
+        assert_eq!(safe_path(Some("to=%2Fadmin%3Fx%3D1")), "/admin?x=1");
         assert_eq!(safe_path(Some("to=//mal.com")), "/inicio");
         assert_eq!(safe_path(Some("to=https://mal.com")), "/inicio");
         assert_eq!(safe_path(Some("to=/a&to=/b")), "/inicio");
