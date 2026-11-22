@@ -143,6 +143,34 @@ pub fn public_user(row: &Row) -> DbResult<Map<String, Value>> {
     Ok(out)
 }
 
+/// Vários usuários (campos públicos) por id, num `HashMap` id → usuário.
+pub async fn public_by_ids(
+    db: &db::Db,
+    ids: &[String],
+) -> DbResult<std::collections::HashMap<String, Map<String, Value>>> {
+    let mut out = std::collections::HashMap::new();
+    if ids.is_empty() {
+        return Ok(out);
+    }
+    let marks = vec!["?"; ids.len()].join(", ");
+    let rows = db::all(
+        db,
+        &public_select_sql(&format!("WHERE u.id IN ({marks})")),
+        ids.iter().map(|i| db::Value::from(i.as_str())).collect(),
+    )
+    .await?;
+    for r in &rows {
+        let u = public_user(r)?;
+        let id = u
+            .get("id")
+            .and_then(Value::as_str)
+            .unwrap_or_default()
+            .to_string();
+        out.insert(id, u);
+    }
+    Ok(out)
+}
+
 fn relations(row: &Row) -> DbResult<(Value, Value)> {
     // clanTag: { tag, clan: { icon: ClanIcon | null, iconColor } } ou null
     let clan_tag = if db::col(row, "_ct_id", Ty::Str)?.is_null() {

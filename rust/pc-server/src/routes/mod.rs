@@ -7,6 +7,7 @@ pub mod ctx;
 pub mod devices;
 pub mod economy;
 pub mod export;
+pub mod friends;
 pub mod gifs;
 pub mod login;
 pub mod me;

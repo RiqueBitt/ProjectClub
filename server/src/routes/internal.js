@@ -100,14 +100,25 @@ router.post('/realtime', (req, res) => {
 
 // Serviços do Node que o Rust ainda não tem, disparados depois de uma ação
 // que já foi feita no Rust (melhor esforço, na ordem, sem esperar):
-//   { actions: [{ name: 'ups' | 'achievements' | 'profileChanged', userId }] }
+//   { actions: [{ name, userId, ...extras }] }
 // - ups: recalcula os "ups" e avisa a pessoa (services/ups.emitUpsUpdate)
 // - achievements: confere conquistas novas (services/achievements.checkAndUnlock)
 // - profileChanged: avisa os amigos que o perfil mudou (services/profileUpdates)
+// - friendsChanged { otherId }: amizade mudou entre as duas pessoas
+//   (services/friendEvents — o Club Penguin usa pra lista de amigos)
+// - offlineEmail { payload }: e-mail de aviso se a pessoa estiver offline
+//   (services/offlineEmailNotifier; só o tipo 'friend_request' por enquanto)
+const OFFLINE_EMAIL_TYPES = ['friend_request'];
 const AFTER_ACTIONS = {
   ups: (req, userId) => require('../services/ups').emitUpsUpdate(req.app.get('io'), userId),
   achievements: (req, userId) => require('../services/achievements').checkAndUnlock(userId, req.app.get('io')),
   profileChanged: (req, userId) => require('../services/profileUpdates').profileChanged(req, userId),
+  friendsChanged: (req, userId, a) => require('../services/friendEvents').friendsChanged(userId, typeof a.otherId === 'string' ? a.otherId : null),
+  offlineEmail: (req, userId, a) => {
+    const p = a.payload && typeof a.payload === 'object' ? a.payload : {};
+    if (!OFFLINE_EMAIL_TYPES.includes(p.type)) return null;
+    return require('../services/offlineEmailNotifier').maybeSendOfflineEmail(userId, { type: p.type, actorName: typeof p.actorName === 'string' ? p.actorName : undefined });
+  },
 };
 router.post('/after', async (req, res) => {
   const list = Array.isArray(req.body?.actions) ? req.body.actions : [];
@@ -115,7 +126,7 @@ router.post('/after', async (req, res) => {
   for (const a of list) {
     const fn = a && Object.prototype.hasOwnProperty.call(AFTER_ACTIONS, a.name) ? AFTER_ACTIONS[a.name] : null;
     if (!fn || typeof a.userId !== 'string') continue;
-    try { await fn(req, a.userId); done += 1; } catch (err) { console.error(`[internal/after] ${a.name}:`, err?.message || err); }
+    try { await fn(req, a.userId, a); done += 1; } catch (err) { console.error(`[internal/after] ${a.name}:`, err?.message || err); }
   }
   res.json({ ok: true, done });
 });

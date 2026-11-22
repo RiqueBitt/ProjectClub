@@ -8,6 +8,7 @@ pub mod auth;
 pub mod cache;
 pub mod check;
 pub mod config;
+pub mod conversations;
 pub mod db;
 pub mod iron;
 pub mod js;
@@ -321,6 +322,16 @@ fn ported(state: &AppState) -> Router<AppState> {
         .route("/api/gifs/search", get(routes::gifs::search))
         .route("/api/gifs/categories", get(routes::gifs::categories))
         .route("/api/decorations/checkout", post(routes::shop::checkout))
+        .route("/api/friends", get(routes::friends::list))
+        .route("/api/friends/blocked", get(routes::friends::blocked))
+        .route("/api/friends/request", post(routes::friends::send_request))
+        .route("/api/friends/block", post(routes::friends::block))
+        .route(
+            "/api/friends/block/{user_id}",
+            delete(routes::friends::unblock),
+        )
+        .route("/api/friends/{id}/respond", post(routes::friends::respond))
+        .route("/api/friends/{id}", delete(routes::friends::remove))
         .route("/api/internal", any(not_found))
         .route("/api/internal/{*rest}", any(not_found))
         .method_not_allowed_fallback(proxy::forward)

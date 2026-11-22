@@ -79,8 +79,11 @@ Cada fase é publicável sozinha, só quando o dono liberar.
   - [x] o que entrou no `main` depois do começo do branch (PRs #152–#162,
         de outras pessoas): cartão da carteira e o resto de `/api/economy`,
         busca de GIFs com largura/altura e a cestinha da Loja
-  - [ ] próximo: amigos (`/api/friends`) e as partes do perfil (fãs,
-        traços, enquetes, visitas, recados, depoimentos)
+  - [x] amigos (`/api/friends`): lista, bloqueados, pedir (com a
+        privacidade de pedidos), responder (aceitar já cria a conversa
+        direta), desfazer, bloquear e desbloquear
+  - [ ] próximo: as partes do perfil (fãs, traços, enquetes, visitas,
+        recados, depoimentos)
   - [ ] depois: amigos, mensagens, comunidades, economia, staff…
 
 ### Fase 1 — o que já tem
@@ -415,3 +418,18 @@ Produção (22/11/2026): 6 contas (uma ADMIN) em carteira, baús, rank,
 ranking (top 50 de verdade, com ETag), admin dos baús, cartão
 inexistente, estilo inválido, 4 cestinhas recusadas e a busca/categorias
 de GIFs da Klipy de verdade — 69 de 69 iguais ao Node.
+
+### Amigos (`/api/friends`)
+
+- `GET /` (amizades, pedidos e os bloqueios que eu fiz; recado do pedido
+  só aparece se a preferência deixar), `GET /blocked`,
+  `POST /request` (amigos em comum quando a pessoa só aceita assim),
+  `POST /:id/respond` (aceitar, recusar, bloquear), `DELETE /:id`,
+  `POST /block`, `DELETE /block/:userId`.
+- Aceitar cria (ou reaproveita) a conversa direta igual ao
+  `ensureDirectConversation` e avisa as duas pessoas (`conversation:new`).
+- Ponte `/api/internal/after` ganhou `friendsChanged` (o Club Penguin
+  atualiza a lista de amigos) e `offlineEmail` (só `friend_request`).
+- **Diferença de propósito**: o aviso `friend:request` vai só com os
+  campos públicos de quem pediu. O Node mandava a linha inteira do `User`
+  (e-mail, hash da senha, segredo do 2FA) — correção do Node no PR #163.

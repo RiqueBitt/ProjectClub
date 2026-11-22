@@ -12,7 +12,7 @@ use axum::http::StatusCode;
 use axum::http::request::Parts;
 use axum::response::{IntoResponse, Response};
 use chrono::{Duration, NaiveDateTime};
-use serde_json::{Map, Value, json};
+use serde_json::{Value, json};
 
 use crate::AppState;
 use crate::db::{self, Ty};
@@ -396,33 +396,11 @@ pub async fn leaderboard(State(state): State<AppState>, parts: Parts, body: Byte
             vec![],
         )
         .await?;
-        let mut board: Vec<Value> = Vec::with_capacity(ids.len() + 1);
-        if !ids.is_empty() {
-            let marks = vec!["?"; ids.len()].join(", ");
-            let rows = db::all(
-                &c.db,
-                &users::public_select_sql(&format!("WHERE u.id IN ({marks})")),
-                ids.iter().map(|i| db::Value::from(i.as_str())).collect(),
-            )
-            .await?;
-            let mut by_id: std::collections::HashMap<String, Map<String, Value>> = rows
-                .iter()
-                .map(|r| {
-                    let u = users::public_user(r)?;
-                    let id = u
-                        .get("id")
-                        .and_then(Value::as_str)
-                        .unwrap_or_default()
-                        .to_string();
-                    Ok((id, u))
-                })
-                .collect::<db::DbResult<_>>()?;
-            for id in &ids {
-                if let Some(u) = by_id.remove(id) {
-                    board.push(Value::Object(u));
-                }
-            }
-        }
+        let mut by_id = users::public_by_ids(&c.db, &ids).await?;
+        let mut board: Vec<Value> = ids
+            .iter()
+            .filter_map(|id| by_id.remove(id).map(Value::Object))
+            .collect();
         if !ids.iter().any(|i| i == uid(&c)) {
             let me = db::first(
                 &c.db,

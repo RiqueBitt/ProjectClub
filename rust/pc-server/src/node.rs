@@ -178,12 +178,26 @@ pub fn after(state: &AppState, actions: &[(&str, &str)]) {
         .iter()
         .map(|(name, user)| json!({ "name": name, "userId": user }))
         .collect();
+    after_json(state, list);
+}
+
+/// Igual ao `after`, com ações que levam mais campos
+/// (`friendsChanged { otherId }`, `offlineEmail { payload }`).
+pub fn after_json(state: &AppState, actions: Vec<serde_json::Value>) {
     let url = format!("{}/api/internal/after", state.config.node_upstream);
     let secret = internal_secret(&state.config.jwt_access_secret);
     let _ = state
         .realtime
         .0
-        .send((url, secret, json!({ "actions": list })));
+        .send((url, secret, json!({ "actions": actions })));
+}
+
+/// `friendEvents.friendsChanged(a, b)` (o Club Penguin atualiza a lista de amigos).
+pub fn friends_changed(state: &AppState, a: &str, b: &str) {
+    after_json(
+        state,
+        vec![json!({ "name": "friendsChanged", "userId": a, "otherId": b })],
+    );
 }
 
 #[cfg(test)]

@@ -111,7 +111,7 @@ test('/after só roda as ações conhecidas, na ordem', async () => {
   const express = require('express');
   const calls = [];
   const fake = (name) => ({ exports: new Proxy({}, { get: (_, fn) => async (...args) => calls.push([name, fn, typeof args[0] === 'string' ? args[0] : args[1]]) }) });
-  for (const [file, name] of [['ups', 'ups'], ['achievements', 'achievements'], ['profileUpdates', 'profile']]) {
+  for (const [file, name] of [['ups', 'ups'], ['achievements', 'achievements'], ['profileUpdates', 'profile'], ['friendEvents', 'friends'], ['offlineEmailNotifier', 'email']]) {
     const full = path.resolve(__dirname, `../src/services/${file}.js`);
     require.cache[full] = { ...fake(name), loaded: true, id: full, filename: full, children: [], paths: [] };
   }
@@ -124,10 +124,17 @@ test('/after só roda as ações conhecidas, na ordem', async () => {
   try {
     const r = await fetch(`http://127.0.0.1:${server.address().port}/api/internal/after`, {
       method: 'POST', headers: { 'x-pc-internal': internalSecret(), 'content-type': 'application/json' },
-      body: JSON.stringify({ actions: [{ name: 'ups', userId: 'u1' }, { name: 'rm -rf', userId: 'u1' }, { name: 'achievements', userId: 'u2' }, { name: 'profileChanged', userId: 'u3' }] }),
+      body: JSON.stringify({ actions: [
+        { name: 'ups', userId: 'u1' }, { name: 'rm -rf', userId: 'u1' }, { name: 'achievements', userId: 'u2' }, { name: 'profileChanged', userId: 'u3' },
+        { name: 'friendsChanged', userId: 'u4', otherId: 'u5' },
+        { name: 'offlineEmail', userId: 'u6', payload: { type: 'friend_request', actorName: 'Ana' } },
+        { name: 'offlineEmail', userId: 'u7', payload: { type: 'qualquer' } },
+      ] }),
     });
-    assert.deepStrictEqual(await r.json(), { ok: true, done: 3 });
-    assert.deepStrictEqual(calls.map((c) => c[0]), ['ups', 'achievements', 'profile']);
+    assert.deepStrictEqual(await r.json(), { ok: true, done: 6 });
+    assert.deepStrictEqual(calls.map((c) => c[0]), ['ups', 'achievements', 'profile', 'friends', 'email']);
+    assert.deepStrictEqual(calls[3][1], 'friendsChanged');
+    assert.deepStrictEqual(calls[4].slice(1), ['maybeSendOfflineEmail', 'u6']);
   } finally {
     server.close();
   }

@@ -142,7 +142,7 @@ async fn small_users(db: &Db, ids: &[String]) -> db::DbResult<Vec<Value>> {
     rows.iter().map(small_user).collect()
 }
 
-async fn friend_ids(db: &Db, user: &str) -> db::DbResult<Vec<String>> {
+pub(crate) async fn friend_ids(db: &Db, user: &str) -> db::DbResult<Vec<String>> {
     let rows = db::all(
         db,
         "SELECT requesterId, addresseeId FROM Friendship WHERE status = 'ACCEPTED' AND (requesterId = ? OR addresseeId = ?)",
