@@ -433,3 +433,9 @@ de GIFs da Klipy de verdade — 69 de 69 iguais ao Node.
 - **Diferença de propósito**: o aviso `friend:request` vai só com os
   campos públicos de quem pediu. O Node mandava a linha inteira do `User`
   (e-mail, hash da senha, segredo do 2FA) — correção do Node no PR #163.
+
+Produção (22/11/2026): 9 contas (as com mais amizades e as com
+bloqueios) em `GET /friends` e `/friends/blocked`, mais 6 pedidos
+recusados por conta (nome que não existe, pedir a si mesmo, responder e
+desfazer pedido inexistente, bloquear sem nome, desbloquear quem não
+está bloqueado) — 72 de 72 iguais ao Node.
