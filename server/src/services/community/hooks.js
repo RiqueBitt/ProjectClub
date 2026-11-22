@@ -21,18 +21,4 @@ function onTempRoomCreated(userId, io = null) {
   try { require('./secretAchievements').unlock(userId, 'secreta_sala_propria', io).catch?.(() => {}); } catch { /* idem */ }
 }
 
-/**
- * Conta criada a partir de uma inscrição: liga a indicação (se houver).
- * `applicationId` é null na auto-aprovação do dono.
- */
-function onAccountApproved({ userId, applicationId = null, referralCode = null, ip = null }, _io = null) {
-  setImmediate(async () => {
-    try {
-      const referrals = require('./referrals');
-      if (applicationId) await referrals.linkInvitee({ applicationId, userId });
-      else if (referralCode) await referrals.attachToUser({ code: referralCode, userId, ip });
-    } catch (err) { console.error('[indicações] falha ao ligar conta:', err?.message || err); }
-  });
-}
-
-module.exports = { onTrack, onXp, onTempRoomCreated, onAccountApproved };
+module.exports = { onTrack, onXp, onTempRoomCreated };

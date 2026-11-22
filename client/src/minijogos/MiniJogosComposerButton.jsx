@@ -26,7 +26,11 @@ export default function MiniJogosComposerButton({ onShowCard }) {
     if (busy) return;
     setBusy(true); setError('');
     try { await onShowCard(); setOpen(false); } catch (err) {
-      setError(err?.response?.data?.error || 'Não foi possível mostrar o cartão.');
+      // 404 aqui = o servidor ainda está rodando a versão antiga (atualizou
+      // os arquivos mas não reiniciou): avisa em vez de "Rota não encontrada".
+      setError(err?.response?.status === 404
+        ? 'O servidor ainda não foi reiniciado com a versão nova. Tente de novo daqui a pouco.'
+        : err?.response?.data?.error || 'Não foi possível mostrar o cartão.');
     } finally { setBusy(false); }
   };
 

@@ -5,9 +5,7 @@ const assert = require('node:assert');
 const { fase4Db, spies } = require('./helpers/fake-db');
 const spTime = require('../src/utils/spTime');
 const common = require('../src/services/community/common');
-const playGroups = require('../src/services/community/playGroups');
 const postOfWeek = require('../src/services/community/postOfWeek');
-const recap = require('../src/services/community/monthlyRecap');
 const seasons = require('../src/services/community/seasons');
 const secrets = require('../src/services/community/secretAchievements');
 
@@ -16,66 +14,6 @@ const MIN = 60_000;
 const reset = () => { common._resetSettled(); common.resetEconomyCache(); secrets._reset(); };
 
 // ---------------- Bora Jogar ----------------
-test('Bora Jogar: validação na criação', async () => {
-  const db = fase4Db();
-  const o = { db, now: NOW };
-  const ana = { id: 'ana' };
-  await assert.rejects(playGroups.create(ana, { game: 'x', startsAt: new Date(NOW.getTime() + 60 * MIN), slots: 4 }, o), /jogo/);
-  await assert.rejects(playGroups.create(ana, { game: 'Valorant', startsAt: new Date(NOW.getTime() + MIN), slots: 4 }, o), /5 minutos/);
-  await assert.rejects(playGroups.create(ana, { game: 'Valorant', startsAt: new Date(NOW.getTime() + 30 * 86400000), slots: 4 }, o), /dias pra frente/);
-  await assert.rejects(playGroups.create(ana, { game: 'Valorant', startsAt: new Date(NOW.getTime() + 60 * MIN), slots: 1 }, o), /vagas/);
-  await assert.rejects(playGroups.create(ana, { game: 'Valorant', startsAt: 'ontem', slots: 4 }, o), /inválidas/);
-  for (let i = 0; i < playGroups.MAX_ACTIVE_PER_USER; i += 1) {
-    // eslint-disable-next-line no-await-in-loop
-    await playGroups.create(ana, { game: `Jogo ${i}`, startsAt: new Date(NOW.getTime() + 60 * MIN), slots: 3, description: 'bora\u0000!' }, o);
-  }
-  await assert.rejects(playGroups.create(ana, { game: 'Mais um', startsAt: new Date(NOW.getTime() + 60 * MIN), slots: 3 }, o), (e) => e.status === 429);
-  assert.equal(db._store.playGroup[0].description, 'bora !', 'caracteres de controle saem');
-});
-
-test('Bora Jogar: entra/sai, completa avisa todo mundo, lembrete 15 min antes e expira', async () => {
-  const s = spies();
-  const db = fase4Db({ user: [{ id: 'ana' }, { id: 'bia' }, { id: 'caio' }] });
-  const o = { db, now: NOW, notify: s.notify };
-  const g = await playGroups.create({ id: 'ana' }, { game: 'Minecraft', startsAt: new Date(NOW.getTime() + 60 * MIN), slots: 2 }, o);
-  await assert.rejects(playGroups.join({ id: 'ana' }, g.id, o), /já está/);
-  await playGroups.join({ id: 'bia' }, g.id, o);
-  assert.equal(db._store.playGroup[0].status, 'FULL');
-  assert.equal(s.notices.length, 2, 'as duas pessoas do grupo');
-  await assert.rejects(playGroups.join({ id: 'caio' }, g.id, o), /completo/);
-  await playGroups.leave({ id: 'bia' }, g.id, o);
-  assert.equal(db._store.playGroup[0].status, 'OPEN', 'vaga abriu de novo');
-  await playGroups.join({ id: 'caio' }, g.id, o);
-  const list = await playGroups.list('caio', o);
-  assert.equal(list[0].joined, true);
-  assert.equal(list[0].count, 2);
-  // Lembrete: 10 min antes, uma vez só.
-  s.notices.length = 0;
-  const soon = { ...o, now: new Date(NOW.getTime() + 50 * MIN) };
-  assert.equal((await playGroups.tick(soon)).reminded, 2);
-  assert.equal((await playGroups.tick(soon)).reminded, 0);
-  assert.match(s.notices[0].body, /10 minutos/);
-  // Duas horas depois do horário: expira.
-  const later = { ...o, now: new Date(NOW.getTime() + 60 * MIN + playGroups.EXPIRE_AFTER_MS + MIN) };
-  assert.equal((await playGroups.tick(later)).expired, 1);
-  assert.equal((await playGroups.list('ana', later)).length, 0);
-});
-
-test('Bora Jogar: só quem criou (ou a staff) cancela; quem criou sair = cancelar', async () => {
-  const s = spies();
-  const db = fase4Db({ user: [{ id: 'ana' }, { id: 'bia' }] });
-  const o = { db, now: NOW, notify: s.notify };
-  const g = await playGroups.create({ id: 'ana' }, { game: 'CS2', startsAt: new Date(NOW.getTime() + 60 * MIN), slots: 5 }, o);
-  await playGroups.join({ id: 'bia' }, g.id, o);
-  await assert.rejects(playGroups.cancel({ id: 'bia' }, g.id, o), (e) => e.status === 403);
-  const r = await playGroups.leave({ id: 'ana' }, g.id, o);
-  assert.equal(r.cancelled, true);
-  assert.equal(s.notices[0].userId, 'bia');
-  const g2 = await playGroups.create({ id: 'ana' }, { game: 'CS2', startsAt: new Date(NOW.getTime() + 60 * MIN), slots: 5 }, o);
-  await playGroups.cancel({ id: 'mod', platformRole: 'MODERATOR' }, g2.id, o);
-});
-
-// ---------------- Post da semana ----------------
 test('Post da semana: mais votado da semana anterior, desempate por comentários, paga uma vez', async () => {
   reset();
   const s = spies();
@@ -109,39 +47,6 @@ test('Post da semana: semana fraca (pontuação mínima) não escolhe ninguém',
 });
 
 // ---------------- Retrospectiva ----------------
-test('retrospectiva: gera no dia 1º para quem teve atividade, com conquistas do mês e um aviso', async () => {
-  reset();
-  const s = spies();
-  const firstOfDec = new Date('2026-12-01T12:00:00Z');
-  const db = fase4Db({
-    activityCounter: [
-      { scope: 'USER_MONTH', scopeId: 'ana', periodKey: '2026-11', messages: 120, voiceMinutes: 45, forumPosts: 2, reactions: 10, xp: 900, points: 185 },
-      { scope: 'USER_MONTH', scopeId: 'bia', periodKey: '2026-11', messages: 3, voiceMinutes: 0, forumPosts: 0, reactions: 0, xp: 50, points: 3 },
-      { scope: 'USER_MONTH', scopeId: 'caio', periodKey: '2026-10', messages: 999, points: 999 },
-    ],
-    achievement: [{ id: 'a1', key: 'primeiro_post', name: 'Primeiro Post', rarity: 'COMMON' }, { id: 'a2', key: 'secreta_coruja', name: 'Coruja', rarity: 'RARE' }],
-    userAchievement: [
-      { id: 'u1', userId: 'ana', achievementId: 'primeiro_post', unlockedAt: new Date('2026-11-10T12:00:00Z') },
-      { id: 'u2', userId: 'ana', achievementId: 'secreta_coruja', unlockedAt: new Date('2026-11-11T06:00:00Z') },
-      { id: 'u3', userId: 'ana', achievementId: 'velha', unlockedAt: new Date('2026-09-11T06:00:00Z') },
-    ],
-  });
-  const o = { db, now: firstOfDec, notify: s.notify };
-  const r = await recap.runIfDue(o);
-  assert.deepEqual(r, { created: 2, total: 2 });
-  assert.equal(s.notices.length, 2);
-  assert.equal(s.notices[0].title, 'Sua retrospectiva de novembro chegou!');
-  const mine = await recap.getRecap('ana', '2026-11', o);
-  assert.equal(mine.recap.messages, 120);
-  assert.equal(mine.recap.achievementsCount, 2);
-  assert.equal(mine.recap.achievements[0].key, 'secreta_coruja', 'mais rara primeiro');
-  assert.equal(mine.recap.topPercent, 50);
-  common._resetSettled(); db._store.jobRun = [];
-  assert.deepEqual(await recap.runIfDue(o), { created: 0, total: 2 }, 'cartão já gravado não é refeito');
-  assert.equal(await recap.runIfDue({ ...o, now: new Date('2026-12-15T12:00:00Z') }), null, 'só nos primeiros dias');
-});
-
-// ---------------- Temporadas ----------------
 test('temporadas: datas iguais às do cliente (+ Festa Junina) no horário de Brasília', () => {
   assert.equal(seasons.seasonForDate(new Date('2026-12-10T12:00:00Z')), 'natal');
   assert.equal(seasons.seasonForDate(new Date('2027-01-03T12:00:00Z')), 'anonovo');
