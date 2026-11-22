@@ -457,3 +457,17 @@ bloqueios) em `GET /friends` e `/friends/blocked`, mais 6 pedidos
 recusados por conta (nome que não existe, pedir a si mesmo, responder e
 desfazer pedido inexistente, bloquear sem nome, desbloquear quem não
 está bloqueado) — 72 de 72 iguais ao Node.
+
+No ar desde 22/11/2026 04:08 UTC (build `33ead51`). Conferido em produção:
+
+- Antes de ligar (binário novo ao lado do Node, porta 3099): páginas e
+  arquivos com os mesmos bytes (brotli, gzip e `Range`), Socket.IO por
+  WebSocket, amigos 72/72 e economia/GIFs/cestinha 81/81 iguais ao Node, e
+  o ciclo inteiro de login com uma conta de teste (criada e apagada na
+  hora): login no Rust → token e sessão valem no Node → Node renova a
+  sessão do Rust e o Rust a do Node → sair num encerra no outro.
+- Depois de ligar, pelo endereço público: login no Rust, Socket.IO
+  autenticado por WebSocket, pedido de amizade no Rust chegando no socket
+  pela ponte (`/api/internal/realtime`, só com dados públicos), desfazer o
+  pedido e a carteira. Contas de teste apagadas no fim.
+- O Rust usa ~15 MB de memória; o Node continua igual.
