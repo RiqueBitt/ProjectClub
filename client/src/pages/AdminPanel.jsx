@@ -109,6 +109,9 @@ const ICON_PATHS = {
   back: 'M5 12h14M5 12l6 6M5 12l6-6',
   arrow: 'M9 6l6 6-6 6',
   cards: 'M7 3h11a2 2 0 0 1 2 2v13M4 7h11a2 2 0 0 1 2 2v11H6a2 2 0 0 1-2-2z',
+  pin: 'M9 4h6l-1 5 3 3v2H7v-2l3-3-1-5ZM12 14v6',
+  clock: 'M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18ZM12 7v5l3 2',
+  check: 'M5 12.5 10 17l9-10',
   penguin: 'M12 3c-3.3 0-5.5 2.6-5.5 6.2 0 2 .4 3.6 1.1 5.1L6 17.5l3 .6c.9 1.1 1.9 1.9 3 1.9s2.1-.8 3-1.9l3-.6-1.6-3.2c.7-1.5 1.1-3.1 1.1-5.1C17.5 5.6 15.3 3 12 3zM10.5 10.5c1 .9 2 .9 3 0',
 };
 function StaffIcon({ name, size = 18 }) {
@@ -213,6 +216,21 @@ const TAB_GROUPS = [
 
 const groupOf = (tab) => TAB_GROUPS.find((g) => g.tabs.includes(tab));
 
+// Fixados e Recentes ficam no aparelho, separados por membro da equipe.
+const MAX_RECENT = 5;
+function useStaffList(kind, userId, max) {
+  const key = `staff${kind}:${userId || 'anon'}`;
+  const [list, setList] = useState(() => {
+    try { const v = JSON.parse(localStorage.getItem(key) || '[]'); return Array.isArray(v) ? v.filter((t) => TABS[t] && !HIDDEN_TABS.has(t)) : []; } catch { return []; }
+  });
+  const save = (next) => {
+    const clean = next.filter((t) => TABS[t] && !HIDDEN_TABS.has(t)).slice(0, max);
+    setList(clean);
+    try { localStorage.setItem(key, JSON.stringify(clean)); } catch { /* sem armazenamento: vale só nesta aba */ }
+  };
+  return [list, save];
+}
+
 export default function AdminPanel() {
   const { user } = useAuth();
   const navigate = useNavigate();
@@ -229,6 +247,23 @@ export default function AdminPanel() {
   const [stats, setStats] = useState(null);
   const searchRef = useRef(null);
   const contentRef = useRef(null);
+  const [pins, setPins] = useStaffList('Pins', user?.id, 12);
+  const [recents, setRecents] = useStaffList('Recent', user?.id, MAX_RECENT);
+  // Grupos recolhíveis: por padrão só o grupo da ferramenta aberta fica aberto.
+  const [openGroups, setOpenGroups] = useState(() => new Set([groupOf(params.get('tab'))?.label].filter(Boolean)));
+  useEffect(() => {
+    const g = groupOf(tab)?.label;
+    if (g) setOpenGroups((prev) => (prev.has(g) ? prev : new Set([...prev, g])));
+    if (tab !== 'overview') setRecents([tab, ...recents.filter((t) => t !== tab)]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tab]);
+  const toggleGroup = (label) => setOpenGroups((prev) => {
+    const next = new Set(prev);
+    if (next.has(label)) next.delete(label); else next.add(label);
+    return next;
+  });
+  const isPinned = (t) => pins.includes(t);
+  const togglePin = (t) => setPins(isPinned(t) ? pins.filter((x) => x !== t) : [...pins, t]);
 
   const loadStats = () => adminGetStats().then((d) => setStats(d.stats)).catch(() => {});
   useEffect(() => { loadStats(); }, []);
@@ -265,8 +300,16 @@ export default function AdminPanel() {
     .map((g) => ({ ...g, tabs: q ? g.tabs.filter((t) => `${TABS[t].label} ${TABS[t].desc}`.toLowerCase().includes(q)) : g.tabs }))
     .filter((g) => g.tabs.length > 0);
   const pending = (t) => (stats && TAB_PENDING_KEY[t] ? stats[TAB_PENDING_KEY[t]] || 0 : 0);
+  const groupPending = (g) => g.tabs.reduce((n, t) => n + pending(t), 0);
   const group = groupOf(tab);
   const meta = TABS[tab];
+  const navItem = (t, extraClass = '') => (
+    <button key={t} type="button" className={`staff-nav-item${extraClass}${tab === t ? ' active' : ''}`} onClick={() => selectTab(t)}>
+      <span className="staff-nav-item-label">{TABS[t].label}</span>
+      {pending(t) > 0 && <span className="staff-count" title="Pendentes">{pending(t)}</span>}
+    </button>
+  );
+  const recentList = recents.filter((t) => !pins.includes(t)).slice(0, MAX_RECENT);
 
   return (
     <div className={`staff${navOpen ? ' staff-nav-open' : ''}`}>
@@ -302,17 +345,36 @@ export default function AdminPanel() {
               <span>Visão geral</span>
             </button>
           )}
-          {groups.map((g) => (
-            <div key={g.label} className="staff-nav-group">
-              <div className="staff-nav-group-label"><StaffIcon name={g.icon} size={14} /> {g.label}</div>
-              {g.tabs.map((t) => (
-                <button key={t} type="button" className={`staff-nav-item${tab === t ? ' active' : ''}`} onClick={() => selectTab(t)}>
-                  <span className="staff-nav-item-label">{TABS[t].label}</span>
-                  {pending(t) > 0 && <span className="staff-count" title="Pendentes">{pending(t)}</span>}
-                </button>
-              ))}
+          {!q && pins.length > 0 && (
+            <div className="staff-nav-group staff-nav-pins">
+              <div className="staff-nav-group-label staff-nav-static"><StaffIcon name="pin" size={14} /> Fixados</div>
+              {pins.map((t) => navItem(t, ' is-pinned'))}
             </div>
-          ))}
+          )}
+          {!q && recentList.length > 0 && (
+            <div className="staff-nav-group staff-nav-recent">
+              <div className="staff-nav-group-label staff-nav-static"><StaffIcon name="clock" size={14} /> Recentes</div>
+              {recentList.map((t) => navItem(t))}
+            </div>
+          )}
+          {groups.map((g) => {
+            const open = !!q || openGroups.has(g.label);
+            const n = groupPending(g);
+            return (
+              <div key={g.label} className={`staff-nav-group${open ? ' is-open' : ''}`}>
+                <button
+                  type="button" className="staff-nav-group-label staff-nav-group-toggle"
+                  aria-expanded={open} onClick={() => toggleGroup(g.label)} disabled={!!q}
+                >
+                  <StaffIcon name={g.icon} size={14} />
+                  <span className="staff-nav-group-name">{g.label}</span>
+                  {n > 0 && !open && <span className="staff-count staff-count-group" title="Pendentes neste grupo">{n}</span>}
+                  <span className="staff-nav-chevron" aria-hidden="true"><StaffIcon name="arrow" size={12} /></span>
+                </button>
+                {open && g.tabs.map((t) => navItem(t))}
+              </div>
+            );
+          })}
           {q && groups.length === 0 && <p className="staff-empty">Nada encontrado para "{query}".</p>}
         </nav>
 
@@ -344,10 +406,20 @@ export default function AdminPanel() {
             <h1>{meta.label}</h1>
             <p className="staff-desc">{meta.desc}</p>
           </div>
+          {tab !== 'overview' && (
+            <button
+              type="button" className={`staff-pin-btn${isPinned(tab) ? ' is-on' : ''}`}
+              onClick={() => togglePin(tab)} aria-pressed={isPinned(tab)}
+              data-tip={isPinned(tab) ? 'Tirar dos fixados' : 'Fixar no topo do menu'}
+            >
+              <StaffIcon name="pin" size={15} />
+              <span>{isPinned(tab) ? 'Fixado' : 'Fixar'}</span>
+            </button>
+          )}
         </header>
 
         <div className={`staff-body staff-body-${tab}`}>
-          {tab === 'overview' && <OverviewTab stats={stats} onOpen={selectTab} onRefresh={loadStats} />}
+          {tab === 'overview' && <OverviewTab stats={stats} onOpen={selectTab} onRefresh={loadStats} pins={pins} />}
           {tab === 'inscricoes' && <ApplicationsTab />}
           {tab === 'users' && <UsersTab />}
           {tab === 'badges' && <BadgesTab />}
@@ -412,13 +484,17 @@ export default function AdminPanel() {
 
 // Visão geral: filas que precisam de ação primeiro, depois os números
 // da comunidade e a atividade recente da equipe.
+// `weight`: o quanto cada fila pesa na ordem do "Precisa de você"
+// (denúncia e DM sinalizada antes de inscrição e item da loja).
 const QUEUES = [
-  { tab: 'inscricoes', key: 'pendingApplications', label: 'Inscrições', hint: 'aguardando aprovação' },
-  { tab: 'reports', key: 'pendingReports', label: 'Denúncias', hint: 'para analisar' },
-  { tab: 'automodDm', key: 'pendingAutomodFlags', label: 'DMs sinalizadas', hint: 'pelo filtro automático' },
-  { tab: 'modReports', key: 'pendingModReports', label: 'Mods denunciados', hint: 'para analisar' },
-  { tab: 'pinguAlertas', key: 'pendingPinguAlerts', label: 'Alertas do Pingu', hint: 'mensagens suspeitas' },
-];
+  { tab: 'reports', key: 'pendingReports', label: 'Denúncias', hint: 'para analisar', weight: 5 },
+  { tab: 'automodDm', key: 'pendingAutomodFlags', label: 'DMs sinalizadas', hint: 'pelo filtro automático', weight: 4 },
+  { tab: 'revisoes', key: 'pendingAppeals', label: 'Revisões de punição', hint: 'pedidos de revisão', weight: 4 },
+  { tab: 'pinguAlertas', key: 'pendingPinguAlerts', label: 'Alertas do Pingu', hint: 'mensagens suspeitas', weight: 3 },
+  { tab: 'inscricoes', key: 'pendingApplications', label: 'Inscrições', hint: 'aguardando aprovação', weight: 2 },
+  { tab: 'modReports', key: 'pendingModReports', label: 'Mods denunciados', hint: 'para analisar', weight: 2 },
+  { tab: 'criadores', key: 'pendingCreatorItems', label: 'Loja dos criadores', hint: 'itens para aprovar', weight: 1 },
+].filter((item) => !HIDDEN_TABS.has(item.tab));
 
 // Texto legível de cada ação registrada no log de auditoria.
 const ACTION_TEXT = {
@@ -455,17 +531,58 @@ function relativeTime(date) {
   return new Date(date).toLocaleDateString('pt-BR', { day: '2-digit', month: 'short' });
 }
 
-function OverviewTab({ stats, onOpen, onRefresh }) {
+function OverviewTab({ stats, onOpen, onRefresh, pins = [] }) {
   const [logs, setLogs] = useState(null);
   useEffect(() => { adminListAuditLog().then((d) => setLogs(d.logs.slice(0, 8))).catch(() => setLogs([])); onRefresh(); }, []);
   const fmt = (n) => (typeof n === 'number' ? n.toLocaleString('pt-BR') : '—');
   const totalPending = stats ? QUEUES.reduce((sum, item) => sum + (stats[item.key] || 0), 0) : null;
+  // Fila do "Precisa de você": só o que tem pendência, mais urgente primeiro.
+  const todo = stats
+    ? QUEUES.map((item) => ({ ...item, n: stats[item.key] || 0 })).filter((item) => item.n > 0)
+      .sort((a, b) => b.weight * Math.log2(b.n + 1) - a.weight * Math.log2(a.n + 1))
+    : null;
 
   return (
     <div className="staff-overview">
+      <section className="staff-section staff-todo">
+        <div className="staff-section-head">
+          <h2>Precisa de você</h2>
+          {totalPending > 0 && <span className="staff-count">{totalPending}</span>}
+        </div>
+        {todo === null && <p className="staff-empty">Carregando…</p>}
+        {todo?.length === 0 && <p className="staff-empty staff-all-clear"><StaffIcon name="check" size={16} /> Tudo em dia — nenhuma fila esperando.</p>}
+        {todo?.length > 0 && (
+          <ol className="staff-todo-list">
+            {todo.map((item, i) => (
+              <li key={item.tab}>
+                <button type="button" className={`staff-todo-item${i === 0 ? ' is-top' : ''}`} onClick={() => onOpen(item.tab)}>
+                  <span className="staff-todo-num">{item.n}</span>
+                  <span className="staff-todo-text"><strong>{item.label}</strong><small>{item.hint}</small></span>
+                  <span className="staff-todo-go">Abrir <StaffIcon name="arrow" size={14} /></span>
+                </button>
+              </li>
+            ))}
+          </ol>
+        )}
+      </section>
+
+      {pins.length > 0 && (
+        <section className="staff-section">
+          <div className="staff-section-head"><h2>Fixados</h2></div>
+          <div className="staff-pinned-grid">
+            {pins.map((t) => (
+              <button key={t} type="button" className="staff-pinned-card" onClick={() => onOpen(t)}>
+                <strong>{TABS[t].label}</strong>
+                <small>{TABS[t].desc}</small>
+              </button>
+            ))}
+          </div>
+        </section>
+      )}
+
       <section className="staff-section">
         <div className="staff-section-head">
-          <h2>Precisa de atenção</h2>
+          <h2>Filas</h2>
           {totalPending === 0 && <span className="staff-ok">Tudo em dia</span>}
         </div>
         <div className="staff-queues">

@@ -268,3 +268,11 @@
 .wcard--rainbow .wcard-back .wcard-star { background: rgba(255, 255, 255, .55); color: #fff; }
 .wcard--gold .wcard-back .wcard-stripe, .wcard--rainbow .wcard-back .wcard-stripe { background: #141414; }
 @media (prefers-reduced-motion: reduce) { .wcard--rainbow .wcard-back { animation: none; } }
+
+/* Esconde de verdade a face que está de costas (não depende só do
+   backface-visibility, que alguns navegadores/WebViews ignoram e aí o
+   verso nunca aparecia). Na virada animada a troca acontece no meio do giro. */
+.wcard .wcard-back { visibility: hidden; }
+.wcard.is-back .wcard-back { visibility: visible; }
+.wcard.is-back .wcard-front { visibility: hidden; }
+.wcard.is-snapping .wcard-face { transition: visibility 0s linear .22s; }

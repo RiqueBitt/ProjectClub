@@ -18,6 +18,8 @@ data class EcoWallet(
     val streakRequired: Int = 5,
     /** Quando o próximo baú libera (null = já pode resgatar). */
     val nextDailyAt: String? = null,
+    /** Estilo do cartão da carteira: DEFAULT, GOLD (Assinante) ou RAINBOW (Super). */
+    val cardStyle: String? = null,
 )
 
 @Serializable
