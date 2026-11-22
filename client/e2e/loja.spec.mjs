@@ -126,3 +126,26 @@ test('loja de conveniência: pega do gancho, cestinha e paga passando o cartão'
   await expect(page.getByRole('heading', { level: 1, name: 'Meus itens' })).toBeVisible({ timeout: 5000 });
   await expect(page.locator('.shop-basket-count')).toHaveCount(0);
 });
+
+test('loja de conveniência: o pacote sai do gancho e vai arrastado até a cestinha', async ({ page }, info) => {
+  test.skip(info.project.name === 'celular', 'no celular é segurar e arrastar (toque); aqui testa o mouse');
+  await page.addInitScript(() => { try { localStorage.removeItem('shopBasket:v1'); } catch { /* ok */ } });
+  await page.goto('/loja');
+  await page.locator('.room-nav-item', { hasText: 'Molduras de avatar' }).click();
+  const card = page.locator('.room-card', { hasText: 'Brasa' });
+  await card.scrollIntoViewIfNeeded();
+  const from = await card.locator('.room-card-art').boundingBox();
+  const to = await page.locator('.shop-basket-fab').boundingBox();
+  await page.mouse.move(from.x + from.width / 2, from.y + from.height / 2);
+  await page.mouse.down();
+  await page.mouse.move(from.x + from.width / 2 + 30, from.y + from.height / 2 + 10, { steps: 4 });
+  // Saiu do gancho: o pacote original some e o "voando" aparece.
+  await expect(card).toHaveClass(/is-lifted/);
+  await expect(page.locator('.shop-drag-layer .shop-drag-ghost')).toHaveCount(1);
+  await page.mouse.move(to.x + to.width / 2, to.y + to.height / 2, { steps: 20 });
+  await expect(page.locator('.shop-basket-fab')).toHaveClass(/is-over/);
+  await page.mouse.up();
+  await expect(page.locator('.shop-basket-fab .shop-basket-count')).toHaveText('1');
+  await expect(page.locator('.shop-drag-layer')).toHaveCount(0);
+  await expect(card).not.toHaveClass(/is-lifted/);
+});
