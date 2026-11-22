@@ -294,68 +294,81 @@ function MessageBody({ message, showAuthor, onReply, topics = [], onOpenTopic, i
   const [tipOpen, setTipOpen] = useState(false);
   const onContextMenu = (e) => {
     if (isPending) return;
-    // Redesenho do menu: ícones SVG (ver ContextMenuContext.jsx) e seções
-    // separadas — ações na mensagem / pessoa / denúncia / apagar / moderação.
-    // Mesmas ações e mesmas checagens de permissão de antes.
+    // Menu enxuto (pedido do dono, nov/2026: "muitas opções, tudo na tela de
+    // uma vez"). Continua tendo TODAS as funções e as mesmas checagens de
+    // permissão; só mudou onde cada uma fica:
+    //   1) reações rápidas;  2) as 4 ações mais usadas numa fileira;
+    //   3) Editar / Salvar;  4) "Mais ações" e a pessoa, em submenus;
+    //   5) Denunciar, Apagar e (pra quem modera) "Moderação".
     const items = [
       { emojis: topReactions(4), onPick: (em) => reactWithLimitCheck(em) },
-      { label: 'Reagir', icon: 'smilePlus', onClick: () => setShowEmojiPicker((v) => !v) },
-      { label: 'Responder', icon: 'reply', onClick: () => onReply(message) },
+      { actions: [
+        { label: 'Responder', icon: 'reply', onClick: () => onReply(message) },
+        { label: 'Reagir', icon: 'smilePlus', onClick: () => setShowEmojiPicker((v) => !v) },
+        { label: 'Copiar', title: 'Copiar texto', icon: 'copy', onClick: () => navigator.clipboard?.writeText(message.content || ''), disabled: !message.content },
+        { label: 'Encaminhar', icon: 'forward', onClick: () => setForwardOpen(true) },
+      ] },
+      { divider: true },
     ];
     if (isOwn) items.push({ label: 'Editar', icon: 'edit', onClick: () => setEditing(true) });
-    items.push({ label: 'Copiar texto', icon: 'copy', onClick: () => navigator.clipboard?.writeText(message.content || ''), disabled: !message.content });
+    const isSaved = useMsgExtras.getState().saved.has(message.id);
+    items.push({ label: isSaved ? 'Remover dos salvos' : 'Salvar para depois', icon: isSaved ? 'bookmarkOff' : 'bookmark', onClick: () => toggleSaved(message) });
+
+    // ---- "Mais ações": o que se usa de vez em quando ----
+    const more = [{ label: 'Lembrar-me', icon: 'clock', onClick: () => setReminderOpen(true) }];
+    if (!isOwn) more.push({ label: 'Marcar como não lida', icon: 'unread', onClick: () => markUnreadFrom(message) });
+    more.push({ divider: true }, { label: 'Copiar link da mensagem', icon: 'link', onClick: () => copyMessageLink(message) });
     // "Falar mensagem" (velocidade em Configurações → Acessibilidade).
     if (message.content && typeof window !== 'undefined' && window.speechSynthesis) {
-      items.push({ label: 'Falar mensagem', icon: 'volume', onClick: () => speakMessage(message) });
+      more.push({ label: 'Falar mensagem', icon: 'volume', onClick: () => speakMessage(message) });
     }
     // Fase 9: tradução do Pingu (só você vê; só mensagens de canal — DM nunca vai pra IA).
     if (isChannelMessage && message.content && !isGifMessage) {
-      items.push({ label: 'Traduzir com o Pingu', icon: 'translate', onClick: () => requestTranslation(message, i18n.language) });
+      more.push({ label: 'Traduzir com o Pingu', icon: 'translate', onClick: () => requestTranslation(message, i18n.language) });
     }
-    items.push({ label: 'Encaminhar', icon: 'reply', onClick: () => setForwardOpen(true) });
-    items.push({ label: 'Lembrar-me', icon: 'clock', onClick: () => setReminderOpen(true) });
-    const isSaved = useMsgExtras.getState().saved.has(message.id);
-    items.push({ label: isSaved ? 'Remover dos salvos' : 'Salvar para depois', icon: isSaved ? 'bookmarkOff' : 'bookmark', onClick: () => toggleSaved(message) });
-    if (!isOwn) items.push({ label: 'Marcar como não lida', icon: 'unread', onClick: () => markUnreadFrom(message) });
-    // Fase 4: reputação ("Agradecer") e gorjeta em moedas pra quem escreveu.
-    if (!isOwn && message.authorId) {
-      items.push({ label: 'Agradecer', icon: 'heart', onClick: () => thankAndNotify('MESSAGE', message.id) });
-      if (!(useStore.getState().disabledSystems || []).includes('economia')) items.push({ label: 'Dar gorjeta', icon: 'coin', onClick: () => setTipOpen(true) });
-    }
-    items.push({ label: 'Copiar link da mensagem', icon: 'link', onClick: () => copyMessageLink(message) });
+    const organize = [];
     // Fixar só aparece pra quem pode (gerenciar mensagens no canal; em DM, todos).
     if (!isChannelMessage || canManageMessages) {
-      items.push({ label: message.pinned ? 'Desafixar' : 'Fixar', icon: 'pin', onClick: () => togglePinMessage(message.id) });
+      organize.push({ label: message.pinned ? 'Desafixar' : 'Fixar', icon: 'pin', onClick: () => togglePinMessage(message.id) });
     }
     // Sem tópico dentro de tópico (nem a partir de uma resposta de tópico).
-    if (message.channelId && !inThread && !message.threadId && hasPermission(myPerms, 'CREATE_TOPICS')) items.push({ label: 'Criar tópico', icon: 'thread', onClick: createTopic });
+    if (message.channelId && !inThread && !message.threadId && hasPermission(myPerms, 'CREATE_TOPICS')) organize.push({ label: 'Criar tópico', icon: 'thread', onClick: createTopic });
     if (isGifMessage) {
-      items.push({
+      organize.push({
         label: isFavoriteGif ? 'Remover dos favoritos' : 'Adicionar aos favoritos',
         icon: 'star',
         onClick: () => toggleFavoriteGif(message.content.trim()),
       });
     }
-    items.push(
-      { divider: true },
-      { label: 'Ver perfil', icon: 'user', onClick: () => useStore.getState().openProfile(message.authorId) },
-      ...(!isOwn && message.author ? [{
-        label: useMsgExtras.getState().ignored.has(message.authorId) ? 'Parar de ignorar' : 'Ignorar',
-        icon: 'eyeOff', onClick: () => toggleIgnore({ id: message.authorId, displayName: message.author.displayName }),
-      }] : []),
-      { label: 'Copiar ID do usuário', icon: 'id', onClick: () => navigator.clipboard?.writeText(message.author?.publicId || message.authorId) },
-    );
     // Item pedido: verificar se todos os toggles de Configurações têm
     // efeito real. "Modo desenvolvedor" já existia na tela ("Mostra IDs e
     // informações técnicas extras em menus de contexto") mas nenhum menu
     // de contexto checava esse valor — mexer nele nunca mudava nada.
     // Mesmo padrão do Discord: "Copiar ID" (aqui, da mensagem em si —
-    // diferente do ID do usuário acima, que já é sempre visível por ser
-    // algo que qualquer um pode querer compartilhar) só aparece com o
-    // modo ligado.
+    // diferente do ID do usuário, que já é sempre visível por ser algo que
+    // qualquer um pode querer compartilhar) só aparece com o modo ligado.
     if (useStore.getState().userSettings?.developerMode) {
-      items.push({ label: 'Copiar ID da mensagem', icon: 'id', onClick: () => navigator.clipboard?.writeText(message.id) });
+      organize.push({ label: 'Copiar ID da mensagem', icon: 'id', onClick: () => navigator.clipboard?.writeText(message.id) });
     }
+    if (organize.length) more.push({ divider: true }, ...organize);
+    items.push({ label: 'Mais ações', icon: 'more', submenu: more });
+
+    // ---- A pessoa que escreveu ----
+    const person = [{ label: 'Ver perfil', icon: 'user', onClick: () => useStore.getState().openProfile(message.authorId) }];
+    // Fase 4: reputação ("Agradecer") e gorjeta em moedas pra quem escreveu.
+    if (!isOwn && message.authorId) {
+      person.push({ label: 'Agradecer', icon: 'heart', onClick: () => thankAndNotify('MESSAGE', message.id) });
+      if (!(useStore.getState().disabledSystems || []).includes('economia')) person.push({ label: 'Dar gorjeta', icon: 'coin', onClick: () => setTipOpen(true) });
+    }
+    if (!isOwn && message.author) {
+      person.push({
+        label: useMsgExtras.getState().ignored.has(message.authorId) ? 'Parar de ignorar' : 'Ignorar',
+        icon: 'eyeOff', onClick: () => toggleIgnore({ id: message.authorId, displayName: message.author.displayName }),
+      });
+    }
+    person.push({ label: 'Copiar ID do usuário', icon: 'id', onClick: () => navigator.clipboard?.writeText(message.author?.publicId || message.authorId) });
+    items.push({ label: isOwn ? 'Meu perfil' : (message.author?.displayName || 'Quem escreveu'), icon: 'user', submenu: person });
+
     if (!isOwn) {
       items.push({ divider: true });
       items.push({ label: 'Denunciar', icon: 'flag', onClick: reportThisMessage });
@@ -365,14 +378,19 @@ function MessageBody({ message, showAuthor, onReply, topics = [], onOpenTopic, i
       items.push({ label: 'Apagar mensagem', icon: 'trash', danger: true, onClick: removeMessage });
     }
     if (canModerateAuthor) {
-      items.push({ divider: true });
+      if (!(isOwn || canManageMessages)) items.push({ divider: true });
       items.push({
-        label: 'Advertir autor', icon: 'warn', danger: true,
-        onClick: () => { const reason = prompt('Motivo da advertência:'); if (reason) warnMember(message.authorId, reason); },
-      });
-      items.push({
-        label: 'Silenciar autor', icon: 'mute', danger: true,
-        onClick: () => { const m = prompt('Duração do silêncio (minutos):', '10'); if (m) timeoutMember(message.authorId, { minutes: parseInt(m, 10) }); },
+        label: 'Moderação', icon: 'hammer', danger: true,
+        submenu: [
+          {
+            label: 'Advertir autor', icon: 'warn', danger: true,
+            onClick: () => { const reason = prompt('Motivo da advertência:'); if (reason) warnMember(message.authorId, reason); },
+          },
+          {
+            label: 'Silenciar autor', icon: 'mute', danger: true,
+            onClick: () => { const m = prompt('Duração do silêncio (minutos):', '10'); if (m) timeoutMember(message.authorId, { minutes: parseInt(m, 10) }); },
+          },
+        ],
       });
     }
     openMenu(e, items);

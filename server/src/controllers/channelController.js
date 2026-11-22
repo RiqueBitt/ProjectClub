@@ -268,30 +268,18 @@ async function getChannelStates(req, res, next) {
       prisma.user.findUnique({ where: { id: userId }, select: { createdAt: true } }),
     ]);
 
-    // Menções não lidas (a mim, a um cargo meu, @everyone/@here) depois da
-    // última leitura de cada canal — numa consulta agrupada só. Canal
-    // nunca aberto conta a partir de quando a conta foi criada, e nunca
-    // olha mais que MENTION_LOOKBACK_DAYS pra trás.
-    const floor = new Date(Math.max(Date.now() - MENTION_LOOKBACK_DAYS * 86400000, new Date(me?.createdAt || 0).getTime()));
-    const roleIds = myRoles.map((r) => r.roleId);
-    const roleClause = roleIds.length
-      ? Prisma.sql`OR (mm.targetType = 'ROLE' AND mm.targetId IN (${Prisma.join(roleIds)}))`
-      : Prisma.empty;
-    const mentionRows = await prisma.$queryRaw`
-      SELECT m.channelId AS channelId, COUNT(DISTINCT m.id) AS cnt, MAX(m.createdAt) AS lastAt
-      FROM Message m
-      JOIN MessageMention mm ON mm.messageId = m.id
-      LEFT JOIN ChannelReadState r ON r.channelId = m.channelId AND r.userId = ${userId}
-      WHERE m.channelId IN (${Prisma.join(visible)})
-        AND m.deleted = false
-        AND m.authorId <> ${userId}
-        AND m.createdAt > ${floor}
-        AND (r.lastReadAt IS NULL OR m.createdAt > r.lastReadAt)
-        AND ((mm.targetType = 'USER' AND mm.targetId = ${userId}) OR mm.targetType IN ('EVERYONE', 'HERE') ${roleClause})
-      GROUP BY m.channelId`;
-
-    // Quantas mensagens não lidas em cada canal (bolinha vermelha com número).
+    // Mensagens não lidas que são pra mim — menção (a mim, a um cargo meu,
+    // @everyone/@here) ou resposta a uma mensagem minha — depois da última
+    // leitura de cada canal, numa consulta agrupada só. Canal nunca aberto
+    // conta a partir de quando a conta foi criada, e nunca olha mais que
+    // MENTION_LOOKBACK_DAYS pra trás.
     const unreadCounts = require('../services/unreadCounts');
+    const floor = new Date(Math.max(Date.now() - MENTION_LOOKBACK_DAYS * 86400000, new Date(me?.createdAt || 0).getTime()));
+    const mentionRows = await unreadCounts.countMentionsByChannel(prisma, {
+      userId, channelIds: visible, roleIds: myRoles.map((r) => r.roleId), floor,
+    }, Prisma);
+
+    // Quantas mensagens não lidas em cada canal (o site só usa pra saber que tem novidade).
     const unreadRows = await unreadCounts.countUnreadByChannel(prisma, {
       userId, channelIds: visible, floor: unreadCounts.unreadFloor(me?.createdAt),
     }).catch(() => []);

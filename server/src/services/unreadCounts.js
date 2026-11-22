@@ -29,6 +29,32 @@ async function countUnreadByChannel(prisma, { userId, channelIds, floor }, Prism
     GROUP BY m.channelId`;
 }
 
+// Mensagens não lidas que são PRA MIM, por canal: alguém me marcou (@eu, um
+// cargo meu, @everyone/@here) OU respondeu uma mensagem minha. É isso que
+// acende a bolinha vermelha do canal (pedido do dono: mensagem comum não
+// acende). Antes a resposta só contava ao vivo, pelo aviso do socket, e
+// sumia ao recarregar a página — agora entra na mesma consulta agrupada.
+async function countMentionsByChannel(prisma, { userId, channelIds, roleIds = [], floor }, Prisma = prismaSql()) {
+  if (!channelIds?.length) return [];
+  const roleClause = roleIds.length
+    ? Prisma.sql`OR (mm.targetType = 'ROLE' AND mm.targetId IN (${Prisma.join(roleIds)}))`
+    : Prisma.empty;
+  return prisma.$queryRaw`
+    SELECT m.channelId AS channelId, COUNT(DISTINCT m.id) AS cnt, MAX(m.createdAt) AS lastAt
+    FROM Message m
+    LEFT JOIN MessageMention mm ON mm.messageId = m.id
+      AND ((mm.targetType = 'USER' AND mm.targetId = ${userId}) OR mm.targetType IN ('EVERYONE', 'HERE') ${roleClause})
+    LEFT JOIN Message rt ON rt.id = m.replyToId AND rt.authorId = ${userId}
+    LEFT JOIN ChannelReadState r ON r.channelId = m.channelId AND r.userId = ${userId}
+    WHERE m.channelId IN (${Prisma.join(channelIds)})
+      AND m.deleted = false
+      AND m.authorId <> ${userId}
+      AND m.createdAt > ${floor}
+      AND (r.lastReadAt IS NULL OR m.createdAt > r.lastReadAt)
+      AND (mm.id IS NOT NULL OR rt.id IS NOT NULL)
+    GROUP BY m.channelId`;
+}
+
 // Junta tudo no formato que o cliente recebe:
 // { [channelId]: { lastMessageAt, myReadAt, unreadMentions, lastMentionAt, unreadCount } }
 function mergeChannelStates({ visible = [], reads = [], lasts = [], mentionRows = [], unreadRows = [] }) {
@@ -56,4 +82,4 @@ function activityPayload(message, channelId) {
   return { channelId, messageId: message.id, authorId: message.authorId, createdAt: message.createdAt };
 }
 
-module.exports = { UNREAD_LOOKBACK_DAYS, unreadFloor, countUnreadByChannel, mergeChannelStates, activityPayload };
+module.exports = { UNREAD_LOOKBACK_DAYS, unreadFloor, countUnreadByChannel, countMentionsByChannel, mergeChannelStates, activityPayload };

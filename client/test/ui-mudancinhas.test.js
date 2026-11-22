@@ -6,20 +6,20 @@ import { channelUnreadBadge, sumUnread } from '../src/utils/unreadCount.js';
 import { badgeVisual, badgeCustomImage, BADGE_TYPE_ICONS, BADGE_ICON_PATHS } from '../src/utils/badgeIcons.js';
 import { wantsBroadcastNotify } from '../src/utils/broadcastNotify.js';
 
-test('badge de não lidas: número, 99+, menção destacada, some quando lido/aberto', () => {
+test('bolinha vermelha do canal: só menção ou resposta pra você; mensagem comum não acende', () => {
   assert.equal(channelUnreadBadge({ unreadCount: 0 }), null);
-  assert.deepEqual(
-    { ...channelUnreadBadge({ unreadCount: 5 }), title: undefined },
-    { count: 5, mentions: 0, label: '5', title: undefined, mention: false },
-  );
-  assert.equal(channelUnreadBadge({ unreadCount: 250 }).label, '99+');
-  const m = channelUnreadBadge({ unreadCount: 1, unreadMentions: 2 });
-  assert.equal(m.count, 2, 'menção conta como mensagem nova');
-  assert.equal(m.mention, true);
-  assert.match(m.title, /2 menções/);
-  assert.equal(channelUnreadBadge({ unreadCount: 7 }, { active: true }), null, 'canal aberto não mostra');
-  assert.equal(channelUnreadBadge({ unreadCount: 7 }, { muted: true }), null, 'silenciado sem menção não mostra');
-  assert.equal(channelUnreadBadge({ unreadCount: 7, unreadMentions: 1 }, { muted: true }).count, 7, 'menção aparece mesmo silenciado');
+  // Mensagem comum de outra pessoa (sem me marcar nem me responder): nada de vermelho.
+  assert.equal(channelUnreadBadge({ unreadCount: 5 }), null);
+  assert.equal(channelUnreadBadge({ unreadCount: 250 }), null);
+  // Menções e respostas pendentes: o número é quantas são, não o total de mensagens.
+  const m = channelUnreadBadge({ unreadCount: 40, unreadMentions: 2 });
+  assert.deepEqual({ count: m.count, mentions: m.mentions, label: m.label, mention: m.mention }, { count: 2, mentions: 2, label: '2', mention: true });
+  assert.match(m.title, /2 menções ou respostas/);
+  assert.match(channelUnreadBadge({ unreadMentions: 1 }).title, /^1 menção ou resposta/);
+  assert.equal(channelUnreadBadge({ unreadMentions: 130 }).label, '99+');
+  assert.equal(channelUnreadBadge({ unreadCount: 7, unreadMentions: 3 }, { active: true }), null, 'canal aberto não mostra');
+  assert.equal(channelUnreadBadge({ unreadCount: 7 }, { muted: true }), null);
+  assert.equal(channelUnreadBadge({ unreadCount: 7, unreadMentions: 1 }, { muted: true }).count, 1, 'menção aparece mesmo silenciado');
   assert.deepEqual(sumUnread([{ unreadCount: 3 }, { unreadMentions: 2 }, {}]), { count: 5, mentions: 2 });
 });
 
