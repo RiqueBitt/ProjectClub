@@ -1,0 +1,100 @@
+/* Instalador do Project Club — 640 x 400, escuro, a cor da marca (#4C9FFF) e
+   uma arte de fitas desenhada em código no canvas (setup.js). */
+:root {
+  --bg: #0e1016; --panel: #13151c; --line: #2a2f3d; --text: #e8ecf5; --muted: #9aa3b5;
+  --brand: #4c9fff; --brand-2: #2f6fe6; --brand-glow: rgba(76, 159, 255, .35);
+  color-scheme: dark;
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; height: 100%; background: transparent; overflow: hidden; }
+body { font: 14px/1.45 "Segoe UI Variable Text", "Segoe UI", system-ui, -apple-system, Ubuntu, sans-serif; color: var(--text); user-select: none; }
+a { color: var(--brand); }
+a:hover { color: #7cb9ff; }
+u { text-decoration: underline; text-underline-offset: 2px; }
+
+.win { position: relative; width: 100vw; height: 100vh; overflow: hidden; background: var(--bg); border: 1px solid #3a3550; }
+.art { position: absolute; inset: 0; width: 100%; height: 100%; transition: opacity .45s ease; }
+.drag { position: absolute; inset: 0 0 auto 0; height: 64px; -webkit-app-region: drag; }
+.close {
+  position: absolute; top: 18px; right: 18px; z-index: 5; width: 32px; height: 32px; display: grid; place-items: center;
+  border: 0; border-radius: 8px; background: transparent; color: #c8cdd8; cursor: pointer; -webkit-app-region: no-drag;
+  transition: background .15s ease, color .15s ease;
+}
+.close:hover { background: rgba(255, 255, 255, .08); color: #fff; }
+.close:focus-visible, .btn:focus-visible, .check input:focus-visible + span, a:focus-visible { outline: 2px solid var(--brand); outline-offset: 2px; }
+
+.brand { position: absolute; top: 30px; left: 32px; z-index: 4; display: flex; align-items: center; gap: 10px; font-size: 19px; font-weight: 600; letter-spacing: -.2px; color: #fff; pointer-events: none; }
+.brand img { border-radius: 8px; box-shadow: 0 4px 16px var(--brand-glow); }
+
+.screen { position: absolute; inset: 0; z-index: 3; padding: 96px 32px 28px; display: flex; flex-direction: column; animation: in .35s cubic-bezier(.2, .8, .2, 1) both; }
+.screen[hidden] { display: none; }
+@keyframes in { from { opacity: 0; transform: translateY(8px); } }
+.copy { max-width: 300px; }
+.screen.solid .copy, .screen.split .copy { max-width: none; }
+h1 { margin: 34px 0 14px; font-size: 24px; line-height: 1.2; font-weight: 700; letter-spacing: -.3px; color: #fff; }
+.screen.solid h1 { margin: 6px 0 12px; font-size: 22px; }
+h2 { margin: 12px 0 6px; font-size: 15px; font-weight: 600; color: #cfd6e6; }
+p { margin: 0 0 12px; font-size: 12.5px; color: #d5dae6; }
+.muted { color: var(--muted); }
+.small { font-size: 12px; }
+
+.actions { margin-top: auto; display: flex; gap: 10px; justify-content: flex-end; }
+.actions.left { justify-content: flex-start; }
+.btn {
+  min-width: 96px; height: 32px; padding: 0 16px; border-radius: 3px; border: 1px solid #3a3f52; background: #0c0e14; color: #e8ecf5;
+  font: inherit; font-size: 13px; cursor: pointer; -webkit-app-region: no-drag;
+  transition: background .15s ease, border-color .15s ease, transform .1s ease, box-shadow .15s ease;
+}
+.btn:hover { border-color: #59607a; background: #141824; }
+.btn:active { transform: translateY(1px); }
+.btn.primary { border-color: var(--brand); background: var(--brand); color: #04111f; font-weight: 600; box-shadow: 0 0 0 0 var(--brand-glow); }
+.btn.primary:hover { background: #6ab0ff; box-shadow: 0 0 18px var(--brand-glow); }
+.btn:disabled { opacity: .5; cursor: default; }
+
+.check { display: flex; align-items: center; gap: 10px; margin: 8px 0; font-size: 13px; color: #d8dde8; cursor: pointer; }
+.check input { position: absolute; opacity: 0; pointer-events: none; }
+.check > span:first-of-type {
+  flex-shrink: 0; width: 15px; height: 15px; border-radius: 2px; border: 1.5px solid var(--brand); display: grid; place-items: center;
+  transition: background .15s ease;
+}
+.check input:checked + span { background: var(--brand); }
+.check input:checked + span::after { content: ''; width: 8px; height: 4px; margin-top: -2px; border: solid #04111f; border-width: 0 0 2px 2px; transform: rotate(-45deg); }
+
+/* telas de fundo liso (opções, progresso): a arte some */
+.win.plain .art { opacity: 0; }
+.win.plain { background: var(--panel); }
+.win.split .art { clip-path: inset(0 60% 0 0); }
+.win.split { background: #12141b; }
+.screen.split { padding-left: 300px; padding-top: 70px; }
+.screen.split h1 { margin-top: 40px; font-size: 22px; }
+.check[hidden] { display: none; }
+
+.prog { margin-top: 8px; }
+.prog-label { margin: 0 0 10px; font-size: 13px; color: #d5dae6; }
+.bar { height: 16px; background: #2a2a48; overflow: hidden; }
+.bar > span { display: block; height: 100%; width: 0; background: linear-gradient(90deg, var(--brand-2), var(--brand)); transition: width .5s ease; }
+
+.tour { margin-top: auto; display: flex; align-items: center; gap: 46px; }
+.tiles { display: grid; grid-template-columns: repeat(2, 110px); gap: 16px; }
+.tile {
+  position: relative; height: 64px; border: 1px solid #2d3242; background: #0b0d12; overflow: hidden;
+  clip-path: polygon(0 0, 100% 0, 100% 100%, 0 100%, 0 26%, 4px 22%, 4px 12%, 0 8%);
+  animation: tile 1.6s ease-in-out infinite alternate;
+}
+.tile b { display: block; width: 6px; height: 6px; margin: 5px 0 0 8px; background: var(--brand); }
+.tile b:first-child { margin-top: 12px; }
+.t1 { border-color: rgba(76, 159, 255, .45); }
+.t4 { border-color: rgba(57, 217, 176, .45); }
+.t4 b { background: #39d9b0; }
+.t2, .t3 { background: radial-gradient(120% 90% at 80% 20%, rgba(76, 159, 255, .35), transparent 60%), #0b0d12; }
+.t3 { background: radial-gradient(120% 90% at 20% 90%, rgba(120, 90, 255, .4), transparent 60%), #0b0d12; animation-delay: .4s; }
+.t2 { animation-delay: .8s; }
+@keyframes tile { to { filter: brightness(1.25); } }
+.tour-text h3 { margin: 0 0 8px; font-size: 18px; color: #c9d2ff; }
+.tour-text p { margin: 0; color: #c8cede; max-width: 240px; }
+.tour-text.swap { animation: in .4s ease both; }
+
+@media (prefers-reduced-motion: reduce) {
+  .screen, .tile, .tour-text.swap { animation: none; }
+  .bar > span { transition: none; }
+}

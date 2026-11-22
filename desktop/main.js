@@ -548,9 +548,14 @@ function setNxmHandler(enabled) {
 // Links que vieram junto com a abertura do app (Windows/Linux).
 for (const a of process.argv) if (typeof a === 'string' && a.toLowerCase().startsWith('nxm://')) { const l = parseNxmLink(a); if (l) pendingNxmLinks.push(l); }
 
-const gotLock = app.requestSingleInstanceLock();
+// Desinstalar pelo Windows: o desinstalador abre o app com --pc-uninstall e
+// espera a escolha na janela do Project Club (setupWindow.js). Esse modo não
+// pega a trava de "uma cópia só" (o app pode estar aberto ao mesmo tempo).
+const UNINSTALL_UI = process.argv.includes('--pc-uninstall');
+if (UNINSTALL_UI) require('./setupWindow.js').runUninstallUi();
+const gotLock = !UNINSTALL_UI && app.requestSingleInstanceLock();
 if (!gotLock) {
-  app.quit();
+  if (!UNINSTALL_UI) app.quit();
 } else {
   app.on('second-instance', (_event, argv) => {
     queueNxmFromArgv(argv);
@@ -1950,7 +1955,7 @@ if (!gotLock) {
     setInterval(checkModules, 4 * 60 * 60 * 1000);
   }
 
-  app.whenReady().then(() => {
+  app.whenReady().then(async () => {
     setupScreenShareHandler();
     setupDownloadHandler();
     // BUG CORRIGIDO — CAUSA RAIZ CONFIRMADA de "no PC eu falo e não sai
@@ -1993,8 +1998,17 @@ if (!gotLock) {
     // pedido de "rodar em segundo plano sem precisar deixar uma janela
     // aberta" — abre direto minimizado na bandeja, não em cima de tudo.
     const startedAtLogin = app.getLoginItemSettings().wasOpenedAtLogin;
+    // Primeira abertura depois de instalar: o instalador do Project Club
+    // (setupWindow.js) — "Aceitar & Instalar", opções e progresso. Quem já
+    // usava o app (desktop-state.json com algo) nunca vê essa janela.
+    const st = readLocalState();
+    let openAfterSetup = true;
+    if (Object.keys(st).length === 0 && !startedAtLogin && !pendingDeepLinkRoute) {
+      const r = await require('./setupWindow.js').runFirstRunSetup({ appUrl: APP_URL, writeLocalState });
+      openAfterSetup = r.open;
+    }
     // Aberto por um link projectclub:// → mostra a janela mesmo vindo do login.
-    createWindow(startedAtLogin && !pendingDeepLinkRoute);
+    createWindow((startedAtLogin && !pendingDeepLinkRoute) || !openAfterSetup);
     setDeepLinkHandler();
     createTray();
     setupAutoUpdater();

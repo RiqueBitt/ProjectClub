@@ -1,0 +1,72 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; img-src 'self' data:; style-src 'self' 'unsafe-inline'; script-src 'self'">
+<title>Project Club</title>
+<link rel="stylesheet" href="setup.css">
+</head>
+<body>
+  <!-- Instalador e desinstalador do Project Club (desktop/setupWindow.js).
+       A arte do fundo é desenhada em código (setup.js), não é imagem. -->
+  <div class="win" id="win">
+    <canvas class="art" id="art" aria-hidden="true"></canvas>
+    <div class="drag" aria-hidden="true"></div>
+    <button class="close" id="close" type="button" aria-label="Fechar">
+      <svg viewBox="0 0 16 16" width="14" height="14"><path d="M3 3l10 10M13 3L3 13" stroke="currentColor" stroke-width="1.4" fill="none" stroke-linecap="round"/></svg>
+    </button>
+    <header class="brand"><img src="../build/icon.png" alt="" width="30" height="30"><span>Project Club</span></header>
+
+    <!-- 1. Boas-vindas -->
+    <section class="screen" data-screen="welcome">
+      <div class="copy">
+        <h1>Sua comunidade no PC</h1>
+        <p>Ao clicar em "Aceitar &amp; Instalar", você aceita os <a href="#" data-open="/termos">Termos de Uso</a> do Project Club. Saiba como protegemos seus dados na nossa <a href="#" data-open="/privacidade">Política de Privacidade</a>.</p>
+        <p><a href="#" id="go-options">Opções</a></p>
+      </div>
+      <div class="actions left"><button class="btn primary" id="install" type="button">Aceitar &amp; Instalar</button></div>
+    </section>
+
+    <!-- 2. Opções -->
+    <section class="screen solid" data-screen="options" hidden>
+      <div class="copy">
+        <h1>Opções de instalação</h1>
+        <h2>Atalhos</h2>
+        <label class="check"><input type="checkbox" id="opt-desktop" checked><span></span>Criar atalho na área de trabalho</label>
+        <label class="check" id="row-menu" hidden><input type="checkbox" id="opt-menu" checked><span></span>Adicionar ao menu de aplicativos</label>
+        <h2>Ao ligar e ao terminar</h2>
+        <label class="check"><input type="checkbox" id="opt-autostart" checked><span></span><span id="autostart-label">Iniciar com o Windows (minimizado na bandeja)</span></label>
+        <label class="check"><input type="checkbox" id="opt-open" checked><span></span>Abrir o Project Club ao terminar</label>
+      </div>
+      <div class="actions"><button class="btn" id="back" type="button"><u>V</u>oltar</button><button class="btn primary" id="confirm" type="button">Confirmar opções</button></div>
+    </section>
+
+    <!-- 3. Instalando -->
+    <section class="screen solid" data-screen="progress" hidden>
+      <div class="prog">
+        <p class="prog-label" id="prog-label">Preparando…</p>
+        <div class="bar" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0" id="bar"><span id="bar-fill"></span></div>
+      </div>
+      <div class="tour">
+        <div class="tiles" aria-hidden="true">
+          <i class="tile t1"><b></b><b></b><b></b></i><i class="tile t2"></i><i class="tile t3"></i><i class="tile t4"><b></b><b></b><b></b></i>
+        </div>
+        <div class="tour-text" id="tour"><h3></h3><p></p></div>
+      </div>
+    </section>
+
+    <!-- 4. Desinstalar -->
+    <section class="screen split" data-screen="uninstall" hidden>
+      <div class="copy">
+        <h1>Desinstalar o Project Club</h1>
+        <label class="check"><input type="checkbox" id="opt-wipe"><span></span>Excluir meus dados do Project Club (login, configurações e cache deste PC)</label>
+        <p class="muted small">Sua conta, amigos e mensagens continuam salvos no Project Club.</p>
+        <p class="prog-label" id="un-label" hidden></p>
+        <div class="bar" id="un-bar" hidden><span id="un-fill"></span></div>
+      </div>
+      <div class="actions"><button class="btn primary" id="uninstall" type="button"><u>D</u>esinstalar</button><button class="btn" id="cancel" type="button">Cancelar</button><button class="btn" id="reinstall" type="button"><u>R</u>einstalar</button></div>
+    </section>
+  </div>
+  <script src="setup.js"></script>
+</body>
+</html>
