@@ -80,7 +80,19 @@ data class Category(
 )
 
 @Serializable
-data class CommunityInfo(val name: String? = null, val iconUrl: String? = null, val bannerUrl: String? = null)
+data class CommunityInfo(
+    val name: String? = null,
+    val iconUrl: String? = null,
+    val bannerUrl: String? = null,
+    /** Instância aberta agora ("publica", "amigos"...). */
+    val instance: String? = null,
+    /** Instâncias que a pessoa pode usar (a Pública sempre primeiro). */
+    val instances: List<InstanceInfo> = emptyList(),
+)
+
+/** Instância: conjunto próprio de categorias, canais e calls (Pública, Amigos, Empresarial...). */
+@Serializable
+data class InstanceInfo(val id: String, val name: String = "", val icon: String? = null, val isPublic: Boolean = false)
 
 @Serializable
 data class Member(val user: User, val roleIds: List<String> = emptyList())
