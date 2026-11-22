@@ -81,7 +81,9 @@ test('"Lembrar-me" no menu da mensagem cria o lembrete com link e id da mensagem
   const first = page.locator('.message').first();
   await first.hover();
   await first.locator('.message-hover-action[title="Mais opções"]').click();
-  await page.getByRole('menuitem', { name: /Lembrar-me/ }).or(page.locator('button', { hasText: 'Lembrar-me' })).first().click();
+  // O menu da mensagem ficou enxuto: "Lembrar-me" mora em "Mais ações".
+  await page.getByRole('menuitem', { name: 'Mais ações' }).click();
+  await page.getByRole('menuitem', { name: /Lembrar-me/ }).click();
   await expect(page.locator('.schedule-modal')).toBeVisible();
   await expect(page.locator('#reminder-text')).not.toHaveValue('');
   // Texto livre com prévia antes de confirmar.

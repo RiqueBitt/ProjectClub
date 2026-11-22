@@ -2753,7 +2753,15 @@ html.is-electron-app .profile-fullscreen-overlay {
 .profile-modal-fullscreen .activity-badge-icon { width: 64px; height: 64px; border-radius: 10px; }
 .profile-modal-fullscreen .activity-badge-spotify .activity-badge-icon { width: 96px; height: 96px; }
 .profile-modal-fullscreen .activity-badge-icon-fallback { width: 38px; height: 38px; }
-.activity-inline-icon { width: 13px; height: 13px; object-fit: contain; vertical-align: middle; border-radius: 3px; }
+/* Ícone da atividade (ActivityGlyph.jsx): mesmo tamanho e lugar de antes
+   (13px), mas cheio e num verde claro — com um fio escuro em volta pra não
+   sumir em cima de banner colorido do cartão de nome. */
+.activity-inline-icon {
+  width: 13px; height: 13px; flex: 0 0 13px; vertical-align: middle; overflow: visible;
+  color: #4be37f;
+  filter: drop-shadow(0 0 .6px rgba(0, 0, 0, .85)) drop-shadow(0 1px 1px rgba(0, 0, 0, .45));
+}
+[data-theme='light'] .activity-inline-icon { color: #128a3e; filter: none; }
 /* Item pedido: "atualize o status de atividades... os ícones de
    (jogos, app e música) vão ficar separados dos status por uma
    bolinha tipo •" — ver ActivityIcon.jsx: ícone + bolinha + status,

@@ -33,7 +33,7 @@ test('barra de mensagem: um botão só abre emoji, figurinhas e GIFs em abas', a
   await expect(page.getByPlaceholder('Buscar GIFs...')).toBeVisible();
 });
 
-test('canal com mensagens novas mostra o número vermelho; Central mostra "novo" e apaga ao abrir', async ({ page }) => {
+test('canal: bolinha vermelha só com menção ou resposta (mensagem comum não acende); Central mostra "novo" e apaga ao abrir', async ({ page }) => {
   const seen = [];
   let anuncios = 3;
   await page.route('**/api/**', (route) => {
@@ -50,8 +50,13 @@ test('canal com mensagens novas mostra o número vermelho; Central mostra "novo"
   await expect(page.locator('.chat-header')).toBeVisible({ timeout: 20_000 });
   const isPhone = (page.viewportSize()?.width || 1440) < 700;
   if (isPhone) return; // no celular a lista de canais fica atrás do menu; a lógica é a mesma
-  await expect(page.locator('.unread-count-badge', { hasText: '7' })).toBeVisible();
-  await expect(page.locator('.unread-count-badge.has-mention', { hasText: '99+' })).toBeVisible();
+  // ch4 tem 2 menções/respostas pra mim (de 130 mensagens novas): "@2" em vermelho.
+  const red = page.locator('.unread-count-badge');
+  await expect(red).toHaveCount(1);
+  await expect(red).toHaveClass(/has-mention/);
+  await expect(red).toHaveText('@2');
+  // ch3 tem 7 mensagens novas, nenhuma pra mim: sem vermelho nenhum.
+  await expect(page.locator('.unread-count-badge', { hasText: '7' })).toHaveCount(0);
   // Novidades entrou na Central (canal em destaque no topo da lista): a
   // bolinha soma Anúncios + Eventos; abrir a Central marca como visto.
   const novo = page.locator('.featured-inicio .section-new-badge');
@@ -61,6 +66,39 @@ test('canal com mensagens novas mostra o número vermelho; Central mostra "novo"
   await expect(page).toHaveURL(/\/inicio/);
   await expect.poll(() => seen).toContain('/section-badges/anuncios/seen');
   await expect(novo).toHaveCount(0);
+});
+
+test('menu da mensagem enxuto: reações, 4 ações rápidas e o resto guardado em submenus', async ({ page }, testInfo) => {
+  await page.route('**/api/**', handler);
+  await page.goto('/channels/ch2');
+  await expect(page.locator('.chat-header')).toBeVisible({ timeout: 20_000 });
+  await page.locator('.message', { hasText: 'alguém pra call' }).first().click({ button: 'right' });
+  const menu = page.locator('.context-menu.cm-v2').first();
+  await expect(menu).toBeVisible();
+  // Uma fileira de botões pequenos pras ações do dia a dia.
+  await expect(menu.locator('.cm-actions .cm-action')).toHaveText(['Responder', 'Reagir', 'Copiar', 'Encaminhar']);
+  // Antes eram ~20 linhas de uma vez, ocupando a tela toda.
+  expect(await menu.locator('.cm-item').count()).toBeLessThanOrEqual(7);
+  const box = await menu.boundingBox();
+  expect(box.height).toBeLessThan(page.viewportSize().height * 0.7);
+  // Nada sumiu: o resto está em "Mais ações" e no submenu de quem escreveu.
+  // (No PC o submenu abre ao lado; no celular a folha troca de conteúdo.)
+  const celular = testInfo.project.name === 'celular';
+  const painel = () => (celular ? menu : page.locator('.cm-submenu'));
+  await menu.getByRole('menuitem', { name: 'Mais ações' }).click();
+  for (const nome of ['Lembrar-me', 'Marcar como não lida', 'Copiar link da mensagem']) {
+    await expect(painel().getByRole('menuitem', { name: nome })).toBeVisible();
+  }
+  if (celular) await menu.locator('.cm-back').click();
+  await menu.getByRole('menuitem', { name: 'Lia', exact: true }).click();
+  for (const nome of ['Ver perfil', 'Copiar ID do usuário']) {
+    await expect(painel().getByRole('menuitem', { name: nome })).toBeVisible();
+  }
+  // Ação rápida funciona e fecha o menu.
+  if (celular) await menu.locator('.cm-back').click();
+  await menu.locator('.cm-action', { hasText: 'Responder' }).click();
+  await expect(menu).toHaveCount(0);
+  await expect(page.locator('.chat-reply-banner')).toBeVisible();
 });
 
 test('perfil completo: até 4 insígnias no topo e barra do Windows 2000 dentro do cartão', async ({ page }) => {

@@ -171,7 +171,7 @@ export default function ChannelSidebar({
   const catPreviewTimer = useRef(null);
   const myRoleIdsForBadges = members.find((m) => m.user.id === user.id)?.roleIds || [];
   const unreadInCategory = (cat) => (cat.channels || []).filter((c) => (
-    c.id !== activeChannelId && (c.unreadMentions > 0 || c.unreadCount > 0 || isChannelUnread(c, channelReadAt, user.id, myRoleIdsForBadges))
+    c.id !== activeChannelId && (c.unreadMentions > 0 || isChannelUnread(c, channelReadAt, user.id, myRoleIdsForBadges))
   ));
   const showCatPreview = (e, cat) => {
     clearTimeout(catPreviewTimer.current);
