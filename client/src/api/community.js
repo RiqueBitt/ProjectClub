@@ -10,27 +10,9 @@ export const getCommunityHome = () => api.get('/community-home').then(data);
 // Competição semanal dos Clubes.
 export const getClanWeekly = () => api.get('/clans/weekly').then(data);
 
-// Indicação de amigos.
-export const getMyReferrals = () => api.get('/referrals/mine').then(data);
-
-// Retrospectiva mensal.
-export const getRecap = (month) => api.get(month ? `/recap/${encodeURIComponent(month)}` : '/recap').then(data);
-
 // Post da semana.
 export const getPostOfWeek = () => api.get('/posts/post-of-week').then(data);
 
-
-// Bora Jogar.
-export const listPlayGroups = () => api.get('/play-groups').then(data);
-export const createPlayGroup = (payload) => api.post('/play-groups', payload).then(data);
-export const joinPlayGroup = (id) => api.post(`/play-groups/${id}/join`).then(data);
-export const leavePlayGroup = (id) => api.post(`/play-groups/${id}/leave`).then(data);
-export const cancelPlayGroup = (id) => api.delete(`/play-groups/${id}`).then(data);
-
-// Cargos por interesse.
-export const getInterestRoles = () => api.get('/interest-roles').then(data);
-export const setMyInterestRoles = (roleIds) => api.put('/interest-roles/mine', { roleIds }).then(data);
-export const setRoleInterestFlag = (roleId, selfAssignable) => api.patch(`/interest-roles/admin/${roleId}`, { selfAssignable }).then(data);
 
 // Metas coletivas.
 export const getCommunityGoals = () => api.get('/community-goals').then(data);
@@ -51,7 +33,6 @@ export const adminSetCouponActive = (id, active) => api.patch(`/coupons/admin/${
 // Reputação.
 export const thankTarget = (targetType, targetId) => api.post('/reputation/thanks', { targetType, targetId }).then(data);
 export const getReputation = (userId) => api.get(`/reputation/user/${userId}`).then(data);
-export const getReputationRanking = (period = '30d') => api.get('/reputation/ranking', { params: { period } }).then(data);
 
 // Gorjetas.
 export const getTipStatus = () => api.get('/tips/status').then(data);

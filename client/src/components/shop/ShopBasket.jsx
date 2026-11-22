@@ -70,9 +70,20 @@ export function useDragToBasket(onDrop) {
     const rect = s.el.getBoundingClientRect();
     const ghost = s.el.cloneNode(true);
     ghost.classList.add('shop-drag-ghost');
-    Object.assign(ghost.style, { width: `${rect.width}px`, height: `${rect.height}px`, left: `${rect.left}px`, top: `${rect.top}px` });
-    document.body.appendChild(ghost);
-    s.ghost = ghost; s.dx = s.x0 - rect.left; s.dy = s.y0 - rect.top; s.active = true;
+    // O "pacote voando" fica pequeno e preso no ponto onde foi pego — assim
+    // não cobre a cestinha (antes, grandão por cima, a cesta sumia).
+    s.dx = s.x0 - rect.left; s.dy = s.y0 - rect.top;
+    Object.assign(ghost.style, {
+      width: `${rect.width}px`, height: `${rect.height}px`, left: `${rect.left}px`, top: `${rect.top}px`,
+      transformOrigin: `${s.dx}px ${s.dy}px`,
+    });
+    // Numa camada própria no <body> com a classe da Loja (pras cores do tema
+    // valerem no clone sem depender de onde a página está).
+    const layer = document.createElement('div');
+    layer.className = 'shop-room shop-drag-layer';
+    layer.appendChild(ghost);
+    document.body.appendChild(layer);
+    s.ghost = layer; s.card = ghost; s.active = true;
     document.querySelector('.shop-basket-fab')?.classList.add('is-target');
     setDragging(true);
     try { navigator.vibrate?.(12); } catch { /* sem vibração */ }
@@ -92,8 +103,8 @@ export function useDragToBasket(onDrop) {
         start(s);
       }
       ev.preventDefault();
-      s.ghost.style.left = `${ev.clientX - s.dx}px`;
-      s.ghost.style.top = `${ev.clientY - s.dy}px`;
+      s.card.style.left = `${ev.clientX - s.dx}px`;
+      s.card.style.top = `${ev.clientY - s.dy}px`;
       document.querySelector('.shop-basket-fab')?.classList.toggle('is-over', overBasket(ev.clientX, ev.clientY));
     };
     s.up = (ev) => {

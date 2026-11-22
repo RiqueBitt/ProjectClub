@@ -70,7 +70,7 @@ import { isFeatureEnabled } from '../utils/features';
 import MissionsAdmin from '../components/admin/MissionsAdmin.jsx';
 import SupportersAdmin from '../components/admin/SupportersAdmin.jsx';
 import DonationGoalAdmin from '../components/admin/DonationGoalAdmin.jsx';
-import { CouponsAdmin, GoalsAdmin, InterestRolesAdmin } from '../components/admin/CommunityAdmin.jsx';
+import { CouponsAdmin, GoalsAdmin } from '../components/admin/CommunityAdmin.jsx';
 import { StaffHealthTab, StaffUserSearchTab } from '../components/admin/StaffTools.jsx';
 // Painel de saúde completo (erros agrupados, calls, servidor de mídia, backups).
 import StaffOpsPanel from '../components/admin/StaffOpsPanel.jsx';
@@ -142,7 +142,6 @@ const TABS = {
   achievements: { label: 'Conquistas', desc: 'Conquistas, requisitos e raridades.' },
   // Fase 4 — comunidade e economia.
   metasComunidade: { label: 'Metas coletivas', desc: 'Metas da semana pra comunidade inteira (mensagens e call) e a recompensa de quem participar.' },
-  interesses: { label: 'Cargos por interesse', desc: 'Cargos que os membros escolhem sozinhos (jogos e assuntos que curtem). Só cargos sem permissão.' },
   cupons: { label: 'Cupons', desc: 'Cupons de desconto da Loja: porcentagem ou valor fixo, validade, limite de usos e compra mínima.' },
   gifMove: { label: 'GIFa Move', desc: 'Posição e tamanho do GIF animado na tela da comunidade.' },
   updates: { label: 'Atualizações', desc: 'Notas de atualização que aparecem no Início.' },
@@ -203,7 +202,7 @@ const HIDDEN_TABS = new Set([
 const TAB_GROUPS = [
   { label: 'Pessoas', icon: 'people', tabs: ['busca', 'inscricoes', 'users', 'badges', 'roles'] },
   { label: 'Moderação', icon: 'shield', tabs: ['reports', 'revisoes', 'automodDm', 'pinguAlertas', 'moderacao', 'modReports', 'logs', 'honeypot'] },
-  { label: 'Comunidade', icon: 'community', tabs: ['channels', 'pingu', 'emojis', 'stickers', 'clubs', 'clanIcons', 'achievements', 'metasComunidade', 'interesses', 'gifMove'] },
+  { label: 'Comunidade', icon: 'community', tabs: ['channels', 'pingu', 'emojis', 'stickers', 'clubs', 'clanIcons', 'achievements', 'metasComunidade', 'gifMove'] },
   { label: 'Conteúdo', icon: 'content', tabs: ['updates', 'events', 'announcements', 'appCatalog'] },
   { label: 'Economia', icon: 'economy', tabs: ['economia', 'decoracoes', 'cupons', 'criadores', 'apoio', 'metaDoacao', 'casas', 'album'] },
   { label: 'Club Penguin', icon: 'penguin', tabs: ['jogo'] },
@@ -363,7 +362,6 @@ export default function AdminPanel() {
           {tab === 'metaDoacao' && <DonationGoalAdmin />}
           {tab === 'cupons' && <CouponsAdmin />}
           {tab === 'metasComunidade' && <GoalsAdmin />}
-          {tab === 'interesses' && <InterestRolesAdmin />}
           {tab === 'casas' && <HousesAdminTab />}
           {tab === 'sistema' && <SystemTab />}
           {tab === 'moderacao' && <ModerationTab />}

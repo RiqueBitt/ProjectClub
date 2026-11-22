@@ -11,16 +11,13 @@ const TICK_MS = 60 * 1000;
 const HOURLY_EVERY_TICKS = 5; // indicações: confere a cada 5 min (chave por hora)
 
 const JOBS = [
-  ['bora-jogar', (o) => require('./playGroups').tick(o)],
   ['clubes', (o) => require('./clanWeekly').closeWeekIfDue(o)],
   ['metas', (o) => require('./communityGoals').closeIfDue(o)],
   ['post-da-semana', (o) => require('./postOfWeek').pickIfDue(o)],
   // Sorteio removido (nov/2026): só devolve, uma vez, as moedas de bilhetes não sorteados.
   ['sorteio-encerrado', (o) => require('./raffle').refundOpenTickets(o)],
-  ['retrospectiva', (o) => require('./monthlyRecap').runIfDue(o)],
 ];
 const HOURLY_JOBS = [
-  ['indicacoes', (o) => require('./referrals').hourlyTick(o)],
 ];
 
 let timer = null;

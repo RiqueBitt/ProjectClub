@@ -137,8 +137,6 @@ const MiniJogosPage = lazy(() => import('./MiniJogosPage.jsx')); // Mini-Jogos (
 // "Não fui eu" do aviso de novo acesso → Configurações → Segurança (Fase 5).
 const SecurityShortcutPage = lazy(() => import('./SecurityShortcutPage.jsx'));
 // Fase 4 — comunidade e economia.
-const ParticiparPage = lazy(() => import('./ParticiparPage.jsx')); // Bora Jogar, interesses, reputação, convites
-const RetrospectivaPage = lazy(() => import('./RetrospectivaPage.jsx'));
 // Fase 8: mascote pinguim e Loja dos criadores. A Praça é o Club Penguin (Waddle Forever).
 const MeuPinguimPage = lazy(() => import('./MeuPinguimPage.jsx'));
 const LojaCriadoresPage = lazy(() => import('./LojaCriadoresPage.jsx'));
@@ -581,13 +579,14 @@ export default function MainApp() {
                 <Route path="/jogos/biblioteca/:ref" element={<LibraryRoute Page={GameLibraryPage} />} />
                 <Route path="/minijogos" element={<MiniJogosPage />} />
                 <Route path="/seguranca/sessoes" element={<SecurityShortcutPage />} />
-                <Route path="/participar" element={<ParticiparPage />} />
+                {/* "Participar" (Bora Jogar, Interesses, Convites, Reputação) e Retrospectiva saíram (nov/2026). */}
+                <Route path="/participar" element={<Navigate to="/inicio" replace />} />
                 {/* Sorteio removido (nov/2026): link antigo leva pra Economia. */}
                 <Route path="/sorteio" element={<Navigate to="/economia" replace />} />
                 {/* Link do cartão mostrado no chat: abre a Economia (o cartão aparece na própria mensagem). */}
                 <Route path="/carteira/:id" element={<Navigate to="/economia" replace />} />
-                <Route path="/retrospectiva" element={<RetrospectivaPage />} />
-                <Route path="/retrospectiva/:mes" element={<RetrospectivaPage />} />
+                <Route path="/retrospectiva" element={<Navigate to="/inicio" replace />} />
+                <Route path="/retrospectiva/:mes" element={<Navigate to="/inicio" replace />} />
                 {/* Navegador do Project Club (desligado em utils/features.js). */}
                 <Route path="/navegador" element={BROWSER_ON ? <BrowserPage /> : <Navigate to="/" replace />} />
                 {/* Links bonitos: /dm/<@> ou /dm/grupo-<nome> e /canal/<nome>. Os

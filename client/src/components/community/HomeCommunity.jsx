@@ -1,11 +1,9 @@
 import { useCallback, useEffect, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
 import { getCommunityHome, claimSeasonGift, errText } from '../../api/community';
 import { useSocket } from '../../context/SocketContext.jsx';
 import { useStore } from '../../store/useStore';
 import { useLiveRefresh } from '../../utils/liveRefresh';
 import { Ico } from '../PagesKit.jsx';
-import ClanIcon from '../ClanIcon.jsx';
 import { Countdown, ProgressBar, fmt } from './CommunityBits.jsx';
 
 // Seções da Fase 4 no Início: temporada temática, metas coletivas da
@@ -89,46 +87,4 @@ export function HomeCommunityMain({ home }) {
   );
 }
 
-export function HomeCommunitySide({ home }) {
-  const navigate = useNavigate();
-  const { data } = home;
-  const links = [
-    { icon: 'bolt', label: 'Bora Jogar', hint: 'Marque uma jogatina', to: '/participar' },
-    { icon: 'calendar', label: 'Retrospectiva', hint: 'Seu mês em números', to: '/retrospectiva' },
-    { icon: 'tag', label: 'Interesses', hint: 'Seus jogos e assuntos', to: '/participar?aba=interesses' },
-    { icon: 'users', label: 'Convidar amigos', hint: 'Ganhe moedas', to: '/participar?aba=convites' },
-  ];
-  return (
-    <>
-      {data?.clanTop?.length > 0 && (
-        <section className="home-section home-card">
-          <header className="home-section-head">
-            <h2><Ico name="trophy" size={17} /> Clubes da semana</h2>
-            <button type="button" className="home-link" onClick={() => navigate('/clans/mine?aba=competicao')}>Ver</button>
-          </header>
-          <ol className="c4-podium">
-            {data.clanTop.map((c) => (
-              <li key={c.clanId}>
-                <span className={`c4-rank-pos pos-${c.rank}`}>{c.rank}</span>
-                <span className="c4-clan-icon"><ClanIcon icon={c.icon} color={c.iconColor} size={22} /></span>
-                <span className="truncate">{c.name}</span>
-                <strong>{fmt(c.points)} pts</strong>
-              </li>
-            ))}
-          </ol>
-        </section>
-      )}
-      <section className="home-section home-card">
-        <header className="home-section-head"><h2><Ico name="users" size={17} /> Participar</h2></header>
-        <div className="c4-quick">
-          {links.map((l) => (
-            <button key={l.label} type="button" className="c4-quick-link" onClick={() => navigate(l.to)}>
-              <span className="c4-quick-icon"><Ico name={l.icon} size={17} /></span>
-              <span className="c4-quick-text"><strong>{l.label}</strong><small className="truncate">{l.hint}</small></span>
-            </button>
-          ))}
-        </div>
-      </section>
-    </>
-  );
-}
+// A coluna lateral ("Clubes da semana" e "Participar") saiu da Central (nov/2026).

@@ -47,49 +47,8 @@ function mount(app) {
   }));
   app.use('/api/community-home', home);
 
-  // ---------- Indicação de amigos ----------
-  const referrals = express.Router();
-  referrals.use(requireAuth);
-  referrals.get('/mine', route(async (req, res) => {
-    res.json(await require('../services/community/referrals').myReferrals(req.user.id, over(req)));
-  }));
-  app.use('/api/referrals', referrals);
-
-  // ---------- Retrospectiva mensal ----------
-  const recap = express.Router();
-  recap.use(requireAuth);
-  recap.get('/', route(async (req, res) => { res.json(await require('../services/community/monthlyRecap').getRecap(req.user.id, null, over(req))); }));
-  recap.get('/:month', route(async (req, res) => { res.json(await require('../services/community/monthlyRecap').getRecap(req.user.id, String(req.params.month), over(req))); }));
-  app.use('/api/recap', recap);
-
-  // Sorteio semanal: removido (nov/2026). Ver services/community/raffle.js.
-
-  // ---------- Bora Jogar ----------
-  const play = express.Router();
-  play.use(requireAuth);
-  const pg = () => require('../services/community/playGroups');
-  play.get('/', route(async (req, res) => { res.json({ groups: await pg().list(req.user.id, over(req)), rules: { minSlots: pg().MIN_SLOTS, maxSlots: pg().MAX_SLOTS, maxAheadDays: pg().MAX_AHEAD_DAYS } }); }));
-  play.post('/', perUser('bora-jogar', 10 * 60_000, 6, 'Muitos grupos criados seguidos. Espere um pouco.'), route(async (req, res) => {
-    res.status(201).json({ group: await pg().create(req.user, req.body, over(req)) });
-  }));
-  const playWrite = perUser('bora-jogar-acoes', 60_000, 30);
-  play.post('/:id/join', playWrite, route(async (req, res) => { res.json(await pg().join(req.user, req.params.id, over(req))); }));
-  play.post('/:id/leave', playWrite, route(async (req, res) => { res.json(await pg().leave(req.user, req.params.id, over(req))); }));
-  play.delete('/:id', playWrite, route(async (req, res) => { res.json(await pg().cancel(req.user, req.params.id, over(req))); }));
-  app.use('/api/play-groups', play);
-
-  // ---------- Cargos por interesse ----------
-  const interests = express.Router();
-  interests.use(requireAuth);
-  const ir = () => require('../services/community/interestRoles');
-  interests.get('/', route(async (req, res) => { res.json(await ir().catalog(req.user.id, over(req))); }));
-  interests.put('/mine', perUser('interesses', 60_000, 20), route(async (req, res) => {
-    res.json(await ir().setMine(req.user.id, req.body?.roleIds, over(req)));
-  }));
-  interests.patch('/admin/:roleId', route(async (req, res) => {
-    res.json({ role: await ir().setFlag(req.user.id, req.params.roleId, req.body?.selfAssignable, over(req)) });
-  }));
-  app.use('/api/interest-roles', interests);
+  // Indicação de amigos, Retrospectiva mensal, Bora Jogar e Cargos por
+  // interesse: removidos (nov/2026, pedido do dono — o "Participar").
 
   // ---------- Metas coletivas ----------
   const goals = express.Router();
