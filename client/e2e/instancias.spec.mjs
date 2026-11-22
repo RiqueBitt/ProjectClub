@@ -99,3 +99,14 @@ test('painel: gerenciamento de instâncias lista Amigos e Empresarial e libera a
   await expect.poll(() => added.length).toBe(1);
   await expect(page.locator('.inst-members li')).toHaveCount(1);
 });
+
+test('lista de membros: fecha pelo X do cabeçalho e reabre pela setinha', async ({ page }) => {
+  await page.goto('/');
+  const list = page.getByRole('complementary', { name: 'Membros' });
+  await expect(list).toBeVisible({ timeout: 20_000 });
+  await expect(list.locator('.members-list-title')).toContainText('Membros');
+  await list.getByRole('button', { name: 'Fechar lista de membros' }).click();
+  await expect(list).toBeHidden();
+  await page.getByRole('button', { name: 'Mostrar painel lateral' }).click();
+  await expect(page.getByRole('complementary', { name: 'Membros' })).toBeVisible();
+});

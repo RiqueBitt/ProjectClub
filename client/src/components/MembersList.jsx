@@ -37,6 +37,15 @@ export default function MembersList({ onToggle }) {
   // Normal 2.0: títulos dos grupos como o cargo foi escrito, sem caixa alta.
   const n2 = useStore((s) => s.layoutStyle) === 'normal2';
   const label = (text) => (n2 ? text : text.toUpperCase());
+  // Instância aberta (numa privada a lista já vem só com quem tem acesso).
+  const community = useStore((s) => s.community);
+  const instance = (community?.instances || []).find((i) => i.id === community?.instance);
+  // No celular a lista é uma gaveta: fecha a gaveta. No PC, esconde o painel
+  // (a setinha na borda direita reabre).
+  const close = () => {
+    if (window.matchMedia?.('(max-width: 768px)').matches) useStore.getState().closeMobileMembers?.();
+    else onToggle?.();
+  };
 
   const withStatus = members.map((m) => ({
     ...m,
@@ -58,7 +67,18 @@ export default function MembersList({ onToggle }) {
 
   return (
     <aside className="members-list" aria-label="Membros">
-      <button className="icon-btn members-collapse" onClick={onToggle}>›</button>
+      <div className="members-list-head">
+        <span className="members-list-title">
+          Membros{communityLoaded ? ` — ${members.length}` : ''}
+          {instance && !instance.isPublic && <small className="members-list-instance">{instance.icon ? `${instance.icon} ` : ''}{instance.name}</small>}
+        </span>
+        <button
+          type="button" className="icon-btn members-list-close" onClick={close}
+          aria-label="Fechar lista de membros" data-tip="Fechar lista de membros"
+        >
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18" /></svg>
+        </button>
+      </div>
       {!communityLoaded && members.length === 0 && <ListSkeleton variant="members" rows={9} label="Carregando membros…" />}
       {groups.map((g) => (
         <MemberGroup key={g.label} label={g.label} members={g.members} roles={roles} cargosEnabled={cargosEnabled} />
