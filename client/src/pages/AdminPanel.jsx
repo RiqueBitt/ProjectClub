@@ -83,6 +83,7 @@ import CreatorShopAdmin from '../components/admin/CreatorShopAdmin.jsx';
 import PinguAlertsAdmin from '../components/admin/PinguAlertsAdmin.jsx';
 import { CardsAdminCards, CardsAdminPacks, CardsAdminSettings, CardsAdminPlayers, CardsAdminTrades, CardsAdminMatches, CardsAdminStats, CardsAdminCampaign, CardsAdminTournaments, CardsAdminBoards } from '../cards/CardsAdmin.jsx';
 import RoleIcon from '../components/RoleIcon.jsx';
+import InstancesAdmin from '../components/admin/InstancesAdmin.jsx';
 
 // ============================================================
 // Painel da Equipe — shell redesenhado do zero.
@@ -140,6 +141,7 @@ const TABS = {
   channels: { label: 'Canais e categorias', desc: 'Crie, edite e organize os canais da comunidade.' },
   emojis: { label: 'Emojis', desc: 'Emojis personalizados da comunidade.' },
   stickers: { label: 'Figurinhas do chat', desc: 'Figurinhas que os membros podem mandar no chat.' },
+  instancias: { label: 'Gerenciamento de instâncias', desc: 'Instâncias privadas (Amigos, Empresarial...) com categorias, canais e calls próprios: escolha quem pode entrar em cada uma.' },
   clubs: { label: 'Clubes', desc: 'Clubes criados pelos membros.' },
   clanIcons: { label: 'Ícones de clube', desc: 'Ícones disponíveis para os clubes.' },
   achievements: { label: 'Conquistas', desc: 'Conquistas, requisitos e raridades.' },
@@ -205,7 +207,7 @@ const HIDDEN_TABS = new Set([
 const TAB_GROUPS = [
   { label: 'Pessoas', icon: 'people', tabs: ['busca', 'inscricoes', 'users', 'badges', 'roles'] },
   { label: 'Moderação', icon: 'shield', tabs: ['reports', 'revisoes', 'automodDm', 'pinguAlertas', 'moderacao', 'modReports', 'logs', 'honeypot'] },
-  { label: 'Comunidade', icon: 'community', tabs: ['channels', 'pingu', 'emojis', 'stickers', 'clubs', 'clanIcons', 'achievements', 'metasComunidade', 'gifMove'] },
+  { label: 'Comunidade', icon: 'community', tabs: ['channels', 'instancias', 'pingu', 'emojis', 'stickers', 'clubs', 'clanIcons', 'achievements', 'metasComunidade', 'gifMove'] },
   { label: 'Conteúdo', icon: 'content', tabs: ['updates', 'events', 'announcements', 'appCatalog'] },
   { label: 'Economia', icon: 'economy', tabs: ['economia', 'decoracoes', 'cupons', 'criadores', 'apoio', 'metaDoacao', 'casas', 'album'] },
   { label: 'Club Penguin', icon: 'penguin', tabs: ['jogo'] },
@@ -447,6 +449,7 @@ export default function AdminPanel() {
           {tab === 'modReports' && <ModReportsAdminTab />}
           {tab === 'roles' && <RolesAdminTab />}
           {tab === 'channels' && <ChannelsAdminTab />}
+          {tab === 'instancias' && <InstancesAdmin />}
           {tab === 'gifMove' && <GifMoveAdminTab />}
           {tab === 'emojis' && <EmojisAdminTab />}
           {tab === 'stickers' && <StickersAdminTab />}
@@ -519,6 +522,8 @@ const ACTION_TEXT = {
   PINGU_CONFIG: 'mudou as funções do Pingu', PINGU_QUIZ_START: 'começou um Quiz do Pingu', PINGU_QUIZ_CREATE: 'adicionou uma pergunta ao quiz',
   PINGU_QUIZ_UPDATE: 'editou uma pergunta do quiz', PINGU_QUIZ_DELETE: 'apagou uma pergunta do quiz', PINGU_QUIZ_GENERATE: 'pediu uma pergunta de quiz à IA',
   PINGU_ALERT_REVIEW: 'analisou um alerta do Pingu',
+  INSTANCE_CREATE: 'criou uma instância', INSTANCE_DELETE: 'apagou uma instância',
+  INSTANCE_MEMBER_ADD: 'liberou alguém numa instância', INSTANCE_MEMBER_REMOVE: 'tirou alguém de uma instância',
   WIKI_CREATE: 'criou uma página da wiki', WIKI_UPDATE: 'editou uma página da wiki', WIKI_DELETE: 'apagou uma página da wiki',
 };
 const actionText = (a) => ACTION_TEXT[a] || String(a || '').replaceAll('_', ' ').toLowerCase();

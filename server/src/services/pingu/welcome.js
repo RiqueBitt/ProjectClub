@@ -56,6 +56,8 @@ function pickFeaturedChannels(channels, welcomeId, max = 3) {
 
 async function loadChannels() {
   const rows = await db().channel.findMany({
+    // Só os da Pública: a boas-vindas não cita canal de instância privada.
+    where: { instanceId: null },
     orderBy: [{ position: 'asc' }],
     select: { id: true, name: true, type: true, isPrivate: true, position: true, categoryId: true, tempOwnerId: true, category: { select: { position: true } } },
   }).catch(() => db().channel.findMany({ orderBy: [{ position: 'asc' }], select: { id: true, name: true, type: true, isPrivate: true, position: true } }));

@@ -266,13 +266,19 @@ test('getEffectivePermissionsForChannels: mesmo resultado do cálculo por canal,
     userRole: { findMany: async () => { queries += 1; return []; } },
     role: { findFirst: async () => { queries += 1; return { id: 'everyone', isDefault: true, permissions: VIEW.toString() }; } },
     permissionOverwrite: { findMany: async () => { queries += 1; return overwrites; } },
+    // Instâncias (cache próprio, fora da conta de consultas por chamada).
+    instance: { findMany: async () => [{ id: 'amigos', name: 'Amigos' }] },
+    instanceMember: { findMany: async () => [] },
   });
   delete require.cache[src('services/authz.js')];
+  delete require.cache[src('services/instances.js')];
   const { getEffectivePermissionsForChannels } = require(src('services/authz.js'));
   const { has } = require(src('services/permissions.js'));
   const map = await getEffectivePermissionsForChannels('u1', [
-    { id: 'c1', categoryId: null }, { id: 'c2', categoryId: 'k1' }, { id: 'c3', categoryId: null },
+    { id: 'c1', categoryId: null, instanceId: null }, { id: 'c2', categoryId: 'k1', instanceId: null }, { id: 'c3', categoryId: null, instanceId: null },
+    { id: 'c4', categoryId: null, instanceId: 'amigos' },
   ]);
+  assert.equal(map.get('c4'), 0n); // instância privada sem acesso: nada
   assert.equal(has(map.get('c1'), 'VIEW_CHANNEL'), true); // liberado pra mim
   assert.equal(has(map.get('c2'), 'VIEW_CHANNEL'), false); // categoria nega
   assert.equal(has(map.get('c3'), 'VIEW_CHANNEL'), true);

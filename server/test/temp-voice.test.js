@@ -9,7 +9,8 @@ function fakeDb() {
   const match = (r, w = {}) => Object.entries(w).every(([k, v]) => {
     if (v && typeof v === 'object' && 'not' in v) return r[k] !== v.not;
     if (v && typeof v === 'object' && 'in' in v) return v.in.includes(r[k]);
-    return r[k] === v;
+    // Coluna sem valor no banco é null (igual ao Prisma).
+    return (r[k] === undefined ? null : r[k]) === v;
   });
   return {
     rows,

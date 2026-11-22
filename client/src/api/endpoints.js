@@ -367,7 +367,12 @@ export const dismissAnnouncement = (id) => api.post(`/platform/announcements/${i
 
 // --- Categorias ---
 // Aceitam só o nome (texto, como antes) ou um objeto { name, iconEmoji, iconUrl }.
-export const createCategory = (nameOrPayload) => api.post('/community/categories', typeof nameOrPayload === 'string' ? { name: nameOrPayload } : nameOrPayload).then((r) => r.data);
+// Instância aberta agora na barra de canais (o store atualiza isso a cada
+// carga da comunidade): categoria e canal novos nascem nela.
+let currentInstanceId = 'publica';
+export const setCurrentInstanceId = (id) => { currentInstanceId = id || 'publica'; };
+export const getCurrentInstanceId = () => currentInstanceId;
+export const createCategory = (nameOrPayload) => api.post('/community/categories', { instanceId: currentInstanceId, ...(typeof nameOrPayload === 'string' ? { name: nameOrPayload } : nameOrPayload) }).then((r) => r.data);
 export const updateCategory = (id, nameOrPayload) => api.patch(`/community/categories/${id}`, typeof nameOrPayload === 'string' ? { name: nameOrPayload } : nameOrPayload).then((r) => r.data);
 export const uploadCategoryIcon = (id, file) => {
   const fd = new FormData(); fd.append('icon', file);
@@ -380,7 +385,15 @@ export const setCategoryOverwrite = (id, payload) => api.post(`/community/catego
 export const deleteCategoryOverwrite = (id, overwriteId) => api.delete(`/community/categories/${id}/overwrites/${overwriteId}`).then((r) => r.data);
 
 // --- Canais ---
-export const createChannel = (payload) => api.post('/community/channels', payload).then((r) => r.data);
+export const createChannel = (payload) => api.post('/community/channels', { instanceId: currentInstanceId, ...payload }).then((r) => r.data);
+// Instâncias (Pública, Amigos, Empresarial...).
+export const setCurrentInstance = (instanceId) => api.put('/community/instance', { instanceId }).then((r) => r.data);
+export const adminListInstances = () => api.get('/admin/instances').then((r) => r.data);
+export const adminCreateInstance = (payload) => api.post('/admin/instances', payload).then((r) => r.data);
+export const adminUpdateInstance = (id, payload) => api.patch(`/admin/instances/${encodeURIComponent(id)}`, payload).then((r) => r.data);
+export const adminDeleteInstance = (id) => api.delete(`/admin/instances/${encodeURIComponent(id)}`).then((r) => r.data);
+export const adminAddInstanceMember = (id, payload) => api.post(`/admin/instances/${encodeURIComponent(id)}/members`, payload).then((r) => r.data);
+export const adminRemoveInstanceMember = (id, userId) => api.delete(`/admin/instances/${encodeURIComponent(id)}/members/${encodeURIComponent(userId)}`).then((r) => r.data);
 // Salas de voz temporárias (qualquer membro; somem quando ficam vazias).
 export const createTempVoiceRoom = (payload = {}) => api.post('/community/channels/temp-voice', payload).then((r) => r.data);
 export const updateTempVoiceRoom = (id, payload) => api.patch(`/community/channels/temp-voice/${encodeURIComponent(id)}`, payload).then((r) => r.data);

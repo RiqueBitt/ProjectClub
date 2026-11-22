@@ -33,7 +33,7 @@ async function pickCategory(categoryId, db) {
     const ok = await db.channel.findFirst({ where: { categoryId, type: { in: ['VOICE', 'STAGE'] }, isPrivate: false }, select: { id: true } });
     if (ok) return categoryId;
   }
-  const first = await db.channel.findFirst({ where: { type: 'VOICE', isPrivate: false, tempOwnerId: null }, orderBy: { position: 'asc' }, select: { categoryId: true } });
+  const first = await db.channel.findFirst({ where: { type: 'VOICE', isPrivate: false, tempOwnerId: null, instanceId: null }, orderBy: { position: 'asc' }, select: { categoryId: true } });
   return first?.categoryId ?? null;
 }
 
@@ -43,11 +43,20 @@ async function createRoom(user, { categoryId, name, userLimit } = {}, { db = get
   const total = await db.channel.count({ where: { tempOwnerId: { not: null } } });
   if (total >= MAX_ROOMS) throw httpError(429, 'Já tem salas temporárias demais abertas agora. Entre em uma delas ou tente daqui a pouco.');
   const cat = await pickCategory(categoryId || null, db);
+  // A sala fica na instância da categoria — e só onde a pessoa tem acesso.
+  let instanceId = null;
+  if (cat && db.category?.findUnique) {
+    const parent = await db.category.findUnique({ where: { id: cat }, select: { instanceId: true } });
+    instanceId = parent?.instanceId ?? null;
+    if (instanceId && !(await require('./instances').canAccess(user, instanceId))) {
+      throw httpError(403, 'Você não tem acesso a essa instância.');
+    }
+  }
   const count = await db.channel.count({ where: { categoryId: cat } });
   const channel = await db.channel.create({
     data: {
       name: sanitizeName(name) || `Sala de ${String(user.displayName || user.username || 'alguém').slice(0, 40)}`,
-      type: 'VOICE', categoryId: cat, position: count + 100, userLimit: clampLimit(userLimit) ?? null,
+      type: 'VOICE', categoryId: cat, instanceId, position: count + 100, userLimit: clampLimit(userLimit) ?? null,
       tempOwnerId: user.id, topic: 'Sala temporária — some quando ficar vazia',
     },
   });

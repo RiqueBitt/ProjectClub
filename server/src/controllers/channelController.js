@@ -1,7 +1,7 @@
 const prisma = require('../config/prisma');
 const { upsertOverwrite } = require('../services/overwrites');
 const { safeUpsert } = require('../utils/prismaSafe');
-const { assertManageChannels } = require('./categoryController');
+const { assertManageChannels, resolveInstanceId } = require('./categoryController');
 const { getEveryoneRole, getEffectivePermissions, getEffectivePermissionsForChannels } = require('../services/authz');
 const { Prisma } = require('@prisma/client');
 const { toStringBits, PERMISSIONS, has } = require('../services/permissions');
@@ -38,9 +38,14 @@ async function createChannel(req, res, next) {
     if (!name) return res.status(400).json({ error: 'Dê um nome ao canal.' });
     const iconEmoji = sanitizeIconEmoji(req.body.iconEmoji);
     const iconUrl = await resolveIconUrl(prisma, req.body.iconUrl, null);
+    // Instância: a da categoria; canal solto usa a instância aberta no app.
+    const parent = categoryId ? await prisma.category.findUnique({ where: { id: categoryId }, select: { instanceId: true } }) : null;
+    if (categoryId && !parent) return res.status(400).json({ error: 'Categoria não encontrada.' });
+    const instanceId = parent ? parent.instanceId : await resolveInstanceId(req.body.instanceId);
     const count = await prisma.channel.count({ where: { categoryId: categoryId || null } });
     const channel = await prisma.channel.create({
       data: {
+        instanceId,
         name,
         type: VALID_TYPES.includes(type) ? type : 'TEXT',
         categoryId: categoryId || null,
@@ -115,6 +120,14 @@ async function updateChannel(req, res, next) {
       }
     }
 
+    // Mudou de categoria: passa a ser da instância dela.
+    if (data.categoryId !== undefined && data.categoryId !== existing.categoryId) {
+      if (data.categoryId) {
+        const parent = await prisma.category.findUnique({ where: { id: data.categoryId }, select: { instanceId: true } });
+        if (!parent) return res.status(400).json({ error: 'Categoria não encontrada.' });
+        data.instanceId = parent.instanceId;
+      } else data.categoryId = null;
+    }
     const channel = await prisma.channel.update({ where: { id }, data });
     // Renomeou: link bonito novo (o antigo continua abrindo — SlugHistory).
     if (data.name !== undefined || !channel.slug) {
@@ -131,10 +144,21 @@ async function reorderChannels(req, res, next) {
     await assertManageChannels(req.user.id);
     const ownedCount = await prisma.channel.count({ where: { id: { in: order.map((o) => o.id) } } });
     if (ownedCount !== order.length) return res.status(400).json({ error: 'Lista de reordenação inválida.' });
+    // Canal arrastado pra outra categoria fica na instância dela.
+    const catIds = [...new Set(order.map((o) => o.categoryId).filter(Boolean))];
+    const cats = catIds.length ? await prisma.category.findMany({ where: { id: { in: catIds } }, select: { id: true, instanceId: true } }) : [];
+    const instOf = new Map(cats.map((c) => [c.id, c.instanceId]));
+    const channelsNow = await prisma.channel.findMany({ where: { id: { in: order.map((o) => o.id) } }, select: { id: true, instanceId: true } });
+    const curInst = new Map(channelsNow.map((c) => [c.id, c.instanceId]));
     await prisma.$transaction(
       order.map((item) => prisma.channel.update({
         where: { id: item.id },
-        data: { position: item.position, categoryId: item.categoryId ?? null },
+        data: {
+          position: item.position,
+          categoryId: item.categoryId ?? null,
+          // Sem categoria: continua na instância em que já estava.
+          instanceId: item.categoryId ? (instOf.get(item.categoryId) ?? null) : (curInst.get(item.id) ?? null),
+        },
       }))
     );
     req.app.get('io')?.to('community').emit('channel:reorder', { order });

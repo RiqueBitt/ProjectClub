@@ -153,6 +153,8 @@ backfillPollTopicPermissions().catch((err) => {
 require('./services/cpEmotes').ensureCpEmotes().then((r) => {
   if (r.created) console.log(`[emojis] Club Penguin: ${r.created} emoji(s) novos`);
 }).catch((err) => console.warn('[emojis] Club Penguin:', err.message));
+// Instâncias padrão (Amigos e Empresarial), se ainda não existirem.
+require('./services/instances').seedDefaultInstances();
 seedAchievements().catch((err) => {
   console.error('\x1b[31m[achievements-seed]\x1b[0m falhou:', err.message);
 });

@@ -3,6 +3,21 @@ const { upsertOverwrite } = require('../services/overwrites');
 const { requireCommunityPermission } = require('../services/authz');
 const { toStringBits, PERMISSIONS } = require('../services/permissions');
 const { sanitizeName, sanitizeIconEmoji, resolveIconUrl, checkIconUpload } = require('../utils/channelNames');
+const instances = require('../services/instances');
+
+// Instância pedida no corpo (a que está aberta na barra de canais). Tem que
+// existir; null = Pública.
+async function resolveInstanceId(raw) {
+  const id = instances.normalizeId(raw);
+  if (!id) return null;
+  const c = await instances.load();
+  if (!c.members.has(id)) {
+    const err = new Error('Essa instância não existe mais.');
+    err.status = 400;
+    throw err;
+  }
+  return id;
+}
 
 async function assertManageChannels(userId) {
   return requireCommunityPermission(userId, 'MANAGE_CHANNELS');
@@ -16,11 +31,14 @@ async function createCategory(req, res, next) {
     if (!name) return res.status(400).json({ error: 'Dê um nome à categoria.' });
     const iconEmoji = sanitizeIconEmoji(req.body.iconEmoji);
     const iconUrl = await resolveIconUrl(prisma, req.body.iconUrl, null);
-    const count = await prisma.category.count();
+    const instanceId = await resolveInstanceId(req.body.instanceId);
+    const count = await prisma.category.count({ where: { instanceId } });
     const category = await prisma.category.create({
-      data: { name, position: count, iconEmoji: iconEmoji || null, iconUrl: iconEmoji ? null : (iconUrl || null) },
+      data: { name, position: count, instanceId, iconEmoji: iconEmoji || null, iconUrl: iconEmoji ? null : (iconUrl || null) },
     });
-    req.app.get('io')?.to('community').emit('category:new', category);
+    // Só o id: o nome de uma categoria de instância privada não vaza pra quem
+    // não tem acesso (o app busca a lista de novo, já filtrada).
+    req.app.get('io')?.to('community').emit('category:new', { id: category.id });
     res.status(201).json({ category });
   } catch (err) { next(err); }
 }
@@ -146,6 +164,6 @@ async function deleteCategoryOverwrite(req, res, next) {
 }
 
 module.exports = {
-  createCategory, updateCategory, uploadCategoryIcon, reorderCategories, deleteCategory, assertManageChannels,
+  createCategory, updateCategory, uploadCategoryIcon, reorderCategories, deleteCategory, assertManageChannels, resolveInstanceId,
   listCategoryOverwrites, setCategoryOverwrite, deleteCategoryOverwrite,
 };
