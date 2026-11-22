@@ -61,7 +61,9 @@ Cada fase é publicável sozinha, só quando o dono liberar.
   - [x] entrar pelo QR Code (PC e celular) e entrada do app no WebView (app-handoff)
   - [x] chaves de acesso (passkeys): listar, cadastrar, apagar e entrar
   - [x] exportar meus dados (LGPD)
-  - [ ] próximo: OAuth (Google/Discord/GitHub); depois o resto da API por grupos
+  - [x] entrar com Google, Discord e GitHub (OAuth)
+  - [x] **Fase 2 (login e conta) completa**
+  - [ ] próximo: o resto da API por grupos (usuários, amigos, mensagens, comunidades, economia, staff…)
 
 ### Fase 1 — o que já tem
 
@@ -256,3 +258,36 @@ de 6 contas reais (as com mais mensagens e a que tem chave de acesso; o
 maior arquivo com 176 KB) — byte a byte igual ao Node, tirando o
 `exportedAt`. A primeira rodada achou os campos da conta fora de ordem
 depois de tirar os segredos; corrigido e conferido de novo.
+
+### Entrar com Google, Discord e GitHub
+
+- `GET /api/auth/oauth/providers`, `/{provider}/start`, `/{provider}/callback`,
+  `POST /{provider}/link`, `POST /oauth/2fa`, `GET|DELETE /oauth/signup`,
+  `GET /oauth/accounts`, `DELETE /oauth/accounts/{provider}`.
+- Cookies assinados no mesmo formato do Node: o teste confere que o cookie
+  da inscrição feito pelo Rust é idêntico, byte a byte, ao que o
+  `oauth.signPayload` do Node gera (o `applicationsController` do Node lê ele).
+- O teste usa um provedor falso (token e perfil) e cobre: PKCE do Google,
+  estado trocado ou sem cookie, cancelar no provedor, inscrição
+  pré-preenchida, inscrição já pendente, e-mail que já tem conta (não vincula
+  sozinho), conta ligada, banida, 2FA depois do provedor, conectar e
+  desconectar, e conta do provedor já ligada em outra pessoa.
+- Em produção nenhum provedor está configurado hoje (faltam as variáveis
+  `GOOGLE_CLIENT_ID`/`_SECRET` etc.), então as telas mostram "indisponível"
+  — igual no Rust.
+
+### Cabeçalhos iguais aos do Express
+
+Comparando os cabeçalhos (e não só o corpo), apareceram três diferenças nas
+rotas do Rust, já corrigidas em todas:
+- `Content-Type: application/json; charset=utf-8` (o axum mandava sem charset);
+- `ETag` fraco como o `app.set('etag', 'weak')` e resposta 304 quando o
+  navegador manda `If-None-Match` igual;
+- `Vary: Origin, Accept-Encoding` na mesma ordem.
+O redirecionamento segue o `res.redirect` do Express 5 (corpo por `Accept`).
+
+Produção (22/11/2026): 44 respostas comparadas com status, `Location`,
+`Content-Type`, `Cache-Control`, `ETag`, `Vary`, cookies e corpo — rotas
+do OAuth (início, callback, inscrição, contas) e `me`, `sessions`,
+`passkeys`, `2fa/recovery-codes` de 6 contas: 44 de 44 iguais. Repetidas
+as de antes: exportação e chaves de acesso (6 de 6) e aparelhos (8 de 8).
