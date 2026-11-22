@@ -1,0 +1,35 @@
+{
+  "_": "posições em % da imagem (x a partir da esquerda, y a partir de cima)",
+  "blocos": {
+    "1": {
+      "x": 50.0,
+      "topo": 20.036,
+      "topo_frente": 24.486,
+      "topo_fundo": 15.878,
+      "esquerda": 35.926,
+      "direita": 64.074,
+      "chao": 83.158
+    },
+    "2": {
+      "x": 21.129,
+      "topo": 36.794,
+      "topo_frente": 41.804,
+      "topo_fundo": 32.112,
+      "esquerda": 6.13,
+      "direita": 34.108,
+      "chao": 83.158
+    },
+    "3": {
+      "x": 78.767,
+      "topo": 47.17,
+      "topo_frente": 52.523,
+      "topo_fundo": 42.166,
+      "esquerda": 65.832,
+      "direita": 93.706,
+      "chao": 83.158
+    }
+  },
+  "proporcao": 1.968,
+  "largura": 1280,
+  "altura": 650
+}
