@@ -77,7 +77,11 @@ pub async fn headers(State(state): State<AppState>, req: Request, next: Next) ->
     // `Vary` na ordem do Node: `Origin` (cors), o que a rota pôs (`Accept`
     // no redirecionamento) e `Accept-Encoding` (compression, só em texto/JSON)
     let mut vary = vec!["Origin".to_string()];
-    for v in h.get_all(header::VARY).iter().filter_map(|v| v.to_str().ok()) {
+    for v in h
+        .get_all(header::VARY)
+        .iter()
+        .filter_map(|v| v.to_str().ok())
+    {
         for t in v.split(',').map(str::trim).filter(|t| !t.is_empty()) {
             if !t.eq_ignore_ascii_case("origin") && !t.eq_ignore_ascii_case("accept-encoding") {
                 vary.push(t.to_string());
