@@ -78,7 +78,8 @@ export default function AmigosPage() {
         </nav>
       </header>
       {tab !== 'clubes' && <RecentDMs />}
-      <div className={`social-content social-content-${tab}`}>
+      {/* key: ao trocar de aba o conteúdo novo entra com a transição do CSS */}
+      <div key={tab} className={`social-content social-content-${tab}`}>
         {tab === 'amigos' && <div className="fx-with-active"><FriendsPanel /><ActiveNowPanel /></div>}
         {tab === 'mensagens' && <DMConversationsList />}
         {tab === 'clubes' && <ClansPage />}

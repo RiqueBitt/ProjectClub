@@ -57,8 +57,8 @@
 .room-hook { display: none; }
 .shop-room .room-grid .room-hook {
   display: block; position: absolute; left: var(--sx); top: var(--sy); width: var(--sw); aspect-ratio: 264 / 357.6; z-index: 5; pointer-events: none;
-  background: url('/loja/parede/gancho.webp?v=1') center / 100% 100% no-repeat;
 }
+.shop-room .room-grid .room-card:has(.room-pack.p3d-off) .room-hook { background: url('/loja/parede/gancho.webp?v=3') center / 100% 100% no-repeat; }
 
 /* ---------- Caixinha de plástico com o item dentro ---------- */
 .shop-room .room-card[class] .room-card-art {
@@ -68,27 +68,32 @@
 .room-pack {
   --pk: var(--pack, #35d05a);
   position: absolute; left: var(--sx); top: var(--sy); width: var(--sw); aspect-ratio: 264 / 357.6; display: block;
-  /* pendurada pelo furo da aba: é em volta dele que ela pende e inclina */
-  transform-origin: 45.455% 23.49%;
-  transform: perspective(820px) rotate(var(--pack-tilt, 0deg)) rotateY(calc(var(--mx, 0) * 8deg)) rotateX(calc(var(--my, 0) * -5deg));
-  transition: transform .55s cubic-bezier(.2, 1.5, .4, 1);
+  /* pendurada pelo furo da aba: é em volta dele que ela balança (--swing vem
+     do pêndulo; com o 3D ligado quem balança é o modelo, components/shop/pack3d.js) */
+  transform-origin: 45.341% 23.54%;
+  transform: rotate(calc(var(--pack-tilt, 0deg) + var(--swing, 0deg)));
+  transition: scale .18s ease;
 }
-.room-card:hover .room-pack { transition-duration: .14s; transition-timing-function: ease-out; }
-/* sombra que a caixinha faz na cartela */
+/* escolher a caixinha (clique/toque): ela cede um pouquinho antes de abrir */
+.room-card-art:active .room-pack { scale: .975; }
+/* sombra que a caixinha faz na cartela (um quadro por giro) */
 .room-pack::before {
-  content: ''; position: absolute; inset: 0; pointer-events: none;
-  background: url('/loja/parede/sombra.webp?v=1') center / 100% 100% no-repeat; opacity: .92;
+  content: ''; position: absolute; inset: 0; pointer-events: none; opacity: .92;
 }
-/* fundo da caixinha (onde o item fica) */
+.room-pack.p3d-off::before { background: url('/loja/parede/sombra.webp?v=3') center / 100% 100% no-repeat; }
+/* FUNDO da caixinha: o plano onde ficam o item e a etiqueta do nome. A matriz
+   (--m-fundo) deita esse plano no fundo do modelo em cada giro. */
+.room-pack-back {
+  position: absolute; left: 10.606%; top: 30.643%; width: 69.697%; height: 59.301%; z-index: 1; display: block;
+  transform-origin: 0 0; transform: var(--m-fundo, none);
+}
 .room-pack-window {
-  position: absolute; left: 10.606%; top: 30.649%; width: 69.697%; height: 59.284%; z-index: 1; isolation: isolate;
+  position: absolute; inset: 0; isolation: isolate;
   /* a tampa e a lateral cobrem um pedaço do fundo: o item centra na parte que aparece */
   box-sizing: border-box; padding: 3.4% 5.2% 0 0;
   display: grid; place-items: center; overflow: hidden; border-radius: calc(var(--sw) * .044);
   background: radial-gradient(120% 90% at 40% 16%, color-mix(in srgb, var(--pk) 42%, #0a1410) 0%, color-mix(in srgb, var(--pk) 14%, #050a08) 100%);
   box-shadow: inset 0 0 0 1px rgba(255, 255, 255, .14);
-  translate: calc(var(--mx, 0) * -3px) calc(var(--my, 0) * -2px);
-  transition: translate .45s ease-out;
 }
 /* sombra das paredes da caixinha em cima do item (a luz vem de cima, à esquerda) */
 .room-pack-window::after {
@@ -106,26 +111,32 @@
 .room-pack-window > .shop-mock .shop-mock-lines { display: none; }
 /* etiqueta com o nome, colada no fundo da caixinha (o plástico passa por cima) */
 .room-pack-label {
-  position: absolute; left: 11.2%; width: 63.4%; bottom: 13.6%; z-index: 2; box-sizing: border-box;
+  position: absolute; left: .85%; width: 91%; bottom: 5.9%; z-index: 2; box-sizing: border-box;
   padding: calc(var(--sw) * .022) calc(var(--sw) * .04) calc(var(--sw) * .026); border-radius: 3px;
   transform: rotate(-2.4deg); text-align: center; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
   font-size: calc(var(--sw) * .059); font-weight: 800; line-height: 1.25; color: #fff; text-shadow: 0 1.5px 0 rgba(0, 0, 0, .42);
   background: linear-gradient(180deg, color-mix(in srgb, var(--pack-tag, #e3207f) 82%, #fff), var(--pack-tag, #e3207f));
   box-shadow: 0 4px 8px rgba(0, 0, 0, .45), inset 0 1px 0 rgba(255, 255, 255, .4);
-  translate: calc(var(--mx, 0) * -2.4px) calc(var(--my, 0) * -1.6px);
-  transition: translate .45s ease-out;
 }
 /* o plástico (render cinza) tingido com a cor do item */
 .room-pack-plastic {
   position: absolute; inset: 0; z-index: 3; pointer-events: none;
-  background: url('/loja/parede/caixinha.webp?v=1') center / 100% 100% no-repeat var(--pk);
-  background-blend-mode: luminosity;
-  -webkit-mask: url('/loja/parede/caixinha.webp?v=1') center / 100% 100% no-repeat;
-  mask: url('/loja/parede/caixinha.webp?v=1') center / 100% 100% no-repeat;
+  /* plástico claro: só um fundinho da cor do item, o resto é o brilho do render */
 }
-/* brilho que corre na frente do plástico acompanhando o mouse */
+.room-pack.p3d-off .room-pack-plastic {
+  background: url('/loja/parede/caixinha.webp?v=3') center / 100% 100% no-repeat color-mix(in srgb, var(--pk) 46%, #eef3f8);
+  background-blend-mode: luminosity;
+  -webkit-mask: url('/loja/parede/caixinha.webp?v=3') center / 100% 100% no-repeat;
+  mask: url('/loja/parede/caixinha.webp?v=3') center / 100% 100% no-repeat;
+}
+/* FRENTE da caixinha: o plano do filme da frente (brilho e selos colados nele) */
+.room-pack-front {
+  position: absolute; left: 5.025%; top: 33.296%; width: 70.848%; height: 60.28%; z-index: 4; display: block; pointer-events: none;
+  transform-origin: 0 0; transform: var(--m-frente, none);
+}
+/* brilho que corre na frente do plástico acompanhando o giro */
 .room-pack-glare {
-  position: absolute; left: 5.025%; top: 33.3%; width: 70.848%; height: 60.264%; z-index: 4; pointer-events: none;
+  position: absolute; inset: 0; pointer-events: none;
   border-radius: calc(var(--sw) * .05); mix-blend-mode: screen; opacity: 0; transition: opacity .35s ease;
   background:
     radial-gradient(42% 34% at calc(50% + var(--mx, 0) * 38%) calc(46% + var(--my, 0) * 36%), rgba(255, 255, 255, .22), rgba(255, 255, 255, 0) 100%),
@@ -135,7 +146,7 @@
 .shop-room .room-card.is-locked .room-card-art > .room-pack { filter: saturate(.72); }
 
 /* Etiquetas coladas na frente da caixinha (Novo, desconto, limitado, exclusivo). */
-.shop-room .room-card .room-card-flags { top: 35.4%; left: 1.2%; z-index: 4; flex-direction: column; align-items: flex-start; gap: 5px; max-width: 76%; }
+.shop-room .room-card .room-card-flags { top: 3.5%; left: -5.4%; z-index: 4; flex-direction: column; align-items: flex-start; gap: 5px; max-width: 107%; }
 .shop-room .room-card .room-flag {
   height: max(19px, calc(25px * var(--k))); padding: 0 calc(10px * var(--k)); border: 0; border-radius: 4px 5px 5px 0;
   font-size: max(10px, calc(12px * var(--k))); font-weight: 800; color: #fff;
@@ -167,23 +178,13 @@
 .shop-room .room-card .room-card-desc { font-size: 13.5px; line-height: 1.42; color: #b6d2bf; }
 .shop-room .room-card .room-card-foot { flex-direction: column; align-items: flex-start; gap: 11px; padding-top: 14px; }
 .shop-room .room-card .room-price-one { font-size: 16px; }
-.shop-room .room-card .room-btn.sm { min-height: 40px; padding: 0 18px; border-radius: 13px; font-size: 15px; font-weight: 800; }
-.shop-room .room-card .room-btn.primary {
-  color: #f1fff4; background: linear-gradient(180deg, #3ade68 0%, #18aa41 100%); border: 2px solid #0d7e2d; text-shadow: 0 1.5px 0 rgba(0, 70, 25, .55);
-  box-shadow: inset 0 2px 0 rgba(255, 255, 255, .42), inset 0 -3px 0 rgba(0, 60, 20, .22), 0 6px 12px -6px rgba(0, 0, 0, .6);
-}
-.shop-room .room-card .room-btn.primary:hover:not(:disabled) { background: linear-gradient(180deg, #4ce878 0%, #1fb84a 100%); border-color: #0d7e2d; }
-.shop-room .room-card .room-btn.ghost { color: #eafff0; background: rgba(255, 255, 255, .07); border: 2px solid rgba(255, 255, 255, .22); }
-.shop-room .room-card .room-btn.ghost:hover:not(:disabled) { background: rgba(255, 255, 255, .13); }
-.shop-room .room-card .room-btn.excl-btn { color: #3a2a00; background: linear-gradient(180deg, #ffe07a, #e2a91d); border: 2px solid #a8770f; }
-/* Pôr na cesta / Comprar: botão simples, liso e com a letra normal da Loja (pedido do dono). */
-.shop-room .room-card .room-btn:is(.room-basket-btn, .room-buy-btn) {
-  min-height: 38px; padding: 0 16px; gap: 7px; border: 0; border-radius: 10px;
-  font-size: 14px; font-weight: 600; letter-spacing: 0; text-shadow: none; box-shadow: none;
-}
-.shop-room .room-card .room-btn.primary:is(.room-basket-btn, .room-buy-btn) { color: #fff; background: #1c9f47; }
-.shop-room .room-card .room-btn.primary:is(.room-basket-btn, .room-buy-btn):hover:not(:disabled) { background: #22b352; }
-.shop-room .room-card .room-btn.ghost:is(.room-basket-btn, .room-buy-btn) { color: #cfeedd; background: rgba(255, 255, 255, .09); }
+/* Botões da cartela: o MESMO botão do resto da Loja e da plataforma (.room-btn:
+   mesma borda, altura, letra e reação ao mouse/toque). Aqui só mudam as cores
+   do botão secundário, pra aparecer no fundo escuro da cartela. "Pôr na cesta",
+   "Comprar", "Usar", "Tirar" e "Exclusivo" seguem todos esse padrão. */
+.shop-room .room-card .room-btn.sm { min-height: 38px; padding: 0 16px; border-radius: 10px; font-size: 14px; font-weight: 600; }
+.shop-room .room-card .room-btn.ghost { color: #eafff0; background: rgba(255, 255, 255, .08); border-color: rgba(255, 255, 255, .2); }
+.shop-room .room-card .room-btn.ghost:hover:not(:disabled) { background: rgba(255, 255, 255, .15); }
 
 /* Celular: duas cartelas por fila; o quadro 3D encolhe junto com a cartela (--sw). */
 @media (max-width: 640px) {
@@ -195,7 +196,7 @@
   .shop-room .room-card .room-card-body h3 { font-size: 14.5px; }
   .shop-room .room-card .room-card-foot { align-items: stretch; gap: 8px; padding-top: 10px; }
   .shop-room .room-card .room-price-one { font-size: 14px; }
-  .shop-room .room-card .room-btn.sm { min-height: 36px; padding: 0 10px; font-size: 13.5px; border-radius: 11px; }
+  .shop-room .room-card .room-btn.sm { min-height: 36px; padding: 0 10px; font-size: 13.5px; }
   .shop-room .room-card .room-card-state { top: -12px; right: -6px; }
   .shop-room .room-card .room-wish { top: 7px; left: 7px; width: 28px; height: 28px; }
   .shop-room .room-grid .room-card.in-basket::after { top: -12px; right: -6px; height: 28px; padding: 0 10px; font-size: 12.5px; }
@@ -261,46 +262,94 @@
   .shop-basket-fab { right: 14px; bottom: calc(76px + env(safe-area-inset-bottom, 0px)); width: 64px; height: 60px; }
 }
 
-/* ---------- Checkout ---------- */
+/* ---------- Checkout ----------
+   Cesta à esquerda (linhas limpas, no mesmo visual escuro da Loja), resumo e
+   maquininha à direita, e as etapas em cima (Cesta → Pagamento → Pronto), que
+   acompanham o que está acontecendo de verdade. */
 .shop-checkout .room-page-head .room-link { display: inline-flex; align-items: center; gap: 4px; margin-bottom: 8px; }
-.shop-checkout-grid { display: grid; grid-template-columns: minmax(0, 1.1fr) minmax(0, 1fr); gap: 22px; align-items: start; }
+.shop-checkout-grid { display: grid; grid-template-columns: minmax(0, 1.25fr) minmax(300px, 1fr); gap: 22px; align-items: start; }
 @media (max-width: 900px) { .shop-checkout-grid { grid-template-columns: 1fr; } }
 
-/* Cupom fiscal */
-.shop-receipt {
-  position: relative; padding: 18px 18px 22px; border-radius: 6px;
-  background: #fbfaf6; color: #24211c;
-  box-shadow: 0 16px 32px -14px rgba(0, 0, 0, .6);
-  -webkit-mask: radial-gradient(circle 6px at 50% 100%, transparent 98%, #000) 0 0 / 16px 100% repeat-x;
-          mask: radial-gradient(circle 6px at 50% 100%, transparent 98%, #000) 0 0 / 16px 100% repeat-x;
+.shop-steps { display: flex; align-items: center; gap: 10px; margin: 2px 0 18px; padding: 0; list-style: none; }
+.shop-step { display: flex; align-items: center; gap: 9px; font-size: 13.5px; font-weight: 600; color: var(--room-muted); transition: color .25s ease; }
+.shop-step i {
+  width: 26px; height: 26px; flex-shrink: 0; border-radius: 50%; display: grid; place-items: center; font-style: normal; font-size: 12.5px; font-weight: 800;
+  background: var(--room-sunken); color: var(--room-muted); border: 1.5px solid var(--room-line-strong);
+  transition: background-color .25s ease, border-color .25s ease, color .25s ease, transform .3s cubic-bezier(.3, .9, .3, 1.5);
 }
-.shop-receipt h2 { margin: 0 0 12px; font: 800 16px ui-monospace, 'SF Mono', Menlo, monospace; letter-spacing: .5px; text-transform: uppercase; display: flex; justify-content: space-between; align-items: baseline; }
-.shop-receipt h2 small { font-size: 12px; font-weight: 600; opacity: .6; }
+.shop-step.on { color: var(--room-text); }
+.shop-step.on i { background: var(--room-accent); border-color: var(--room-accent); color: #fff; transform: scale(1.08); }
+.shop-step.done i { background: var(--room-ok); border-color: var(--room-ok); color: #fff; }
+.shop-step-line { flex: 1; max-width: 72px; height: 2px; border-radius: 2px; background: var(--room-line-strong); overflow: hidden; }
+.shop-step-line::after { content: ''; display: block; height: 100%; width: 0; background: var(--room-ok); transition: width .45s cubic-bezier(.3, .9, .3, 1); }
+.shop-step-line.done::after { width: 100%; }
+
+/* Cesta */
+.shop-receipt { padding: 18px 20px 20px; border-radius: 18px; background: var(--room-surface); border: 1px solid var(--room-line); }
+.shop-receipt h2 { display: flex; align-items: baseline; gap: 8px; margin: 0 0 8px; font-size: 17px; font-weight: 800; letter-spacing: -.2px; }
+.shop-receipt h2 small { font-size: 13px; font-weight: 600; color: var(--room-muted); }
 .shop-receipt ul { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; }
-.shop-receipt .room-muted { color: #7a756b; }
-.shop-receipt-row { display: flex; align-items: center; gap: 10px; padding: 9px 0; border-bottom: 1px dashed #cfc8b8; }
-.shop-receipt-row.is-bad { background: #fde6e6; margin: 0 -10px; padding: 9px 10px; border-radius: 6px; }
-.shop-receipt-row.is-bad .shop-receipt-text small { color: #b3261e; font-weight: 700; }
-.shop-receipt-art { width: 52px; height: 52px; flex-shrink: 0; border-radius: 10px; overflow: hidden; background: #ece8dd; display: flex; align-items: center; justify-content: center; }
-.shop-receipt-art > * { transform: scale(.55); transform-origin: center; }
-.shop-receipt-text { flex: 1; min-width: 0; display: flex; flex-direction: column; }
-.shop-receipt-text strong { font-size: 14px; }
-.shop-receipt-text small { font-size: 12px; color: #7a756b; }
-.shop-receipt-price { font: 700 14px ui-monospace, 'SF Mono', Menlo, monospace; display: inline-flex; align-items: center; gap: 4px; white-space: nowrap; }
-.shop-receipt-price.coins svg { color: #b8860b; }
-.shop-receipt-price.gems svg { color: #7c4dff; }
-.shop-receipt-cur { display: inline-flex; gap: 4px; }
-.shop-receipt-cur button {
-  display: inline-flex; align-items: center; gap: 3px; padding: 4px 8px; border-radius: 7px; cursor: pointer;
-  border: 1px solid #d7d0c0; background: #fff; color: #24211c; font: 700 12.5px ui-monospace, Menlo, monospace;
+.shop-receipt-row {
+  display: grid; grid-template-columns: 56px minmax(0, 1fr) auto auto; align-items: center; gap: 12px; padding: 11px 0;
+  border-bottom: 1px solid var(--room-line); max-height: 96px; overflow: hidden;
+  animation: shop-row-in .34s cubic-bezier(.2, .8, .2, 1) both; animation-delay: calc(var(--i, 0) * 45ms);
+  transition: max-height .26s ease, padding .26s ease, opacity .2s ease, transform .26s ease, border-color .2s ease;
 }
-.shop-receipt-cur button.on { background: #24211c; color: #fff; border-color: #24211c; }
-.shop-receipt-x { width: 28px; height: 28px; flex-shrink: 0; border-radius: 8px; border: 0; background: none; color: #8a8478; cursor: pointer; display: inline-flex; align-items: center; justify-content: center; }
-.shop-receipt-x:hover { background: #eee8da; color: #24211c; }
-.shop-receipt-total { display: flex; justify-content: space-between; align-items: baseline; margin-top: 14px; padding-top: 10px; border-top: 2px solid #24211c; font: 800 16px ui-monospace, Menlo, monospace; }
-.shop-receipt-after { margin: 6px 0 10px; font-size: 12.5px; color: #6b665c; }
-.shop-receipt-after b { display: inline-flex; align-items: center; gap: 3px; color: #24211c; }
-.shop-receipt .room-link { color: #b3261e; }
+.shop-receipt-row:last-child { border-bottom: 0; }
+.shop-receipt-row.is-leaving { max-height: 0; padding-top: 0; padding-bottom: 0; opacity: 0; transform: translateX(22px); border-color: transparent; }
+.shop-receipt-row.is-bad { background: color-mix(in srgb, var(--room-bad, #e5484d) 12%, transparent); margin: 0 -10px; padding-left: 10px; padding-right: 10px; border-radius: 12px; border-bottom-color: transparent; }
+.shop-receipt-row.is-bad .shop-receipt-text small { color: var(--room-bad, #e5484d); font-weight: 700; }
+@keyframes shop-row-in { from { opacity: 0; transform: translateY(8px); } }
+.shop-receipt-art { width: 56px; height: 56px; flex-shrink: 0; border-radius: 13px; overflow: hidden; background: var(--room-sunken); display: flex; align-items: center; justify-content: center; border: 1px solid var(--room-line); box-sizing: border-box; }
+.shop-receipt-art > * { transform: scale(.55); transform-origin: center; }
+.shop-receipt-text { min-width: 0; display: flex; flex-direction: column; gap: 1px; }
+.shop-receipt-text strong { font-size: 14.5px; font-weight: 700; }
+.shop-receipt-text small { font-size: 12.5px; color: var(--room-muted); }
+.shop-receipt-price { display: inline-flex; align-items: center; gap: 5px; font-size: 14.5px; font-weight: 700; font-variant-numeric: tabular-nums; animation: shop-pop .28s ease; }
+.shop-receipt-cur { display: inline-flex; gap: 2px; padding: 3px; border-radius: 11px; background: var(--room-sunken); border: 1px solid var(--room-line); }
+.shop-receipt-cur button {
+  display: inline-flex; align-items: center; gap: 4px; height: 28px; padding: 0 9px; border: 0; border-radius: 8px; background: transparent; color: var(--room-muted);
+  font: inherit; font-size: 13px; font-weight: 700; font-variant-numeric: tabular-nums; cursor: pointer; transition: background-color .15s ease, color .15s ease, transform .1s ease;
+}
+.shop-receipt-cur button:hover:not(:disabled) { color: var(--room-text); }
+.shop-receipt-cur button:active:not(:disabled) { transform: scale(.95); }
+.shop-receipt-cur button.on { background: var(--room-surface); color: var(--room-text); box-shadow: 0 1px 3px rgba(0, 0, 0, .3); animation: shop-pop .28s ease; }
+.shop-receipt-x {
+  width: 32px; height: 32px; border-radius: 10px; border: 0; background: none; color: var(--room-muted); cursor: pointer; display: grid; place-items: center;
+  transition: background-color .15s ease, color .15s ease, transform .1s ease;
+}
+.shop-receipt-x:hover:not(:disabled) { background: color-mix(in srgb, var(--room-bad, #e5484d) 16%, transparent); color: var(--room-bad, #e5484d); }
+.shop-receipt-x:active:not(:disabled) { transform: scale(.9); }
+.shop-receipt-x:focus-visible, .shop-receipt-cur button:focus-visible { outline: 2px solid var(--room-accent); outline-offset: 1px; }
+.shop-receipt-foot { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-top: 12px; }
+.shop-empty-basket { display: flex; flex-direction: column; align-items: flex-start; gap: 12px; padding: 18px 0 6px; color: var(--room-muted); font-size: 14px; }
+@keyframes shop-pop { 0% { transform: scale(.9); } 60% { transform: scale(1.06); } 100% { transform: scale(1); } }
+
+/* Resumo + pagamento */
+.shop-pos-area { display: flex; flex-direction: column; gap: 16px; }
+.shop-summary { padding: 16px 18px; border-radius: 18px; background: var(--room-surface); border: 1px solid var(--room-line); }
+.shop-summary-line { display: flex; justify-content: space-between; align-items: center; gap: 10px; padding: 4px 0; font-size: 13.5px; color: var(--room-muted); }
+.shop-summary-line b { display: inline-flex; align-items: center; gap: 5px; color: var(--room-text); font-weight: 700; font-variant-numeric: tabular-nums; }
+.shop-receipt-total { display: flex; justify-content: space-between; align-items: baseline; gap: 10px; margin-top: 8px; padding-top: 12px; border-top: 1px solid var(--room-line); font-size: 14px; font-weight: 700; }
+.shop-receipt-total strong { font-size: 20px; font-weight: 800; letter-spacing: -.3px; font-variant-numeric: tabular-nums; animation: shop-pop .3s ease; }
+.shop-receipt-after { margin: 0; }
+.shop-pay { padding: 20px 18px; border-radius: 18px; background: var(--room-surface); border: 1px solid var(--room-line); transition: border-color .3s ease, box-shadow .3s ease; }
+.shop-pay.is-ready { border-color: color-mix(in srgb, var(--room-accent) 45%, var(--room-line)); }
+.shop-pay.is-approved { border-color: var(--room-ok); box-shadow: 0 0 0 3px color-mix(in srgb, var(--room-ok) 18%, transparent); }
+@media (prefers-reduced-motion: reduce) {
+  .shop-receipt-row, .shop-receipt-price, .shop-receipt-total strong, .shop-receipt-cur button.on { animation: none; }
+  .shop-receipt-row, .shop-step i, .shop-step-line::after { transition: none; }
+}
+@media (max-width: 640px) {
+  .shop-receipt { padding: 14px; }
+  .shop-receipt-row { grid-template-columns: 48px minmax(0, 1fr) auto; }
+  .shop-receipt-art { width: 48px; height: 48px; }
+  .shop-receipt-row > :is(.shop-receipt-cur, .shop-receipt-price) { grid-column: 2; grid-row: 2; justify-self: start; }
+  .shop-receipt-row { max-height: 130px; }
+  .shop-receipt-x { grid-column: 3; grid-row: 1 / span 2; }
+  .shop-step span { display: none; }
+  .shop-step.on span { display: inline; }
+}
 
 /* Maquininha */
 .shop-pos { display: flex; flex-direction: column; align-items: center; gap: 16px; }
@@ -348,7 +397,18 @@
 .shop-pos-btn { min-width: 180px; }
 @media (prefers-reduced-motion: reduce) {
   .shop-room .room-grid .room-card, .shop-basket-fab, .shop-pos-card { transition: none; animation: none; }
-  .room-pack { transform: rotate(var(--pack-tilt, 0deg)); transition: none; }
-  .room-pack-window, .room-pack-label { translate: none; transition: none; }
+  .room-pack { transform: rotate(var(--pack-tilt, 0deg)); }
   .room-pack-glare { display: none; }
 }
+
+/* ---------- Caixinha em 3D (components/shop/pack3d.js) ----------
+   O canvas tem o gancho, o plástico e as sombras desenhados pelo modelo; o
+   item (fundo) fica atrás dele e os selos (frente) na frente. Com o 3D ligado
+   quem posiciona os dois planos é a matriz da pose (por isso left/top 0) e
+   quem balança é o modelo (sem rotate no CSS). */
+.room-pack-3d { position: absolute; inset: 0; width: 100%; height: 100%; z-index: 3; pointer-events: none; opacity: 0; transition: opacity .4s ease; }
+.room-pack.p3d { transform: none; }
+.room-pack.p3d .room-pack-3d { opacity: 1; }
+.room-pack.p3d :is(.room-pack-back, .room-pack-front) { left: 0; top: 0; will-change: transform; }
+.room-pack.p3d .room-pack-window::after { display: none; }   /* a sombra das paredes agora é a do modelo */
+.room-pack.p3d .room-pack-plastic { display: none; }
