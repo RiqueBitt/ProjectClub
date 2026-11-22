@@ -351,6 +351,12 @@ export function CheckoutPage({ basket, items, data, user, priceOf, sellsIn, kind
         </section>
 
         <section className="shop-pos-area" aria-label="Resumo e pagamento">
+          <div className={`shop-pay${ready ? ' is-ready' : ''}${phase === 'approved' ? ' is-approved' : ''}`} aria-label="Maquininha">
+            <CardSwipe
+              user={user} variant={card?.cardStyle || 'DEFAULT'} coins={data?.coins} gems={data?.gems}
+              disabled={!canSwipe && phase !== 'declined'} phase={phase} screen={screen} onSwipe={pay} onRetry={() => setPhase('idle')}
+            />
+          </div>
           <div className="shop-summary">
             <div className="shop-summary-line"><span>Seu saldo</span><b><Ico name="coin" size={13} /> {fmt(coins)} · <Ico name="gem" size={13} /> {fmt(gems)}</b></div>
             <div className="shop-summary-line shop-receipt-after"><span>Saldo depois</span><b><Ico name="coin" size={13} /> {fmt(Math.max(0, coins - totals.coins))} · <Ico name="gem" size={13} /> {fmt(Math.max(0, gems - totals.gems))}</b></div>
@@ -358,12 +364,6 @@ export function CheckoutPage({ basket, items, data, user, priceOf, sellsIn, kind
               <span>Total</span>
               <strong key={totalText}>{totalText}</strong>
             </div>
-          </div>
-          <div className={`shop-pay${ready ? ' is-ready' : ''}${phase === 'approved' ? ' is-approved' : ''}`} aria-label="Maquininha">
-            <CardSwipe
-              user={user} variant={card?.cardStyle || 'DEFAULT'} coins={data?.coins} gems={data?.gems}
-              disabled={!canSwipe && phase !== 'declined'} phase={phase} screen={screen} onSwipe={pay} onRetry={() => setPhase('idle')}
-            />
           </div>
         </section>
       </div>

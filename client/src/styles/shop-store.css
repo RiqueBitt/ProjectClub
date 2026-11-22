@@ -576,3 +576,16 @@
 @media (prefers-reduced-motion: reduce) { .pos-spinner { animation-duration: 2s; } .pos-badge, .pos-badge svg path { animation: none; stroke-dashoffset: 0; } }
 /* aproximou e a maquininha leu: o cartão volta pra baixo e a tela aparece */
 .shop-pos .pos-card.a-tap.is-back { transform: translate(66px, 432px); animation: none; transition: transform .5s cubic-bezier(.2, .8, .2, 1); }
+
+/* Checkout: a maquininha fica do lado do cupom, no alto, sem precisar rolar
+   (a coluna acompanha a rolagem; o resumo do saldo vem embaixo dela). */
+.shop-checkout .shop-checkout-grid { align-items: start; }
+.shop-checkout .shop-pos-area { position: sticky; top: 12px; gap: 12px; }
+.shop-checkout .shop-pay { padding: 12px 12px 6px; display: flex; justify-content: center; }
+.shop-checkout .shop-pos .pos-stage { zoom: .82; }
+.shop-checkout .shop-summary { padding: 12px 16px; }
+.shop-checkout .room-page-head p { margin-bottom: 0; }
+@media (max-width: 900px) {
+  .shop-checkout .shop-pos-area { position: static; }
+  .shop-checkout .shop-pos .pos-stage { zoom: .9; }
+}
