@@ -14,6 +14,17 @@ os.makedirs(OUT, exist_ok=True)
 man = {}
 for color in sorted(os.listdir(SRC)):
     im = Image.open(f"{SRC}/{color}/{color}_01.png").convert("RGBA")
+    # tira a sombra cinza desenhada embaixo (componentes cinza grandes); a mesma
+    # sombra existe no jogo 2D, aqui o 3D faz a própria
+    import numpy as np
+    from scipy import ndimage
+    a = np.asarray(im).copy()
+    gray = (a[..., 0] < 20) & (a[..., 1] < 20) & (a[..., 2] < 20) & (a[..., 3] > 60) & (a[..., 3] < 160)
+    lab, n = ndimage.label(gray)
+    for i in range(1, n + 1):
+        if (lab == i).sum() > 1500:
+            a[lab == i, 3] = 0
+    im = Image.fromarray(a, "RGBA")
     b = im.getbbox()
     pad = 4
     im = im.crop((b[0] - pad, b[1] - pad, b[2] + pad, b[3] + pad))

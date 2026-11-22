@@ -1,0 +1,8 @@
+<!doctype html><meta charset=utf-8><style>html,body{margin:0;background:transparent}#c{width:2000px;height:2000px}</style>
+<div id=c></div><script src="ruffle/ruffle.js"></script><script>
+const q=new URLSearchParams(location.search);
+window.RufflePlayer.config={polyfills:false,autoplay:"on",unmuteOverlay:"hidden",splashScreen:false,letterbox:"off",contextMenu:"off",wmode:"transparent",logLevel:"error"};
+const p=window.RufflePlayer.newest().createPlayer();p.style.width=(q.get("size")||800)+"px";p.style.height=(q.get("size")||800)+"px";
+document.getElementById("c").append(p);window.P=p;
+p.load({url:q.get("f"),allowScriptAccess:true}).then(()=>{window.READY=true}).catch(e=>{window.ERR=String(e)});
+</script>
