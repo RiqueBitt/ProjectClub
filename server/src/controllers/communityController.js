@@ -85,7 +85,19 @@ async function getCommunity(req, res, next) {
     const shapedCategories = categories.map((cat) => ({ ...cat, channels: cat.channels.filter(filterChannel) }));
     const shapedLoose = looseChannels.filter(filterChannel);
 
-    const members = shared.members.map((m) => ({
+    // Instância privada: a lista de membros mostra só quem tem acesso a ela
+    // (liberados no painel + administradores, que entram em todas).
+    let visibleMembers = shared.members;
+    if (instanceId) {
+      const [inst, admins] = await Promise.all([
+        instances.load(),
+        prisma.user.findMany({ where: { platformRole: 'ADMIN' }, select: { id: true } }),
+      ]);
+      const allowed = new Set([...(inst.members.get(instanceId) || []), ...admins.map((a) => a.id)]);
+      visibleMembers = shared.members.filter((m) => allowed.has(m.user.id));
+    }
+
+    const members = visibleMembers.map((m) => ({
       // "Invisível" aparece como "Offline" pra todo mundo menos a própria pessoa.
       user: maskUserStatus(m.user, req.user.id),
       roleIds: m.roleIds,

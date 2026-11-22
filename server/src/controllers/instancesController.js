@@ -144,7 +144,9 @@ async function adminAddMember(req, res, next) {
     });
     instances.invalidate();
     const io = req.app.get('io');
-    refreshUser(io, user.id);
+    // Todo mundo busca de novo: a pessoa ganha a instância no seletor e
+    // quem já está nela vê o membro novo na lista.
+    io?.to('community').emit('community:update', { instances: true });
     await logAction(io, { actorId: req.user.id, action: 'INSTANCE_MEMBER_ADD', targetType: 'USER', targetId: user.id, reason: instance.name }).catch(() => {});
     res.status(201).json({ member: { user, addedAt: new Date() } });
   } catch (err) { next(err); }
@@ -162,7 +164,7 @@ async function adminRemoveMember(req, res, next) {
     ]);
     instances.invalidate();
     const io = req.app.get('io');
-    refreshUser(io, userId);
+    io?.to('community').emit('community:update', { instances: true });
     // Quem estava na call/canal dessa instância perde o acesso na hora.
     io?.in(`user:${userId}`).socketsLeave([...(await channelRoomsOf(id))]);
     await logAction(io, { actorId: req.user.id, action: 'INSTANCE_MEMBER_REMOVE', targetType: 'USER', targetId: userId, reason: instance.name }).catch(() => {});
