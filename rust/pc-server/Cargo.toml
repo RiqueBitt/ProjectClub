@@ -47,6 +47,9 @@ qrcode = { version = "0.14", default-features = false }
 png = "0.17"
 regex = "1"
 
+[target.'cfg(unix)'.dependencies]
+rlimit = "0.10"
+
 [dev-dependencies]
 sqlx = { version = "0.8", default-features = false, features = ["runtime-tokio", "tls-rustls", "mysql", "chrono"] }
 axum = { version = "0.8", features = ["ws"] }

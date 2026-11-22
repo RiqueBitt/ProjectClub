@@ -65,8 +65,8 @@ const orange = (s) => c('38;5;209', s);
 const green = (s) => c('32', s);
 const cyan = (s) => c('36', s);
 
-httpServer.listen(env.PORT, () => {
-  const url = `http://localhost:${env.PORT}`;
+httpServer.listen(env.PORT, env.LISTEN_HOST, () => {
+  const url = `http://${env.LISTEN_HOST || 'localhost'}:${env.PORT}${process.env.PC_BEHIND_RUST === '1' ? ' (interno — o Rust fica na porta do app)' : ''}`;
   const lines = [
     `${bold(orange('Project Club'))} ${dim('— servidor rodando')}`,
     '',

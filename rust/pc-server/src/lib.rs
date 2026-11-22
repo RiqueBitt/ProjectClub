@@ -84,6 +84,7 @@ fn ported(state: &AppState) -> Router<AppState> {
             "/api/system/desktop-latest",
             get(routes::system::desktop_latest),
         )
+        .route("/api/system/rust", get(routes::system::rust_status))
         .route("/api/auth/me", get(routes::auth::me))
         .route("/api/auth/login", post(routes::login::login))
         .route("/api/auth/register", post(routes::account::register))
@@ -341,6 +342,7 @@ fn ported(state: &AppState) -> Router<AppState> {
         .layer(CompressionLayer::new())
         .layer(from_fn_with_state(state.clone(), web::headers))
         .layer(from_fn_with_state(state.clone(), web::blocked_ip_guard))
+        .layer(from_fn_with_state(state.clone(), web::gate))
 }
 
 async fn not_found() -> axum::response::Response {

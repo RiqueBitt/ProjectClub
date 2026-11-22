@@ -55,6 +55,53 @@ const SECURITY_HEADERS: [(&str, &str); 12] = [
     ("x-xss-protection", "0"),
 ];
 
+/// Quantas leituras o Rust errou (500) e o Node respondeu no lugar.
+pub static GET_FALLBACKS: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
+
+/// Porteiro das rotas portadas (a camada mais de fora):
+///
+/// - caminho listado em `PC_RUST_SKIP` vai direto pro Node (chave de
+///   emergência por rota, sem precisar publicar nada);
+/// - leitura (GET/HEAD) que der erro interno (500) no Rust é refeita no
+///   Node, que ainda tem todas as rotas — quem pediu recebe a resposta do
+///   Node e o erro fica no log pra corrigir. Escrita nunca é repetida.
+pub async fn gate(State(state): State<AppState>, req: Request, next: Next) -> Response {
+    if crate::config::is_skipped(&state.config.skip_prefixes, req.uri().path()) {
+        return crate::proxy::forward(State(state), req).await;
+    }
+    let readable =
+        req.method() == axum::http::Method::GET || req.method() == axum::http::Method::HEAD;
+    if !(readable && state.config.get_fallback) {
+        return next.run(req).await;
+    }
+    let (method, uri, headers) = (
+        req.method().clone(),
+        req.uri().clone(),
+        req.headers().clone(),
+    );
+    let res = next.run(req).await;
+    if res.status() != StatusCode::INTERNAL_SERVER_ERROR
+        || res.extensions().get::<crate::proxy::Proxied>().is_some()
+    {
+        return res;
+    }
+    GET_FALLBACKS.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+    tracing::error!(
+        "[rust→node] {method} {path} deu 500 no Rust; respondendo pelo Node",
+        path = uri.path()
+    );
+    let mut again = Request::new(Body::empty());
+    *again.method_mut() = method;
+    *again.uri_mut() = uri;
+    *again.headers_mut() = headers;
+    let node = crate::proxy::forward(State(state), again).await;
+    // Node fora do ar: fica a resposta do Rust mesmo
+    if node.status() == StatusCode::BAD_GATEWAY {
+        return res;
+    }
+    node
+}
+
 /// Coloca os cabeçalhos do helmet e do cors numa resposta do Rust.
 pub async fn headers(State(state): State<AppState>, req: Request, next: Next) -> Response {
     let mut res = next.run(req).await;

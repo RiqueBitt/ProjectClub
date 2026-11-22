@@ -86,6 +86,39 @@ pub async fn desktop_latest(State(state): State<AppState>) -> impl IntoResponse 
     ([(header::CACHE_CONTROL, "public, max-age=120")], Json(data))
 }
 
+/// Quando este processo subiu.
+static STARTED: std::sync::LazyLock<(std::time::Instant, String)> =
+    std::sync::LazyLock::new(|| {
+        (
+            std::time::Instant::now(),
+            crate::db::iso(chrono::Utc::now().naive_utc()),
+        )
+    });
+
+/// Marca a hora em que o servidor subiu (chamado no começo do `main`).
+pub fn mark_started() {
+    std::sync::LazyLock::force(&STARTED);
+}
+
+/// `GET /api/system/rust` — só existe quando o Rust está na frente (no Node
+/// puro dá 404). Serve pra conferir que ele está no ar e pro vigia do
+/// `scripts/deploy.js` saber que ele está respondendo.
+pub async fn rust_status(State(state): State<AppState>) -> impl IntoResponse {
+    let fallbacks = crate::web::GET_FALLBACKS.load(std::sync::atomic::Ordering::Relaxed);
+    (
+        [(header::CACHE_CONTROL, "no-store")],
+        Json(json!({
+            "ok": true,
+            "rust": true,
+            "build": option_env!("PC_BUILD_SHA").unwrap_or("dev"),
+            "startedAt": STARTED.1,
+            "uptimeSeconds": STARTED.0.elapsed().as_secs(),
+            "getFallbacks": fallbacks,
+            "skip": state.config.skip_prefixes,
+        })),
+    )
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

@@ -5,7 +5,10 @@ use tracing_subscriber::EnvFilter;
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
+    use std::io::IsTerminal;
     tracing_subscriber::fmt()
+        // cor só no terminal (no log da hospedagem viraria sujeira)
+        .with_ansi(std::io::stdout().is_terminal())
         .with_env_filter(
             EnvFilter::try_from_env("PC_LOG").unwrap_or_else(|_| EnvFilter::new("info")),
         )
@@ -29,14 +32,33 @@ async fn main() -> anyhow::Result<()> {
         let ok = pc_server::check::run(&config, &only).await;
         std::process::exit(if ok { 0 } else { 1 });
     }
-    let listen = config.listen;
+    pc_server::routes::system::mark_started();
+    raise_file_limit();
+    let port = config.listen.port();
+    // Como o Node (`listen(porta)`): IPv6 + IPv4 juntos; sem IPv6, só IPv4.
+    let listener = match tokio::net::TcpListener::bind(SocketAddr::from((
+        std::net::Ipv6Addr::UNSPECIFIED,
+        port,
+    )))
+    .await
+    {
+        Ok(l) => l,
+        Err(_) => tokio::net::TcpListener::bind(config.listen).await?,
+    };
     tracing::info!(
-        "Project Club (Rust) — ambiente {env}, ouvindo em {listen}, o resto vai pro Node em {node}",
+        "Project Club (Rust {build}) — ambiente {env}, ouvindo em {listen}, o resto vai pro Node em {node}",
+        build = option_env!("PC_BUILD_SHA").unwrap_or("dev"),
         env = config.node_env,
+        listen = listener.local_addr()?,
         node = config.node_upstream
     );
+    if !config.skip_prefixes.is_empty() {
+        tracing::warn!(
+            "PC_RUST_SKIP: estes caminhos vão direto pro Node: {:?}",
+            config.skip_prefixes
+        );
+    }
     let state = AppState::new(config).await?;
-    let listener = tokio::net::TcpListener::bind(listen).await?;
     axum::serve(
         listener,
         app(state).into_make_service_with_connect_info::<SocketAddr>(),
@@ -61,4 +83,15 @@ async fn shutdown() {
     let term = std::future::pending::<()>();
     tokio::select! { _ = ctrl_c => {}, _ = term => {} }
     tracing::info!("desligando — esperando as conexões em andamento terminarem");
+}
+
+/// Cada WebSocket que passa pelo Rust usa duas conexões (uma com quem
+/// acessa, outra com o Node): sobe o limite de arquivos abertos até o teto
+/// que a hospedagem deixa.
+fn raise_file_limit() {
+    #[cfg(unix)]
+    match rlimit::increase_nofile_limit(u64::MAX) {
+        Ok(n) => tracing::debug!("limite de arquivos abertos: {n}"),
+        Err(e) => tracing::warn!("não deu pra subir o limite de arquivos abertos: {e}"),
+    }
 }

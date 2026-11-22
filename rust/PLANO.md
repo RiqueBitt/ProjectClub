@@ -47,7 +47,8 @@ Cada fase é publicável sozinha, só quando o dono liberar.
 ## Status
 
 - [x] Plano e branch `rust`
-- [x] Fase 1 — gateway (pronto no branch, ainda não está no ar)
+- [x] Fase 1 — gateway **no ar** (22/11/2026, a pedido do dono): o Rust fica na
+      porta do app e o Node numa porta interna
 - [ ] Fase 2 — API rota por rota
   - [x] banco (MySQL sem Prisma), token de acesso e `requireAuth`
   - [x] `GET /api/auth/me`
@@ -110,9 +111,26 @@ Variáveis novas: `PC_NODE_UPSTREAM` (onde o Node ficou; padrão
 `http://127.0.0.1:3001`), `PC_LOG` (nível do log; padrão `info`),
 `PC_DESKTOP_LATEST_URL` (só pra teste). O resto é o mesmo `.env` do Node.
 
-Falta pra Fase 1 ir pro ar (quando o dono liberar): o CI compilar o binário
-Linux e pôr no branch `deploy`, e o start do app subir o Node na porta
-interna + o Rust na porta pública.
+### Fase 1 no ar (22/11/2026)
+
+O dono pediu pra tudo que já está em Rust funcionar de verdade, sem esperar
+o resto. Como ficou:
+
+- `deploy.yml` compila o binário estático (musl) e manda no branch `deploy`
+  em `rust/bin/pc-server` (+ `.sha256`); o `self-update.sh` troca ele junto
+  com o resto, conferindo o `.sha256`.
+- `scripts/deploy.js` + `scripts/rustGateway.js`: sobe o Node numa porta
+  interna (`127.0.0.1:3001`), espera ele responder e só então sobe o Rust
+  na porta do app. O aviso "atualizando" continua na porta enquanto isso.
+- Proteções: o Rust caiu → sobe de novo; 3 quedas em 2 min (ou travado) →
+  o app volta pro Node puro sozinho até a próxima publicação; leitura (GET)
+  com erro interno no Rust → o Node responde no lugar (`web::gate`);
+  `PC_RUST_SKIP=/api/x,/api/y` manda caminhos pro Node sem publicar nada;
+  `PC_RUST=0` ou o arquivo `.pc-rust-off` desligam tudo.
+- `GET /api/system/rust` (só existe com o Rust na frente): versão, há
+  quanto tempo está no ar e quantas leituras caíram no Node.
+- O Rust escuta em IPv6+IPv4 como o Node e sobe o limite de arquivos
+  abertos (cada WebSocket que passa por ele usa duas conexões).
 
 ### Fase 2 — o que já tem
 

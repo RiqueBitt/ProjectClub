@@ -23,6 +23,7 @@ const { spawn } = require('child_process');
 const fs = require('fs');
 const path = require('path');
 const { startWarmupServer, resolveServerPort } = require('./warmupServer');
+const gateway = require('./rustGateway');
 
 const ROOT = path.resolve(__dirname, '..');
 const DIST_INDEX = path.join(ROOT, 'client', 'dist', 'index.html');
@@ -79,8 +80,9 @@ async function main() {
   // servidor de verdade abrir a mesma porta.
   let dotenvText = '';
   try { dotenvText = fs.readFileSync(path.join(SERVER_DIR, '.env'), 'utf8'); } catch { /* sem .env: só variáveis do ambiente */ }
-  const warmPort = process.env.DEPLOY_WARMUP === '0' ? null : resolveServerPort(process.env, dotenvText);
-  const warmup = warmPort ? startWarmupServer(warmPort) : null;
+  const publicPort = resolveServerPort(process.env, dotenvText);
+  warmPort = process.env.DEPLOY_WARMUP === '0' ? null : publicPort;
+  openWarmup();
 
   if (prebuilt) {
     // Só produção: sem Playwright/Capacitor CLI do cliente. `npm ci` é mais
@@ -130,25 +132,98 @@ async function main() {
   await run('node', [path.join('scripts', 'wait-for-db.js')], {}, SERVER_DIR);
   // O Node não cria a pasta do relatório sozinho.
   try { fs.mkdirSync(path.join(SERVER_DIR, 'reports'), { recursive: true }); } catch { /* sem permissão: só fica sem relatório */ }
-  if (warmup) await warmup.close();
+  // Rust na frente (scripts/rustGateway.js): o Node vai pra uma porta
+  // interna e o Rust fica na porta do app, respondendo o que já foi portado
+  // e repassando o resto. Sem o binário (ou desligado), é tudo como antes.
+  let plan = gateway.plan({ env: process.env, root: ROOT, publicPort, gaveUpSha: rustGaveUpSha });
+  if (plan.useRust) {
+    const bin = gateway.verifyBinary(plan.bin);
+    if (!bin.ok) plan = { ...plan, useRust: false, reason: bin.reason };
+  }
+  console.log(`[deploy] Rust na frente do Node: ${plan.useRust ? `SIM (Rust na porta ${plan.publicPort}, Node na ${plan.nodePort})` : `não — ${plan.reason}`}`);
+
+  // Sem o Rust, o aviso "atualizando" sai da porta agora; com ele, só depois
+  // que o Node responder na porta interna (aí o Rust assume a porta).
+  if (!plan.useRust) await closeWarmup();
   console.log(`\n[deploy] $ node ${serverArgs.join(' ')}`);
-  currentChild = require('child_process').spawn('node', serverArgs, { stdio: 'inherit', cwd: SERVER_DIR, env: process.env });
-  currentChild.on('exit', (code) => {
-    currentChild = null;
-    if (code === RELOAD_EXIT_CODE && !stopping) {
-      console.log('\n[deploy] o servidor se atualizou sozinho — subindo a versão nova');
-      main().catch((err) => { console.error('[deploy] falhou:', err?.stack || err); process.exit(1); });
-      return;
-    }
-    process.exit(code == null ? 1 : code);
+  const child = require('child_process').spawn('node', serverArgs, {
+    stdio: 'inherit', cwd: SERVER_DIR, env: plan.useRust ? gateway.nodeEnv(process.env, plan) : process.env,
   });
+  currentChild = child;
+  child.on('exit', (code) => {
+    if (currentChild === child) currentChild = null;
+    const again = (code === RELOAD_EXIT_CODE || nodeOnlyRestart) && !stopping;
+    // O Rust sai junto: numa atualização ele pode ter mudado, e sem o Node
+    // ele não tem pra quem repassar.
+    stopRust().then(() => {
+      if (again) {
+        console.log(nodeOnlyRestart
+          ? '\n[deploy] subindo o Node direto na porta do app (sem o Rust)'
+          : '\n[deploy] o servidor se atualizou sozinho — subindo a versão nova');
+        nodeOnlyRestart = false;
+        main().catch((err) => { console.error('[deploy] falhou:', err?.stack || err); process.exit(1); });
+        return;
+      }
+      process.exit(code == null ? 1 : code);
+    });
+  });
+
+  if (plan.useRust) {
+    const ready = await gateway.waitForHealth(plan.nodePort, { alive: () => currentChild === child });
+    // O Node saiu enquanto subia: o 'exit' acima cuida (o aviso "atualizando"
+    // continua na porta até a próxima subida).
+    if (currentChild !== child || stopping) return;
+    if (!ready) console.warn('[deploy] o Node demorou pra responder na porta interna — subindo o Rust mesmo assim');
+    await closeWarmup();
+    rust = gateway.superviseRust({
+      plan, env: gateway.rustEnv(process.env, plan, dotenvText), cwd: ROOT,
+      onGiveUp: () => {
+        // Caiu demais: o site não pode ficar fora do ar por causa do Rust.
+        // Reinicia o Node na porta pública e só tenta o Rust de novo na
+        // próxima publicação (ou reinício do app).
+        rustGaveUpSha = gateway.deployedSha(ROOT);
+        rust = null;
+        if (stopping) return;
+        console.error('[deploy] o Rust caiu demais — voltando o Node pra porta do app');
+        nodeOnlyRestart = true;
+        openWarmup(); // a porta do app ficou livre: avisa "atualizando" enquanto o Node troca de porta
+        if (currentChild) { try { currentChild.kill('SIGTERM'); } catch { /* já saiu */ } }
+      },
+    });
+  }
 }
 
 let currentChild = null;
 let stopping = false;
+let rust = null; // vigia do Rust (scripts/rustGateway.js) quando ele está na frente
+let rustGaveUpSha; // versão em que o Rust foi desligado por cair demais
+let nodeOnlyRestart = false; // o Node está sendo reiniciado pra assumir a porta do app
+
+// Aviso "atualizando" (warmupServer.js) na porta do app: um só por vez.
+let warmPort = null;
+let warmupNow = null;
+function openWarmup() {
+  if (!warmupNow && warmPort) warmupNow = startWarmupServer(warmPort);
+  return warmupNow;
+}
+async function closeWarmup() {
+  const w = warmupNow;
+  warmupNow = null;
+  if (w) await w.close();
+}
+
+function stopRust(sig) {
+  const r = rust;
+  rust = null;
+  return r ? r.stop(sig) : Promise.resolve();
+}
+
 ['SIGINT', 'SIGTERM', 'SIGHUP'].forEach((sig) => process.on(sig, () => {
   stopping = true;
-  if (currentChild) { try { currentChild.kill(sig); } catch { /* já saiu */ } } else process.exit(0);
+  // Para de receber pedidos novos (Rust) e deixa o Node terminar os que
+  // estão em andamento; quando o Node sai, o processo todo sai.
+  const r = stopRust(sig);
+  if (currentChild) { try { currentChild.kill(sig); } catch { /* já saiu */ } } else r.then(() => process.exit(0));
 }));
 
 main().catch((err) => { console.error('[deploy] falhou:', err?.stack || err); process.exit(1); });

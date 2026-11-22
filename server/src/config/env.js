@@ -33,6 +33,10 @@ module.exports = {
   // to 3000 (matches the Vite dev-server proxy target in
   // client/vite.config.js). Set PORT explicitly in .env to override either.
   PORT: parseInt(process.env.PORT || (NODE_ENV === 'production' ? '80' : '3000'), 10),
+  // Com o Rust na frente (scripts/rustGateway.js) o Node escuta só dentro
+  // do container (127.0.0.1) numa porta interna; sem isso, em todas as
+  // interfaces, como sempre.
+  LISTEN_HOST: (process.env.PC_LISTEN_HOST || '').trim() || undefined,
   CLIENT_ORIGIN: process.env.CLIENT_ORIGIN || 'http://localhost:5173',
   DATABASE_URL: process.env.DATABASE_URL || 'file:./dev.db',
 

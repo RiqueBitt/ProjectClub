@@ -82,6 +82,13 @@ pub struct Config {
     pub klipy_key: Secret,
     /// Endereço da API da Klipy (os testes apontam pra um servidor falso).
     pub klipy_base: String,
+    /// `PC_RUST_SKIP`: começos de caminho (separados por vírgula) que o Rust
+    /// NÃO responde — vão direto pro Node, mesmo já portados. É a chave de
+    /// emergência por rota (ex.: `/api/economy,/api/friends`).
+    pub skip_prefixes: Vec<String>,
+    /// `PC_RUST_FALLBACK` (ligado, a não ser que seja `0`): leitura (GET) que
+    /// der erro interno no Rust é refeita no Node.
+    pub get_fallback: bool,
 }
 
 impl Config {
@@ -157,8 +164,30 @@ impl Config {
                     .unwrap_or_default(),
             ),
             klipy_base: KLIPY_BASE.into(),
+            skip_prefixes: parse_skip(&std::env::var("PC_RUST_SKIP").unwrap_or_default()),
+            get_fallback: std::env::var("PC_RUST_FALLBACK")
+                .map(|v| v.trim() != "0")
+                .unwrap_or(true),
         })
     }
+}
+
+/// `PC_RUST_SKIP`: só começos de caminho de verdade (`/api/...`), sem barra no fim.
+pub fn parse_skip(raw: &str) -> Vec<String> {
+    raw.split(',')
+        .map(|p| p.trim().trim_end_matches('/'))
+        .filter(|p| p.starts_with('/') && p.len() > 1)
+        .map(String::from)
+        .collect()
+}
+
+/// O caminho está num dos começos de `PC_RUST_SKIP`? (`/api/eco` não pega
+/// `/api/economy`: só o caminho inteiro ou seguido de `/`.)
+pub fn is_skipped(prefixes: &[String], path: &str) -> bool {
+    prefixes.iter().any(|p| {
+        path.strip_prefix(p.as_str())
+            .is_some_and(|rest| rest.is_empty() || rest.starts_with('/'))
+    })
 }
 
 fn env_or(name: &str, fallback: &str) -> String {
@@ -210,6 +239,9 @@ impl Config {
             oauth_test_base: None,
             klipy_key: Secret::default(),
             klipy_base: KLIPY_BASE.into(),
+            skip_prefixes: vec![],
+            // os testes conferem a resposta do próprio Rust (inclusive os 500)
+            get_fallback: false,
         }
     }
 }
@@ -218,6 +250,17 @@ impl Config {
 mod tests {
     use super::parse_duration;
     use std::time::Duration;
+
+    #[test]
+    fn chave_de_emergencia_por_rota() {
+        let p = super::parse_skip(" /api/economy/, api/x, /, ,/api/friends");
+        assert_eq!(p, ["/api/economy", "/api/friends"]);
+        assert!(super::is_skipped(&p, "/api/economy"));
+        assert!(super::is_skipped(&p, "/api/economy/rank"));
+        assert!(!super::is_skipped(&p, "/api/economy2"));
+        assert!(!super::is_skipped(&p, "/api/users/me"));
+        assert!(!super::is_skipped(&[], "/api/economy"));
+    }
 
     #[test]
     fn tempo_como_o_ms_do_node() {

@@ -68,6 +68,10 @@ fn fake_node() -> Router {
 }
 
 async fn gateway(node: SocketAddr) -> SocketAddr {
+    gateway_with(node, |c| c).await
+}
+
+async fn gateway_with(node: SocketAddr, adjust: impl FnOnce(Config) -> Config) -> SocketAddr {
     let config = Config {
         listen: "127.0.0.1:0".parse().unwrap(),
         node_upstream: format!("http://{node}"),
@@ -76,9 +80,10 @@ async fn gateway(node: SocketAddr) -> SocketAddr {
         desktop_latest_url: format!("http://{node}/latest.yml"),
         database_url: None,
         jwt_access_secret: "teste".into(),
+        get_fallback: true, // como em produção
         ..Config::for_tests()
     };
-    spawn(app(AppState::new(config).await.unwrap())).await
+    spawn(app(AppState::new(adjust(config)).await.unwrap())).await
 }
 
 #[tokio::test]
@@ -156,4 +161,110 @@ async fn node_fora_do_ar_da_502() {
         .await
         .unwrap();
     assert_eq!(r.status().as_u16(), 502);
+}
+
+#[tokio::test]
+async fn rust_no_ar_responde_o_status() {
+    let node = spawn(fake_node()).await;
+    let gw = gateway(node).await;
+    let r = reqwest::get(format!("http://{gw}/api/system/rust"))
+        .await
+        .unwrap();
+    assert_eq!(r.status().as_u16(), 200);
+    assert_eq!(r.headers()["x-served-by"], "rust");
+    assert_eq!(r.headers()["cache-control"], "no-store");
+    let v: serde_json::Value = r.json().await.unwrap();
+    assert_eq!(v["ok"], true);
+    assert_eq!(v["rust"], true);
+    assert!(v["getFallbacks"].as_u64().is_some());
+    assert!(v["startedAt"].is_string());
+}
+
+/// Chave de emergência: caminho em `PC_RUST_SKIP` vai pro Node mesmo já
+/// portado (aqui o "Node" responde 418 em tudo).
+#[tokio::test]
+async fn caminho_desligado_vai_pro_node() {
+    let node = spawn(fake_node().fallback(|| async { (StatusCode::IM_A_TEAPOT, "node") })).await;
+    let gw = gateway_with(node, |c| Config {
+        skip_prefixes: pc_server::config::parse_skip("/api/system/desktop-latest,/api/friends"),
+        ..c
+    })
+    .await;
+    for path in [
+        "/api/system/desktop-latest",
+        "/api/friends",
+        "/api/friends/blocked",
+    ] {
+        let r = reqwest::get(format!("http://{gw}{path}")).await.unwrap();
+        assert_eq!(r.status().as_u16(), 418, "{path}");
+        assert!(r.headers().get("x-served-by").is_none(), "{path}");
+    }
+    // o que não está na lista continua no Rust
+    let r = reqwest::get(format!("http://{gw}/api/system/rust"))
+        .await
+        .unwrap();
+    assert_eq!(r.headers()["x-served-by"], "rust");
+}
+
+/// Leitura que dá erro interno no Rust (aqui: sem banco) é refeita no Node;
+/// escrita não é repetida nunca.
+#[tokio::test]
+async fn leitura_com_erro_no_rust_cai_no_node() {
+    let node = spawn(fake_node().fallback(|headers: HeaderMap| async move {
+        let auth = headers
+            .get("authorization")
+            .and_then(|v| v.to_str().ok())
+            .unwrap_or("-")
+            .to_string();
+        (
+            StatusCode::OK,
+            [("x-node", "sim")],
+            format!("node viu {auth}"),
+        )
+    }))
+    .await;
+    let gw = gateway(node).await;
+    let http = reqwest::Client::new();
+    let r = http
+        .get(format!("http://{gw}/api/economy?x=1"))
+        .header("authorization", "Bearer abc")
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(r.status().as_u16(), 200);
+    assert_eq!(r.headers()["x-node"], "sim");
+    assert!(r.headers().get("x-served-by").is_none());
+    assert_eq!(r.text().await.unwrap(), "node viu Bearer abc");
+
+    let r = http
+        .put(format!("http://{gw}/api/economy/card-style"))
+        .json(&serde_json::json!({ "style": "GOLD" }))
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(r.status().as_u16(), 500);
+    assert_eq!(r.headers()["x-served-by"], "rust");
+
+    // com o recurso desligado, a leitura fica com o erro do Rust
+    let gw = gateway_with(node, |c| Config {
+        get_fallback: false,
+        ..c
+    })
+    .await;
+    let r = reqwest::get(format!("http://{gw}/api/economy"))
+        .await
+        .unwrap();
+    assert_eq!(r.status().as_u16(), 500);
+
+    // Node fora do ar: também fica o erro do Rust (não vira 502)
+    let dead = {
+        let l = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        l.local_addr().unwrap()
+    };
+    let gw = gateway(dead).await;
+    let r = reqwest::get(format!("http://{gw}/api/economy"))
+        .await
+        .unwrap();
+    assert_eq!(r.status().as_u16(), 500);
+    assert_eq!(r.headers()["x-served-by"], "rust");
 }
