@@ -1,10 +1,24 @@
 import { useEffect, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
+import { rollDice } from '../api/endpoints';
+import { DicePicker } from './activities/Dice.jsx';
+import { ChatVideoPicker, ChatMusicPicker } from './activities/ChatMediaPickers.jsx';
 
-// Botão "Atividades" na barra de digitação (do lado do emoji): ações
-// rápidas — "Mostrar cartão" manda o cartão da carteira no chat. (Os
-// Mini-Jogos, que eram do Club Penguin, saíram em nov/2026.)
-export default function ActivitiesComposerButton({ onShowCard }) {
+// Botão "Atividades" na barra de digitação (do lado do emoji):
+//   Rolar dados  → o servidor sorteia; vai pro chat o cartão animado
+//   YouTube      → cartão de vídeo (assiste quem clicar, dá pra levar pra call)
+//   Música       → cartão de música (YouTube Music, Spotify ou Last.fm)
+//   Mostrar cartão → o cartão da carteira
+// `onSendActivity(url)` manda o link da atividade como mensagem (vira cartão).
+const ACTIONS = [
+  { id: 'dice', title: 'Rolar dados', desc: 'Do D2 ao D100, quantos quiser', icon: 'M12 2.5 20.5 7.3v9.4L12 21.5l-8.5-4.8V7.3zM12 2.5v19M3.5 7.3l8.5 4.9 8.5-4.9', color: '#ff8a2a' },
+  { id: 'video', title: 'YouTube', desc: 'Manda um vídeo pra assistir no chat', icon: 'M3 7a3 3 0 0 1 3-3h12a3 3 0 0 1 3 3v10a3 3 0 0 1-3 3H6a3 3 0 0 1-3-3zM10 9v6l5-3z', color: '#ff2d2d' },
+  { id: 'music', title: 'Música', desc: 'YouTube Music, Spotify ou Last.fm', icon: 'M9 18V5l11-2v13M9 18a3 3 0 1 1-3-3 3 3 0 0 1 3 3zM20 16a3 3 0 1 1-3-3 3 3 0 0 1 3 3z', color: '#a855f7' },
+];
+
+export default function ActivitiesComposerButton({ onShowCard, onSendActivity }) {
   const [open, setOpen] = useState(false);
+  const [modal, setModal] = useState(null); // 'dice' | 'video' | 'music'
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const ref = useRef(null);
@@ -40,6 +54,16 @@ export default function ActivitiesComposerButton({ onShowCard }) {
       {open && (
         <div className="mj-composer-pop" role="dialog" aria-label="Atividades">
           <div className="mj-composer-head"><strong>Atividades</strong></div>
+          <div className="mj-composer-actions">
+            {onSendActivity && ACTIONS.map((a) => (
+              <button key={a.id} type="button" className="mj-composer-action" onClick={() => { setOpen(false); setModal(a.id); }}>
+                <span className="mj-composer-action-icon" aria-hidden="true" style={{ background: a.color, color: '#fff' }}>
+                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d={a.icon} /></svg>
+                </span>
+                <span className="mj-composer-action-text"><strong>{a.title}</strong><small>{a.desc}</small></span>
+              </button>
+            ))}
+          </div>
           {onShowCard && (
             <div className="mj-composer-actions">
               <button type="button" className="mj-composer-action" onClick={showCard} disabled={busy}>
@@ -56,6 +80,14 @@ export default function ActivitiesComposerButton({ onShowCard }) {
           )}
         </div>
       )}
+      {modal === 'dice' && createPortal(
+        <DicePicker
+          where="chat" onClose={() => setModal(null)}
+          onRoll={async (payload) => { const r = await rollDice(payload); await onSendActivity(`${window.location.origin}/atividade/dados/${r.id}`); }}
+        />, document.body,
+      )}
+      {modal === 'video' && createPortal(<ChatVideoPicker onClose={() => setModal(null)} onSend={(id) => onSendActivity(`${window.location.origin}/atividade/video/${id}`)} />, document.body)}
+      {modal === 'music' && createPortal(<ChatMusicPicker onClose={() => setModal(null)} onSend={(id) => onSendActivity(`${window.location.origin}/atividade/musica/${id}`)} />, document.body)}
     </div>
   );
 }

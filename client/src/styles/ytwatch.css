@@ -146,3 +146,5 @@
 .ytw-menu b { flex-shrink: 0; font-size: 12px; color: #ff8080; }
 .ytw-menu button[aria-checked="true"] b { color: #7ee2a8; }
 .ytw-shield { position: absolute; inset: 0; z-index: 1; cursor: pointer; }
+.ytw-ytm { background: linear-gradient(135deg, #a855f7, #ec4899) !important; }
+.ytw-dice { background: linear-gradient(135deg, #ff8a2a, #ff5a1f) !important; color: #fff; }

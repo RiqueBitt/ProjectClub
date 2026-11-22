@@ -12,6 +12,7 @@ import { MicTest, MicSilentWarning, QualityDot } from './voice/VoiceExtras.jsx';
 import ScreenQualityMenu from './voice/ScreenQualityMenu.jsx';
 import { useYouTubeWatch, YouTubeStage, YouTubePicker, ActivitiesButton, YouTubeToast, markYouTubeStageMounted } from './voice/YouTubeWatch.jsx';
 import { CallMusicPicker } from '../music/MusicPlayer.jsx';
+import { DicePicker, CallDicePopup, useCallDice } from './activities/Dice.jsx';
 import { ReactionBar, ReactionsOverlay, RecordingBanner, RecordButton, LiveCaptions } from './voice/CallExtras.jsx';
 import { getVoicePref, setVoicePref, onVoicePrefsChange } from '../utils/voicePrefs';
 import { useContextMenu } from '../context/ContextMenuContext.jsx';
@@ -116,6 +117,8 @@ export default function VoiceChannelView({ channel }) {
   }, [inThisCall, isStage, channel.id]);
   const [ytPicker, setYtPicker] = useState(false);
   const closeYtPicker = useCallback(() => setYtPicker(false), []);
+  // Rolar dados na call: popup de 2 s pra todo mundo da sala.
+  const callDice = useCallDice(inThisCall ? channel.id : null);
   // Modo da tela da chamada (H): 'auto' | 'grid' | 'focus'.
   const [viewMode, setViewMode] = useState(() => getVoicePref('callViewMode') || 'auto');
   useEffect(() => onVoicePrefsChange((p) => setViewMode(p.callViewMode || 'auto')), []);
@@ -266,6 +269,7 @@ export default function VoiceChannelView({ channel }) {
         )}
         {/* Camada dos emojis flutuantes (I). */}
         <ReactionsOverlay voice={voice} memberFor={memberFor} meId={user.id} meName={user.displayName} />
+        {callDice.current && <CallDicePopup key={`${callDice.current.user?.id}-${callDice.current.at}`} event={callDice.current} onDone={callDice.done} />}
         {/* Legendas ao vivo do seu microfone (K). */}
         <LiveCaptions active={inThisCall} />
       </div>
@@ -275,16 +279,18 @@ export default function VoiceChannelView({ channel }) {
         voice={voice} micLocked={false}
         screenLimitReached={!screenOn && Object.keys(remoteScreenStreams).length >= MAX_SCREEN_SHARES}
         onActivity={(kind) => {
+          if (kind === 'dice') { setYtPicker('dice'); return; }
           // Só 1 atividade por vez na chamada: com uma rolando, abrir outra
           // diferente não dá (encerre a atual antes).
           const current = yt.active ? (yt.state?.mode === 'music' ? 'music' : 'youtube') : null;
-          if (current && current !== (kind || 'youtube')) { yt.setError?.(`Já tem uma atividade na chamada (${current === 'music' ? 'YouTube Music' : 'YouTube - Assistir juntos'}). Encerre antes de abrir outra.`); return; }
+          if (current && current !== (kind || 'youtube')) { yt.setError?.(`Já tem uma atividade na chamada (${current === 'music' ? 'Música' : 'YouTube - Assistir juntos'}). Encerre antes de abrir outra.`); return; }
           setYtPicker(kind || 'youtube');
         }}
         activeActivity={yt.active ? (yt.state?.mode === 'music' ? 'music' : 'youtube') : null}
       />
       {ytPicker === 'music' && <CallMusicPicker yt={yt} onClose={closeYtPicker} />}
-      {ytPicker && ytPicker !== 'music' && <YouTubePicker yt={yt} onClose={closeYtPicker} />}
+      {ytPicker === 'dice' && <DicePicker where="call" onRoll={callDice.roll} onClose={closeYtPicker} />}
+      {ytPicker && ytPicker !== 'music' && ytPicker !== 'dice' && <YouTubePicker yt={yt} onClose={closeYtPicker} />}
     </div>
   );
 }

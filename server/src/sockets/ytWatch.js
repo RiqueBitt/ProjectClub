@@ -114,7 +114,7 @@ function register(io, socket, userId) {
     // rolando, abrir a OUTRA (vídeo ↔ música) é recusado até encerrar.
     const wanted = payload.mode === 'music' ? 'music' : (payload.mode === 'video' ? 'video' : (st?.mode || 'video'));
     if (st?.videoId && (st.mode || 'video') !== wanted) {
-      deny(payload.channelId, `Já tem uma atividade na chamada (${(st.mode || 'video') === 'music' ? 'YouTube Music' : 'YouTube - Assistir juntos'}). Encerre antes de abrir outra.`);
+      deny(payload.channelId, `Já tem uma atividade na chamada (${(st.mode || 'video') === 'music' ? 'Música' : 'YouTube - Assistir juntos'}). Encerre antes de abrir outra.`);
       return undefined;
     }
     return {

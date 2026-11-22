@@ -45,6 +45,13 @@ const FIELDS = {
     { env: 'TURN_URLS', label: 'Servidores TURN (opcional, separados por vírgula)' },
     { env: 'TURN_SECRET', label: 'Segredo do TURN (opcional)', secret: true },
   ],
+  // Música (Atividades → Música): chaves do Spotify e do Last.fm, salvas pelo
+  // Painel da Equipe → Música (mesmo cofre criptografado). Ver services/music.js.
+  music: [
+    { env: 'SPOTIFY_CLIENT_ID', label: 'Spotify — Client ID' },
+    { env: 'SPOTIFY_CLIENT_SECRET', label: 'Spotify — Client secret', secret: true },
+    { env: 'LASTFM_API_KEY', label: 'Last.fm — API key', secret: true },
+  ],
 };
 
 const ALL_ENV = new Set(Object.values(FIELDS).flat().map((f) => f.env));

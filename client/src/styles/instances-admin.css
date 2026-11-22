@@ -46,3 +46,20 @@
 .inst-danger { display: flex; align-items: center; gap: 12px; margin-top: 8px; padding-top: 12px; border-top: 1px solid var(--border); }
 .inst-danger small { font-size: 12px; color: var(--text-muted); }
 .inst-error { margin: 0; color: var(--red, #f23f43); font-size: 13px; }
+
+/* Painel da Equipe → Música (components/admin/MusicKeysAdmin.jsx) */
+.mk-admin { display: flex; flex-direction: column; gap: 14px; max-width: 760px; }
+.mk-intro, .mk-note { margin: 0; font-size: 13.5px; line-height: 1.55; color: var(--text-muted); }
+.mk-intro strong { color: var(--header-primary); }
+.mk-note { font-size: 12px; }
+.mk-fields { display: grid; gap: 10px; }
+.mk-field { display: flex; flex-direction: column; gap: 5px; font-size: 13px; color: var(--text-normal); }
+.mk-field input { height: 38px; padding: 0 12px; border-radius: 9px; background: var(--bg-tertiary, var(--bg-primary)); border: 1px solid var(--border); color: var(--text-normal); font-family: ui-monospace, monospace; }
+.mk-set, .mk-unset { font-style: normal; font-size: 11px; font-weight: 700; padding: 1px 7px; border-radius: 999px; margin-left: 6px; }
+.mk-set { background: color-mix(in srgb, var(--green, #23a55a) 18%, transparent); color: var(--green, #23a55a); }
+.mk-unset { background: var(--bg-modifier-hover); color: var(--text-muted); }
+.mk-help { font-size: 13px; color: var(--text-normal); background: var(--bg-secondary); border: 1px solid var(--border); border-radius: 10px; padding: 10px 14px; }
+.mk-help summary { cursor: pointer; font-weight: 700; color: var(--header-primary); }
+.mk-help ol { margin: 8px 0 0; padding-left: 20px; display: grid; gap: 8px; line-height: 1.5; }
+.mk-help code { display: inline-block; margin-top: 4px; padding: 3px 7px; border-radius: 6px; background: var(--bg-primary); user-select: all; word-break: break-all; }
+.mk-ok { margin: 0; color: var(--green, #23a55a); font-size: 13px; }

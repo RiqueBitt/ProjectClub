@@ -33,7 +33,7 @@ import selectedIcon from '../assets/icons/selected.png';
 import PenguinAvatar, { isPenguinAvatarUrl, penguinColorFromUrl } from './PenguinAvatar.jsx';
 import { proxyImage } from '../utils/imageProxy';
 import { InternalLinkCards } from './InternalLinkCard.jsx';
-import { findInternalLinks } from '../utils/internalLinks';
+import { findInternalLinks, stripActivityLinks, ACTIVITY_KINDS } from '../utils/internalLinks';
 import i18n from '../i18n';
 import { usePinguEphemeral, requestTranslation, hideTranslation, langLabel } from '../utils/pinguEphemeral';
 import { isPinguStreaming, pinguImageAttachments, downloadName } from '../utils/pinguMessage';
@@ -567,12 +567,15 @@ function MessageBody({ message, showAuthor, onReply, topics = [], onOpenTopic, i
                   />
                 </div>
               ) : (
+                (stripActivityLinks(message.content) || message.edited || isPinguStreaming(message)) ? (
                 <div className={`message-content ${isEmojiOnlyMessage(message.content, emojiMap) ? 'emoji-only' : ''}`}>
-                  {renderRichContent(message.content, { emojiMap, memberNames, roleNames, memberInfoByName, roleInfoByName })}
+                  {/* Links de atividade (dados, vídeo, música, cartão) viram só o cartão: o endereço some do texto. */}
+                  {renderRichContent(stripActivityLinks(message.content), { emojiMap, memberNames, roleNames, memberInfoByName, roleInfoByName })}
                   {/* Pingu Turbo: resposta sendo escrita ao vivo (cursor piscando). */}
                   {isPinguStreaming(message) && <span className="pingu-caret" aria-label="O Pingu está escrevendo" />}
                   {message.edited && <EditedTag message={message} />}
                 </div>
+                ) : null
               )
             )}
           </>
@@ -968,8 +971,8 @@ function UploadProgressRow({ message }) {
 function MessageLinkCards({ content }) {
   const enabled = useStore((s) => s.userSettings?.showLinkPreviews !== false);
   if (!content || !content.includes('http')) return null;
-  // O cartão da carteira ("Mostrar cartão") aparece mesmo com as prévias desligadas.
-  const links = findInternalLinks(content).filter((l) => enabled || l.kind === 'wallet');
+  // Cartões de atividade (carteira, dados, vídeo, música) aparecem mesmo com as prévias desligadas.
+  const links = findInternalLinks(content).filter((l) => enabled || ACTIVITY_KINDS.has(l.kind));
   return links.length ? <InternalLinkCards links={links} /> : null;
 }
 

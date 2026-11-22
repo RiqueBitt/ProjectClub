@@ -56,7 +56,8 @@ test('só existem as chaves do servidor próprio; provedores removidos são inv�
     // eslint-disable-next-line no-await-in-loop
     await assert.rejects(() => creds.save(p, {}), /inválid/);
   }
-  assert.deepEqual(Object.keys(creds.FIELDS), ['projectclub']);
+  // 'music' = chaves do Spotify/Last.fm da atividade Música (mesmo cofre).
+  assert.deepEqual(Object.keys(creds.FIELDS), ['projectclub', 'music']);
 });
 
 test('recarrega do Redis na subida (e ignora chaves antigas de provedores removidos)', async () => {

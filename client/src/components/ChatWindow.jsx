@@ -1912,7 +1912,7 @@ function ChatWindowInner({ conversationId, channelId }) {
             <button ref={emojiBtnRef} type="button" className={`icon-btn chat-composer-btn chat-media-picker-btn ${emojiPickerOpen ? 'on' : ''}`} title="Emojis, figurinhas e GIFs" aria-label="Emojis, figurinhas e GIFs" aria-haspopup="dialog" aria-expanded={emojiPickerOpen} onClick={() => setPickerTab((t) => (t ? null : readLastPickerTab()))}>
               <ChatIcon name="smile" />
             </button>
-            <ActivitiesComposerButton onShowCard={showWalletCard} />
+            <ActivitiesComposerButton onShowCard={showWalletCard} onSendActivity={sendGif} />
             {emojiPickerOpen && createPortal(
               <EmojiPicker
                 key={pickerTab}

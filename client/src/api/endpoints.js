@@ -254,6 +254,27 @@ export const getMyEconomy = () => api.get('/economy').then((r) => r.data);
 export const setWalletCardStyle = (style) => api.put('/economy/card-style', { style }).then((r) => r.data);
 export const shareWalletCard = () => api.post('/economy/card/share').then((r) => r.data);
 export const getSharedWalletCard = (id) => api.get(`/economy/card/${encodeURIComponent(id)}`).then((r) => r.data);
+// Atividades do chat: dados (sorteio no servidor) e info de vídeo pros cartões de YouTube/Música.
+export const rollDice = (payload) => api.post('/activities/dice', payload).then((r) => r.data);
+export const getDiceRoll = (id) => api.get(`/activities/dice/${encodeURIComponent(id)}`).then((r) => r.data);
+export const getActivityVideo = (videoId) => api.get(`/activities/youtube/${encodeURIComponent(videoId)}`).then((r) => r.data);
+// Música (YouTube Music, Spotify, Last.fm) — ver server/src/services/music.js.
+export const musicStatus = () => api.get('/music/status').then((r) => r.data);
+export const musicResolve = (title, artist) => api.post('/music/resolve', { title, artist }).then((r) => r.data);
+export const musicDisconnect = (service) => api.delete(`/music/${service}`).then((r) => r.data);
+export const spotifySearch = (q) => api.get('/music/spotify/search', { params: { q } }).then((r) => r.data);
+export const spotifyConnectUrl = () => api.get('/music/spotify/connect').then((r) => r.data);
+export const spotifyPlaylists = () => api.get('/music/spotify/playlists').then((r) => r.data);
+export const spotifyPlaylistTracks = (id) => api.get(`/music/spotify/playlists/${encodeURIComponent(id)}`).then((r) => r.data);
+export const lastfmSearch = (q) => api.get('/music/lastfm/search', { params: { q } }).then((r) => r.data);
+export const lastfmTop = () => api.get('/music/lastfm/top').then((r) => r.data);
+export const lastfmConnect = (username) => api.post('/music/lastfm/connect', { username }).then((r) => r.data);
+export const lastfmList = (id) => api.get(`/music/lastfm/lists/${encodeURIComponent(id)}`).then((r) => r.data);
+export const ytAddPlaylist = (url) => api.post('/music/youtube/playlists', { url }).then((r) => r.data);
+export const ytRemovePlaylist = (id) => api.delete(`/music/youtube/playlists/${encodeURIComponent(id)}`).then((r) => r.data);
+export const ytPlaylistTracks = (id) => api.get(`/music/youtube/playlists/${encodeURIComponent(id)}`).then((r) => r.data);
+export const getMusicKeys = () => api.get('/music/admin/keys').then((r) => r.data);
+export const saveMusicKeys = (values) => api.post('/music/admin/keys', { values }).then((r) => r.data);
 export const claimDaily = () => api.post('/economy/daily').then((r) => r.data);
 export const listChests = () => api.get('/economy/chests').then((r) => r.data);
 // Missões diárias/semanais (Economia)
