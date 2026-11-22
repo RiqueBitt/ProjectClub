@@ -75,6 +75,14 @@
   box-shadow: inset 0 0 0 1px rgba(255, 255, 255, .45), inset 0 1px 0 rgba(255, 255, 255, .85), inset 0 -1px 0 rgba(20, 40, 90, .28);
 }
 
+/* Esconde de verdade a face que está de costas (não depende só do
+   backface-visibility, que alguns navegadores/WebViews ignoram — aí o verso
+   nunca aparecia). O JS marca na cena, quadro a quadro, qual face está de
+   frente; a troca acontece exatamente quando o cartão passa de perfil. */
+.wcard-back { visibility: hidden; }
+.wcard-scene[data-face='back'] .wcard-back { visibility: visible; }
+.wcard-scene[data-face='back'] .wcard-front { visibility: hidden; }
+
 /* Arte da frente: anéis finos (gelo), floco em marca d'água e grão do material. */
 .wcard-art { position: absolute; inset: 0; border-radius: inherit; pointer-events: none; overflow: hidden; }
 .wcard-art::before {

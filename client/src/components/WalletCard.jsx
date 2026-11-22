@@ -94,6 +94,10 @@ export default function WalletCard({ user, coins, gems, level, variant = 'DEFAUL
     s.setProperty('--shade-back', (0.3 * (1 - lit(theta - 180))).toFixed(3));
     s.setProperty('--holo', `${(theta * 2.2 + p.tx * 6).toFixed(1)}deg`);
     s.setProperty('--cos', Math.max(0.06, Math.abs(Math.cos(rad))).toFixed(3));
+    // Qual face está virada pra frente agora. O CSS esconde a outra de verdade:
+    // alguns navegadores/WebViews ignoram o backface-visibility e o verso nunca aparecia.
+    const face = Math.cos(rad) < 0 ? 'back' : 'front';
+    if (el.dataset.face !== face) el.dataset.face = face;
   }, []);
 
   const tick = useCallback((now) => {
