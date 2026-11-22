@@ -412,3 +412,13 @@
 .room-pack.p3d :is(.room-pack-back, .room-pack-front) { left: 0; top: 0; will-change: transform; }
 .room-pack.p3d .room-pack-window::after { display: none; }   /* a sombra das paredes agora é a do modelo */
 .room-pack.p3d .room-pack-plastic { display: none; }
+
+/* ---------- Visualizador 360° da caixinha (detalhe do item) ---------- */
+.room-360 { display: flex; flex-direction: column; align-items: center; gap: 6px; width: 100%; }
+.room-pack.room-pack-orbit {
+  --sw: min(264px, 70vw); --k: tan(atan2(var(--sw), 264px));
+  position: relative; left: auto; top: auto; margin: -24px auto -6px; touch-action: none; cursor: grab; transform: none;
+}
+.room-pack.room-pack-orbit:active { cursor: grabbing; }
+.room-pack.room-pack-orbit::before { display: none; }
+.room-360-hint { display: inline-flex; align-items: center; gap: 5px; font-size: 12px; color: var(--room-muted, #9aa); }

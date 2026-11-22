@@ -1181,11 +1181,53 @@ const PREVIEW_MODES = {
   back: [['big', 'Verso', 'cards']],
 };
 
+// Visualizador 360° da caixinha: o mesmo modelo 3D das cartelas, solto no
+// ar — gira sozinho devagar e dá pra arrastar pra ver de qualquer lado
+// (frente, laterais, de costas, de cima). Com o 3D desligado mostra o item.
+function Pack360({ item, user }) {
+  const ref = useRef(null);
+  const ctrl = useRef(null);
+  const { tint } = packColors(item);
+  const [off, setOff] = useState(false);
+  useEffect(() => {
+    const el = ref.current;
+    if (!el) return undefined;
+    let gone = false;
+    import('../components/shop/pack3d.js').then((m) => {
+      if (gone) return;
+      ctrl.current = m.mountPack(el, { color: tint, orbit: true });
+    }).catch(() => setOff(true));
+    const watch = new MutationObserver(() => { if (el.classList.contains('p3d-off')) setOff(true); });
+    watch.observe(el, { attributes: true, attributeFilter: ['class'] });
+    return () => { gone = true; watch.disconnect(); ctrl.current?.destroy(); ctrl.current = null; };
+  }, [item.kind, item.id]); // eslint-disable-line react-hooks/exhaustive-deps
+  if (off) return <Preview item={item} user={user} mode="big" />;
+  return (
+    <div className="room-360">
+      <span
+        className="room-pack room-pack-orbit" ref={ref}
+        style={{ '--pack': tint, '--pack-tag': packColors(item)['--pack-tag'] }}
+        onPointerDown={(e) => { try { e.currentTarget.setPointerCapture?.(e.pointerId); } catch { /* ok */ } ctrl.current?.grab(e); }}
+        onPointerMove={(e) => ctrl.current?.pointer(e)}
+        onPointerUp={() => ctrl.current?.drop()} onPointerCancel={() => ctrl.current?.drop()}
+        role="img" aria-label={`Caixinha de ${item.name} em 3D — arraste para girar`}
+      >
+        <span className="room-pack-back">
+          <span className="room-pack-window"><Preview item={item} user={user} /></span>
+          <span className="room-pack-label" aria-hidden="true">{item.name}</span>
+        </span>
+        <span className="room-pack-front" />
+      </span>
+      <small className="room-360-hint"><Ico name="swap" size={13} /> Arraste pra girar</small>
+    </div>
+  );
+}
+
 function ItemDetail({ initial, items, collections, onClose, openCollection, ctx }) {
   const item = items.find((i) => i.kind === initial.kind && i.id === initial.id) || initial;
   const { user, busy, isEquipped, equip, askBuy, gift, supporter } = ctx;
   const on = isEquipped(item);
-  const modes = PREVIEW_MODES[item.kind];
+  const modes = [...PREVIEW_MODES[item.kind], ['box', 'Caixinha 3D', 'bag']];
   const [mode, setMode] = useState(modes[0][0]);
   const collection = collections.find((c) => c.id === item.collectionId);
   useEscape(onClose);
@@ -1199,7 +1241,7 @@ function ItemDetail({ initial, items, collections, onClose, openCollection, ctx 
         <div className="room-detail-preview">
           <div className={`room-detail-stage m-${mode}${collection?.bannerUrl ? ' has-art' : ''}`} style={collection?.bannerUrl ? { backgroundImage: `linear-gradient(rgba(0,0,0,.35), rgba(0,0,0,.55)), url(${proxyImage(collection.bannerUrl)})` } : undefined}>
             {collection && <span className="room-stage-col"><Ico name="grid" size={12} /> {collection.name}</span>}
-            <Preview item={item} user={user} mode={mode} />
+            {mode === 'box' ? <Pack360 item={item} user={user} /> : <Preview item={item} user={user} mode={mode} />}
           </div>
           {modes.length > 1 && (
             <div className="room-seg" role="tablist" aria-label="Modo de pré-visualização">

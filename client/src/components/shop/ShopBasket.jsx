@@ -263,7 +263,7 @@ export function CheckoutPage({ basket, items, data, user, priceOf, sellsIn, kind
       <div className="room-page-head">
         <button type="button" className="room-link" onClick={onBack}><Ico name="left" size={14} /> Voltar pra Loja</button>
         <h1>Checkout</h1>
-        <p>Confira os itens da sua cestinha e passe o seu cartão na maquininha pra pagar. É tudo ou nada: se algum item não puder ser comprado, nada é cobrado.</p>
+        <p>Confira a cestinha e passe o cartão na maquininha. Se algum item não puder ser comprado, nada é cobrado.</p>
       </div>
       <ol className="shop-steps" aria-label="Etapas do checkout">
         {STEPS.map((label, i) => (

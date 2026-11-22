@@ -180,3 +180,38 @@
   .social-content, .fx-card, .social-dot { animation: none; }
   .social-tab::after, .fx-card, .fx-avatar, .fx-icon, .fx-filter { transition: none; }
 }
+
+/* ---------- Amigos v2: marcadores que deslizam, números do topo e status ---------- */
+.social-stats { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 14px; }
+.social-pending { display: inline-flex; align-items: center; height: 20px; padding: 0 8px; border-radius: 999px; font-size: 12px; font-weight: 700; color: #fff; background: var(--red); }
+.social-tabs { position: relative; }
+.social-tab.active::after { transform: scaleX(0); }            /* quem marca agora é a linha que desliza */
+.social-tabs-line {
+  position: absolute; left: 0; top: 0; height: 0; pointer-events: none; border-bottom: 2px solid var(--brand); box-sizing: border-box;
+  transition: transform .34s cubic-bezier(.3, .9, .3, 1), width .34s cubic-bezier(.3, .9, .3, 1), opacity .2s ease;
+}
+.fx-filters { position: relative; }
+.fx-filter { position: relative; z-index: 1; }
+.fx-filter.active { background: transparent; }
+.fx-filters-pill {
+  position: absolute; left: 0; top: 0; border-radius: 9px; background: var(--bg-modifier-hover); pointer-events: none;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, .25);
+  transition: transform .32s cubic-bezier(.3, .9, .3, 1), width .32s cubic-bezier(.3, .9, .3, 1), opacity .2s ease;
+}
+.fx-sub.st-online::before, .fx-sub.st-idle::before, .fx-sub.st-dnd::before {
+  content: ''; display: inline-block; width: 7px; height: 7px; margin-right: 6px; border-radius: 50%; vertical-align: 1px; background: var(--green);
+}
+.fx-sub.st-idle::before { background: #f0b232; }
+.fx-sub.st-dnd::before { background: var(--red); }
+.fx-card { border-radius: 14px; }
+.fx-card .fx-who { padding-block: 2px; }
+@media (hover: none) {
+  .fx-card:active { background: var(--bg-modifier-hover); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .social-tabs-line, .fx-filters-pill { transition: none; }
+}
+/* "Adicionar amigo" na mesma linha dos filtros, discreto (não compete com a lista) */
+.fx-bar { flex-wrap: nowrap; }
+.fx-add { height: 36px; padding: 0 14px; font-size: 14px; flex-shrink: 0; }
+@media (max-width: 560px) { .fx-bar { flex-wrap: wrap; } }
