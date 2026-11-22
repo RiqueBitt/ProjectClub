@@ -11,6 +11,9 @@ test('ClubTag: mesmas regras da inscrição', () => {
   assert.equal(validateUsername('joao_silva.2'), null);
   assert.ok(validateUsername('ab'));
   assert.ok(validateUsername('a'.repeat(33)));
+  assert.ok(validateUsername('abc'), 'menos de 4 não pode');
+  assert.equal(validateUsername('abcd'), null);
+  assert.equal(validateUsername('a'.repeat(32)), null);
   assert.ok(validateUsername('com espaço'));
   assert.ok(validateUsername('emoji😀'));
   assert.ok(validateUsername({ nope: true }));

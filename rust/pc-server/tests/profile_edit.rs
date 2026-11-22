@@ -182,7 +182,7 @@ async fn clubtag() {
         (st, b["error"].clone()),
         (
             400,
-            json!("A ClubTag deve ter de 3 a 32 caracteres: letras, números, _ ou ponto.")
+            json!("A ClubTag deve ter de 4 a 32 caracteres: letras, números, _ ou ponto.")
         )
     );
     let (_, b) = call(

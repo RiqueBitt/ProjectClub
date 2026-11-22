@@ -360,7 +360,7 @@ function suggestUsername(identity) {
     .normalize('NFD').replace(/[̀-ͯ]/g, '')
     .replace(/[^a-zA-Z0-9_.]/g, '_').replace(/_+/g, '_').replace(/^[_.]+|[_.]+$/g, '')
     .slice(0, 32);
-  return base.length >= 3 ? base : '';
+  return base.length >= 4 ? base : '';
 }
 
 module.exports = {

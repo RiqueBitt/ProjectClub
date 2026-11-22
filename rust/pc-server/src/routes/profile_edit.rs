@@ -478,14 +478,14 @@ const USERNAME_COOLDOWN_MS: i64 = 7 * 24 * 60 * 60 * 1000;
 /// `validateUsername` (`utils/usernameRules.js`).
 pub fn validate_username(v: &Value) -> Option<&'static str> {
     let Some(name) = v.as_str() else {
-        return Some("A ClubTag deve ter de 3 a 32 caracteres: letras, números, _ ou ponto.");
+        return Some("A ClubTag deve ter de 4 a 32 caracteres: letras, números, _ ou ponto.");
     };
-    let ok = (3..=32).contains(&name.len())
+    let ok = (4..=32).contains(&name.len())
         && name
             .bytes()
             .all(|b| b.is_ascii_alphanumeric() || b == b'_' || b == b'.');
     if !ok {
-        return Some("A ClubTag deve ter de 3 a 32 caracteres: letras, números, _ ou ponto.");
+        return Some("A ClubTag deve ter de 4 a 32 caracteres: letras, números, _ ou ponto.");
     }
     let n: String = name
         .to_lowercase()
@@ -932,6 +932,10 @@ mod tests {
     #[test]
     fn clubtag() {
         assert!(validate_username(&json!("ab")).is_some());
+        assert!(validate_username(&json!("abc")).is_some());
+        assert!(validate_username(&json!("a".repeat(33))).is_some());
+        assert_eq!(validate_username(&json!("abcd")), None);
+        assert_eq!(validate_username(&json!("a".repeat(32))), None);
         assert!(validate_username(&json!("joão")).is_some());
         assert_eq!(
             validate_username(&json!("Ad.Min")),
