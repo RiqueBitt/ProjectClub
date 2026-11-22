@@ -147,9 +147,17 @@ backfillPollTopicPermissions().catch((err) => {
 require('./services/instances').seedDefaultInstances();
 // Emojis do Club Penguin (coleção "Club Penguin") — a única parte do CP que
 // ficou (pedido do dono, nov/2026). Recria as que faltarem.
-require('./services/cpEmotes').ensureCpEmotes().then((r) => {
-  if (r.created) console.log(`[emojis] Club Penguin: ${r.created} emoji(s) novos`);
-}).catch((err) => console.warn('[emojis] Club Penguin:', err.message));
+// Emojis do MSN (coleção "MSN") também — ver services/cpEmotes.js.
+require('./services/cpEmotes').ensureBuiltinEmojiSets().then((r) => {
+  for (const [name, x] of Object.entries(r)) {
+    if (x.created) console.log(`[emojis] ${name}: ${x.created} emoji(s) novos`);
+    if (x.error) console.warn(`[emojis] ${name}:`, x.error);
+  }
+}).catch((err) => console.warn('[emojis] pacotes embutidos:', err.message));
+// Loja: coleção "Fonte Mania" (fontes do DaFont/Fontesk), se os arquivos já vieram.
+require('./services/pixelsGalore').ensurePixelsGalore().then((r) => {
+  if (r.created) console.log(`[loja] Fonte Mania: ${r.created} fonte(s) nova(s)`);
+}).catch((err) => console.warn('[loja] Fonte Mania:', err.message));
 seedAchievements().catch((err) => {
   console.error('\x1b[31m[achievements-seed]\x1b[0m falhou:', err.message);
 });
