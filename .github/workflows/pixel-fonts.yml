@@ -1,21 +1,25 @@
-name: Fontes Pixels Galore (DaFont)
+name: Fontes da Loja — Fonte Mania (DaFont + Fontesk)
 
-# Baixa as fontes da coleção "Pixels Galore" da Loja no DaFont, grava em
+# Baixa as fontes da coleção "Fonte Mania" da Loja (antes "Pixels Galore")
+# com .github/scripts/fonte-mania.mjs, grava em
 # client/public/fonts/pixels-galore/ + manifest.json e publica o site. O
 # servidor cria a coleção e os itens da Loja sozinho no boot
-# (server/src/services/pixelsGalore.js). Roda quando este arquivo muda na
-# main, ou na mão (Actions → Run workflow).
+# (server/src/services/pixelsGalore.js). Roda quando este arquivo ou o
+# script mudam na main, ou na mão (Actions → Run workflow).
 #
-# Licenças (conferidas em nov/2026):
+# Licenças (conferidas em nov/2026), todas liberadas pra uso comercial:
 #   Minecraft — Craftron Gaming, "100% grátis" no DaFont.
-#   Kiwi Soda — jeti (fontenddev.com), CC BY 4.0: uso livre, dando crédito
-#               (o crédito vai na descrição do item na Loja).
+#   Kiwi Soda — jeti (fontenddev.com), CC BY 4.0 (crédito na descrição).
+#   Satyr SP 2 — Sasha Pavljenko; Matcha Cih — Khurasan; Balium — Unio
+#   Creative Solutions: "Free for commercial use" no Fontesk.
+#   Cartas De Abril — Arthur de Paula; Eastern Rhodopes — Dmitry Chekanov: OFL.
 #   (Daydream ficou de fora: a versão do DaFont é só pra uso pessoal.)
 on:
   push:
     branches: [main]
     paths:
       - '.github/workflows/pixel-fonts.yml'
+      - '.github/scripts/fonte-mania.mjs'
   workflow_dispatch: {}
 
 concurrency:
@@ -33,40 +37,11 @@ jobs:
       - uses: actions/checkout@v4
         with:
           ref: main
-      - name: Baixar as fontes do DaFont
-        run: |
-          set -euo pipefail
-          OUT=client/public/fonts/pixels-galore
-          mkdir -p "$OUT"
-          TMP=$(mktemp -d)
-          # chave | slug no DaFont | nome da família
-          FONTS="minecraft|minecraft|Minecraft
-          kiwi-soda|kiwisoda|Kiwi Soda"
-          echo "[" > "$TMP/manifest.json"
-          first=1
-          while IFS='|' read -r key slug family; do
-            key=$(echo "$key" | xargs)
-            [ -n "$key" ] || continue
-            mkdir -p "$TMP/$key"
-            curl -fsSL --retry 3 -A "Mozilla/5.0 (ProjectClub CI)" -o "$TMP/$key.zip" "https://dl.dafont.com/dl/?f=$slug"
-            unzip -o -q "$TMP/$key.zip" -d "$TMP/$key"
-            # a primeira .ttf (ou .otf) do pacote
-            src=$(find "$TMP/$key" -type f \( -iname '*.ttf' -o -iname '*.otf' \) | sort | head -n1)
-            [ -n "$src" ] || { echo "sem arquivo de fonte em $slug"; exit 1; }
-            ext=$(echo "${src##*.}" | tr 'A-Z' 'a-z')
-            cp "$src" "$OUT/$key.$ext"
-            # texto de licença/leia-me do pacote, se vier
-            lic=$(find "$TMP/$key" -type f \( -iname '*.txt' -o -iname '*licen*' \) | head -n1 || true)
-            [ -n "$lic" ] && cp "$lic" "$OUT/$key-LEIA-ME.txt" || true
-            [ $first -eq 1 ] || echo "," >> "$TMP/manifest.json"
-            first=0
-            printf '  {"key": "%s", "family": "%s", "file": "%s.%s"}' "$key" "$family" "$key" "$ext" >> "$TMP/manifest.json"
-          done <<< "$FONTS"
-          echo "" >> "$TMP/manifest.json"
-          echo "]" >> "$TMP/manifest.json"
-          cp "$TMP/manifest.json" "$OUT/manifest.json"
-          cat "$OUT/manifest.json"
-          ls -la "$OUT"
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - name: Baixar as fontes (DaFont e Fontesk)
+        run: node .github/scripts/fonte-mania.mjs
       - name: Gravar no repositório
         id: commit
         run: |
@@ -78,7 +53,7 @@ jobs:
           fi
           git config user.name "github-actions[bot]"
           git config user.email "41898732+github-actions[bot]@users.noreply.github.com"
-          git commit -m "chore: fontes Pixels Galore (DaFont)"
+          git commit -m "chore: fontes da Loja (Fonte Mania)"
           for i in 1 2 3; do git pull --rebase origin main && git push origin HEAD:main && break; sleep 5; done
           echo "changed=true" >> "$GITHUB_OUTPUT"
       - name: Publicar o site com as fontes novas

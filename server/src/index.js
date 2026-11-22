@@ -154,10 +154,10 @@ require('./services/cpEmotes').ensureBuiltinEmojiSets().then((r) => {
     if (x.error) console.warn(`[emojis] ${name}:`, x.error);
   }
 }).catch((err) => console.warn('[emojis] pacotes embutidos:', err.message));
-// Loja: coleção "Pixels Galore" (fontes de pixel do DaFont), se os arquivos já vieram.
+// Loja: coleção "Fonte Mania" (fontes do DaFont/Fontesk), se os arquivos já vieram.
 require('./services/pixelsGalore').ensurePixelsGalore().then((r) => {
-  if (r.created) console.log(`[loja] Pixels Galore: ${r.created} fonte(s) nova(s)`);
-}).catch((err) => console.warn('[loja] Pixels Galore:', err.message));
+  if (r.created) console.log(`[loja] Fonte Mania: ${r.created} fonte(s) nova(s)`);
+}).catch((err) => console.warn('[loja] Fonte Mania:', err.message));
 seedAchievements().catch((err) => {
   console.error('\x1b[31m[achievements-seed]\x1b[0m falhou:', err.message);
 });

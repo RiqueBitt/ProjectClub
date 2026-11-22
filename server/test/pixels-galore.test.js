@@ -1,4 +1,4 @@
-// Loja: coleção "Pixels Galore" com as fontes do manifest, 400 moedas ou 5 gemas.
+// Loja: coleção "Fonte Mania" (antes Pixels Galore) com as fontes do manifest, 400 moedas ou 5 gemas.
 const test = require('node:test');
 const assert = require('node:assert');
 const fs = require('fs');
@@ -11,7 +11,8 @@ function stubDb() {
   return {
     items, cols,
     shopCollection: {
-      findFirst: async ({ where }) => cols.find((c) => c.name === where.name) || null,
+      findFirst: async ({ where }) => cols.find((c) => (where.name?.in ? where.name.in.includes(c.name) : c.name === where.name)) || null,
+      update: async ({ where, data }) => Object.assign(cols.find((c) => c.id === where.id), data),
       create: async ({ data }) => { const c = { id: `col${cols.length + 1}`, ...data }; cols.push(c); return c; },
     },
     shopItem: {
@@ -36,7 +37,7 @@ test('cria a coleção e as fontes uma vez só, com o preço pedido', async () =
   const r = await ensurePixelsGalore({ db, roots: [root] });
   assert.equal(r.created, 2);
   assert.equal(db.cols.length, 1);
-  assert.equal(db.cols[0].name, 'Pixels Galore');
+  assert.equal(db.cols[0].name, 'Fonte Mania');
   for (const it of db.items) {
     assert.equal(it.kind, 'FONT');
     assert.equal(it.priceCoins, 400);
@@ -51,4 +52,20 @@ test('cria a coleção e as fontes uma vez só, com o preço pedido', async () =
   assert.equal(db.items.length, 2);
   assert.equal(db.cols.length, 1);
   assert.equal((await ensurePixelsGalore({ db, roots: [path.join(root, 'nada')] })).created, 0);
+});
+
+test('renomeia a coleção antiga "Pixels Galore" pra "Fonte Mania" sem criar outra', async () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'pg2-'));
+  const dir = path.join(root, 'fonts', 'pixels-galore');
+  fs.mkdirSync(dir, { recursive: true });
+  fs.writeFileSync(path.join(dir, 'balium.ttf'), 'x');
+  fs.writeFileSync(path.join(dir, 'manifest.json'), JSON.stringify([{ key: 'balium', family: 'Balium', file: 'balium.ttf' }]));
+  const db = stubDb();
+  db.cols.push({ id: 'velha', name: 'Pixels Galore' });
+  const r = await ensurePixelsGalore({ db, roots: [root] });
+  assert.equal(db.cols.length, 1);
+  assert.equal(db.cols[0].name, 'Fonte Mania');
+  assert.equal(r.collectionId, 'velha');
+  assert.equal(db.items[0].collectionId, 'velha');
+  assert.equal(db.items[0].name, 'Balium');
 });
