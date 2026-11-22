@@ -1,4 +1,37 @@
 [
-  {"key": "minecraft", "family": "Minecraft", "file": "minecraft.ttf"},
-  {"key": "kiwi-soda", "family": "Kiwi Soda", "file": "kiwi-soda.ttf"}
+ {
+  "key": "minecraft",
+  "family": "Minecraft",
+  "file": "minecraft.ttf"
+ },
+ {
+  "key": "kiwi-soda",
+  "family": "Kiwi Soda",
+  "file": "kiwi-soda.ttf"
+ },
+ {
+  "key": "satyr-sp",
+  "family": "Satyr SP",
+  "file": "satyr-sp.otf"
+ },
+ {
+  "key": "matcha-cih",
+  "family": "Matcha Cih",
+  "file": "matcha-cih.ttf"
+ },
+ {
+  "key": "balium",
+  "family": "Balium",
+  "file": "balium.ttf"
+ },
+ {
+  "key": "cartas-de-abril",
+  "family": "Cartas De Abril",
+  "file": "cartas-de-abril.otf"
+ },
+ {
+  "key": "eastern-rhodopes",
+  "family": "Eastern Rhodopes",
+  "file": "eastern-rhodopes.otf"
+ }
 ]
