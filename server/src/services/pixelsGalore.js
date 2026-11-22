@@ -1,14 +1,17 @@
 const fs = require('fs');
 const path = require('path');
 
-// Coleção "Pixels Galore" da Loja (nov/2026, pedido do dono): fontes de
-// pixel do DaFont pro nome no perfil, cada uma por 400 moedas ou 5 gemas.
-// Os arquivos ficam em client/public/fonts/pixels-galore/ com um
-// manifest.json (baixados pelo workflow .github/workflows/pixel-fonts.yml).
+// Coleção "Fonte Mania" da Loja (nov/2026, pedido do dono; começou como
+// "Pixels Galore" — a pasta e os "key" mantêm o nome antigo pra não quebrar
+// quem já comprou): fontes do DaFont e do Fontesk pro nome no perfil, cada
+// uma por 400 moedas ou 5 gemas. Os arquivos ficam em
+// client/public/fonts/pixels-galore/ com um manifest.json (baixados pelo
+// workflow .github/workflows/pixel-fonts.yml).
 // A cada boot cria a coleção e os itens que faltam; não mexe no que a staff
 // já editou depois (preço, ativo, coleção...), só acha pelo "key".
 
-const COLLECTION_NAME = 'Pixels Galore';
+const COLLECTION_NAME = 'Fonte Mania';
+const OLD_NAMES = ['Pixels Galore'];
 const PRICE_COINS = 400;
 const PRICE_GEMS = 5;
 const URL_BASE = '/fonts/pixels-galore/';
@@ -21,6 +24,11 @@ const DEFAULT_ROOTS = [
 const INFO = {
   minecraft: { name: 'Minecraft', description: 'Fonte pixelada no estilo do Minecraft. Por Craftron Gaming (DaFont, 100% grátis).' },
   'kiwi-soda': { name: 'Kiwi Soda', description: 'Fonte pixel arredondada e divertida. Por jeti (fontenddev.com), licença CC BY 4.0.' },
+  'satyr-sp': { name: 'Satyr SP', description: 'Por Sasha Pavljenko (Fontesk, livre pra uso comercial).' },
+  'matcha-cih': { name: 'Matcha Cih', description: 'Por Khurasan (Fontesk, livre pra uso comercial).' },
+  balium: { name: 'Balium', description: 'Por Unio Creative Solutions (Fontesk, livre pra uso comercial).' },
+  'cartas-de-abril': { name: 'Cartas De Abril', description: 'Por Arthur de Paula (licença OFL).' },
+  'eastern-rhodopes': { name: 'Eastern Rhodopes', description: 'Por Dmitry Chekanov (licença OFL).' },
 };
 
 function readManifest(roots = DEFAULT_ROOTS) {
@@ -43,11 +51,16 @@ async function ensurePixelsGalore({ db = require('../config/prisma'), roots = DE
 
   let collection = await db.shopCollection.findFirst({ where: { name: COLLECTION_NAME } });
   if (!collection) {
+    // Nome antigo ("Pixels Galore"): só renomeia, os itens continuam nela.
+    const old = await db.shopCollection.findFirst({ where: { name: { in: OLD_NAMES } } });
+    if (old) collection = await db.shopCollection.update({ where: { id: old.id }, data: { name: COLLECTION_NAME, description: 'Fontes pra deixar o seu nome no perfil com estilo.' } });
+  }
+  if (!collection) {
     collection = await db.shopCollection.create({
       data: {
         name: COLLECTION_NAME,
-        description: 'Fontes pixeladas pro seu nome no perfil.',
-        accentColor: '#7cf07a',
+        description: 'Fontes pra deixar o seu nome no perfil com estilo.',
+        accentColor: '#ff7ac6',
         active: true, featured: true, showInShop: true,
       },
     });

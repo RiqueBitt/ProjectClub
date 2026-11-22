@@ -34,6 +34,11 @@ ficaram (`client/public/emoji-sets/clubpenguin`, `server/src/services/cpEmotes.j
 As tabelas dele no banco (`Plaza*`, `WaddlePenguin`…) ficaram (o `db push` roda sem
 `--accept-data-loss`); a mídia antiga no disco é apagada no boot (`server/src/services/cpCleanup.js`).
 
+Fontes da Loja (coleção **Fonte Mania**, antes "Pixels Galore"): os arquivos vêm do workflow
+`pixel-fonts.yml` (`.github/scripts/fonte-mania.mjs`) pra `client/public/fonts/pixels-galore/`;
+o servidor cria os itens no boot (`server/src/services/pixelsGalore.js`). Fonte nova = adicionar
+nas duas listas e conferir a licença (uso comercial).
+
 ## Rust na frente do Node
 
 A reescrita em Rust vai entrando aos poucos (plano e o que já foi portado: `rust/PLANO.md`).
