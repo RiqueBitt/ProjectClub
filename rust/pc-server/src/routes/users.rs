@@ -349,17 +349,10 @@ pub async fn remove_id_card(State(state): State<AppState>, parts: Parts, body: B
     finish(out, c.counted)
 }
 
-/// `LIKE '%q%'` do `contains` do Prisma (escapa `%`, `_` e `\`).
+/// `LIKE '%q%'` do `contains` do Prisma no MySQL. O Prisma NÃO escapa `_`
+/// nem `%` (conferido em produção: "a_" acha "D3kam"), então aqui também não.
 fn like_contains(q: &str) -> String {
-    let mut out = String::from("%");
-    for ch in q.chars() {
-        if matches!(ch, '%' | '_' | '\\') {
-            out.push('\\');
-        }
-        out.push(ch);
-    }
-    out.push('%');
-    out
+    format!("%{q}%")
 }
 
 fn query_one(query: Option<&str>, key: &str) -> Option<Value> {
@@ -471,7 +464,7 @@ mod tests {
     }
 
     #[test]
-    fn like_escapa_curingas() {
-        assert_eq!(like_contains("a_b%"), "%a\\_b\\%%");
+    fn like_como_o_prisma() {
+        assert_eq!(like_contains("a_b%"), "%a_b%%");
     }
 }

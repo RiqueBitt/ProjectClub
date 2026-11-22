@@ -361,14 +361,27 @@ async fn busca_de_pessoas() {
         "leitura conta no limitador de leituras"
     );
     let users = r.body["users"].as_array().unwrap();
-    // "_" é letra, não curinga: anax… não entra; desativada não aparece
-    assert_eq!(users.len(), 1, "{users:?}");
-    assert_eq!(users[0]["username"], format!("ana_{tag}"));
+    // como no Prisma, "_" vale como curinga do LIKE (anax… entra também);
+    // a conta desativada não aparece
+    let mut names: Vec<&str> = users
+        .iter()
+        .map(|u| u["username"].as_str().unwrap())
+        .collect();
+    names.sort();
     assert_eq!(
-        users[0]["status"], "OFFLINE",
+        names,
+        [format!("ana_{tag}"), format!("anax{tag}")],
+        "{users:?}"
+    );
+    let ana = users
+        .iter()
+        .find(|u| u["username"] == format!("ana_{tag}"))
+        .unwrap();
+    assert_eq!(
+        ana["status"], "OFFLINE",
         "invisível aparece offline pros outros"
     );
-    assert!(users[0].get("email").is_none());
+    assert!(ana.get("email").is_none());
 
     let r = call(
         &env,
