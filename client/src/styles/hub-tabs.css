@@ -16,3 +16,11 @@
   .hub-tabs-bar { justify-content: flex-start; padding: 8px 10px; }
   .hub-tabs-bar .pk-tabs { width: 100%; }
 }
+
+/* Passe do clube: botão dourado (exclusivo de Assinantes). */
+.pk-tab.pk-tab-gold { color: #3a2a00; background: linear-gradient(135deg, #ffe7a3, #f2bf3d 58%, #d9a019); border: 1px solid rgba(214, 158, 20, .55); font-weight: 700; box-shadow: inset 0 1px 0 rgba(255, 255, 255, .5); }
+.pk-tab.pk-tab-gold svg { color: #5a4100; }
+.pk-tab.pk-tab-gold:hover { filter: brightness(1.05); color: #3a2a00; }
+.pk-tab.pk-tab-gold.active { color: #3a2a00; background: linear-gradient(135deg, #fff1bd, #ffcb3d 58%, #f2b21a); box-shadow: inset 0 1px 0 rgba(255, 255, 255, .6), 0 0 0 2px rgba(242, 191, 61, .35); }
+.pk-tab.pk-tab-gold.active svg { color: #5a4100; }
+.pk-tab.pk-tab-gold .pk-tab-count { background: #3a2a00; color: #ffd451; }
