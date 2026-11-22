@@ -1,4 +1,5 @@
 import UnreadCountBadge from './UnreadCountBadge.jsx';
+import InstanceSwitcher from './InstanceSwitcher.jsx';
 import { Suspense, useEffect, useRef, useState } from 'react';
 import { lazyWithRetry as lazy } from '../utils/lazyWithRetry';
 import { createPortal } from 'react-dom';
@@ -122,6 +123,7 @@ export default function ChannelSidebar({
   const members = useStore((s) => s.members);
   const roles = useStore((s) => s.roles);
   const community = useStore((s) => s.community);
+  const layoutStyle = useStore((s) => s.layoutStyle);
   const communityLoaded = useStore((s) => s.communityLoaded);
   const channelReadAt = useStore((s) => s.channelReadAt);
   const collapsed = useStore((s) => s.channelSidebarCollapsed);
@@ -274,6 +276,8 @@ export default function ChannelSidebar({
       )}
       <div className="sidebar-header" onClick={() => setMenuOpen((v) => !v)}>
         <span className="truncate">{community.name || 'Project Club'}</span>
+        {/* No Normal 2.0 o seletor fica no topo, ao lado de "Comunidade". */}
+        {layoutStyle !== 'normal2' && <InstanceSwitcher className="in-sidebar-header" />}
         {canManage && (
           <button className="icon-btn sidebar-header-toggle" title="Configurações da comunidade" onClick={(e) => { e.stopPropagation(); setMenuOpen((v) => !v); }}><img className="ui-icon" src={settingsIcon} alt="" /></button>
         )}

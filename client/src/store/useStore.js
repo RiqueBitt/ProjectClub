@@ -1,6 +1,6 @@
 import { isFeatureEnabled } from '../utils/features';
 import { create } from 'zustand';
-import { updateUserSettings } from '../api/endpoints';
+import { updateUserSettings, setCurrentInstanceId } from '../api/endpoints';
 import { openPopover, closePopover, closeAllPopovers } from '../utils/popoverCoordinator';
 import { trackSave } from '../utils/saveIndicator';
 import { resolveChannelPrefs, channelKey, categoryKey } from '../utils/notificationLevels';
@@ -323,7 +323,9 @@ export const useStore = create((set, get) => ({
   // Mesma ideia, mas pra lista de membros do lado direito.
   mobileMembersOpen: false,
 
-  setCommunityStructure: ({ categories, channels, members, roles, community }) => set((s) => ({
+  setCommunityStructure: ({ categories, channels, members, roles, community }) => set((s) => {
+    if (community?.instance) setCurrentInstanceId(community.instance);
+    return {
     ...(categories || channels || members ? { communityLoaded: true } : {}),
     categories: categories
       ? categories.map((cat) => ({ ...cat, channels: withChannelStates(cat.channels || [], s.channelStates, s.channelReadAt) }))
@@ -332,7 +334,8 @@ export const useStore = create((set, get) => ({
     members: members ?? s.members,
     roles: roles ?? s.roles,
     community: community ?? s.community,
-  })),
+  };
+  }),
 
   upsertCategory: (category) => set((s) => ({
     categories: s.categories.some((c) => c.id === category.id)

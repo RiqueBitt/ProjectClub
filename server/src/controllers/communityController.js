@@ -6,6 +6,7 @@ const { has } = require('../services/permissions');
 const { requireCommunityPermission } = require('../services/authz');
 const { FEATURED_KEYS, featuredVisibility } = require('../utils/channelNames');
 const { maskUserStatus } = require('../utils/presenceVisibility');
+const instances = require('../services/instances');
 
 // GET /api/community — carrega tudo que o app precisa pra montar a barra
 // lateral e a lista de membros: categorias (com seus canais), canais soltos,
@@ -60,7 +61,16 @@ async function loadCommunityShared() {
 async function getCommunity(req, res, next) {
   try {
     const shared = await getShared('community', loadCommunityShared);
-    const { categories, looseChannels, roles } = shared;
+    const { roles } = shared;
+
+    // Instância: ?instance=<id> (quem acabou de trocar) ou a escolhida antes
+    // (UserInstancePref). Só vêm as categorias/canais dela; o resto é igual.
+    const me = await prisma.user.findUnique({ where: { id: req.user.id }, select: { id: true, platformRole: true } });
+    let instanceId = req.query?.instance !== undefined ? instances.normalizeId(req.query.instance) : await instances.currentFor(me);
+    if (instanceId && !(await instances.canAccess(me, instanceId))) instanceId = null;
+    const inInstance = (x) => (x.instanceId || null) === instanceId;
+    const categories = shared.categories.filter(inInstance);
+    const looseChannels = shared.looseChannels.filter(inInstance);
 
     // Filtra canais privados por permissão (VIEW_CHANNEL efetivo do
     // usuário) — por pessoa, em cima do dado compartilhado. Em lote: antes
@@ -82,7 +92,11 @@ async function getCommunity(req, res, next) {
     }));
 
     res.json({
-      community: shared.community,
+      community: {
+        ...shared.community,
+        instance: instanceId || instances.PUBLIC_ID,
+        instances: await instances.listForUser(me),
+      },
       categories: shapedCategories,
       channels: shapedLoose,
       roles,

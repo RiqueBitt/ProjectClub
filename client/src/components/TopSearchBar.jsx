@@ -1,4 +1,5 @@
 import InboxPopover from './InboxPopover.jsx';
+import InstanceSwitcher from './InstanceSwitcher.jsx';
 import { useEffect, useRef, useState } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
@@ -167,6 +168,7 @@ export default function TopSearchBar() {
         <div className="n2-top-title" aria-live="polite">
           {sectionTitle.icon && <span className="n2-top-title-icon" style={{ WebkitMaskImage: `url(${sectionTitle.icon})`, maskImage: `url(${sectionTitle.icon})` }} aria-hidden="true" />}
           <span className="truncate">{sectionTitle.label}</span>
+          {(pathname === '/' || isChannelPath(pathname)) && <InstanceSwitcher className="in-top-title" />}
         </div>
       )}
 

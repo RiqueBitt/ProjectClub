@@ -1180,10 +1180,15 @@ model Category {
   // Ícone personalizado (opcional): um emoji OU uma imagem pequena.
   iconEmoji String?
   iconUrl   String?
+  // Instância (services/instances.js): null = Pública. Categoria de uma
+  // instância privada só aparece pra quem tem acesso a ela.
+  instanceId String? @db.VarChar(64)
 
   channels   Channel[]
   overwrites PermissionOverwrite[]
   notificationOverrides NotificationOverride[]
+
+  @@index([instanceId])
 }
 
 model Channel {
@@ -1211,6 +1216,9 @@ model Channel {
   // Sala de voz temporária (services/tempVoice.js): quem criou. Some sozinha
   // quando fica vazia. null = canal normal.
   tempOwnerId     String?
+  // Instância (services/instances.js): null = Pública. Fica igual à da
+  // categoria (o servidor acerta ao criar/mover o canal).
+  instanceId      String?   @db.VarChar(64)
 
   messages   Message[]
   readStates ChannelReadState[]
@@ -4920,4 +4928,39 @@ model PlazaAsset {
   createdAt DateTime @default(now())
 
   @@index([enabled])
+}
+
+// ============================================================
+// Instâncias: cada uma tem as próprias categorias, canais de texto e de
+// voz. A Pública (sem linha aqui, instanceId null) é de todo mundo; as
+// outras são privadas e a equipe escolhe quem pode entrar (Painel da
+// Equipe → Instâncias). Canais em destaque e o resto do app são de todas.
+// ============================================================
+model Instance {
+  id        String   @id @db.VarChar(64)
+  name      String   @db.VarChar(60)
+  // Emoji mostrado no seletor (opcional).
+  icon      String?  @db.VarChar(32)
+  position  Int      @default(0)
+  createdAt DateTime @default(now())
+  members   InstanceMember[]
+}
+
+model InstanceMember {
+  instanceId String   @db.VarChar(64)
+  instance   Instance @relation(fields: [instanceId], references: [id], onDelete: Cascade)
+  userId     String
+  addedById  String?
+  createdAt  DateTime @default(now())
+
+  @@id([instanceId, userId])
+  @@index([userId])
+}
+
+// Instância em que a pessoa está agora (vale em todos os aparelhos).
+// Sem linha = Pública.
+model UserInstancePref {
+  userId     String   @id
+  instanceId String   @db.VarChar(64)
+  updatedAt  DateTime @default(now()) @updatedAt
 }

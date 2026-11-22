@@ -15,6 +15,8 @@ const router = express.Router();
 router.use(requireAuth);
 
 router.get('/', communityCtrl.getCommunity);
+// Instância atual (Pública, Amigos, Empresarial...) — ver services/instances.js.
+router.put('/instance', require('../controllers/instancesController').setCurrent);
 // Canais em destaque (Eventos/Feed/Galeria) e a Galeria da comunidade.
 router.patch('/featured-channels', communityCtrl.updateFeaturedChannels);
 router.get('/gallery', channelCtrl.listGallery);

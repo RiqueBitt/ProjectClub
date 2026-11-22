@@ -1,5 +1,17 @@
 const prisma = require('../config/prisma');
 const { PERMISSIONS, computeBasePermissions, applyOverwrites, has, toStringBits } = require('./permissions');
+const instances = require('./instances');
+
+// Canal de instância privada (ver services/instances.js): quem não tem
+// acesso à instância não tem permissão nenhuma nele — nem ver, nem falar,
+// nem entrar na call. `channel` pode vir sem instanceId (select parcial):
+// aí busca só esse campo.
+async function channelInstanceId(channel) {
+  if (!channel) return null;
+  if (channel.instanceId !== undefined) return channel.instanceId;
+  const row = await prisma.channel.findUnique({ where: { id: channel.id }, select: { instanceId: true } });
+  return row?.instanceId ?? null;
+}
 
 const ALL_PERMISSIONS = Object.values(PERMISSIONS).reduce((acc, bit) => acc | bit, 0n);
 
@@ -69,6 +81,8 @@ async function getEffectivePermissions(userId, channelId = null, knownChannel = 
   if (channelId) {
     const channel = knownChannel || await prisma.channel.findUnique({ where: { id: channelId } });
     if (!channel) return base;
+    const instanceId = await channelInstanceId(channel);
+    if (instanceId && !(await instances.canAccess(user, instanceId))) return 0n;
 
     const [categoryOverwrites, channelOverwrites] = await Promise.all([
       channel.categoryId
@@ -107,6 +121,7 @@ async function requireCommunityPermission(userId, permissionKey) {
 async function channelHasRestrictions(channel) {
   if (!channel) return true;
   if (channel.isPrivate) return true;
+  if (await channelInstanceId(channel)) return true;
   const [own, cat] = await Promise.all([
     prisma.permissionOverwrite.count({ where: { channelId: channel.id } }),
     channel.categoryId ? prisma.permissionOverwrite.count({ where: { categoryId: channel.categoryId } }) : Promise.resolve(0),
@@ -146,7 +161,16 @@ async function getEffectivePermissionsForChannels(userId, channels) {
     if (ow.channelId) { if (!byChannel.has(ow.channelId)) byChannel.set(ow.channelId, []); byChannel.get(ow.channelId).push(ow); }
     if (ow.categoryId) { if (!byCategory.has(ow.categoryId)) byCategory.set(ow.categoryId, []); byCategory.get(ow.categoryId).push(ow); }
   }
+  // Instância de cada canal (busca de uma vez só os que vieram sem o campo).
+  const missing = channels.filter((ch) => ch.instanceId === undefined).map((ch) => ch.id);
+  const instanceOf = new Map(channels.filter((ch) => ch.instanceId !== undefined).map((ch) => [ch.id, ch.instanceId]));
+  if (missing.length) {
+    const rows = await prisma.channel.findMany({ where: { id: { in: missing } }, select: { id: true, instanceId: true } });
+    rows.forEach((r) => instanceOf.set(r.id, r.instanceId));
+  }
+  const inst = await instances.load();
   for (const ch of channels) {
+    if (!instances.canAccessLoaded(inst, user, instanceOf.get(ch.id))) { out.set(ch.id, 0n); continue; }
     out.set(ch.id, applyOverwrites(base, {
       everyoneRoleId: everyoneRole?.id,
       roleIds,
