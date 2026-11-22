@@ -414,7 +414,12 @@ export default function LojaPage() {
     measure();
     const ro = typeof ResizeObserver !== 'undefined' ? new ResizeObserver(measure) : null;
     ro?.observe(box);
-    return () => ro?.disconnect();
+    // a categoria ativa pode mudar sem a barra mudar de tamanho (e a fonte pode
+    // carregar depois): remede quando muda a classe de algum item e logo depois
+    const mo = typeof MutationObserver !== 'undefined' ? new MutationObserver(measure) : null;
+    mo?.observe(box, { subtree: true, attributes: true, attributeFilter: ['class'], childList: true });
+    const t = setTimeout(measure, 400);
+    return () => { ro?.disconnect(); mo?.disconnect(); clearTimeout(t); };
   }, [section, searching, nav.length, data]);
 
   let content;

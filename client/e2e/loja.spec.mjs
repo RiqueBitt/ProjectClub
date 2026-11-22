@@ -148,8 +148,10 @@ test('loja de conveniência: pega do gancho, cestinha e paga passando o cartão'
   await expect(page.locator('.shop-receipt-row')).toHaveCount(1);
   await expect(page.locator('.shop-receipt-total')).toContainText('450');
   await expect(page.locator('.shop-pos-screen')).toContainText('PASSE O CARTÃO');
-  await page.getByRole('button', { name: 'Passar cartão' }).click();
-  await expect(page.locator('.shop-pos-screen')).toContainText('APROVADO');
+  // aproxima o cartão da maquininha (pelo teclado: Enter no cartão = aproximação)
+  await page.locator('.pos-card').focus();
+  await page.keyboard.press('Enter');
+  await expect(page.locator('.shop-pos-screen')).toContainText('APROVADO', { timeout: 10_000 });
   expect(paidWith.items).toHaveLength(1);
   expect(paidWith.items[0]).toMatchObject({ kind: 'deco', currency: 'coins', expectedPrice: 450 });
   await expect(page.getByRole('heading', { level: 1, name: 'Meus itens' })).toBeVisible({ timeout: 5000 });
