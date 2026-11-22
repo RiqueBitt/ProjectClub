@@ -63,7 +63,14 @@ Cada fase é publicável sozinha, só quando o dono liberar.
   - [x] exportar meus dados (LGPD)
   - [x] entrar com Google, Discord e GitHub (OAuth)
   - [x] **Fase 2 (login e conta) completa**
-  - [ ] próximo: o resto da API por grupos (usuários, amigos, mensagens, comunidades, economia, staff…)
+  - [x] o que vale pra toda a API fora do login: limitadores de `/api`
+        (leituras, escritas, "marcar como lido"), cache compartilhado
+        apagado nas escritas e tempo real pela ponte `/api/internal/realtime`
+  - [x] `/api/users` (parte): tema, layout, zooms, estilo de emoji, status,
+        status personalizado, tag da comunidade, tirar a carteirinha, busca
+  - [ ] próximo: resto de `/api/users` (perfil, nome, perfil de outra
+        pessoa, configurações, emojis, GIFs, jogos, atalhos, extras, uploads)
+  - [ ] depois: amigos, mensagens, comunidades, economia, staff…
 
 ### Fase 1 — o que já tem
 
@@ -291,3 +298,26 @@ Produção (22/11/2026): 44 respostas comparadas com status, `Location`,
 do OAuth (início, callback, inscrição, contas) e `me`, `sessions`,
 `passkeys`, `2fa/recovery-codes` de 6 contas: 44 de 44 iguais. Repetidas
 as de antes: exportação e chaves de acesso (6 de 6) e aparelhos (8 de 8).
+
+### Fase 3 — começo (`/api/users` e o que vale pra toda a API)
+
+- Os três limitadores de `app.use('/api', ...)` do Node valem nas rotas do
+  Rust fora de `/api/auth` (e de `/api/platform/status`), na mesma ordem
+  (antes do login) e com as mesmas chaves no Redis: leituras (`reads`,
+  GET, 4000/15 min por IP), escritas (`writes`, 400/15 min pela conta
+  quando o token é válido, senão pelo IP) e "marcar como lido"
+  (`readmarks`, 3000).
+- `invalidateOnWrite`: escrita 2xx em `/users`, `/community`, `/admin`…
+  apaga as chaves `cache:shared:*` (as mesmas do Node).
+- Tempo real: o Socket.IO continua no Node. O Rust manda os emits por
+  `POST /api/internal/realtime` (lista processada em ordem + presença), e
+  os pedidos saem numa fila única, pra dois avisos seguidos nunca
+  chegarem invertidos. Os emits passam pela mesma máscara do "invisível".
+- Achado na conferência: o `contains` do Prisma no MySQL não escapa `_`
+  nem `%` (a busca por "a_" acha "D3kam"); o Rust faz igual.
+
+Produção (22/11/2026): busca de pessoas com 10 textos diferentes
+(inclusive `_`, `%`, `@`, vazio, `self=1`) em 4 contas e as 8 recusas das
+preferências (tema, layout, zoom, emoji, status, status personalizado) —
+49 de 49 iguais ao Node, cabeçalhos e limitador incluídos. As 44 de antes
+continuam iguais.
