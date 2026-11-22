@@ -234,27 +234,38 @@ export function CheckoutPage({ basket, items, data, user, priceOf, sellsIn, kind
   const ticketDate = new Date().toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' });
   const totalText = [totals.coins > 0 && `${fmt(totals.coins)} moedas`, totals.gems > 0 && `${fmt(totals.gems)} gemas`].filter(Boolean).join(' + ') || 'Grátis';
 
+  // Dá pra passar o cartão mesmo sem saldo: a maquininha "consulta" e recusa.
+  const canSwipe = valid.length > 0 && !hasProblem && phase !== 'paying' && phase !== 'approved';
   const pay = async () => {
-    if (!ready) return;
+    if (!canSwipe) return;
+    if (short) {
+      setPhase('paying'); setMessage(''); setBadIndex(null);
+      setTimeout(() => { setPhase('declined'); setMessage(`Saldo insuficiente (faltam ${short})`); }, 1400);
+      return;
+    }
     setPhase('paying'); setMessage(''); setBadIndex(null);
+    // a rodinha do "processando" aparece pelo menos um pouquinho, mesmo se a resposta vier na hora
+    const t0 = Date.now();
+    const hold = () => new Promise((r) => setTimeout(r, Math.max(0, 1300 - (Date.now() - t0))));
     try {
       const r = await checkoutBasket(valid.map((v) => ({ kind: v.item.kind, id: v.item.id, currency: v.currency, expectedPrice: v.price.final })));
+      await hold();
       setPhase('approved');
-      setTimeout(() => onPaid(r), 1300);
+      setTimeout(() => onPaid(r), 2200);
     } catch (e) {
       const b = e?.response?.data || {};
+      await hold();
       setPhase('declined');
       setMessage(b.error || 'Não foi possível concluir. Tente de novo.');
       if (Number.isInteger(b.itemIndex)) setBadIndex(valid[b.itemIndex] ? `${valid[b.itemIndex].item.kind}:${valid[b.itemIndex].item.id}` : null);
     }
   };
 
-  const screen = phase === 'paying' ? { tone: 'busy', top: 'PROCESSANDO…', sub: totalText }
-    : phase === 'approved' ? { tone: 'ok', top: 'APROVADO ✓', sub: 'Itens no seu inventário' }
-      : phase === 'declined' ? { tone: 'bad', top: 'RECUSADO', sub: message }
+  const screen = phase === 'paying' ? { tone: 'busy', top: 'PROCESSANDO…', sub: 'Não remova o cartão' }
+    : phase === 'approved' ? { tone: 'ok', top: 'PAGAMENTO APROVADO', sub: 'Itens no seu inventário' }
+      : phase === 'declined' ? { tone: 'bad', top: 'CARTÃO RECUSADO', sub: message }
         : !valid.length ? { tone: 'idle', top: 'CESTA VAZIA', sub: 'Pegue itens nos ganchos' }
           : hasProblem ? { tone: 'bad', top: 'CONFIRA A CESTA', sub: 'Tire os itens marcados' }
-            : short ? { tone: 'bad', top: 'SALDO INSUFICIENTE', sub: `Faltam ${short}` }
               : { tone: 'idle', top: 'PASSE O CARTÃO', sub: totalText };
 
   // Etapas de verdade: 1 conferir a cesta, 2 pagar (quando está tudo certo), 3 pronto.
@@ -351,7 +362,7 @@ export function CheckoutPage({ basket, items, data, user, priceOf, sellsIn, kind
           <div className={`shop-pay${ready ? ' is-ready' : ''}${phase === 'approved' ? ' is-approved' : ''}`} aria-label="Maquininha">
             <CardSwipe
               user={user} variant={card?.cardStyle || 'DEFAULT'} coins={data?.coins} gems={data?.gems}
-              disabled={!ready} phase={phase} screen={screen} onSwipe={pay}
+              disabled={!canSwipe && phase !== 'declined'} phase={phase} screen={screen} onSwipe={pay} onRetry={() => setPhase('idle')}
             />
           </div>
         </section>
@@ -362,55 +373,126 @@ export function CheckoutPage({ basket, items, data, user, priceOf, sellsIn, kind
 
 // A maquininha: arraste o cartão pela fenda (pra direita) até o fim do
 // trilho. Soltou antes = volta. Teclado/sem arrastar: botão "Passar cartão".
-function CardSwipe({ user, variant, coins, gems, disabled, phase, screen, onSwipe }) {
-  const trackRef = useRef(null);
-  const [x, setX] = useState(0);
-  const [drag, setDrag] = useState(null);
-  const max = () => Math.max(1, (trackRef.current?.clientWidth || 300) - 120);
-  const done = phase === 'paying' || phase === 'approved';
-  useEffect(() => { if (phase === 'declined' || phase === 'idle') setX(0); }, [phase]);
-  useEffect(() => { if (done) setX(max()); }, [done]); // eslint-disable-line react-hooks/exhaustive-deps
+// Maquininha de cartão (estilo Gertec): tela com a marca ClubPay, teclado de
+// verdade, fenda do chip embaixo e fenda da tarja na lateral. O cartão fica
+// embaixo: arraste até a maquininha — em cima da tela é por APROXIMAÇÃO, na
+// lateral direita é PASSAR NA TARJA e na fenda de baixo é INSERIR O CHIP. Cada
+// jeito tem a animação dele. Os botões fazem o mesmo sem arrastar.
+const POS_W = 300;
+const POS_H = 560;
+const TERM = { x: 45, y: 0, w: 210, h: 380 };
+const CARD = { w: 168, h: 106, x: 66, y: 432 };
+const KEYS = [['1', 'QZ'], ['2', 'ABC'], ['3', 'DEF'], ['pw', ''], ['4', 'GHI'], ['5', 'JKL'], ['6', 'MNO'], ['x', 'CANCEL'], ['7', 'PRS'], ['8', 'TUV'], ['9', 'WXY'], ['c', 'CLEAR'], ['up', ''], ['0', '#@'], ['dn', ''], ['ok', 'ENTER']];
 
-  const down = (e) => {
-    if (disabled || done) return;
-    e.currentTarget.setPointerCapture?.(e.pointerId);
-    setDrag({ x0: e.clientX, base: x });
+function ClubPayMark({ size = 22 }) {
+  return (
+    <svg viewBox="0 0 24 24" width={size} height={size} aria-hidden="true">
+      <defs><linearGradient id="cp-g" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stopColor="#6ab0ff" /><stop offset="1" stopColor="#2f6fe6" /></linearGradient></defs>
+      <rect x="1" y="1" width="22" height="22" rx="7" fill="url(#cp-g)" />
+      <path d="M15.6 8.4a5 5 0 1 0 0 7.2" fill="none" stroke="#fff" strokeWidth="2.4" strokeLinecap="round" />
+      <circle cx="16.6" cy="12" r="1.6" fill="#fff" />
+    </svg>
+  );
+}
+
+function CardSwipe({ user, variant, coins, gems, disabled, phase, screen, onSwipe, onRetry }) {
+  const stageRef = useRef(null);
+  const [pos, setPos] = useState({ x: CARD.x, y: CARD.y });
+  const [drag, setDrag] = useState(null);
+  const [mode, setMode] = useState(null);        // tap | insert | swipe (animação em curso/feita)
+  const [hover, setHover] = useState(null);      // zona embaixo do cartão enquanto arrasta
+  const done = phase === 'paying' || phase === 'approved';
+  // recusado: o cartão volta pra baixo depois de um tempinho, pronto pra tentar de novo
+  useEffect(() => {
+    if (phase === 'idle') { setMode(null); setPos({ x: CARD.x, y: CARD.y }); }
+    if (phase === 'declined') { const t = setTimeout(() => { setMode(null); setPos({ x: CARD.x, y: CARD.y }); }, 1600); return () => clearTimeout(t); }
+    return undefined;
+  }, [phase]);
+
+  // Ao soltar: em qual área o cartão ficou MAIS em cima (a que cobre mais)?
+  // Tela = aproximação · fenda de baixo = chip · lateral direita = tarja.
+  const ZONES = {
+    tap: { x: TERM.x + 10, y: 40, w: TERM.w - 20, h: 160 },
+    insert: { x: TERM.x + 6, y: TERM.h - 45, w: TERM.w - 12, h: 100 },
+    swipe: { x: TERM.x + TERM.w - 28, y: 80, w: 110, h: 230 },
   };
-  const move = (e) => { if (drag) setX(Math.min(max(), Math.max(0, drag.base + e.clientX - drag.x0))); };
+  const zoneAt = (x, y) => {
+    let best = null;
+    let most = CARD.w * CARD.h * 0.12;      // precisa cobrir pelo menos um pedacinho
+    for (const [name, z] of Object.entries(ZONES)) {
+      const ox = Math.max(0, Math.min(x + CARD.w, z.x + z.w) - Math.max(x, z.x));
+      const oy = Math.max(0, Math.min(y + CARD.h, z.y + z.h) - Math.max(y, z.y));
+      if (ox * oy > most) { most = ox * oy; best = name; }
+    }
+    return best;
+  };
+  const scale = () => { const r = stageRef.current?.getBoundingClientRect(); return r ? r.width / POS_W : 1; };
+  const pay = (how) => {
+    if (disabled || done || mode) return;
+    if (phase === 'declined') onRetry?.();
+    setDrag(null); setHover(null);
+    setMode(how);
+    setTimeout(() => onSwipe(), how === 'swipe' ? 900 : 1100);
+  };
+  const down = (e) => {
+    if (disabled || done || mode) return;
+    e.currentTarget.setPointerCapture?.(e.pointerId);
+    setDrag({ px: e.clientX, py: e.clientY, x: pos.x, y: pos.y, k: scale() });
+  };
+  const move = (e) => {
+    if (!drag) return;
+    const x = drag.x + (e.clientX - drag.px) / drag.k;
+    const y = drag.y + (e.clientY - drag.py) / drag.k;
+    setPos({ x, y });
+    setHover(zoneAt(x, y));
+  };
   const up = () => {
     if (!drag) return;
-    setDrag(null);
-    if (x >= max() * 0.82) { setX(max()); onSwipe(); } else setX(0);
+    const z = zoneAt(pos.x, pos.y);
+    setDrag(null); setHover(null);
+    if (z) pay(z); else setPos({ x: CARD.x, y: CARD.y });
   };
-  const pct = Math.round((x / max()) * 100);
+  const idle = screen.tone === 'idle';
 
   return (
-    <div className={`shop-pos ${screen.tone}`}>
-      <div className="shop-pos-machine" aria-live="polite">
-        <div className="shop-pos-screen">
-          <strong>{screen.top}</strong>
-          <span>{screen.sub}</span>
+    <div className={`shop-pos ${screen.tone}${disabled && !done ? ' is-off' : ''}`}>
+      <div className="pos-stage" ref={stageRef}>
+        <div className={`pos-term${hover ? ` hot-${hover}` : ''}${mode ? ` m-${mode}` : ''}`} aria-live="polite">
+          <span className="pos-printer" aria-hidden="true"><i /></span>
+          <span className="pos-brandline" aria-hidden="true">ClubPay</span>
+          <div className="shop-pos-screen pos-screen">
+            <span className="pos-screen-top" aria-hidden="true"><ClubPayMark size={16} /> ClubPay <svg className="pos-nfc" viewBox="0 0 24 24" width="14" height="14"><path d="M8 7c2.5 3 2.5 7 0 10M12 5c3.6 4.2 3.6 9.8 0 14M16 3c4.6 5.4 4.6 12.6 0 18" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" /></svg></span>
+            {screen.tone === 'busy' && <span className="pos-spinner" aria-hidden="true" />}
+            {screen.tone === 'ok' && <span className="pos-badge ok" aria-hidden="true"><svg viewBox="0 0 24 24" width="30" height="30"><path d="M6 12.5l4 4 8-9" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" /></svg></span>}
+            {screen.tone === 'bad' && phase === 'declined' && <span className="pos-badge bad" aria-hidden="true"><svg viewBox="0 0 24 24" width="26" height="26"><path d="M7 7l10 10M17 7L7 17" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" /></svg></span>}
+            <strong>{screen.top}</strong>
+            <span>{screen.sub}</span>
+            {idle && !disabled && <small className="pos-how">Aproxime · Insira · Passe</small>}
+            <span className="pos-waves" aria-hidden="true"><i /><i /><i /></span>
+          </div>
+          <div className="pos-keys" aria-hidden="true">
+            {KEYS.map(([k, sub]) => (
+              <span key={k} className={`pos-key k-${k}`}>
+                {k === 'pw' ? <svg viewBox="0 0 16 16" width="11" height="11"><path d="M8 2v6M4.5 4.5a5 5 0 1 0 7 0" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" /></svg>
+                  : k === 'up' ? '⌃' : k === 'dn' ? '⌄' : ['x', 'c', 'ok'].includes(k) ? null : <b>{k}</b>}
+                {sub && <small>{sub}</small>}
+              </span>
+            ))}
+          </div>
+          <span className="pos-side-slot" aria-hidden="true" />
+          <span className="pos-chip-slot" aria-hidden="true" />
         </div>
-        <div className="shop-pos-keys" aria-hidden="true">{Array.from({ length: 12 }, (_, i) => <span key={i} />)}</div>
-        <span className="shop-pos-brand" aria-hidden="true">ClubPay</span>
-      </div>
-      <div className="shop-pos-track" ref={trackRef}>
-        <span className="shop-pos-slot" aria-hidden="true" />
-        <span className="shop-pos-arrow" aria-hidden="true" style={{ opacity: disabled || done ? 0 : 1 - pct / 100 }}>
-          Arraste o cartão pela fenda <Ico name="arrowRight" size={14} />
-        </span>
         <div
-          className={`shop-pos-card${drag ? ' is-dragging' : ''}${disabled ? ' is-disabled' : ''}`}
-          style={{ transform: `translateX(${x}px)` }}
+          className={`shop-pos-card pos-card${drag ? ' is-dragging' : ''}${disabled && !done ? ' is-disabled' : ''}${mode ? ` a-${mode}` : ''}${mode === 'tap' && phase !== 'idle' ? ' is-back' : ''}`}
+          style={mode ? undefined : { transform: `translate(${pos.x}px, ${pos.y}px)` }}
           onPointerDown={down} onPointerMove={move} onPointerUp={up} onPointerCancel={up}
-          aria-hidden="true"
+          role="button" tabIndex={disabled || done ? -1 : 0} aria-label="Cartão: arraste até a maquininha. No teclado: Enter aproxima, seta pra baixo insere o chip, seta pra direita passa na tarja"
+          onKeyDown={(e) => { const k = { Enter: 'tap', ' ': 'tap', ArrowDown: 'insert', ArrowRight: 'swipe' }[e.key]; if (k) { e.preventDefault(); pay(k); } }}
         >
-          <WalletCard user={user} coins={coins} gems={gems} variant={variant} compact hint={false} />
+          <div className="pos-card-in"><WalletCard user={user} coins={coins} gems={gems} variant={variant} compact hint={false} /></div>
         </div>
+        {!disabled && !done && !mode && <span className="pos-tip" aria-hidden="true">Arraste o cartão até a maquininha</span>}
       </div>
-      <button type="button" className="room-btn primary shop-pos-btn" disabled={disabled || done} onClick={() => { setX(max()); onSwipe(); }}>
-        <Ico name="check" size={15} /> Passar cartão
-      </button>
     </div>
   );
 }
