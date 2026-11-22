@@ -68,8 +68,11 @@ Cada fase é publicável sozinha, só quando o dono liberar.
         apagado nas escritas e tempo real pela ponte `/api/internal/realtime`
   - [x] `/api/users` (parte): tema, layout, zooms, estilo de emoji, status,
         status personalizado, tag da comunidade, tirar a carteirinha, busca
-  - [ ] próximo: resto de `/api/users` (perfil, nome, perfil de outra
-        pessoa, configurações, emojis, GIFs, jogos, atalhos, extras, uploads)
+  - [x] `/api/users`: configurações, jogos, atalhos, GIFs favoritos,
+        emojis que posso usar, ignorar, notas e o perfil de outra pessoa
+        (`GET /api/users/:id`) com as regras de privacidade
+  - [ ] próximo: resto de `/api/users` (editar perfil, trocar o nome,
+        votar, conquistas exibidas, extras do perfil, resumo, denúncia, uploads)
   - [ ] depois: amigos, mensagens, comunidades, economia, staff…
 
 ### Fase 1 — o que já tem
@@ -321,3 +324,27 @@ Produção (22/11/2026): busca de pessoas com 10 textos diferentes
 preferências (tema, layout, zoom, emoji, status, status personalizado) —
 49 de 49 iguais ao Node, cabeçalhos e limitador incluídos. As 44 de antes
 continuam iguais.
+
+### `/api/users` — segunda parte
+
+- Configurações (`GET/PATCH /me/settings`, `POST /me/settings/reset`) com
+  as mesmas regras de cada campo, preferências extras e de layout,
+  volume de cada pessoa na chamada e horário de silêncio. O fuso aceita o
+  mesmo que o `Intl` do Node 24 (nome IANA sem diferença de maiúsculas e
+  `±HH`, `±HHMM`, `±HH:MM`), conferido no próprio Node de produção.
+  Ler as configurações não mexe no `updatedAt` (conferido no Node).
+- Jogos, atalhos, GIFs favoritos, emojis que a pessoa pode usar (com os da
+  loja dos criadores), ignorar e notas particulares.
+- Perfil de outra pessoa: privacidade (todos / amigos / amigos e clã /
+  ninguém), amigos em comum, "amigos desde", votos e ups, insígnias,
+  conquistas exibidas, nível (lido do `levelsCatalog.js`), atividade (do
+  Redis) e modpack em destaque.
+- `src/js.rs`: o que o JavaScript faz e muda o resultado — ordem das chaves
+  de objeto (índices numéricos primeiro), `1.0` vira `1`,
+  `Number.isInteger`.
+
+Produção (22/11/2026): configurações, jogos, atalhos, GIFs e emojis de 8
+contas e 4 recusas de escrita — 44 de 44 iguais; perfil de 11 pessoas
+(inclusive com perfil privado e com insígnias) visto por 4 contas, mais
+lista de ignorados e as recusas de nota/ignorar a si mesmo — 50 de 50
+iguais.
