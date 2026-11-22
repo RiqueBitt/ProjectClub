@@ -560,6 +560,12 @@ class Repository(private val context: Context, val api: Api, private val scope: 
         runCatching { _channelStates.value = api.get<ChannelStatesResponse>("/api/community/channels/read-states").states }
     }
 
+    /** Troca de instância (vale no site também) e recarrega os canais dela. */
+    suspend fun switchInstance(id: String) {
+        api.put<JsonElement>("/api/community/instance", buildJsonObject { put("instanceId", id) })
+        loadCommunity()
+    }
+
     suspend fun loadCommunity() {
         val el: JsonElement = api.get("/api/community")
         setCommunity(decodeCommunity(el))

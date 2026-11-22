@@ -79,7 +79,8 @@ fun ChannelsTab(repo: Repository, actions: HomeActions) {
     val collapsed = remember { mutableStateMapOf<String, Boolean>() }
 
     Column(Modifier.fillMaxSize()) {
-        PcTopBar("Comunidade", Icons.Outlined.ChatBubbleOutline)
+        // Ao lado do título: seletor de instância (igual ao do site).
+        PcTopBar("Comunidade", Icons.Outlined.ChatBubbleOutline) { InstanceSwitcher(repo, community?.community) }
         val c = community
         val loadError by repo.communityError.collectAsState()
         if (c == null) {
