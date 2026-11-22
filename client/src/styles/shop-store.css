@@ -2,54 +2,211 @@
    Loja de conveniência (components/shop/ShopBasket.jsx + LojaPage.jsx):
    painel perfurado com os itens pendurados em ganchos, cestinha no
    canto inferior direito e checkout com a maquininha.
+
+   Parede em 3D (nov/2026, referência do dono): o painel, o gancho
+   cromado, a caixinha de plástico e as sombras são renders do Blender
+   (tools/loja-3d/render.py → public/loja/parede). A caixinha sai em
+   cinza e ganha a cor do item aqui, pelo brilho (luminosity); o item
+   e a etiqueta ficam entre a sombra e o plástico.
    ============================================================ */
 .shop-room {
-  --peg-board: #8c6a45;
-  --peg-hole: rgba(40, 26, 12, .55);
-  --peg-metal: #b9bec7;
+  --pack-card: #0f3d22;
+  --pack-card-deep: #082715;
+  --pack-gold: #c8a04a;
 }
 
 /* ---------- Painel perfurado ---------- */
 .shop-room .room-grid {
-  position: relative; padding: 26px 18px 22px; row-gap: 46px; border-radius: 16px;
-  background-color: var(--peg-board);
-  background-image:
-    radial-gradient(circle, var(--peg-hole) 2.2px, transparent 2.6px),
-    linear-gradient(180deg, rgba(255, 255, 255, .06), rgba(0, 0, 0, .12));
-  background-size: 22px 22px, 100% 100%;
-  box-shadow: inset 0 0 0 1px rgba(0, 0, 0, .25), inset 0 6px 18px rgba(0, 0, 0, .25);
+  position: relative; padding: 58px 22px 30px; gap: 70px 22px; border-radius: 18px;
+  grid-template-columns: repeat(auto-fill, minmax(236px, 1fr));
+  border: 7px solid #6f3f14; border-color: #8a5220 #6a3a11 #55300d #7a4718;
+  background:
+    radial-gradient(130% 100% at 30% 0%, rgba(255, 226, 170, .2), rgba(120, 56, 0, .26)) padding-box,
+    url('/loja/parede/painel.webp?v=1') 0 0 / 252px 252px padding-box #dc9a4c;
+  box-shadow: inset 0 0 0 1px rgba(60, 28, 0, .55), inset 6px 10px 22px rgba(70, 32, 0, .34), inset -4px -6px 16px rgba(70, 32, 0, .2), 0 10px 24px -12px rgba(0, 0, 0, .7);
 }
-.shop-room .room-grid .room-card {
-  position: relative; overflow: visible; margin-top: 20px;
-  transform-origin: 50% -18px; transition: transform .25s cubic-bezier(.3, 1.6, .5, 1), box-shadow .2s;
-  box-shadow: 0 8px 14px -8px rgba(0, 0, 0, .55);
-}
-.shop-room .room-grid .room-card:hover { transform: rotate(-1.2deg); box-shadow: 0 14px 22px -10px rgba(0, 0, 0, .6); }
-.shop-room .room-grid .room-card:nth-child(2n):hover { transform: rotate(1.2deg); }
+.shop-room .room-grid > .room-skel { border-radius: 22px; background: rgba(8, 39, 21, .55); animation: none; }
 
-/* Gancho de metal (sai do painel) + furinho do pacote. */
+/* ---------- Cartela (o cartão do item) ---------- */
+.shop-room .room-card {
+  --room-surface: var(--pack-card); --room-sunken: var(--pack-card-deep);
+  --room-text: #f2fff5; --room-muted: #a8c8b3;
+  --room-line: rgba(255, 255, 255, .1); --room-line-strong: rgba(255, 255, 255, .24);
+  --room-accent: #22c04f; --room-accent-ink: #19a841; --room-accent-soft: rgba(47, 212, 92, .16);
+  --room-ok: #2fd45c; --room-ok-soft: rgba(47, 212, 92, .18);
+  position: relative; overflow: visible; border-radius: 22px; color: var(--room-text);
+  container-type: inline-size;
+  background:
+    radial-gradient(86% 40% at 46% 30%, rgba(70, 190, 105, .22), rgba(70, 190, 105, 0) 72%),
+    linear-gradient(180deg, var(--pack-card) 0%, var(--pack-card-deep) 100%);
+  border: 1px solid rgba(255, 255, 255, .08);
+  /* a luz vem de cima e da esquerda, igual aos renders */
+  box-shadow: 0 2px 0 -.5px var(--pack-gold), 9px 16px 20px -10px rgba(60, 26, 0, .8), 2px 3px 4px rgba(60, 26, 0, .35);
+}
+.shop-room .room-card:hover { transform: none; border-color: rgba(255, 255, 255, .16); }
+.shop-room .room-card.is-on { border-color: var(--room-ok); box-shadow: 0 0 0 1.5px var(--room-ok), 9px 16px 20px -10px rgba(60, 26, 0, .8); }
+/* Medidas do quadro dos renders (264 x 357,6 px): tudo dentro da cartela escala junto. */
+.shop-room .room-card > * {
+  --sw: min(264px, 112cqw);                         /* largura do quadro */
+  --k: tan(atan2(var(--sw), 264px));                /* escala (1 no computador) */
+  --sx: calc(50% - var(--sw) * .432);               /* esquerda do quadro: a caixinha fica centrada */
+  --sy: calc(var(--sw) * -.196);                    /* topo do quadro: a cabeça do gancho fica acima da cartela */
+}
+
+/* Gancho cromado: sai do painel, acima da cartela, e passa pelo furo da aba. */
 .room-hook { display: none; }
-.room-hole { display: none; }
 .shop-room .room-grid .room-hook {
-  display: block; position: absolute; left: 50%; top: -30px; width: 6px; height: 30px; margin-left: -3px; z-index: 2;
-  border-radius: 3px; background: linear-gradient(90deg, #8d939c, var(--peg-metal) 45%, #7c828b);
-  box-shadow: 0 2px 3px rgba(0, 0, 0, .4);
+  display: block; position: absolute; left: var(--sx); top: var(--sy); width: var(--sw); aspect-ratio: 264 / 357.6; z-index: 5; pointer-events: none;
+  background: url('/loja/parede/gancho.webp?v=1') center / 100% 100% no-repeat;
 }
-.shop-room .room-grid .room-hook::before {
-  content: ''; position: absolute; left: -5px; top: -6px; width: 16px; height: 8px; border-radius: 50%;
-  background: radial-gradient(circle at 50% 40%, #555b64, #2b2f35);
+
+/* ---------- Caixinha de plástico com o item dentro ---------- */
+.shop-room .room-card[class] .room-card-art {
+  display: block; height: calc(var(--sw) * 1.125); overflow: visible; background: none; border-radius: 22px 22px 0 0;
+  border-bottom: 1px solid rgba(255, 255, 255, .08);
 }
-.shop-room .room-grid .room-hole {
-  display: block; position: absolute; left: 50%; top: 7px; width: 26px; height: 9px; margin-left: -13px; z-index: 3;
-  border-radius: 999px; background: var(--peg-board); box-shadow: inset 0 2px 3px rgba(0, 0, 0, .45);
+.room-pack {
+  --pk: var(--pack, #35d05a);
+  position: absolute; left: var(--sx); top: var(--sy); width: var(--sw); aspect-ratio: 264 / 357.6; display: block;
+  /* pendurada pelo furo da aba: é em volta dele que ela pende e inclina */
+  transform-origin: 45.455% 23.49%;
+  transform: perspective(820px) rotate(var(--pack-tilt, 0deg)) rotateY(calc(var(--mx, 0) * 8deg)) rotateX(calc(var(--my, 0) * -5deg));
+  transition: transform .55s cubic-bezier(.2, 1.5, .4, 1);
 }
-/* Sem o overflow do card (o gancho sai pra fora), a arte arredonda sozinha. */
-.shop-room .room-grid .room-card-art { border-radius: var(--room-radius) var(--room-radius) 0 0; }
+.room-card:hover .room-pack { transition-duration: .14s; transition-timing-function: ease-out; }
+/* sombra que a caixinha faz na cartela */
+.room-pack::before {
+  content: ''; position: absolute; inset: 0; pointer-events: none;
+  background: url('/loja/parede/sombra.webp?v=1') center / 100% 100% no-repeat; opacity: .92;
+}
+/* fundo da caixinha (onde o item fica) */
+.room-pack-window {
+  position: absolute; left: 10.606%; top: 30.649%; width: 69.697%; height: 59.284%; z-index: 1; isolation: isolate;
+  /* a tampa e a lateral cobrem um pedaço do fundo: o item centra na parte que aparece */
+  box-sizing: border-box; padding: 3.4% 5.2% 0 0;
+  display: grid; place-items: center; overflow: hidden; border-radius: calc(var(--sw) * .044);
+  background: radial-gradient(120% 90% at 40% 16%, color-mix(in srgb, var(--pk) 42%, #0a1410) 0%, color-mix(in srgb, var(--pk) 14%, #050a08) 100%);
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, .14);
+  translate: calc(var(--mx, 0) * -3px) calc(var(--my, 0) * -2px);
+  transition: translate .45s ease-out;
+}
+/* sombra das paredes da caixinha em cima do item (a luz vem de cima, à esquerda) */
+.room-pack-window::after {
+  content: ''; position: absolute; inset: 0; z-index: 40; pointer-events: none; border-radius: inherit;
+  box-shadow: inset calc(var(--sw) * .05) calc(var(--sw) * .06) calc(var(--sw) * .07) calc(var(--sw) * -.03) rgba(0, 0, 0, .55), inset 0 0 calc(var(--sw) * .05) rgba(0, 0, 0, .28);
+}
+.room-pack-window > * { max-width: 100%; zoom: var(--k); }
+/* A faixa do nome cobre a base: o item fica centrado na parte livre. */
+.room-pack-window > :is(.room-art-deco, .room-art-font, .shop-art-back) { padding-bottom: 36px; box-sizing: border-box; }
+.room-pack-window > .room-art-deco { zoom: calc(var(--k) * 1.22); padding-bottom: 28px; }
+.room-pack-window > .room-art-font { height: 100%; padding: 10px 10px 46px; }
+.room-pack-window > .room-art-font span { font-size: 23px; color: #fff; }
+.room-pack-window > .room-art-font small { color: rgba(255, 255, 255, .72) !important; }
+.room-pack-window > .shop-mock { width: 100%; height: 100%; border-radius: 0; box-shadow: none; }
+.room-pack-window > .shop-mock .shop-mock-lines { display: none; }
+/* etiqueta com o nome, colada no fundo da caixinha (o plástico passa por cima) */
+.room-pack-label {
+  position: absolute; left: 11.2%; width: 63.4%; bottom: 13.6%; z-index: 2; box-sizing: border-box;
+  padding: calc(var(--sw) * .022) calc(var(--sw) * .04) calc(var(--sw) * .026); border-radius: 3px;
+  transform: rotate(-2.4deg); text-align: center; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  font-size: calc(var(--sw) * .059); font-weight: 800; line-height: 1.25; color: #fff; text-shadow: 0 1.5px 0 rgba(0, 0, 0, .42);
+  background: linear-gradient(180deg, color-mix(in srgb, var(--pack-tag, #e3207f) 82%, #fff), var(--pack-tag, #e3207f));
+  box-shadow: 0 4px 8px rgba(0, 0, 0, .45), inset 0 1px 0 rgba(255, 255, 255, .4);
+  translate: calc(var(--mx, 0) * -2.4px) calc(var(--my, 0) * -1.6px);
+  transition: translate .45s ease-out;
+}
+/* o plástico (render cinza) tingido com a cor do item */
+.room-pack-plastic {
+  position: absolute; inset: 0; z-index: 3; pointer-events: none;
+  background: url('/loja/parede/caixinha.webp?v=1') center / 100% 100% no-repeat var(--pk);
+  background-blend-mode: luminosity;
+  -webkit-mask: url('/loja/parede/caixinha.webp?v=1') center / 100% 100% no-repeat;
+  mask: url('/loja/parede/caixinha.webp?v=1') center / 100% 100% no-repeat;
+}
+/* brilho que corre na frente do plástico acompanhando o mouse */
+.room-pack-glare {
+  position: absolute; left: 5.025%; top: 33.3%; width: 70.848%; height: 60.264%; z-index: 4; pointer-events: none;
+  border-radius: calc(var(--sw) * .05); mix-blend-mode: screen; opacity: 0; transition: opacity .35s ease;
+  background:
+    radial-gradient(42% 34% at calc(50% + var(--mx, 0) * 38%) calc(46% + var(--my, 0) * 36%), rgba(255, 255, 255, .22), rgba(255, 255, 255, 0) 100%),
+    linear-gradient(115deg, rgba(255, 255, 255, 0) calc(38% + var(--mx, 0) * 30%), rgba(255, 255, 255, .16) calc(46% + var(--mx, 0) * 30%), rgba(255, 255, 255, 0) calc(54% + var(--mx, 0) * 30%));
+}
+.room-card:hover .room-pack-glare { opacity: 1; }
+.shop-room .room-card.is-locked .room-card-art > .room-pack { filter: saturate(.72); }
+
+/* Etiquetas coladas na frente da caixinha (Novo, desconto, limitado, exclusivo). */
+.shop-room .room-card .room-card-flags { top: 35.4%; left: 1.2%; z-index: 4; flex-direction: column; align-items: flex-start; gap: 5px; max-width: 76%; }
+.shop-room .room-card .room-flag {
+  height: max(19px, calc(25px * var(--k))); padding: 0 calc(10px * var(--k)); border: 0; border-radius: 4px 5px 5px 0;
+  font-size: max(10px, calc(12px * var(--k))); font-weight: 800; color: #fff;
+  background: linear-gradient(180deg, #ff55a8, #df1f7e); transform: rotate(-3deg);
+  box-shadow: 0 3px 6px rgba(0, 0, 0, .42), inset 0 1px 0 rgba(255, 255, 255, .42); text-shadow: 0 1px 0 rgba(0, 0, 0, .28);
+}
+.shop-room .room-card .room-flag.off { background: linear-gradient(180deg, #ffd24a, #f2a413); color: #3a2400; text-shadow: none; }
+.shop-room .room-card .room-flag.limited { background: linear-gradient(180deg, #9a86ff, #6a4fe0); }
+.shop-room .room-card .room-flag.limited.out { background: linear-gradient(180deg, #8d98a8, #5d6878); }
+.shop-room .room-card .room-flag.excl { background: linear-gradient(180deg, #ffe07a, #e2a91d); color: #3a2a00; text-shadow: none; }
+
+/* Selo de estado no canto da cartela (Adquirido, Equipado, Exclusivo). */
+.shop-room .room-card .room-card-state { top: -15px; right: -12px; z-index: 6; }
+.shop-room .room-card .room-state {
+  height: max(28px, calc(34px * var(--k))); padding: 0 calc(12px * var(--k)); gap: 5px; border-radius: 13px;
+  font-size: max(12px, calc(15px * var(--k))); font-weight: 800; letter-spacing: -.01em; color: #eafff0;
+  background: linear-gradient(180deg, #3ade68 0%, #17a840 100%); border: 2px solid #0d7e2d; text-shadow: 0 1.5px 0 rgba(0, 70, 25, .6);
+  box-shadow: inset 0 2px 0 rgba(255, 255, 255, .45), inset 0 -3px 0 rgba(0, 60, 20, .25), 0 8px 14px -6px rgba(0, 0, 0, .65);
+}
+.shop-room .room-card .room-state.locked { color: #3a2a00; background: linear-gradient(180deg, #ffe07a, #e2a91d); border-color: #a8770f; text-shadow: none; }
+.shop-room .room-card .room-card-peek { bottom: 8px; z-index: 5; white-space: nowrap; }
+.shop-room .room-card .room-wish { top: 12px; left: 12px; right: auto; z-index: 6; background: rgba(0, 0, 0, .34); border-color: rgba(255, 255, 255, .16); }
+.shop-room .room-card .room-wish.on { background: var(--room-pink); }
+
+/* ---------- Texto e botões da cartela ---------- */
+.shop-room .room-card .room-card-body { padding: 16px 18px 18px; gap: 5px; }
+.shop-room .room-card .room-card-body small { font-size: 11.5px; letter-spacing: .05em; }
+.shop-room .room-card .room-card-body h3 { font-size: 18px; font-weight: 800; letter-spacing: -.2px; color: #fff; }
+.shop-room .room-card .room-card-desc { font-size: 13.5px; line-height: 1.42; color: #b6d2bf; }
+.shop-room .room-card .room-card-foot { flex-direction: column; align-items: flex-start; gap: 11px; padding-top: 14px; }
+.shop-room .room-card .room-price-one { font-size: 16px; }
+.shop-room .room-card .room-btn.sm { min-height: 40px; padding: 0 18px; border-radius: 13px; font-size: 15px; font-weight: 800; }
+.shop-room .room-card .room-btn.primary {
+  color: #f1fff4; background: linear-gradient(180deg, #3ade68 0%, #18aa41 100%); border: 2px solid #0d7e2d; text-shadow: 0 1.5px 0 rgba(0, 70, 25, .55);
+  box-shadow: inset 0 2px 0 rgba(255, 255, 255, .42), inset 0 -3px 0 rgba(0, 60, 20, .22), 0 6px 12px -6px rgba(0, 0, 0, .6);
+}
+.shop-room .room-card .room-btn.primary:hover:not(:disabled) { background: linear-gradient(180deg, #4ce878 0%, #1fb84a 100%); border-color: #0d7e2d; }
+.shop-room .room-card .room-btn.ghost { color: #eafff0; background: rgba(255, 255, 255, .07); border: 2px solid rgba(255, 255, 255, .22); }
+.shop-room .room-card .room-btn.ghost:hover:not(:disabled) { background: rgba(255, 255, 255, .13); }
+.shop-room .room-card .room-btn.excl-btn { color: #3a2a00; background: linear-gradient(180deg, #ffe07a, #e2a91d); border: 2px solid #a8770f; }
+/* Pôr na cesta / Comprar: botão simples, liso e com a letra normal da Loja (pedido do dono). */
+.shop-room .room-card .room-btn:is(.room-basket-btn, .room-buy-btn) {
+  min-height: 38px; padding: 0 16px; gap: 7px; border: 0; border-radius: 10px;
+  font-size: 14px; font-weight: 600; letter-spacing: 0; text-shadow: none; box-shadow: none;
+}
+.shop-room .room-card .room-btn.primary:is(.room-basket-btn, .room-buy-btn) { color: #fff; background: #1c9f47; }
+.shop-room .room-card .room-btn.primary:is(.room-basket-btn, .room-buy-btn):hover:not(:disabled) { background: #22b352; }
+.shop-room .room-card .room-btn.ghost:is(.room-basket-btn, .room-buy-btn) { color: #cfeedd; background: rgba(255, 255, 255, .09); }
+
+/* Celular: duas cartelas por fila; o quadro 3D encolhe junto com a cartela (--sw). */
+@media (max-width: 640px) {
+  .shop-room .room-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); padding: 44px 10px 18px; gap: 52px 10px; border-width: 5px; border-radius: 14px; }
+  .shop-room .room-card { border-radius: 16px; }
+  .shop-room .room-card[class] .room-card-art { border-radius: 16px 16px 0 0; }
+  .shop-room .room-card .room-card-body { padding: 11px 11px 12px; gap: 3px; }
+  .shop-room .room-card .room-card-body small { font-size: 10px; }
+  .shop-room .room-card .room-card-body h3 { font-size: 14.5px; }
+  .shop-room .room-card .room-card-foot { align-items: stretch; gap: 8px; padding-top: 10px; }
+  .shop-room .room-card .room-price-one { font-size: 14px; }
+  .shop-room .room-card .room-btn.sm { min-height: 36px; padding: 0 10px; font-size: 13.5px; border-radius: 11px; }
+  .shop-room .room-card .room-card-state { top: -12px; right: -6px; }
+  .shop-room .room-card .room-wish { top: 7px; left: 7px; width: 28px; height: 28px; }
+  .shop-room .room-grid .room-card.in-basket::after { top: -12px; right: -6px; height: 28px; padding: 0 10px; font-size: 12.5px; }
+}
+
 .shop-room .room-grid .room-card.is-grabbable { cursor: grab; touch-action: pan-y; }
 .shop-room .room-grid .room-card.is-grabbable:active { cursor: grabbing; }
 .shop-room .room-grid .room-card.in-basket::after {
-  content: 'Na cesta'; position: absolute; top: 22px; right: -6px; z-index: 4; padding: 3px 9px; border-radius: 6px 6px 0 6px;
-  background: var(--green); color: #fff; font-size: 11px; font-weight: 800; box-shadow: 0 2px 6px rgba(0, 0, 0, .35);
+  content: 'Na cesta'; position: absolute; top: -15px; right: -12px; z-index: 6; display: flex; align-items: center; height: 34px; padding: 0 14px; border-radius: 14px;
+  color: #eafff0; font-size: 15px; font-weight: 800; background: linear-gradient(180deg, #3ade68 0%, #17a840 100%); border: 2px solid #0d7e2d;
+  box-shadow: inset 0 2px 0 rgba(255, 255, 255, .45), 0 8px 14px -6px rgba(0, 0, 0, .65);
 }
 .room-basket-btn { gap: 5px; }
 
@@ -58,7 +215,7 @@
 .shop-drag-ghost {
   position: fixed !important; z-index: 9990; margin: 0 !important; pointer-events: none;
   opacity: .97; will-change: transform, left, top;
-  box-shadow: 0 26px 46px -12px rgba(0, 0, 0, .7) !important; border-radius: 14px;
+  box-shadow: 0 26px 46px -12px rgba(0, 0, 0, .7) !important; border-radius: 22px;
 }
 .shop-drag-ghost .room-hook { display: none !important; }
 .shop-drag-ghost .room-card-peek { display: none !important; }
@@ -66,7 +223,7 @@
 .shop-room .room-grid .room-card.is-lifted { background: transparent; border-color: transparent; box-shadow: none; transform: none; }
 .shop-room .room-grid .room-card.is-lifted > :not(.room-hook) { visibility: hidden; }
 .shop-room .room-grid .room-card.is-lifted::after { display: none; }
-.shop-room .room-grid .room-card.is-lifted .room-hook { transform-origin: 50% 0; animation: shop-hook-wobble .6s ease-out; }
+.shop-room .room-grid .room-card.is-lifted .room-hook { transform-origin: 45% 7%; animation: shop-hook-wobble .6s ease-out; }
 @keyframes shop-hook-wobble { 0% { transform: rotate(0); } 30% { transform: rotate(9deg); } 60% { transform: rotate(-5deg); } 100% { transform: rotate(0); } }
 
 /* ---------- Cestinha ---------- */
@@ -191,4 +348,7 @@
 .shop-pos-btn { min-width: 180px; }
 @media (prefers-reduced-motion: reduce) {
   .shop-room .room-grid .room-card, .shop-basket-fab, .shop-pos-card { transition: none; animation: none; }
+  .room-pack { transform: rotate(var(--pack-tilt, 0deg)); transition: none; }
+  .room-pack-window, .room-pack-label { translate: none; transition: none; }
+  .room-pack-glare { display: none; }
 }

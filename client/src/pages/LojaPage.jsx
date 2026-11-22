@@ -961,6 +961,48 @@ function StateBadge({ item, on }) {
   return null;
 }
 
+// Cor do plástico da caixinha de cada item na parede da Loja: a cor
+// cadastrada no item (quando tem) ou uma das cores da casa, sempre a mesma
+// pro mesmo item.
+// Cor do plástico da caixinha: a cor cadastrada no item (quando é uma cor viva)
+// ou uma cor fixa tirada do id, pra parede não ficar toda igual.
+const PACK_TINTS = ['#35d05a', '#ff5fa8', '#7d6bff', '#ffb02e', '#31c7ee', '#ff6a55'];
+function hueOf(hex) {
+  const n = parseInt(hex.slice(1), 16);
+  const r = (n >> 16) / 255, g = ((n >> 8) & 255) / 255, b = (n & 255) / 255;
+  const max = Math.max(r, g, b), d = max - Math.min(r, g, b);
+  if (!d) return 0;
+  const h = max === r ? ((g - b) / d) % 6 : max === g ? (b - r) / d + 2 : (r - g) / d + 4;
+  return (h * 60 + 360) % 360;
+}
+function packColors(item) {
+  let h = 0;
+  for (const ch of `${item.kind}:${item.id}`) h = (h * 31 + ch.charCodeAt(0)) >>> 0;
+  const named = SHOP_COLORS.find(([k]) => k === item.color);
+  const tint = named && !['branco', 'preto', 'marrom'].includes(named[0]) ? named[1] : PACK_TINTS[h % PACK_TINTS.length];
+  // Faixa do nome: rosa-choque nas caixas frias, vermelha nas quentes e um tom
+  // mais fundo da própria cor nas rosas, vermelhas e roxas.
+  const hue = hueOf(tint);
+  const tag = hue >= 240 || hue < 20 ? `hsl(${Math.round(hue)} 74% 45%)` : hue < 70 ? '#e23a2e' : '#e3207f';
+  // Cada caixinha pende um tiquinho diferente no gancho.
+  const tilt = `${(((h >>> 3) % 5) - 2) * 0.6}deg`;
+  return { '--pack': tint, '--pack-tag': tag, '--pack-tilt': tilt };
+}
+
+// A caixinha inclina pro lado do mouse e o brilho do plástico acompanha.
+// Só com mouse; escreve direto no elemento pra não redesenhar o React.
+function packLean(e) {
+  if (e.pointerType !== 'mouse') return;
+  const el = e.currentTarget;
+  const r = el.getBoundingClientRect();
+  el.style.setProperty('--mx', (((e.clientX - r.left) / r.width) * 2 - 1).toFixed(3));
+  el.style.setProperty('--my', (((e.clientY - r.top) / r.height) * 2 - 1).toFixed(3));
+}
+function packRest(e) {
+  e.currentTarget.style.removeProperty('--mx');
+  e.currentTarget.style.removeProperty('--my');
+}
+
 function ItemCard({ item: base, ctx }) {
   const { user, busy, isEquipped, open, equip, askBuy, now } = ctx;
   const bk = ctx.basket;
@@ -974,17 +1016,25 @@ function ItemCard({ item: base, ctx }) {
     <article
       className={`room-card k-${item.kind}${on ? ' is-on' : ''}${item.locked ? ' is-locked' : ''}${bk?.canAdd(item) ? ' is-grabbable' : ''}${bk?.has(item) ? ' in-basket' : ''}`}
       onPointerDown={bk?.canAdd(item) ? (e) => bk.dragDown(e, item) : undefined}
+      onPointerMove={packLean} onPointerLeave={packRest}
+      style={packColors(item)}
     >
-      {/* Gancho da loja de conveniência: o pacote fica pendurado pelo furinho. */}
+      {/* Parede da loja: o gancho cromado segura a caixinha de plástico pela aba,
+          na frente da cartela. Gancho, caixinha e sombra são renders 3D
+          (tools/loja-3d); o item e a etiqueta ficam dentro da caixinha. */}
       <span className="room-hook" aria-hidden="true" />
-      <span className="room-hole" aria-hidden="true" />
       <button type="button" className="room-card-art" onClick={() => open(item)} aria-label={`Ver detalhes de ${item.name}`}>
-        <Preview item={item} user={user} />
-        <span className="room-card-flags">
-          {item.exclusiveTier && <span className={`room-flag excl t-${item.exclusiveTier.toLowerCase()}`}><Ico name="crown" size={11} strokeWidth={2.2} /> {TIER_LABEL[item.exclusiveTier]}</span>}
-          {!item.exclusiveTier && isNew(item, now) && <span className="room-flag new">Novo</span>}
-          {discount > 0 && !item.owned && <span className="room-flag off">-{discount}%</span>}
-          {item.limited && <LimitedFlag item={item} />}
+        <span className="room-pack">
+          <span className="room-pack-window"><Preview item={item} user={user} /></span>
+          <span className="room-pack-label" aria-hidden="true" style={item.kind === 'font' ? nameStyleProps({ profileFont: fontValue(item) }) : undefined}>{item.name}</span>
+          <span className="room-pack-plastic" aria-hidden="true" />
+          <span className="room-pack-glare" aria-hidden="true" />
+          <span className="room-card-flags">
+            {item.exclusiveTier && <span className={`room-flag excl t-${item.exclusiveTier.toLowerCase()}`}><Ico name="crown" size={11} strokeWidth={2.2} /> {TIER_LABEL[item.exclusiveTier]}</span>}
+            {!item.exclusiveTier && isNew(item, now) && <span className="room-flag new">Novo</span>}
+            {discount > 0 && !item.owned && <span className="room-flag off">-{discount}%</span>}
+            {item.limited && <LimitedFlag item={item} />}
+          </span>
         </span>
         <span className="room-card-state"><StateBadge item={item} on={on} /></span>
         <span className="room-card-peek"><Ico name="eye" size={14} /> Pré-visualizar</span>
@@ -1030,7 +1080,7 @@ function ItemCard({ item: base, ctx }) {
                   <Ico name={bk.has(item) ? 'check' : 'bag'} size={14} /> {bk.has(item) ? 'Na cesta' : 'Pôr na cesta'}
                 </button>
               ) : (
-                <button type="button" className="room-btn sm primary" disabled={busy !== ''} onClick={() => (cur.length === 1 ? askBuy(item, cur[0]) : open(item))}>Comprar</button>
+                <button type="button" className="room-btn sm primary room-buy-btn" disabled={busy !== ''} onClick={() => (cur.length === 1 ? askBuy(item, cur[0]) : open(item))}>Comprar</button>
               ))}
             </>
           )}
@@ -1395,7 +1445,7 @@ function Skeleton() {
   return (
     <div className="room-stack" aria-busy="true" aria-label="Carregando a loja">
       <div className="room-skel" style={{ height: 280, borderRadius: 20 }} />
-      <div className="room-grid">{[0, 1, 2, 3].map((i) => <div key={i} className="room-skel" style={{ height: 290 }} />)}</div>
+      <div className="room-grid">{[0, 1, 2, 3].map((i) => <div key={i} className="room-skel" style={{ height: 460 }} />)}</div>
     </div>
   );
 }
