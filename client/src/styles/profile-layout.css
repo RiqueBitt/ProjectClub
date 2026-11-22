@@ -1,0 +1,214 @@
+/* ============================================================
+   Perfil completo — organização nova (nov/2026, pedido do dono:
+   "mais organizado e minimalista").
+
+     topo      banner, foto, nome, status e as insígnias
+     faixa     números à esquerda, ações à direita (3 botões + "Mais")
+     corpo     esquerda: quem a pessoa é (sempre à vista)
+               direita: o resto, em abas
+
+   Só arruma a disposição: as cores continuam vindo da cor do perfil
+   (--profile-accent-*) e dos estilos da Loja (.pstyle, --ps-*), e os
+   cartões continuam sendo .pf-card. Este arquivo entra por último e usa
+   seletores longos (.modal-box.profile-modal-fullscreen.pfl) de propósito,
+   pra valer sobre as camadas antigas de global.css e profile.css.
+   ============================================================ */
+
+.modal-box.profile-modal-fullscreen.pfl {
+  --pfl-max: 1120px;
+  --pfl-gap: 16px;
+  --pfl-pad: 24px;
+}
+
+/* ---------- Topo ---------- */
+.modal-overlay .modal-box.profile-modal-fullscreen.pfl .profile-top-row {
+  width: min(var(--pfl-max), calc(100% - 2 * var(--pfl-pad))); max-width: none; margin: 16px auto 0;
+}
+.modal-overlay .modal-box.profile-modal-fullscreen.pfl .profile-top-row .profile-banner { height: clamp(120px, 13vw, 196px); }
+.modal-overlay .modal-box.profile-modal-fullscreen.pfl .profile-top-row .profile-ig-header {
+  grid-template-columns: auto minmax(0, 1fr) auto; gap: 4px 20px; padding: 0 24px 20px;
+}
+.modal-box.profile-modal-fullscreen.pfl .profile-top-row .profile-display-name { font-size: 27px; line-height: 1.15; letter-spacing: -.3px; }
+.modal-box.profile-modal-fullscreen.pfl .profile-top-row .profile-username { margin: 3px 0 0; font-size: 14.5px; }
+.modal-box.profile-modal-fullscreen.pfl .profile-top-row .profile-custom-status-balloon { margin-top: 10px; }
+.modal-box.profile-modal-fullscreen.pfl .pfx-head-side > .pfx-head-badges:first-child { margin-top: 16px; }
+
+/* ---------- Corpo ---------- */
+.modal-box.profile-modal-fullscreen.pfl .profile-modal-body { padding: var(--pfl-gap) var(--pfl-pad) calc(48px + env(safe-area-inset-bottom, 0px)); }
+.modal-overlay .modal-box.profile-modal-fullscreen.pfl .pf { max-width: var(--pfl-max); margin: 0 auto; }
+.modal-box.profile-modal-fullscreen.pfl .pf-notice { margin: 0 0 var(--pfl-gap); }
+
+/* ---------- Faixa: números + ações ---------- */
+.pfl .pfl-bar {
+  display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 14px 24px;
+  padding: 12px 16px 12px 20px; border-radius: 16px;
+  background: var(--pf-card-bg); border: 1px solid var(--pf-card-border);
+}
+.modal-box.profile-modal-fullscreen.pfl .pfl-bar .pf-stats { display: flex; align-items: stretch; gap: 0; margin: 0; min-width: 0; }
+.modal-box.profile-modal-fullscreen.pfl .pfl-bar .pf-stat {
+  gap: 12px; padding: 2px 22px; border: 0; border-left: 1px solid var(--pf-card-border); border-radius: 0; background: none;
+}
+.modal-box.profile-modal-fullscreen.pfl .pfl-bar .pf-stat:first-child { padding-left: 0; border-left: 0; }
+.modal-box.profile-modal-fullscreen.pfl .pfl-bar .pf-stat-text b { font-size: 19px; line-height: 1.1; }
+.modal-box.profile-modal-fullscreen.pfl .pfl-bar .pf-stat-text span { font-size: 12px; }
+/* Nível: o número e, ao lado, quanto falta pro próximo. */
+.pfl .pfl-level .profile-level-progress-track { display: block; width: 84px; height: 6px; margin: 0; border-radius: 999px; overflow: hidden; flex-shrink: 0; }
+.pfl .pfl-level .profile-level-progress-fill { display: block; height: 100%; border-radius: 999px; }
+
+.pfl .pfl-actions { display: flex; align-items: center; gap: 8px; margin-left: auto; min-width: 0; }
+.modal-box.profile-modal-fullscreen.pfl .pfl-actions :is(.btn-primary, .btn-secondary) {
+  flex: 0 0 auto; min-height: 38px; height: 38px; padding: 0 16px; border-radius: 10px; font-size: 14px; font-weight: 600; white-space: nowrap;
+}
+.modal-box.profile-modal-fullscreen.pfl .pfl-actions .profile-vote-group {
+  display: flex; align-items: stretch; height: 38px; border-radius: 10px; overflow: hidden;
+  background: rgba(255, 255, 255, .06); border: 1px solid var(--pf-card-border);
+}
+.modal-box.profile-modal-fullscreen.pfl .pfl-actions .profile-vote-icon-btn {
+  display: inline-flex; align-items: center; gap: 6px; height: 100%; min-width: 38px; padding: 0 10px; border-radius: 0; background: none;
+  font-size: 13px; font-weight: 600; color: var(--text-muted);
+}
+.modal-box.profile-modal-fullscreen.pfl .pfl-actions .profile-vote-icon-btn + .profile-vote-icon-btn { border-left: 1px solid var(--pf-card-border); }
+.modal-box.profile-modal-fullscreen.pfl .pfl-actions .profile-vote-icon-btn:hover { background: rgba(255, 255, 255, .08); }
+.pfl .pfl-more { position: relative; }
+.modal-box.profile-modal-fullscreen.pfl .pfl-more-btn {
+  width: 38px; height: 38px; border-radius: 10px; display: inline-flex; align-items: center; justify-content: center;
+  color: var(--text-normal); background: rgba(255, 255, 255, .06); border: 1px solid var(--pf-card-border);
+}
+.modal-box.profile-modal-fullscreen.pfl .pfl-more-btn:hover,
+.modal-box.profile-modal-fullscreen.pfl .pfl-more-btn[aria-expanded='true'] { background: rgba(255, 255, 255, .12); color: var(--header-primary); }
+.pfl .pfl-menu {
+  position: absolute; top: calc(100% + 6px); right: 0; z-index: 60; min-width: 220px; padding: 6px; border-radius: 12px;
+  display: flex; flex-direction: column; gap: 2px;
+  background: var(--ps-bg, #17181c); border: 1px solid var(--ps-section-border, rgba(255, 255, 255, .12));
+  box-shadow: 0 16px 36px rgba(0, 0, 0, .5);
+}
+.modal-box.profile-modal-fullscreen.pfl .pfl-menu-item {
+  display: flex; align-items: center; gap: 10px; width: 100%; height: 38px; padding: 0 10px; border: 0; border-radius: 8px; background: none; box-shadow: none;
+  font: inherit; font-size: 14px; font-weight: 500; text-align: left; white-space: nowrap; cursor: pointer;
+  color: var(--ps-text, #dbdee1);
+}
+.modal-box.profile-modal-fullscreen.pfl .pfl-menu-item svg { color: var(--ps-muted, #949ba4); flex-shrink: 0; }
+.modal-box.profile-modal-fullscreen.pfl .pfl-menu-item:hover,
+.modal-box.profile-modal-fullscreen.pfl .pfl-menu-item:focus-visible { background: rgba(255, 255, 255, .08); outline: none; }
+.modal-box.profile-modal-fullscreen.pfl .pfl-menu-item.danger,
+.modal-box.profile-modal-fullscreen.pfl .pfl-menu-item.danger svg { color: #ff8a8d; }
+@media (prefers-reduced-motion: no-preference) {
+  .pfl .pfl-menu { animation: pfl-menu-in .12s ease-out; transform-origin: top right; }
+}
+@keyframes pfl-menu-in { from { opacity: 0; transform: scale(.97) translateY(-3px); } to { opacity: 1; transform: none; } }
+
+/* ---------- Duas colunas ---------- */
+.pfl .pfl-layout {
+  display: grid; grid-template-columns: minmax(270px, 336px) minmax(0, 1fr); gap: var(--pfl-gap) 20px; align-items: start;
+  margin-top: var(--pfl-gap);
+}
+/* Sem nada na esquerda (pessoa sem bio, cargo, conexão…): a direita ocupa tudo. */
+.pfl .pfl-layout:not(:has(.pfl-aside :is(.pf-card, .activity-badge, .pfl-meta))) { grid-template-columns: minmax(0, 1fr); }
+.pfl .pfl-layout:not(:has(.pfl-aside :is(.pf-card, .activity-badge, .pfl-meta))) .pfl-aside { display: none; }
+/* Sem abas (perfil só com o "Sobre"): a esquerda vira a página. */
+.pfl .pfl-layout.is-solo { grid-template-columns: minmax(0, 680px); }
+.pfl .pfl-layout.is-solo .pfl-main { display: none; }
+
+.pfl .pfl-aside { display: flex; flex-direction: column; gap: 12px; min-width: 0; position: sticky; top: 16px; }
+.pfl .pfl-aside .pf-grid-item { margin: 0; }
+.pfl .pfl-aside .pf-grid-item:empty { display: none; }
+.modal-box.profile-modal-fullscreen.pfl .pfl-aside .pfx-head-activity { width: auto; padding: 0; }
+.modal-box.profile-modal-fullscreen.pfl .pfl-aside .pfx-head-activity:empty { display: none; }
+.modal-box.profile-modal-fullscreen.pfl .pfl-aside .pfx-head-activity .activity-badge { width: 100%; max-width: none; box-sizing: border-box; border-radius: 16px; }
+/* Na coluna estreita, a lista de pessoas fica uma por linha. */
+.pfl .pfl-aside .pf-people { grid-template-columns: minmax(0, 1fr); }
+.pfl .pfl-meta { list-style: none; margin: 4px 0 0; padding: 0 4px; display: flex; flex-direction: column; gap: 8px; font-size: 13px; color: var(--text-muted); }
+.pfl .pfl-meta li { display: flex; align-items: center; gap: 9px; min-width: 0; }
+.pfl .pfl-meta svg { flex-shrink: 0; opacity: .8; }
+
+.pfl .pfl-main { min-width: 0; container: pfvmain / inline-size; }
+.pfl .pf-tabpanel[hidden] { display: none; }
+.modal-box.profile-modal-fullscreen.pfl .pfl-main .pf-grid { columns: 1; column-gap: 14px; }
+@container pfvmain (min-width: 720px) {
+  .modal-box.profile-modal-fullscreen.pfl .pfl-main .pf-grid:not(.single) { columns: 2; }
+}
+.modal-box.profile-modal-fullscreen.pfl .pfl-main .pf-grid.single { max-width: none; }
+.pfl .pfl-main .pf-grid-item:empty { display: none; }
+.pfl .pfl-main .pf-grid:empty { display: none; }
+/* A biblioteca de jogos entra como mais um cartão da aba. */
+.modal-box.profile-modal-fullscreen.pfl .pfl-main .pf-onepage-games { margin: 0 0 14px; padding: 14px 16px 16px; border-radius: 16px; background: var(--pf-card-bg); border: 1px solid var(--pf-card-border); }
+.modal-box.profile-modal-fullscreen.pfl .pfl-main .pf-onepage-games .pf-onepage-title {
+  display: flex; align-items: center; gap: 9px; margin: 0 0 12px; padding: 0; border: 0;
+  font-size: 15px; font-weight: 700; letter-spacing: -.1px; text-transform: none; color: var(--header-primary);
+}
+
+/* Abas: linha fina com a aba aberta sublinhada (os estilos da Loja mantêm as abas deles). */
+.modal-box.profile-modal-fullscreen.pfl .pf-tabs { margin: 0 0 14px; }
+.modal-box.profile-modal-fullscreen.pfl:not(.pstyle) .pf-tabs {
+  width: auto; padding: 0; gap: 2px; border: 0; border-bottom: 1px solid var(--pf-card-border); border-radius: 0; background: none;
+}
+.modal-box.profile-modal-fullscreen.pfl:not(.pstyle) .pf-tab { position: relative; height: 42px; padding: 0 14px; border-radius: 10px 10px 0 0; }
+.modal-box.profile-modal-fullscreen.pfl:not(.pstyle) .pf-tab.active { background: none; box-shadow: none; color: var(--header-primary); }
+.modal-box.profile-modal-fullscreen.pfl:not(.pstyle) .pf-tab.active::after {
+  content: ''; position: absolute; left: 12px; right: 12px; bottom: -1px; height: 2px; border-radius: 2px; background: var(--pf-accent);
+}
+.modal-box.profile-modal-fullscreen.pfl .pf-tab:focus-visible { outline: 2px solid var(--pf-accent); outline-offset: -2px; }
+
+/* ---------- Cartões mais leves ---------- */
+.modal-box.profile-modal-fullscreen.pfl .pf-card { padding: 16px 18px 18px; }
+.modal-box.profile-modal-fullscreen.pfl .pf-card-head { margin-bottom: 10px; min-height: 24px; gap: 8px; }
+.modal-box.profile-modal-fullscreen.pfl .pf-card-icon { width: auto; height: auto; border-radius: 0; background: none; color: var(--text-muted); }
+.modal-box.profile-modal-fullscreen.pfl .pf-card-title { font-size: 14.5px; }
+/* Seção vazia (só no seu próprio perfil): uma linha, sem bloco alto no meio. */
+.modal-box.profile-modal-fullscreen.pfl .pf-empty { flex-direction: row; align-items: center; justify-content: flex-start; flex-wrap: wrap; text-align: left; gap: 10px 12px; padding: 0; }
+.modal-box.profile-modal-fullscreen.pfl .pf-empty-icon { display: none; }
+.modal-box.profile-modal-fullscreen.pfl .pf-empty-text { flex: 1 1 200px; max-width: none; }
+
+/* ---------- Estilos da Loja ---------- */
+/* A faixa segue o cartão de seção do estilo; os números ficam sem caixinha própria. */
+.pstyle .pfl-bar {
+  background: var(--ps-section-bg) !important;
+  border: var(--ps-section-borderw, 1px) var(--ps-section-borderstyle, solid) var(--ps-section-border) !important;
+  border-radius: var(--ps-radius) !important; box-shadow: var(--ps-section-shadow, none);
+}
+.pstyle.pstyle .pfl-bar .pf-stat { background: none !important; border-radius: 0 !important; }
+.pstyle .pfl-more-btn { color: var(--ps-text); border-color: var(--ps-section-border) !important; border-radius: var(--ps-btn-radius, 10px) !important; }
+.pstyle .pfl-menu { border-radius: var(--ps-radius, 12px); font-family: var(--ps-font); }
+.pstyle .pfl-meta { color: var(--ps-muted); font-family: var(--ps-font); }
+.pstyle .pfl-main .pf-onepage-games .pf-onepage-title { text-transform: none; }
+
+/* ---------- Carregando ---------- */
+.modal-box.profile-modal-fullscreen.pfl .pf-skeleton { width: min(var(--pfl-max), calc(100% - 2 * var(--pfl-pad))); margin: 16px auto 0; padding: 0; box-sizing: border-box; }
+
+/* ---------- Telas menores ---------- */
+/* Em tela estreita o "Sobre" é a primeira aba (ver useNarrowScreen no JSX). */
+@media (max-width: 1020px) {
+  .pfl .pfl-layout,
+  .pfl .pfl-layout.is-solo,
+  .pfl .pfl-layout:not(:has(.pfl-aside :is(.pf-card, .activity-badge, .pfl-meta))) { grid-template-columns: minmax(0, 1fr); }
+  .pfl .pfl-layout.is-solo .pfl-main { display: block; }
+  .pfl .pfl-aside { position: static; }
+  .pfl .pfl-aside .pf-people { grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); }
+  .modal-box.profile-modal-fullscreen.pfl .pfl-main > .pfx-head-activity { width: auto; padding: 0; margin-bottom: 12px; }
+  .modal-box.profile-modal-fullscreen.pfl .pfl-main > .pfx-head-activity:empty { display: none; }
+  .modal-box.profile-modal-fullscreen.pfl .pfl-main > .pfx-head-activity .activity-badge { width: 100%; max-width: none; box-sizing: border-box; border-radius: 16px; }
+}
+@media (max-width: 720px) {
+  .modal-box.profile-modal-fullscreen.pfl { --pfl-pad: 12px; --pfl-gap: 12px; }
+  .modal-overlay .modal-box.profile-modal-fullscreen.pfl .profile-top-row { margin-top: 12px; }
+  .modal-overlay .modal-box.profile-modal-fullscreen.pfl .profile-top-row .profile-banner { height: 124px; }
+  .modal-overlay .modal-box.profile-modal-fullscreen.pfl .profile-top-row .profile-ig-header { grid-template-columns: minmax(0, 1fr); gap: 0; padding: 0 16px 16px; }
+  .modal-box.profile-modal-fullscreen.pfl .profile-top-row .profile-display-name { font-size: 22px; }
+  .modal-box.profile-modal-fullscreen.pfl .pfx-head-side > .pfx-head-badges:first-child { margin-top: 12px; }
+  .pfl .pfl-bar { flex-direction: column; align-items: stretch; gap: 12px; padding: 12px 14px; }
+  .modal-box.profile-modal-fullscreen.pfl .pfl-bar .pf-stats { justify-content: space-between; }
+  .modal-box.profile-modal-fullscreen.pfl .pfl-bar .pf-stat { flex: 1 1 0; padding: 0 0 0 12px; }
+  .modal-box.profile-modal-fullscreen.pfl .pfl-bar .pf-stat:first-child { flex: 0 0 auto; padding-right: 12px; }
+  .pfl .pfl-level .profile-level-progress-track { width: 46px; }
+  /* Ações em duas linhas: "Mensagem" e o menu em cima; o resto embaixo. */
+  .pfl .pfl-actions { margin-left: 0; flex-wrap: wrap; }
+  .modal-box.profile-modal-fullscreen.pfl .pfl-actions .btn-primary { order: 1; flex: 1 1 0; }
+  .pfl .pfl-actions .pfl-more { order: 2; }
+  .modal-box.profile-modal-fullscreen.pfl .pfl-actions .btn-secondary { order: 3; flex: 1 1 auto; padding: 0 12px; }
+  .modal-box.profile-modal-fullscreen.pfl .pfl-actions .profile-vote-group { order: 4; flex: 0 0 auto; }
+  .modal-box.profile-modal-fullscreen.pfl .pfl-actions .profile-vote-group .profile-vote-icon-btn { flex: 0 0 auto; height: 100%; }
+  .pfl .pfl-actions::after { content: ''; order: 2; flex-basis: 100%; height: 0; }
+  .modal-box.profile-modal-fullscreen.pfl .pf-tabs { max-width: 100%; }
+  .modal-box.profile-modal-fullscreen.pfl .pf-tab { padding: 0 12px; }
+  .modal-box.profile-modal-fullscreen.pfl .pf-card { padding: 14px 14px 16px; }
+}

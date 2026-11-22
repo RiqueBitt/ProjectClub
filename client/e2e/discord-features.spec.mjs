@@ -20,20 +20,28 @@ test('perfil mostra Mural, Lista de desejos, Atividade e Estatísticas', async (
   const errors = [];
   page.on('pageerror', (e) => errors.push(e.message));
   await page.goto('/u/1');
-  await expect(page.locator('.pxw-mural')).toBeVisible({ timeout: 15000 });
+  // O perfil é em abas: Mural e Lista de desejos em "Visão geral",
+  // atividade em "Jogos" e estatísticas em "Conquistas".
+  const tab = (name) => page.getByRole('tab', { name });
+  await expect(tab('Visão geral')).toBeVisible({ timeout: 15000 });
+  await tab('Visão geral').click();
+  await expect(page.locator('.pxw-mural')).toBeVisible();
   await expect(page.getByText('Jogo desde a beta, nunca enjoa.')).toBeVisible();
   await page.locator('.pxw-mural').scrollIntoViewIfNeeded();
   await shot(page, 'perfil-mural', info);
   await expect(page.locator('.pxl-item').first()).toBeVisible();
   await page.locator('.pxl-grid').scrollIntoViewIfNeeded();
   await shot(page, 'perfil-wishlist', info);
-  await expect(page.getByText('Retornando após 2 meses')).toBeVisible();
+  await tab('Conquistas').click();
   await expect(page.locator('.pxs-badge')).toHaveCount(4);
   await page.locator('.pxs-grid').scrollIntoViewIfNeeded();
   await shot(page, 'perfil-stats', info);
+  await tab('Jogos').click();
+  await expect(page.getByText('Retornando após 2 meses')).toBeVisible();
   await page.locator('.pxa-list').scrollIntoViewIfNeeded();
   await shot(page, 'perfil-atividade', info);
   // Editor do mural
+  await tab('Visão geral').click();
   await page.getByRole('button', { name: 'Editar mural' }).click();
   await expect(page.getByRole('tab', { name: /Jogos em rotação/ })).toBeVisible();
   await shot(page, 'mural-editor', info);

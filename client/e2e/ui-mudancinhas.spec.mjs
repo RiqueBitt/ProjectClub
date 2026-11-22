@@ -113,6 +113,64 @@ test('perfil completo: até 4 insígnias no topo e barra do Windows 2000 dentro 
   expect(bar.width).toBeLessThanOrEqual(bar.host + 1);
 });
 
+test('perfil completo organizado: números e ações numa faixa, menu Mais e o resto em abas', async ({ page }, info) => {
+  const other = { id: '5', publicId: '100000005', username: 'lia', displayName: 'Lia', avatarUrl: null, status: 'ONLINE', platformRole: 'USER', bio: 'Oi, eu sou a Lia.', accountLevel: 4, createdAt: '2025-03-10T12:00:00.000Z', youtubeUrl: 'https://youtube.com/@lia' };
+  const profile = { user: other, levelProgress: 40, badges: [], mutualFriends: [{ id: '2', displayName: 'Loritta', username: 'loritta' }], likeCount: 3, dislikeCount: 1, myVote: 0, totalUps: 3, displayedAchievements: [] };
+  await page.route('**/api/**', (route) => {
+    const p = new URL(route.request().url()).pathname.replace(/^\/api/, '');
+    if (p === '/users/5') return json(route, profile);
+    if (p === '/users/5/summary') return json(route, { profile, fan: { count: 9, isFan: false }, traits: null, polls: { polls: [] } });
+    if (p === '/scraps/5') return json(route, { scraps: [], total: 0, totalPages: 1 });
+    if (p === '/reputation/user/5') return json(route, { total: 2 });
+    if (p === '/profile-visits/5/register' || p === '/profile-visits/5') return json(route, { ok: true });
+    return handler(route);
+  });
+  await page.goto('/channels/ch2');
+  await expect(page.locator('.chat-header')).toBeVisible({ timeout: 20_000 });
+  // Abre pelo link do perfil. O app ainda pode estar trocando o endereço do
+  // canal pelo nome bonito e passar por cima: nesse caso tenta de novo.
+  await expect(async () => {
+    await page.evaluate(() => { window.history.pushState({}, '', '/u/5'); window.dispatchEvent(new PopStateEvent('popstate')); });
+    await expect(page.locator('.profile-top-row')).toBeVisible({ timeout: 6000 });
+  }).toPass({ timeout: 30_000 });
+  const bar = page.locator('.pfl-bar');
+  await expect(bar).toBeVisible({ timeout: 15_000 });
+  // Números: nível (com a barrinha), Ups, reputação e seguidores — sem repetir insígnias/datas.
+  await expect(bar.locator('.pf-stat')).toHaveCount(4);
+  await expect(bar.locator('.pfl-level [role="progressbar"]')).toHaveAttribute('aria-valuenow', '40');
+  await expect(bar.locator('.pf-stat', { hasText: 'Seguidores' })).toContainText('9');
+  // Ações: só três botões com nome; o resto fica no menu "Mais".
+  const actions = bar.locator('.pfl-actions');
+  await expect(actions.locator('.btn-primary, .btn-secondary')).toHaveText(['Mensagem', 'Adicionar amigo', 'Seguir']);
+  await expect(page.getByRole('menu')).toHaveCount(0);
+  await actions.getByRole('button', { name: 'Mais opções' }).click();
+  await expect(page.getByRole('menuitem')).toHaveText([/Compartilhar perfil/, /Ignorar/, /Denunciar perfil/]);
+  await page.keyboard.press('Escape');
+  await expect(page.getByRole('menu')).toHaveCount(0);
+  await expect(page.locator('.profile-fullscreen-overlay')).toBeVisible(); // Esc fecha só o menu
+  // "Sobre": coluna à esquerda no computador; primeira aba no celular.
+  const mobile = info.project.name === 'celular';
+  if (mobile) {
+    await expect(page.getByRole('tab').first()).toHaveText(/Sobre/);
+    await expect(page.getByRole('tab', { name: 'Sobre' })).toHaveAttribute('aria-selected', 'true');
+  } else {
+    await expect(page.locator('.pfl-aside')).toBeVisible();
+    await expect(page.getByRole('tab', { name: 'Sobre' })).toHaveCount(0);
+  }
+  await expect(page.getByText('Oi, eu sou a Lia.')).toBeVisible();
+  await expect(page.getByText(/No Project Club desde 10 de março de 2025/)).toBeVisible();
+  // Abas: uma aberta por vez, e as setas do teclado trocam.
+  await page.getByRole('tab', { name: 'Recados' }).click();
+  await expect(page.getByRole('tab', { name: 'Recados' })).toHaveAttribute('aria-selected', 'true');
+  await expect(page.getByPlaceholder(/Deixe um recado pra Lia/)).toBeVisible();
+  await expect(page.locator('.pf-tabpanel:not([hidden])')).toHaveCount(1);
+  await page.getByRole('tab', { name: 'Recados' }).press('ArrowLeft');
+  await expect(page.getByRole('tab', { name: 'Recados' })).toHaveAttribute('aria-selected', 'false');
+  // Nada vaza pros lados.
+  const overflow = await page.evaluate(() => { const b = document.querySelector('.profile-modal-fullscreen'); return b.scrollWidth - b.clientWidth; });
+  expect(overflow).toBeLessThanOrEqual(1);
+});
+
 test('Economia: cartão da carteira com moedas e gemas vira ao clicar e no teclado', async ({ page }) => {
   await page.route('**/api/**', handler);
   await page.route('**/api/economy', (r) => json(r, { coins: 1861, gems: 19, dailyStreak: 1, streakRequired: 5, lastDailyAt: null, nextDailyAt: null, accountLevel: 7 }));

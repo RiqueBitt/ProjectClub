@@ -7,6 +7,33 @@ import { findMemberUser } from '../utils/prettyPaths';
 import { resolveLinkRemote } from '../utils/prettyLinks';
 import '../styles/socialx.css';
 
+// O app fecha o perfil a cada troca de rota (MainApp.jsx). Depois do "voltar"
+// ainda pode vir um redirecionamento (/ → canal inicial); em aparelho lento
+// ele chegava depois de o perfil abrir (antes: espera fixa de 200 ms) e
+// fechava o perfil na cara da pessoa. Agora espera a rota parar de mudar e,
+// se mesmo assim uma troca de rota fechar o perfil logo em seguida, abre de
+// novo (uma vez só).
+function openProfileWhenSettled(id, linkPath) {
+  const started = Date.now();
+  let last = window.location.pathname;
+  let since = started;
+  const timer = setInterval(() => {
+    const now = window.location.pathname;
+    if (now !== last) { last = now; since = Date.now(); return; }
+    const passing = now === linkPath || now === '/'; // ainda de passagem
+    if ((passing || Date.now() - since < 250) && Date.now() - started < 4000) return;
+    clearInterval(timer);
+    useStore.getState().openProfile(id);
+    let reopened = false;
+    const stop = useStore.subscribe((st) => {
+      if (reopened || st.viewingProfileUserId || window.location.pathname === now) return;
+      reopened = true;
+      setTimeout(() => useStore.getState().openProfile(id), 60);
+    });
+    setTimeout(stop, 2500);
+  }, 80);
+}
+
 // Endereços curtos compartilháveis (/perfil/<@> — antigo /u/<id> —,
 // /modpack/<id>, /mod/<jogo>/<mod>, /eventos/<id>) — só redirecionam pro
 // lugar certo do app.
@@ -26,7 +53,7 @@ export default function DeepLinkPage({ kind }) {
       // O app fecha o perfil quando a rota muda — então volta primeiro e
       // abre o perfil logo depois. /perfil/<@usuário> (ou o id antigo).
       const ref = params.id;
-      const open = (id) => { if (!alive) return; back(); setTimeout(() => useStore.getState().openProfile(id), 200); };
+      const open = (id) => { if (!alive) return; back(); openProfileWhenSettled(id, location.pathname); };
       const local = findMemberUser(useStore.getState(), ref);
       if (local) open(local.id);
       else resolveLinkRemote(location.pathname).then((link) => open(link?.kind === 'user' ? link.id : ref));
