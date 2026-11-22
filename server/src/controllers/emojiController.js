@@ -32,7 +32,8 @@ async function createEmoji(req, res, next) {
     const existing = await prisma.emoji.findUnique({ where: { name } });
     if (existing) return res.status(409).json({ error: 'Já existe um emoji com esse nome.' });
 
-    const count = await prisma.emoji.count();
+    // Os pacotes embutidos (Club Penguin, MSN) não ocupam vaga da equipe.
+    const count = await prisma.emoji.count({ where: { NOT: { url: { startsWith: '/emoji-sets/' } } } });
     if (count >= EMOJI_SLOT_LIMIT) {
       return res.status(400).json({ error: `Limite de ${EMOJI_SLOT_LIMIT} emojis atingido.` });
     }
