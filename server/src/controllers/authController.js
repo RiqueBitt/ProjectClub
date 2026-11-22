@@ -1080,7 +1080,21 @@ async function me(req, res, next) {
   } catch (err) { next(err); }
 }
 
+// Só os campos públicos de um usuário que já veio inteiro do banco (ex.:
+// o req.user do requireAuth, que é a linha toda do User — com e-mail,
+// hash da senha e segredo do 2FA). Use isto antes de mandar o usuário
+// pra outra pessoa (evento de socket, resposta).
+function publicUserOf(user) {
+  if (!user) return null;
+  const out = {};
+  for (const [k, v] of Object.entries(PUBLIC_USER_FIELDS)) {
+    if (v === true && Object.prototype.hasOwnProperty.call(user, k)) out[k] = user[k];
+  }
+  return out;
+}
+
 module.exports = {
+  publicUserOf,
   register, login, refresh, logout, sendVerification, verifyEmail,
   forgotPassword, resetPassword, setup2FA, confirm2FA, disable2FA, me,
   listSessions, revokeSession, revokeOtherSessions, ensurePublicId,

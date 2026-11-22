@@ -1,5 +1,5 @@
 const prisma = require('../config/prisma');
-const { PUBLIC_USER_FIELDS } = require('./authController');
+const { PUBLIC_USER_FIELDS, publicUserOf } = require('./authController');
 const { ensureDirectConversation } = require('./conversationController');
 const { maybeSendOfflineEmail } = require('../services/offlineEmailNotifier');
 
@@ -43,7 +43,7 @@ async function sendRequest(req, res, next) {
 
     const targetPrefs = await require('./settingsController').getExtraPrefs(target.id);
     const shown = targetPrefs.friendReqMessages === false ? { ...friendship, message: null } : friendship;
-    req.app.get('io')?.notifyUser?.(target.id, 'friend:request', { friendship: shown, from: req.user });
+    req.app.get('io')?.notifyUser?.(target.id, 'friend:request', { friendship: shown, from: publicUserOf(req.user) });
     maybeSendOfflineEmail(target.id, { type: 'friend_request', actorName: req.user.displayName });
     res.status(201).json({ friendship });
   } catch (err) { next(err); }

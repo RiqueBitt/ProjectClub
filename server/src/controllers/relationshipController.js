@@ -1,5 +1,5 @@
 const prisma = require('../config/prisma');
-const { PUBLIC_USER_FIELDS } = require('./authController');
+const { PUBLIC_USER_FIELDS, publicUserOf } = require('./authController');
 
 // Item pedido: "está namorando com Fulano" — só fica público depois
 // que os DOIS lados confirmam, mesmo espírito de aceitar um pedido de
@@ -24,7 +24,7 @@ async function sendRequest(req, res, next) {
     const request = await prisma.relationshipRequest.create({
       data: { requesterId: req.user.id, partnerId, status: 'PENDING' },
     });
-    req.app.get('io')?.notifyUser?.(partnerId, 'relationship:request', { request, from: req.user });
+    req.app.get('io')?.notifyUser?.(partnerId, 'relationship:request', { request, from: publicUserOf(req.user) });
     res.status(201).json({ request });
   } catch (err) { next(err); }
 }
