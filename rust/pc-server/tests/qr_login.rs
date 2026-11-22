@@ -486,10 +486,10 @@ async fn app_abre_o_jogo_no_webview() {
         user: None,
         cookie: None,
     };
-    let path = format!("/api/auth/app-handoff/{code}?to=%2Fpraca%2Fapp%3Fsala%3D1");
+    let path = format!("/api/auth/app-handoff/{code}?to=%2Fadmin%3Faba%3D1");
     let r = call(&env, "GET", &path, &webview, json!(null)).await;
     assert_eq!(r.status, 302, "{}", r.text);
-    assert_eq!(r.headers["location"], "/praca/app?sala=1");
+    assert_eq!(r.headers["location"], "/admin?aba=1");
     assert!(
         r.headers
             .get_all("set-cookie")

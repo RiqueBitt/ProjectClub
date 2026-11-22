@@ -85,7 +85,6 @@ class AppNavigator(
     override fun search() = go("search")
     override fun games(userId: String) = go("games/$userId")
     override fun trades() = go("trades")
-    override fun praca() = com.projectclub.android.ui.praca.PracaActivity.start(context)
     override fun site(path: String) = com.projectclub.android.ui.praca.SiteActivity.open(context, path)
 
     // ---- links bonitos (/canal/<nome>, /dm/<@>, /perfil/<@>, /evento/<nome>, /forum/<nome>) ----
@@ -156,7 +155,6 @@ class AppNavigator(
             "anuncios" -> announcements()
             "inbox", "caixa-de-entrada" -> inbox(if (tab == "favoritos") 1 else 0)
             "clans" -> clubs()
-            "praca" -> praca()
             "admin" -> site(uri.path.orEmpty().ifBlank { "/admin" } + (uri.query?.let { "?$it" } ?: ""))
             "tickets" -> tickets()
             "atividade" -> activity()

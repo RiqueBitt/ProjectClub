@@ -1,12 +1,12 @@
 // App Android nativo → página do site dentro do app (WebView), já logado.
 //
-// O jogo da Praça (Club Penguin, Flash via Ruffle) só roda numa página web.
+// Páginas do site abertas pelo app nativo (WebView) já logadas.
 // O app nativo não pode emprestar o cookie de sessão dele pro WebView: o
 // refresh token é rotativo e de uso único — se o WebView o usasse, a sessão
 // do app morreria. Então:
 //   POST /api/auth/app-handoff            (app, logado + cookie de sessão vivo)
 //        → { code } de uso único, 2 minutos
-//   GET  /api/auth/app-handoff/:code?to=/praca/app
+//   GET  /api/auth/app-handoff/:code?to=/admin
 //        → cria uma sessão NOVA (cookie) pro WebView e redireciona pra `to`
 // A sessão do WebView aparece na lista de sessões como o mesmo aparelho (o
 // WebView usa o mesmo User-Agent do app) e vive sozinha dali em diante.
@@ -49,7 +49,7 @@ async function create(req, res, next) {
 
 function safePath(to) {
   const p = typeof to === 'string' ? to : '';
-  return p.startsWith('/') && !p.startsWith('//') ? p : '/praca/app';
+  return p.startsWith('/') && !p.startsWith('//') ? p : '/inicio';
 }
 
 async function consume(req, res, next) {

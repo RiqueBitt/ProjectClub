@@ -105,38 +105,6 @@
   --divider-strong: #C7D3E3;
 }
 
-/* Tema "clubpenguin" — visual gelado, colorido e arredondado, tipografia
-   mais "fofa"/cartoon (ver decisão do usuário: tema ALTERNATIVO, escolhido
-   nas configurações, não substitui o Facebook). Fundo azul-gelo, painéis
-   brancos com contorno azul-turquesa grosso e cantos bem redondos,
-   destaque em turquesa vibrante — combina com os avatares de pinguim
-   (ver PenguinAvatar.jsx / UserAvatar.jsx). */
-[data-theme='clubpenguin'] {
-  --bg-deepest: #BFEFFF;
-  --bg-secondary: #E3F7FF;
-  --bg-primary: #FFFFFF;
-  --bg-primary-solid: #FFFFFF;
-  --bg-elevated: #EAFBFF;
-  --bg-elevated-solid: #EAFBFF;
-  --bg-modifier-hover: rgba(62, 160, 224, 0.12);
-  --bg-floating: #FFFFFF;
-  --bg-floating-solid: #FFFFFF;
-  --header-primary: #06344F;
-  --header-secondary: #1D6E96;
-  --text-normal: #06344F;
-  --text-muted: #4A8BAE;
-  --text-link: #1E88C7;
-  --interactive-active: #06344F;
-  --brand: #1E88C7;
-  --brand-hover: #146A9C;
-  --green: #4CAF50;
-  --yellow: #F0C93E;
-  --red: #E0524B;
-  --border: #AEE4F7;
-  --scrollbar: #AEE4F7;
-  --divider-strong: #8AD4F0;
-}
-
 /* Tema "light" (renomeado de "reddit" — nome interno agora é o mesmo
    "Claro" comum que outros temas do app usam) — extraído de verdade das
    cores/tokens do Reddit clone (typescript-reddit-clone-main) que o
@@ -1777,7 +1745,7 @@ button.chat-header-avatar { padding: 0; border-radius: 50%; flex-shrink: 0; }
 .theme-swatch.light { background: #DAE0E6; color: #1c1c1c; border-color: #ccc; }
 .theme-swatch.amoled { background: #000; }
 .theme-swatch.facebook { background: #F0F2F5; color: #1C1E21; }
-.theme-swatch.clubpenguin { background: linear-gradient(135deg, #BFEFFF, #3EA0E0); color: #06344F; font-weight: 700; }
+
 /* Item pedido: "5 variantes de visual dos meus emoji" — grid com uma
    amostra real de cada estilo (ver EmojiStylePreview em
    UserSettingsModal.jsx), pra comparar antes de escolher. */
@@ -4505,81 +4473,26 @@ a.embed-card-title:hover { text-decoration: underline; }
    uma fonte mais arredondada/lúdica, por cima do mesmo layout de
    chat/canais (a estrutura não muda, só a "pintura").
    ============================================================ */
-[data-theme='clubpenguin'] {
-  --cp-radius-lg: 26px;
-  --cp-radius-md: 16px;
-  --cp-border-width: 3px;
-}
 
-[data-theme='clubpenguin'] body {
-  font-family: 'Comic Sans MS', 'Baloo 2', 'Roboto', -apple-system, 'Apple Color Emoji', 'Segoe UI Emoji', 'Noto Color Emoji', sans-serif;
-  background: linear-gradient(180deg, #BFEFFF 0%, #E3F7FF 60%);
-}
 
-[data-theme='clubpenguin'] .top-navbar {
-  border-bottom: var(--cp-border-width) solid var(--brand);
-}
-[data-theme='clubpenguin'] .top-navbar-brand { color: var(--brand); }
 
-[data-theme='clubpenguin'] .sidebar,
-[data-theme='clubpenguin'] .members-sidebar,
-[data-theme='clubpenguin'] .dm-sidebar,
-[data-theme='clubpenguin'] .channel-header,
-[data-theme='clubpenguin'] .modal-box,
-[data-theme='clubpenguin'] .settings-panel,
-[data-theme='clubpenguin'] .friend-card,
-[data-theme='clubpenguin'] .conversation-item,
-[data-theme='clubpenguin'] .card,
-[data-theme='clubpenguin'] .popover,
-[data-theme='clubpenguin'] .context-menu,
-[data-theme='clubpenguin'] .dropdown-menu {
-  border-radius: var(--cp-radius-lg);
-  border: var(--cp-border-width) solid var(--border);
-  box-shadow: 0 3px 0 var(--border);
-}
 
-[data-theme='clubpenguin'] .btn-primary,
-[data-theme='clubpenguin'] .btn-secondary,
-[data-theme='clubpenguin'] .btn-danger,
-[data-theme='clubpenguin'] button:not(.icon-btn):not(.icon-btn-small) {
-  border-radius: 999px;
-  font-weight: 700;
-}
-[data-theme='clubpenguin'] .btn-primary {
-  box-shadow: 0 3px 0 var(--brand-hover);
-}
 
-[data-theme='clubpenguin'] input,
-[data-theme='clubpenguin'] textarea,
-[data-theme='clubpenguin'] select,
-[data-theme='clubpenguin'] .message-input,
-[data-theme='clubpenguin'] .search-input {
-  border-radius: var(--cp-radius-md);
-  border: var(--cp-border-width) solid var(--border);
-}
 
-[data-theme='clubpenguin'] .avatar-lg,
-[data-theme='clubpenguin'] .profile-avatar {
-  border: var(--cp-border-width) solid var(--brand) !important;
-}
 
-[data-theme='clubpenguin'] .sidebar-section-title,
-[data-theme='clubpenguin'] .category-label,
-[data-theme='clubpenguin'] .members-section-title {
-  font-weight: 800;
-  color: var(--brand);
-}
 
-[data-theme='clubpenguin'] .channel-item.active,
-[data-theme='clubpenguin'] .conversation-item.active {
-  background: var(--brand);
-  color: #fff;
-  border-radius: var(--cp-radius-md);
-}
-[data-theme='clubpenguin'] .channel-item.active *,
-[data-theme='clubpenguin'] .conversation-item.active * {
-  color: #fff !important;
-}
+
+
+
+
+
+
+
+
+
+
+
+
 
 /* Seletor de avatar de pinguim (ver UserSettingsModal.jsx, aba Meu perfil) */
 .penguin-avatar-picker { display: flex; flex-wrap: wrap; gap: 10px; }
@@ -5554,19 +5467,6 @@ a.embed-card-title:hover { text-decoration: underline; }
 .profile-reddit-activity-info { display: flex; flex-direction: column; min-width: 0; flex: 1; }
 .profile-reddit-activity-info span:first-child { font-size: 13px; font-weight: 600; color: var(--header-primary); }
 .profile-reddit-activity-info .dim { font-size: 11px; }
-
-/* ============================================================
-   Camada visual do tema "Claro" (data-theme='light', renomeado de
-   "reddit") — igual às camadas [data-theme='facebook'] e
-   [data-theme='clubpenguin'] acima: pinta os componentes existentes
-   (sidebar, botões, cartões, bolha de mensagem) com o visual real do
-   Reddit clone que o usuário mandou — fonte "IBM"-like (Helvetica/Arial
-   como fallback real, já que a fonte IBM Plex não está instalada no
-   projeto), cartões brancos com contorno cinza FINO em vez de sombra,
-   cantos discretos (4-6px, nunca arredondados), botões principais em
-   pílula azul #0079D3. A estrutura do app (canais/chat/DMs) continua
-   exatamente a mesma — só a "pintura" muda, mesmo espírito das camadas
-   Facebook/Club Penguin já existentes. ============================================================ */
 [data-theme='light'] {
   --rd-radius: 4px;
   --rd-radius-md: 6px;

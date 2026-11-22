@@ -725,8 +725,10 @@ button.mdx-ux-tile.dim:hover { border-color: color-mix(in srgb, var(--red) 40%, 
 .mdx-compat.loader { color: var(--yellow, #f0b232); background: color-mix(in srgb, var(--yellow, #f0b232) 14%, transparent); }
 .mdx-compat.bad { color: var(--red); background: color-mix(in srgb, var(--red) 13%, transparent); }
 .mdx-compat.steam { color: #66c0f4; background: color-mix(in srgb, #66c0f4 14%, transparent); }
-[data-theme='light'] .mdx-compat.steam, [data-theme='facebook'] .mdx-compat.steam, [data-theme='clubpenguin'] .mdx-compat.steam { color: #1a6fa0; }
-[data-theme='light'] .mdx-compat.loader, [data-theme='facebook'] .mdx-compat.loader, [data-theme='clubpenguin'] .mdx-compat.loader { color: color-mix(in srgb, var(--yellow, #f0b232) 60%, #000); }
+
+[data-theme='light'] .mdx-compat.steam, [data-theme='facebook'] .mdx-compat.steam { color: #1a6fa0; }
+
+[data-theme='light'] .mdx-compat.loader, [data-theme='facebook'] .mdx-compat.loader { color: color-mix(in srgb, var(--yellow, #f0b232) 60%, #000); }
 
 .mdx-ux-detail-compat {
   display: flex; align-items: center; flex-wrap: wrap; gap: 8px 10px; margin: 0 0 12px; padding: 10px 12px; border-radius: 12px;

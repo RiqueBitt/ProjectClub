@@ -84,7 +84,6 @@ const { requireFeature, isFeatureEnabled } = require('./config/features');
 const archiveRoutes = require('./routes/archive');
 const catalogRoutes = require('./routes/catalog');
 const clansRoutes = require('./routes/clans');
-const minigamesRoutes = require('./routes/minigames');
 
 function createApp() {
   const app = express();
@@ -145,9 +144,8 @@ function createApp() {
     contentSecurityPolicy: {
       directives: {
         defaultSrc: ["'self'"],
-        // 'wasm-unsafe-eval': o Ruffle (emulador de Flash dos Mini-Jogos,
-        // servido em /ruffle) roda em WebAssembly. Só libera compilar WASM,
-        // não libera eval() de JS.
+        // 'wasm-unsafe-eval': libera compilar WebAssembly (não libera eval()
+        // de JS). Era do Ruffle dos Mini-Jogos (removidos em nov/2026).
         // YouTube "Assistir juntos" (chamada de voz): IFrame Player API.
         scriptSrc: ["'self'", "'wasm-unsafe-eval'", 'https://www.youtube.com'],
         scriptSrcElem: ["'self'", 'https://www.youtube.com'],
@@ -187,19 +185,6 @@ function createApp() {
       },
     },
   }));
-
-  // Praça (Club Penguin): o cliente Flash de 2012 usa ExternalInterface, e o
-  // Ruffle executa essas chamadas com `new Function(...)` — bloqueado pela CSP
-  // acima (sem 'unsafe-eval' o jogo trava logo ao abrir). Só o DOCUMENTO do
-  // jogo (/praca e /praca/app) recebe 'unsafe-eval'; a página do jogo força
-  // um carregamento próprio pra pegar este cabeçalho (ver PracaPage.jsx).
-  app.use((req, res, next) => {
-    if (req.path === '/praca' || req.path.startsWith('/praca/')) {
-      const csp = res.getHeader('Content-Security-Policy');
-      if (csp) res.setHeader('Content-Security-Policy', String(csp).replace("script-src 'self'", "script-src 'self' 'unsafe-eval'"));
-    }
-    next();
-  });
 
   app.use(cors({ origin: env.CLIENT_ORIGIN, credentials: true }));
   // Item pedido: otimização/velocidade — o pacote "compression" já
@@ -477,9 +462,6 @@ function createApp() {
   // VPN do app de PC (servidores do VPN Gate) — ver services/vpnGate.js.
   app.use('/api/vpn', require('./routes/vpn'));
   app.use('/api/clans', clansRoutes);
-  app.use('/api/minigames', minigamesRoutes);
-  // Praça: Club Penguin (Waddle Forever embutido) — ver services/waddle/.
-  app.use('/api/plaza', require('./routes/plaza'));
   app.use('/api/anuncios', require('./routes/staffAnnouncements'));
   app.use('/api/section-badges', require('./routes/sectionBadges'));
   // Guerra das Cartas: desligada temporariamente no código (config/features.js)
@@ -490,8 +472,6 @@ function createApp() {
   // Primeiros passos (checklist com moedas + tour) e painel de saúde/backup da staff.
   app.use('/api/onboarding', require('./routes/onboarding'));
   app.use('/api/staff-ops', require('./routes/staffOps'));
-  // Painel da equipe → Jogo (Club Penguin): pinguins, moedas, itens, iglus.
-  app.use('/api/staff-game', require('./routes/staffGame'));
   // Fase 5: revisão de banimento/suspensão (pessoa punida + fila da equipe).
   app.use('/api/appeals', require('./routes/appeals'));
 
@@ -530,11 +510,6 @@ function createApp() {
       if (cc) res.setHeader('Cache-Control', cc);
     },
   }));
-  // Praça (Club Penguin / Waddle Forever): o jogo pede SWFs e configs por
-  // caminhos absolutos (/boots.swf, /play/v2/..., /setup/...). Fica DEPOIS
-  // dos estáticos do site e ANTES do fallback do React; só responde ao que
-  // é do jogo (ver services/waddle/index.js).
-  if (isFeatureEnabled('plaza')) require('./services/waddle').mountHttp(app);
   app.get('*', (req, res, next) => {
     if (req.path.startsWith('/api') || req.path.startsWith('/uploads')) return next();
     res.setHeader('Cache-Control', 'no-cache');

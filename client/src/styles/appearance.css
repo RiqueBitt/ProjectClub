@@ -121,7 +121,8 @@ html[data-pc-anim-bg] .app-shell .top-search-bar { background: color-mix(in srgb
 .pc-blob-a { left: -20vmax; top: -25vmax; background: radial-gradient(circle, color-mix(in srgb, var(--brand) 70%, transparent), transparent 65%); animation: pc-drift-a 38s ease-in-out infinite alternate; }
 .pc-blob-b { right: -25vmax; bottom: -30vmax; background: radial-gradient(circle, color-mix(in srgb, #b65cff 60%, transparent), transparent 65%); animation: pc-drift-b 46s ease-in-out infinite alternate; }
 .pc-blob-c { left: 30vw; top: 35vh; width: 50vmax; height: 50vmax; background: radial-gradient(circle, color-mix(in srgb, #20c4b0 45%, transparent), transparent 65%); animation: pc-drift-c 54s ease-in-out infinite alternate; }
-[data-theme='light'] .pc-blob, [data-theme='facebook'] .pc-blob, [data-theme='clubpenguin'] .pc-blob { opacity: .35; }
+
+[data-theme='light'] .pc-blob, [data-theme='facebook'] .pc-blob { opacity: .35; }
 @keyframes pc-drift-a { to { transform: translate(28vw, 22vh) scale(1.15); } }
 @keyframes pc-drift-b { to { transform: translate(-30vw, -18vh) scale(.9); } }
 @keyframes pc-drift-c { to { transform: translate(-22vw, 18vh) scale(1.2); } }

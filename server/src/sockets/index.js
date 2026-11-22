@@ -15,8 +15,6 @@ const voiceUsage = require('../services/voiceUsage');
 const gamePlaytime = require('../services/gamePlaytime');
 const { steamAppIdOf } = require('../utils/steamCover');
 const ytWatch = require('./ytWatch');
-const cpJukebox = require('./cpJukebox');
-const { initSledRacing } = require('./sledRacing');
 const { visibleStatus, installSocketMasking } = require('../utils/presenceVisibility');
 const { createTokenBucket } = require('../utils/tokenBucket');
 const mediaControl = require('../services/mediaControl');
@@ -267,11 +265,6 @@ function initSockets(httpServer) {
   // Todo emit (broadcast, sala user:<id>, socket direto) mascara o status
   // INVISIBLE de quem não é o destinatário — ver presenceVisibility.js.
   installSocketMasking(io);
-
-  // Multiplayer da Corrida de Trenó (namespace próprio /sled, sem login —
-  // ver sledRacing.js). Isolado do socket principal: não roda a autenticação
-  // acima nem toca em presença/voz/chat.
-  initSledRacing(io);
 
   // SECURITY: antes só validava o JWT — uma conta banida, suspensa ou
   // desativada com um access token ainda dentro da validade continuava
@@ -725,14 +718,9 @@ function initSockets(httpServer) {
         let channel;
         let perms = null;
         if (typeof channelId === 'string' && channelId.startsWith('praca:')) {
-          // Voz por proximidade do Club Penguin (sala única da ilha; o volume
-          // de cada pessoa sai da distância entre os pinguins, no cliente).
-          if (channelId !== 'praca:ilha' || !require('../config/features').isFeatureEnabled('plaza')) {
-            socket.emit('voice:join-denied', { channelId, reason: 'Sala de voz inválida.' });
-            return;
-          }
-          socket.join('praca:voice');
-          channel = { id: channelId, type: 'VOICE', userLimit: null };
+          // Voz da ilha do Club Penguin: o jogo foi removido (nov/2026).
+          socket.emit('voice:join-denied', { channelId, reason: 'Sala de voz inválida.' });
+          return;
         } else if (typeof channelId === 'string' && channelId.startsWith('clan:')) {
           const me = await prisma.user.findUnique({ where: { id: userId }, select: { clanId: true } });
           if (!me?.clanId || me.clanId !== channelId.slice(5)) {
@@ -972,8 +960,6 @@ function initSockets(httpServer) {
 
     // YouTube "Assistir juntos" na chamada (yt:open/play/pause/seek/next/close/queue:add) — ver ytWatch.js.
     ytWatch.register(io, socket, userId);
-    // Jukebox do YouTube na Danceteria do Club Penguin — ver cpJukebox.js.
-    cpJukebox.register(socket, userId);
     // Sala de estudos (Pomodoro compartilhado na call) — ver focusRoom.js.
     require('./focusRoom').register(io, socket, userId);
 

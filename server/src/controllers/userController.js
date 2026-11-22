@@ -438,7 +438,7 @@ async function removeIdCard(req, res, next) {
   } catch (err) { next(err); }
 }
 
-// Tema de interface (facebook/light/dark/amoled/clubpenguin) — salvo na
+// Tema de interface (facebook/light/dark/amoled) — salvo na
 // CONTA, não só no localStorage do navegador (ver comentário no
 // schema.prisma sobre User.preferredTheme). O cliente já aplica o tema
 // na hora localmente; essa chamada só garante que ele sobrevive a trocar
@@ -446,7 +446,7 @@ async function removeIdCard(req, res, next) {
 async function setPreferredTheme(req, res, next) {
   try {
     const { theme } = req.body;
-    const allowed = ['facebook', 'light', 'dark', 'amoled', 'clubpenguin'];
+    const allowed = ['facebook', 'light', 'dark', 'amoled'];
     if (!allowed.includes(theme)) return res.status(400).json({ error: 'Tema inválido.' });
     const user = await prisma.user.update({
       where: { id: req.user.id }, data: { preferredTheme: theme }, select: SELF_USER_FIELDS,

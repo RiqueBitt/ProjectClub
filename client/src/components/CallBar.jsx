@@ -46,7 +46,6 @@ function callViewPath(call) {
   const id = String(call.channelId);
   if (id.startsWith('dm:')) return conversationPath(id.slice(3));
   if (id.startsWith('clan:')) return '/clans/mine';
-  if (id.startsWith('praca:')) return '/praca';
   return channelPath(id);
 }
 

@@ -10,11 +10,9 @@ import { useLocation, useNavigate } from 'react-router-dom';
 import { useStore } from '../store/useStore';
 import {
   applyLayoutPrefs, sameLayoutPrefs, isDefaultLayoutPrefs, SEASONS,
-  SIDEBAR_WIDTH_MIN, SIDEBAR_WIDTH_MAX, rememberPath, saveScrollPosition, readScrollPosition, setGameParty } from '../utils/appearance';
+  SIDEBAR_WIDTH_MIN, SIDEBAR_WIDTH_MAX, rememberPath, saveScrollPosition, readScrollPosition } from '../utils/appearance';
 import '../styles/appearance.css';
 import { isChannelPath, isDmPath } from '../utils/prettyLinks';
-import { api } from '../api/client.js';
-import { isFeatureEnabled } from '../utils/features';
 
 // Ícones locais (traço, mesmo estilo de PageIcons.jsx).
 const ICONS = {
@@ -63,7 +61,6 @@ export function useApplyAppearance() {
   const settingsLoaded = useStore((s) => !!s.userSettings);
   const adoptedRef = useRef(false);
   const [mqTick, setMqTick] = useState(0);
-  const [gameTick, setGameTick] = useState(0);
 
   // Muda junto quando o sistema liga/desliga "reduzir movimento".
   useEffect(() => {
@@ -76,21 +73,7 @@ export function useApplyAppearance() {
 
   useEffect(() => {
     applyLayoutPrefs(layoutPrefs, { reducedMotion });
-  }, [layoutPrefs, reducedMotion, mqTick, gameTick]);
-
-  // Festa da Praça (Club Penguin): o servidor diz qual festa está rolando na
-  // ilha; o site acompanha (e volta ao normal quando acaba). A cada 10 min.
-  useEffect(() => {
-    if (!isFeatureEnabled('plaza')) return undefined;
-    let alive = true;
-    const check = () => api.get('/plaza/status').then(({ data }) => {
-      if (!alive) return;
-      if (setGameParty(data?.party || null)) setGameTick((n) => n + 1);
-    }).catch(() => {});
-    check();
-    const id = window.setInterval(check, 10 * 60_000);
-    return () => { alive = false; window.clearInterval(id); };
-  }, []);
+  }, [layoutPrefs, reducedMotion, mqTick]);
 
   // A conta é a fonte de verdade: na primeira carga, usa o que está
   // salvo lá; se a conta ainda não tem nada e este aparelho já tem algo

@@ -41,8 +41,6 @@ interface AppNav {
     fun search()
     fun games(userId: String = "me")
     fun trades()
-    /** Club Penguin (a Praça): abre o jogo em tela cheia. */
-    fun praca()
     /** Página do site dentro do app, já logado (Painel da Equipe etc.). */
     fun site(path: String)
 

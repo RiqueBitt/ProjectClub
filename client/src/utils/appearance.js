@@ -189,7 +189,11 @@ export const GAME_PARTY_SEASONS = {
   'Great Snow Race': 'aventura',
 };
 let gameSeason = null;
-try { gameSeason = localStorage.getItem('pc-game-season') || null; } catch { /* ignora */ }
+// Club Penguin removido (nov/2026): não há mais festa da ilha; apaga a que
+// tinha ficado salva neste aparelho (senão o site ficava preso no visual dela).
+try { localStorage.removeItem('pc-game-season'); } catch { /* ignora */ }
+// O jogo também ficava guardado no Cache Storage (pc-praca): libera o espaço.
+try { globalThis.caches?.delete?.('pc-praca')?.catch?.(() => {}); } catch { /* ignora */ }
 /** Chamado quando o servidor informa a festa da Praça (null = sem festa). */
 export function setGameParty(partyName) {
   const id = partyName ? (GAME_PARTY_SEASONS[partyName] || 'festa') : null;

@@ -608,11 +608,11 @@ fn safe_path(query: Option<&str>) -> String {
         .unwrap_or_default();
     match to.as_slice() {
         [p] if p.starts_with('/') && !p.starts_with("//") => p.clone(),
-        _ => "/praca/app".into(),
+        _ => "/inicio".into(),
     }
 }
 
-/// `GET /app-handoff/{code}?to=/praca/app` — cria uma sessão NOVA (cookie)
+/// `GET /app-handoff/{code}?to=/inicio` — cria uma sessão NOVA (cookie)
 /// pro WebView e redireciona.
 pub async fn handoff_consume(
     State(state): State<AppState>,
@@ -666,14 +666,14 @@ mod tests {
 
     #[test]
     fn caminho_seguro() {
-        assert_eq!(safe_path(None), "/praca/app");
+        assert_eq!(safe_path(None), "/inicio");
         assert_eq!(
-            safe_path(Some("to=%2Fpraca%2Fapp%3Fx%3D1")),
-            "/praca/app?x=1"
+            safe_path(Some("to=%2Fadmin%3Fx%3D1")),
+            "/admin?x=1"
         );
-        assert_eq!(safe_path(Some("to=//mal.com")), "/praca/app");
-        assert_eq!(safe_path(Some("to=https://mal.com")), "/praca/app");
-        assert_eq!(safe_path(Some("to=/a&to=/b")), "/praca/app");
+        assert_eq!(safe_path(Some("to=//mal.com")), "/inicio");
+        assert_eq!(safe_path(Some("to=https://mal.com")), "/inicio");
+        assert_eq!(safe_path(Some("to=/a&to=/b")), "/inicio");
     }
 
     #[test]

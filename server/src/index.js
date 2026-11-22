@@ -39,15 +39,9 @@ httpServer.keepAliveTimeout = 65_000;
 httpServer.headersTimeout = 66_000;
 const io = initSockets(httpServer);
 app.set('io', io);
-// Praça (Club Penguin): WebSockets do jogo em /waddle/ws/* no mesmo servidor,
-// e o jogo sobe já na inicialização pra primeira visita não esperar.
-if (require('./config/features').isFeatureEnabled('plaza')) {
-  const waddle = require('./services/waddle');
-  waddle.attachUpgrade(httpServer);
-  waddle.setIo(io); // chat de texto + voz por proximidade (praca:presence / praca:chat)
-  require('./services/waddle/jukebox').init(io); // música do YouTube na Danceteria
-  waddle.getWaddle().catch(() => { /* já logado em services/waddle */ });
-}
+// Club Penguin (Praça) removido em nov/2026: apaga do disco a mídia e o
+// resto do jogo que ficaram de instalações antigas (pode passar de 1 GB).
+require('./services/cpCleanup').removeLeftovers().catch(() => {});
 require('./services/runtimeMetrics').startRuntimeMetrics({ io });
 // Pingu (assistente de IA no Ollama da VPS): conta, presença e respostas.
 require('./services/pinguBot').start(io).catch((err) => console.error('[pingu] falha ao iniciar:', err?.message || err));
@@ -149,10 +143,6 @@ backfillPollTopicPermissions().catch((err) => {
 // Cria no banco as conquistas do catálogo seed que ainda não existem —
 // ver comentário completo em services/achievements.js. Fire-and-forget,
 // não trava o servidor aceitar conexões.
-// Emojis do Club Penguin (coleção "Club Penguin"), se as imagens já vieram da wiki.
-require('./services/cpEmotes').ensureCpEmotes().then((r) => {
-  if (r.created) console.log(`[emojis] Club Penguin: ${r.created} emoji(s) novos`);
-}).catch((err) => console.warn('[emojis] Club Penguin:', err.message));
 // Instâncias padrão (Amigos e Empresarial), se ainda não existirem.
 require('./services/instances').seedDefaultInstances();
 seedAchievements().catch((err) => {
