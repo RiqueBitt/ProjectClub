@@ -48,21 +48,60 @@
 .room-layout { display: grid; grid-template-columns: 248px minmax(0, 1fr); height: 100%; }
 .room-nav { height: 100%; min-height: 0; display: flex; flex-direction: column; gap: 14px;
   padding: 22px 14px 18px; border-right: 1px solid var(--room-line); background: var(--room-surface); box-sizing: border-box; }
-.room-brand { display: flex; align-items: center; gap: 10px; padding: 0 8px; }
-.room-brand strong { display: block; font-size: 19px; font-weight: 800; letter-spacing: -.3px; line-height: 1.1; }
+/* Logo: etiqueta pendurada num gancho + o nome. É um botão (volta pro Início). */
+.room-brand {
+  display: flex; align-items: center; gap: 12px; padding: 2px 8px 4px; border: 0; background: none; cursor: pointer;
+  font: inherit; color: inherit; text-align: left; border-radius: 14px; flex-shrink: 0;
+  --room-logo-a: color-mix(in srgb, var(--room-accent) 62%, #fff); --room-logo-b: var(--room-accent);
+}
+.room-brand:focus-visible { outline: 2px solid var(--room-accent); outline-offset: 2px; }
+.room-logo { display: block; flex-shrink: 0; filter: drop-shadow(0 8px 10px color-mix(in srgb, var(--room-accent) 38%, transparent)); }
+.room-logo svg { display: block; overflow: visible; }
+.room-logo-peg { fill: var(--room-muted); }
+.room-logo-wire { fill: none; stroke: var(--room-muted); stroke-width: 2; stroke-linecap: round; }
+.room-logo-hole { fill: rgba(0, 0, 0, .28); }
+.room-logo-bag { fill: none; stroke: #fff; stroke-width: 2.2; stroke-linecap: round; stroke-linejoin: round; }
+.room-logo-shine { fill: rgba(255, 255, 255, .5); transform: skewX(-18deg); animation: room-logo-shine 6.5s ease-in-out infinite; }
+/* a etiqueta balança no gancho; ao tocar/clicar, balança mais e vai parando */
+.room-logo-tag { transform-origin: 24px 5px; animation: room-logo-sway 5.5s ease-in-out infinite; }
+.room-logo svg.poked .room-logo-tag { animation: room-logo-swing 1.1s cubic-bezier(.3, .6, .4, 1) 1; }
+.room-brand:hover .room-logo-tag { animation-duration: 2.6s; }
+@keyframes room-logo-sway { 0%, 100% { transform: rotate(-3.2deg); } 50% { transform: rotate(3.2deg); } }
+@keyframes room-logo-swing { 0% { transform: rotate(0); } 18% { transform: rotate(13deg); } 42% { transform: rotate(-9deg); } 64% { transform: rotate(5deg); } 84% { transform: rotate(-2.5deg); } 100% { transform: rotate(-3.2deg); } }
+@keyframes room-logo-shine { 0%, 62% { transform: translateX(0) skewX(-18deg); } 82%, 100% { transform: translateX(96px) skewX(-18deg); } }
+.room-brand-text { display: flex; flex-direction: column; min-width: 0; }
+.room-brand strong {
+  display: block; font-size: 26px; font-weight: 800; letter-spacing: -.6px; line-height: 1.05;
+  background: linear-gradient(100deg, var(--room-text) 0 42%, color-mix(in srgb, var(--room-accent) 70%, #fff) 50%, var(--room-text) 58% 100%) 100% 0 / 260% 100%;
+  -webkit-background-clip: text; background-clip: text; color: transparent;
+  animation: room-brand-glint 6.5s ease-in-out infinite;
+}
+@keyframes room-brand-glint { 0%, 60% { background-position: 100% 0; } 85%, 100% { background-position: 0 0; } }
 .room-brand small { color: var(--room-muted); font-size: 12px; font-weight: 600; }
-.room-brand-ico { width: 36px; height: 36px; border-radius: 11px; display: grid; place-items: center; color: #fff;
-  background: linear-gradient(140deg, var(--room-accent), #4f8dff); box-shadow: 0 6px 14px -6px var(--room-accent); }
-.room-nav-scroll { flex: 1; min-height: 0; overflow-y: auto; display: flex; flex-direction: column; gap: 14px; }
+.room-nav-scroll { position: relative; flex: 1; min-height: 0; overflow-y: auto; display: flex; flex-direction: column; gap: 16px; }
+/* pílula da categoria ativa: desliza de um item pro outro */
+.room-nav-pill {
+  position: absolute; left: 0; top: 0; width: 0; height: 0; opacity: 0; pointer-events: none; border-radius: 11px;
+  background: var(--room-accent-soft); box-shadow: inset 3px 0 0 var(--room-accent);
+  transition: transform .32s cubic-bezier(.3, .9, .3, 1), width .32s cubic-bezier(.3, .9, .3, 1), height .2s ease, opacity .2s ease;
+}
 .room-nav-group { display: flex; flex-direction: column; gap: 2px; }
-.room-nav-label { padding: 0 10px 4px; font-size: 11px; font-weight: 800; text-transform: uppercase; letter-spacing: .08em; color: var(--room-muted); }
-.room-nav-item { display: flex; align-items: center; gap: 10px; height: 38px; padding: 0 10px; border: 0; border-radius: 10px; background: transparent;
-  color: var(--room-muted); font: inherit; font-size: 14px; font-weight: 650; text-align: left; cursor: pointer; transition: background .12s, color .12s; }
+.room-nav-label { padding: 0 12px 5px; font-size: 12px; font-weight: 700; color: var(--room-muted); }
+.room-nav-item {
+  position: relative; z-index: 1; display: flex; align-items: center; gap: 11px; height: 38px; padding: 0 12px; border: 0; border-radius: 11px; background: transparent;
+  color: var(--room-muted); font: inherit; font-size: 14px; font-weight: 600; text-align: left; cursor: pointer;
+  transition: background-color .16s ease, color .16s ease, transform .12s ease; -webkit-tap-highlight-color: transparent;
+}
+.room-nav-item svg { flex-shrink: 0; transition: transform .2s cubic-bezier(.3, .9, .3, 1.4), color .16s ease; }
 .room-nav-item span { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.room-nav-item em { font-style: normal; font-size: 11px; font-weight: 750; color: var(--room-muted); background: var(--room-sunken); padding: 1px 7px; border-radius: 999px; }
+.room-nav-item em { font-style: normal; font-size: 11.5px; font-weight: 700; color: var(--room-muted); font-variant-numeric: tabular-nums; }
 .room-nav-item:hover { background: var(--room-sunken); color: var(--room-text); }
-.room-nav-item.active { background: var(--room-accent-soft); color: var(--room-accent-ink); }
-.room-nav-item.active em { background: var(--room-surface); color: var(--room-accent-ink); }
+.room-nav-item:hover svg { transform: scale(1.12) rotate(-4deg); }
+.room-nav-item:active { transform: scale(.975); }                     /* toque/clique: afunda um pouquinho */
+.room-nav-item:focus-visible { outline: 2px solid var(--room-accent); outline-offset: -2px; }
+.room-nav-item.active { background: transparent; color: var(--room-accent-ink); font-weight: 700; }
+.room-nav-item.active svg { color: var(--room-accent); }
+.room-nav-item.active em { color: var(--room-accent-ink); }
 
 .room-main { min-width: 0; min-height: 0; height: 100%; overflow-y: auto; overflow-x: hidden; -webkit-overflow-scrolling: touch; overscroll-behavior: contain; }
 .room-content { max-width: 1120px; margin: 0 auto; box-sizing: border-box; }
@@ -101,14 +140,18 @@
 .room-count { margin: -14px 0 0; color: var(--room-muted); font-size: 13px; font-weight: 600; }
 
 /* ---------- Botões ---------- */
-.room-btn { display: inline-flex; align-items: center; justify-content: center; gap: 6px; min-height: 38px; padding: 0 16px; border-radius: 10px;
-  border: 1px solid var(--room-line-strong); background: var(--room-surface); color: var(--room-text); font: inherit; font-weight: 700; font-size: 14px;
-  cursor: pointer; white-space: nowrap; transition: background .12s, border-color .12s, box-shadow .12s, transform .06s; }
-.room-btn:hover:not(:disabled) { background: var(--room-sunken); }
-.room-btn:active:not(:disabled) { transform: translateY(1px); }
+/* Botão da Loja: um padrão só, igual ao .btn-primary da plataforma no jeito de
+   reagir — sobe 1px e ganha sombra ao passar o mouse, afunda ao clicar/tocar. */
+.room-btn { display: inline-flex; align-items: center; justify-content: center; gap: 7px; min-height: 38px; padding: 0 16px; border-radius: 10px;
+  border: 1px solid var(--room-line-strong); background: var(--room-surface); color: var(--room-text); font: inherit; font-weight: 600; font-size: 14px;
+  cursor: pointer; white-space: nowrap; -webkit-tap-highlight-color: transparent;
+  transition: background-color .12s, border-color .12s, box-shadow .12s, transform .1s; }
+.room-btn:hover:not(:disabled) { background: var(--room-sunken); transform: translateY(-1px); box-shadow: 0 4px 10px -4px rgba(0, 0, 0, .45); }
+.room-btn:active:not(:disabled) { transform: translateY(0) scale(.98); box-shadow: none; }
+.room-btn:focus-visible { outline: 2px solid var(--room-accent); outline-offset: 2px; }
 .room-btn:disabled { opacity: .5; cursor: not-allowed; }
 .room-btn.primary { background: var(--room-accent); border-color: var(--room-accent); color: #fff; box-shadow: 0 1px 2px rgba(31, 111, 235, .3); }
-.room-btn.primary:hover:not(:disabled) { background: var(--room-accent-ink); border-color: var(--room-accent-ink); }
+.room-btn.primary:hover:not(:disabled) { background: var(--brand-hover, var(--room-accent-ink)); border-color: var(--brand-hover, var(--room-accent-ink)); box-shadow: 0 4px 10px -2px color-mix(in srgb, var(--room-accent) 50%, transparent); }
 .room-btn.ghost { background: var(--room-surface); }
 .room-btn.ghost.on { border-color: var(--room-accent); color: var(--room-accent-ink); background: var(--room-accent-soft); }
 .room-btn.light { background: #fff; border-color: #fff; color: #111; }
@@ -379,8 +422,10 @@
   .room-main { flex: 1; height: auto; }
   .room-nav { flex-shrink: 0; height: auto; flex-direction: row; align-items: center; gap: 10px; padding: 10px 16px; border-right: 0; border-bottom: 1px solid var(--room-line); }
   .room-brand small, .room-nav .room-supporter, .room-nav-label { display: none; }
-  .room-brand { padding: 0; }
-  .room-brand strong { font-size: 17px; }
+  .room-brand { padding: 0; gap: 8px; }
+  .room-brand strong { font-size: 20px; }
+  .room-logo svg { width: 34px; height: 40px; }
+  .room-nav-pill { border-radius: 999px; box-shadow: inset 0 0 0 1.5px var(--room-accent); }
   .room-nav-scroll { flex-direction: row; overflow-x: auto; overflow-y: hidden; gap: 4px; scrollbar-width: none; mask-image: linear-gradient(90deg, #000 92%, transparent); }
   .room-nav-scroll::-webkit-scrollbar { display: none; }
   .room-nav-group { flex-direction: row; gap: 4px; }
@@ -398,7 +443,6 @@
 
 /* ---------- Celular ---------- */
 @media (max-width: 640px) {
-  .room-brand-ico { width: 32px; height: 32px; }
   .room-brand strong { display: none; }
   .room-top { flex-wrap: wrap; gap: 8px; }
   .room-search { order: 2; flex-basis: 100%; max-width: none; }
@@ -670,3 +714,10 @@ button.room-supporter.is-none:hover { filter: brightness(1.05); }
 .room-sub-cta:hover { filter: brightness(1.07); transform: translateY(-1px); }
 .room-sub.t-subscriber .room-sub-cta { background: var(--room-sub); color: #fff; box-shadow: 0 8px 18px -10px var(--room-sub); }
 .room-sub.t-super .room-sub-cta { background: linear-gradient(135deg, #ffe08a, #f5b400 60%, #d99a00); color: #3a2a00; box-shadow: 0 8px 18px -10px rgba(245, 180, 0, .9); }
+
+/* Movimento reduzido: a logo e o menu ficam parados. */
+@media (prefers-reduced-motion: reduce) {
+  .room-logo-tag, .room-logo-shine, .room-brand strong, .room-logo svg.poked .room-logo-tag { animation: none; }
+  .room-nav-pill, .room-nav-item, .room-nav-item svg { transition: none; }
+  .room-btn, .room-btn:hover:not(:disabled), .room-btn:active:not(:disabled) { transition: none; transform: none; }
+}

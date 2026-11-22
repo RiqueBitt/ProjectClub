@@ -23,6 +23,8 @@ const PATHS = {
   image: 'M4 5h16v14H4zM4 16l5-5 4 4 2-2 5 5M15.5 9.5h.01',
   store: 'M4 9h16l-1-5H5L4 9ZM4 9a2.7 2.7 0 0 0 5.3 0 2.7 2.7 0 0 0 5.4 0 2.7 2.7 0 0 0 5.3 0M5 11v9h14v-9M10 20v-5h4v5',
   cards: 'M7 3h11a2 2 0 0 1 2 2v13M4 7h11a2 2 0 0 1 2 2v11H6a2 2 0 0 1-2-2z',
+  // Cartão da carteira: cartão deitado com a tarja, o chip e a linha do nome.
+  walletcard: 'M5.5 5h13A2.5 2.5 0 0 1 21 7.5v9a2.5 2.5 0 0 1-2.5 2.5h-13A2.5 2.5 0 0 1 3 16.5v-9A2.5 2.5 0 0 1 5.5 5ZM3 9.5h18M6.5 13h3v2.5h-3zM13 15.5h4.5',
   frame: 'M3 4h18v16H3zM7 8h10v8H7z',
   up: 'M12 19V5M6 11l6-6 6 6',
   down: 'M12 5v14M6 13l6 6 6-6',

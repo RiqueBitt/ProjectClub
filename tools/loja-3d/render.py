@@ -15,7 +15,7 @@ Uso:  python tools/loja-3d/render.py [caixinha|gancho|painel|tudo] [--rascunho]
 """
 import bpy, bmesh, json, math, os, sys
 import numpy as np
-from mathutils import Vector
+from mathutils import Vector, Matrix
 from bpy_extras.object_utils import world_to_camera_view
 
 AQUI = os.path.dirname(os.path.abspath(__file__))
@@ -29,7 +29,7 @@ RASCUNHO = '--rascunho' in sys.argv
 PX = 20.0
 W, H, D = 9.2, 10.6, 2.6          # caixinha: largura, altura, profundidade
 R = 0.6                            # raio dos cantos
-Y_FUNDO = -0.25                    # fundo da caixinha (logo à frente da cartela)
+Y_FUNDO = -0.45                    # fundo da caixinha (sobra espaço pro arame do gancho passar por trás da aba)
 Y_FRENTE = Y_FUNDO - D
 ABA_W, ABA_H = 3.3, 2.1            # aba de pendurar
 FURO_W, FURO_H = 1.7, 0.52
@@ -132,8 +132,10 @@ def mat_plastico_parede():
     lw = nt.nodes.new('ShaderNodeLayerWeight')
     lw.inputs['Blend'].default_value = 0.35
     alfa = nt.nodes.new('ShaderNodeMapRange')
-    alfa.inputs['To Min'].default_value = 0.46
-    alfa.inputs['To Max'].default_value = 0.92
+    # v2: plástico de blister, bem mais claro — de frente quase some (dá pra ver
+    # o que está atrás), de lado fecha e pega o brilho
+    alfa.inputs['To Min'].default_value = 0.10
+    alfa.inputs['To Max'].default_value = 0.78
     nt.links.new(lw.outputs['Facing'], alfa.inputs['Value'])
     mix = nt.nodes.new('ShaderNodeMixShader')
     nt.links.new(alfa.outputs['Result'], mix.inputs['Fac'])
@@ -175,6 +177,21 @@ def mat_plastico_frente():
     return m
 
 
+def mat_plastico_fundo():
+    """Placa de trás da caixinha: plástico fino e claro, encostado na cartela.
+    Quase não aparece (o item fica logo atrás), só um reflexo leve."""
+    m, nt, out = mat('plastico_fundo')
+    g = nt.nodes.new('ShaderNodeBsdfGlossy')
+    g.inputs['Roughness'].default_value = 0.12
+    t = nt.nodes.new('ShaderNodeBsdfTransparent')
+    mix = nt.nodes.new('ShaderNodeMixShader')
+    mix.inputs['Fac'].default_value = 0.035
+    nt.links.new(t.outputs[0], mix.inputs[1])
+    nt.links.new(g.outputs[0], mix.inputs[2])
+    nt.links.new(mix.outputs[0], out.inputs['Surface'])
+    return m
+
+
 def mat_cromado():
     m, nt, out = mat('cromado')
     p = nt.nodes.new('ShaderNodeBsdfPrincipled')
@@ -198,6 +215,9 @@ def mat_emissor(nome, cor, forca):
 
 # ---------------------------------------------------------------- objetos
 def fazer_caixinha():
+    """Caixinha inteira, fechada: frente (filme), as quatro laterais com os
+    cantos arredondados e a placa de trás. Quina arredondada na frente e
+    atrás, parede com espessura de verdade."""
     perfil = ret_arredondado(W, H, R)
     bm = bmesh.new()
     tras = [bm.verts.new((x, Y_FUNDO, z)) for x, z in perfil]
@@ -207,25 +227,27 @@ def fazer_caixinha():
         j = (i + 1) % n
         bm.faces.new((tras[i], tras[j], frente[j], frente[i]))
     tampa = bm.faces.new(frente)
-    bm.normal_update()
-    if tampa.normal.y > 0:
-        tampa.normal_flip()
+    fundo = bm.faces.new(tras[::-1])
     bmesh.ops.recalc_face_normals(bm, faces=bm.faces)
-    borda = [e for e in tampa.edges]
-    bmesh.ops.bevel(bm, geom=borda, offset=0.26, segments=5, profile=0.5, affect='EDGES')
+    bmesh.ops.bevel(bm, geom=list(tampa.edges), offset=0.26, segments=5, profile=0.5, affect='EDGES')
     bm.faces.ensure_lookup_table()
-    maior = max(bm.faces, key=lambda f: f.calc_area() if abs(f.normal.y) > 0.99 else 0)
+    fundo = min((f for f in bm.faces if abs(f.normal.y) > 0.99), key=lambda f: -f.calc_center_median().y)
+    bmesh.ops.bevel(bm, geom=list(fundo.edges), offset=0.12, segments=3, profile=0.5, affect='EDGES')
     me = bpy.data.meshes.new('caixinha')
     bm.to_mesh(me)
     bm.free()
     o = novo_obj('caixinha', me)
     me.materials.append(mat_plastico_parede())
     me.materials.append(mat_plastico_frente())
-    idx = max(range(len(me.polygons)), key=lambda i: me.polygons[i].area if abs(me.polygons[i].normal.y) > 0.99 else 0)
-    me.polygons[idx].material_index = 1
+    me.materials.append(mat_plastico_fundo())
+    planas = [i for i, pl in enumerate(me.polygons) if abs(pl.normal.y) > 0.99]
+    i_frente = max((i for i in planas if me.polygons[i].center.y < (Y_FUNDO + Y_FRENTE) / 2), key=lambda i: me.polygons[i].area)
+    i_fundo = max((i for i in planas if me.polygons[i].center.y > (Y_FUNDO + Y_FRENTE) / 2), key=lambda i: me.polygons[i].area)
+    me.polygons[i_frente].material_index = 1
+    me.polygons[i_fundo].material_index = 2
     suavizar(me)
     sol = o.modifiers.new('espessura', 'SOLIDIFY')
-    sol.thickness = 0.07
+    sol.thickness = 0.06
     sol.offset = -1
     return o
 
@@ -250,30 +272,39 @@ def fazer_aba():
     o = bpy.data.objects.new('aba', cu)
     bpy.context.scene.collection.objects.link(o)
     o.rotation_euler = (math.radians(90), 0, 0)
-    o.location = (0, Y_FUNDO - 0.06, 0)
+    o.location = (0, Y_ABA, 0)
     cu.materials.append(mat_plastico_parede())
     return o
 
 
+Y_ABA = Y_FUNDO - 0.06             # plano da aba de pendurar
+Z_ARAME = Z_FURO + 0.10            # o arame encosta na beirada de cima do furo
+ANGULOS = [-15, -10, -5, 0, 5, 10, 15]   # giros da caixinha no gancho (graus); o do meio é ela parada
+
+
 def fazer_gancho():
+    """Gancho de expositor: a cabeça fica presa no painel, o arame desce rente
+    à parede POR TRÁS da aba, dobra pra fora, atravessa o furo e vira pra cima
+    na ponta — é nele que a caixinha fica pendurada (e desliza quando gira)."""
     cromo = mat_cromado()
-    bpy.ops.mesh.primitive_uv_sphere_add(segments=48, ring_count=24, radius=0.6, location=(0, -0.56, Z_CABECA))
+    bpy.ops.mesh.primitive_uv_sphere_add(segments=48, ring_count=24, radius=0.5, location=(0, -0.42, Z_CABECA))
     cab = bpy.context.active_object
     cab.name = 'gancho_cabeca'
-    cab.scale = (1, 0.92, 1)
+    cab.scale = (1, 0.9, 1)
     suavizar(cab.data, 3.0)
     cab.data.materials.append(cromo)
     cu = bpy.data.curves.new('haste', 'CURVE')
     cu.dimensions = '3D'
-    cu.bevel_depth = 0.23
+    cu.bevel_depth = 0.16
     cu.bevel_resolution = 8
     cu.use_fill_caps = True
     sp = cu.splines.new('BEZIER')
     pts = [
-        ((0, -0.55, Z_CABECA - 0.2), (0, -0.6, Z_CABECA - 1.0)),
-        ((0, -0.95, Z_FURO + 0.75), (0, -0.98, Z_FURO + 0.35)),
-        ((0, -0.62, Z_FURO - 0.02), (0, -0.4, Z_FURO - 0.05)),
-        ((0, -0.05, Z_FURO + 0.12), (0, 0.1, Z_FURO + 0.2)),
+        ((0, -0.30, Z_CABECA - 0.15), (0, -0.24, Z_CABECA - 0.9)),
+        ((0, -0.24, Z_ARAME + 0.60), (0, -0.24, Z_ARAME + 0.25)),
+        ((0, -0.44, Z_ARAME), (0, -0.70, Z_ARAME)),
+        ((0, -1.95, Z_ARAME - 0.02), (0, -2.30, Z_ARAME)),
+        ((0, -2.62, Z_ARAME + 0.55), (0, -2.66, Z_ARAME + 0.80)),
     ]
     sp.bezier_points.add(len(pts) - 1)
     for bp, (co, hr) in zip(sp.bezier_points, pts):
@@ -284,7 +315,23 @@ def fazer_gancho():
     h = bpy.data.objects.new('gancho_haste', cu)
     bpy.context.scene.collection.objects.link(h)
     cu.materials.append(cromo)
-    return [cab, h]
+    # bolinha na ponta (acabamento do arame)
+    bpy.ops.mesh.primitive_uv_sphere_add(segments=32, ring_count=16, radius=0.21, location=(0, -2.66, Z_ARAME + 0.80))
+    ponta = bpy.context.active_object
+    ponta.name = 'gancho_ponta'
+    suavizar(ponta.data, 3.0)
+    ponta.data.materials.append(cromo)
+    return [cab, h, ponta]
+
+
+def giro(graus):
+    """Onde a caixinha fica quando gira `graus` no gancho: roda em volta do
+    furo da aba e desliza pra fora no arame o bastante pra quina de trás não
+    entrar na parede."""
+    piv = Vector((0, Y_ABA, 0))
+    a = math.radians(graus)
+    fora = Vector((0, -(W / 2) * abs(math.sin(a)), 0))
+    return Matrix.Translation(piv + fora) @ Matrix.Rotation(a, 4, 'Z') @ Matrix.Translation(-piv)
 
 
 def plano(nome, cx, cz, w, h, y):
@@ -447,60 +494,187 @@ def renderizar(nome):
 
 
 # ---------------------------------------------------------------- cenas
-def cena_pendurado(qual):
-    """caixinha = só o plástico; sombra = a sombra que a caixinha faz na cartela;
-    gancho = o gancho e a sombra dele (na cartela e na aba)."""
+def homografia(orig, dest):
+    """Matriz 3x3 que leva os 4 cantos `orig` nos 4 cantos `dest` (em unidades
+    do próprio retângulo de origem). É o que o site usa pra deitar o conteúdo
+    (item, etiqueta) na frente e no fundo da caixinha em cada giro."""
+    A, b = [], []
+    for (x, y), (u, v) in zip(orig, dest):
+        A.append([x, y, 1, 0, 0, 0, -u * x, -u * y]); b.append(u)
+        A.append([0, 0, 0, x, y, 1, -v * x, -v * y]); b.append(v)
+    h = np.linalg.solve(np.array(A, float), np.array(b, float))
+    return [round(float(v), 6) for v in h] + [1.0]
+
+
+def montar():
+    """Cena completa: luzes, câmera, caixinha + aba (que giram juntas), gancho
+    e a cartela atrás."""
     s = limpar()
     luzes()
-    camera(330 if RASCUNHO else 660)
+    camera(264 if RASCUNHO else 528)
     caixa, aba, gancho = fazer_caixinha(), fazer_aba(), fazer_gancho()
     cartela = plano('cartela', 0, 0, 80, 80, -0.06)
-    if qual == 'caixinha':
-        cartela.hide_render = True
-        for o in gancho:
-            o.hide_render = True
-    elif qual == 'sombra':
-        cartela.is_shadow_catcher = True
+    bpy.context.view_layer.update()
+    base = {o.name: o.matrix_world.copy() for o in (caixa, aba)}
+    return s, caixa, aba, gancho, cartela, base
+
+
+def cantos_na_tela(M, y):
+    """Os 4 cantos (em % do quadro) do retângulo da caixinha no plano `y`, depois do giro M."""
+    return [na_tela(M @ Vector(p)) for p in ((-W / 2, y, H / 2), (W / 2, y, H / 2), (W / 2, y, -H / 2), (-W / 2, y, -H / 2))]
+
+
+def cena_giro(quais=('caixinha', 'sombra', 'gancho')):
+    """Renderiza a caixinha em cada giro de ANGULOS e junta os quadros lado a
+    lado (uma tira por camada): caixinha.webp (só o plástico), sombra.webp (a
+    sombra na cartela) e gancho.webp (um quadro só: o gancho não gira)."""
+    from PIL import Image
+    s, caixa, aba, gancho, cartela, base = montar()
+    os.makedirs(TMP, exist_ok=True)
+    meio = ANGULOS.index(0)
+    parado = {'frente': cantos_na_tela(Matrix.Identity(4), Y_FRENTE), 'fundo': cantos_na_tela(Matrix.Identity(4), Y_FUNDO)}
+    dados = {'angulos': ANGULOS, 'parado': meio, 'frente': [], 'fundo': []}
+
+    def pose(graus):
+        M = giro(graus)
         for o in (caixa, aba):
-            o.visible_camera = False
-        for o in gancho:
-            o.hide_render = True
-    else:
+            o.matrix_world = M @ base[o.name]
+        bpy.context.view_layer.update()
+        return M
+
+    for i, graus in enumerate(ANGULOS):
+        M = pose(graus)
+        for lado, y in (('frente', Y_FRENTE), ('fundo', Y_FUNDO)):
+            x0, y0 = parado[lado][0]
+            lw, lh = parado[lado][1][0] - x0, parado[lado][3][1] - y0
+            dest = [((x - x0) / lw, (yy - y0) / lh) for x, yy in cantos_na_tela(M, y)]
+            dados[lado].append(homografia([(0, 0), (1, 0), (1, 1), (0, 1)], dest))
+        for qual in ('caixinha', 'sombra'):
+            if qual not in quais:
+                continue
+            arq = os.path.join(TMP, f'giro_{qual}_{i}.png')
+            if os.path.exists(arq) and '--refazer' not in sys.argv:
+                continue
+            cartela.hide_render = qual == 'caixinha'
+            cartela.is_shadow_catcher = qual == 'sombra'
+            for o in gancho:
+                o.hide_render = True
+            for o in (caixa, aba):
+                o.visible_camera = qual == 'caixinha'
+            s.render.use_border = False
+            s.render.resolution_percentage = 100 if qual == 'caixinha' else 50
+            s.cycles.samples = (32 if RASCUNHO else 128) if qual == 'caixinha' else (24 if RASCUNHO else 96)
+            px = para_rgba(renderizar(f'giro_{qual}_{i}'))
+            if qual == 'sombra':
+                px[..., 3] = np.clip((px[..., 3] - 0.035) / 0.965, 0, 1)      # tira o véu do apanhador de sombra
+                hh, ww = px.shape[:2]
+                yy, xx = np.mgrid[0:hh, 0:ww]
+                borda = np.minimum.reduce([xx, ww - 1 - xx, hh - 1 - yy]) / (0.07 * ww)   # some antes de chegar na beirada
+                px[..., 3] *= np.clip(borda, 0, 1) ** 1.5
+                px[..., :3] = 0
+            Image.fromarray((px * 255 + 0.5).astype(np.uint8), 'RGBA').save(arq)
+            print('QUADRO', qual, i, graus, flush=True)
+
+    os.makedirs(SAIDA, exist_ok=True)
+    for qual in ('caixinha', 'sombra'):
+        if qual not in quais:
+            continue
+        quadros = [Image.open(os.path.join(TMP, f'giro_{qual}_{i}.png')).convert('RGBA') for i in range(len(ANGULOS))]
+        w, h = quadros[0].size
+        tira = Image.new('RGBA', (w * len(quadros), h), (0, 0, 0, 0))
+        for i, q in enumerate(quadros):
+            tira.paste(q, (i * w, 0))
+        tira.save(os.path.join(SAIDA, qual + '.webp'), 'WEBP', quality=78 if qual == 'sombra' else 82, method=6, alpha_quality=88)
+        print('TIRA', qual, tira.size, flush=True)
+
+    if 'gancho' in quais:
+        pose(0)
+        cartela.hide_render = False
         cartela.is_shadow_catcher = True
         caixa.hide_render = True
-        aba.is_shadow_catcher = True      # a sombra da haste em cima da aba
-    if qual == 'sombra' and not RASCUNHO:
-        # sombra é borrada: metade do tamanho basta (e o render sai 4x mais rápido)
-        s.render.resolution_percentage = 50
-        s.cycles.samples = 128
-    if qual == 'gancho':
-        # só o pedaço de cima do quadro tem gancho
-        s.render.use_border = True
-        s.render.border_min_x, s.render.border_max_x = 0.28, 0.66
-        s.render.border_min_y, s.render.border_max_y = 0.66, 1.0
-    px = para_rgba(renderizar(qual))
-    if qual != 'caixinha':
-        px[..., 3] = np.clip((px[..., 3] - 0.035) / 0.965, 0, 1)      # tira o véu do apanhador de sombra
-    if qual == 'sombra':
-        h, w = px.shape[:2]
-        yy, xx = np.mgrid[0:h, 0:w]
-        borda = np.minimum.reduce([xx, w - 1 - xx, h - 1 - yy]) / (0.07 * w)   # some antes de chegar na beirada
-        px[..., 3] *= np.clip(borda, 0, 1) ** 1.5
-        px[..., :3] = 0
-    # renderiza em 660 px e entrega em 528 (2x do quadro de 264 px): mais nítido e mais leve
-    salvar(px, qual, qualidade=80 if qual == 'sombra' else 84, largura=528)
-    if qual == 'caixinha':
-        cantos = {
-            'quadro_px': [round((QX1 - QX0) * PX, 2), round((QZ1 - QZ0) * PX, 2)],
-            'frente': [*na_tela((-W / 2, Y_FRENTE, H / 2)), *na_tela((W / 2, Y_FRENTE, -H / 2))],
-            'fundo': [*na_tela((-W / 2, Y_FUNDO, H / 2)), *na_tela((W / 2, Y_FUNDO, -H / 2))],
-            'furo': list(na_tela((0, Y_FUNDO, Z_FURO))),
-            'cabeca': list(na_tela((0, -0.5, Z_CABECA))),
-            'topo_aba': list(na_tela((0, Y_FUNDO, H / 2 + ABA_H))),
-        }
-        with open(os.path.join(SAIDA, 'medidas.json'), 'w') as f:
-            json.dump(cantos, f, indent=1)
-        print('MEDIDAS', json.dumps(cantos))
+        aba.visible_camera = True
+        aba.is_shadow_catcher = True          # a sombra do arame em cima da aba
+        for o in gancho:
+            o.hide_render = False
+        s.render.resolution_percentage = 100
+        s.cycles.samples = 32 if RASCUNHO else 160
+        px = para_rgba(renderizar('gancho'))
+        px[..., 3] = np.clip((px[..., 3] - 0.035) / 0.965, 0, 1)
+        salvar(px, 'gancho', qualidade=86)
+        caixa.hide_render = False
+
+    cantos = {
+        'quadro_px': [round((QX1 - QX0) * PX, 2), round((QZ1 - QZ0) * PX, 2)],
+        'frente': [*parado['frente'][0], *parado['frente'][2]],
+        'fundo': [*parado['fundo'][0], *parado['fundo'][2]],
+        'furo': list(na_tela((0, Y_ABA, Z_FURO))),
+        'cabeca': list(na_tela((0, -0.42, Z_CABECA))),
+        'topo_aba': list(na_tela((0, Y_ABA, H / 2 + ABA_H))),
+        'giro': dados,
+    }
+    with open(os.path.join(SAIDA, 'medidas.json'), 'w') as f:
+        json.dump(cantos, f, indent=1)
+    # as mesmas matrizes, prontas pro site importar
+    js = os.path.normpath(os.path.join(AQUI, '..', '..', 'client', 'src', 'data', 'lojaCaixinha.js'))
+    os.makedirs(os.path.dirname(js), exist_ok=True)
+    with open(js, 'w') as f:
+        f.write('// GERADO por tools/loja-3d/render.py (não editar à mão).\n')
+        f.write('// Cada giro da caixinha no gancho: o ângulo e a matriz (3x3, por linha) que\n')
+        f.write('// deita o que fica na FRENTE (etiqueta, selos) e no FUNDO (o item) em cima dela.\n')
+        f.write('export const PACK_SPIN = ' + json.dumps(dados, indent=1) + ';\n')
+    print('MEDIDAS', json.dumps({k: v for k, v in cantos.items() if k != 'giro'}), flush=True)
+
+
+def cena_prova():
+    """Prova de que é um modelo 3D: a mesma caixinha (com o gancho e um cartão
+    dentro) vista de vários lados, e o modelo exportado em .glb."""
+    from PIL import Image
+    s, caixa, aba, gancho, cartela, base = montar()
+    cartela.hide_render = True
+    # um cartão colorido lá dentro, só pra dar pra ver a transparência do plástico
+    cartao = plano('cartao', 0, 0, W - 1.4, H - 1.8, Y_FUNDO - 0.2)
+    m, nt, out = mat('cartao_cor')
+    d = nt.nodes.new('ShaderNodeBsdfDiffuse')
+    d.inputs['Color'].default_value = (0.05, 0.42, 0.16, 1)
+    nt.links.new(d.outputs[0], out.inputs['Surface'])
+    cartao.data.materials.clear()
+    cartao.data.materials.append(m)
+    try:
+        bpy.ops.object.select_all(action='DESELECT')
+        for o in (caixa, aba, *gancho):
+            o.select_set(True)
+        bpy.ops.export_scene.gltf(filepath=os.path.join(AQUI, 'caixinha.glb'), export_format='GLB', use_selection=True, export_apply=True)
+        print('GLB-OK', flush=True)
+    except Exception as e:  # o exportador pode não vir no bpy do pip
+        print('GLB-FALHOU', e, flush=True)
+    cam = s.camera
+    c = cam.data
+    c.shift_x = c.shift_y = 0
+    c.lens = 105
+    centro = Vector((0, (Y_FUNDO + Y_FRENTE) / 2, 1.9))
+    lado = 150 if RASCUNHO else 420
+    s.render.resolution_x, s.render.resolution_y = lado, round(lado * 1.3)
+    s.render.resolution_percentage = 100
+    s.cycles.samples = 24 if RASCUNHO else 96
+    vistas = [('frente', 0, 8), ('3/4 direita', 40, 14), ('lado', 90, 6), ('3/4 atrás', 140, 12), ('de cima', 25, 62), ('3/4 esquerda', -40, 14)]
+    fotos = []
+    for nome, az, el in vistas:
+        a, e = math.radians(az), math.radians(el)
+        dist = 46
+        cam.location = centro + Vector((dist * math.sin(a) * math.cos(e), -dist * math.cos(a) * math.cos(e), dist * math.sin(e)))
+        cam.rotation_euler = (centro - cam.location).to_track_quat('-Z', 'Y').to_euler()
+        px = para_rgba(renderizar('prova'))
+        im = Image.fromarray((px * 255 + 0.5).astype(np.uint8), 'RGBA')
+        fundo = Image.new('RGBA', im.size, (22, 24, 30, 255))
+        fundo.alpha_composite(im)
+        fotos.append(fundo.convert('RGB'))
+        print('VISTA', nome, flush=True)
+    w, h = fotos[0].size
+    folha = Image.new('RGB', (w * 3 + 40, h * 2 + 30), (12, 13, 17))
+    for i, f in enumerate(fotos):
+        folha.paste(f, (10 + (i % 3) * (w + 10), 10 + (i // 3) * (h + 10)))
+    folha.save(os.path.join(AQUI, 'prova-3d.png'))
+    print('PROVA-OK', folha.size, flush=True)
 
 
 # ---------------------------------------------------------------- painel perfurado
@@ -648,6 +822,9 @@ def cena_painel():
 
 if ALVO in ('painel', 'tudo'):
     cena_painel()
-for nome in ('caixinha', 'sombra', 'gancho'):
-    if ALVO in (nome, 'tudo', 'pendurado'):
-        cena_pendurado(nome)
+if ALVO in ('caixinha', 'sombra', 'gancho'):
+    cena_giro((ALVO,))
+elif ALVO in ('tudo', 'pendurado', 'giro'):
+    cena_giro()
+if ALVO in ('prova', 'tudo'):
+    cena_prova()

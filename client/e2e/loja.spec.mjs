@@ -113,7 +113,10 @@ test('parede em 3D: gancho, caixinha e painel carregam e a caixinha cabe na cart
   }
   const bg = (sel) => page.locator(sel).first().evaluate((el) => getComputedStyle(el).backgroundImage);
   expect(await bg('.room-grid')).toContain('/loja/parede/painel.webp');
-  expect(await card.locator('.room-hook').evaluate((el) => getComputedStyle(el).backgroundImage)).toContain('/loja/parede/gancho.webp');
+  // gancho e caixinha: o modelo 3D ao vivo (canvas) ou, sem WebGL, a imagem parada
+  await expect(card.locator('.room-pack')).toHaveClass(/\bp3d(-off)?\b/, { timeout: 20_000 });
+  if (await card.locator('.room-pack.p3d-off').count()) expect(await card.locator('.room-hook').evaluate((el) => getComputedStyle(el).backgroundImage)).toContain('/loja/parede/gancho.webp');
+  else await expect(card.locator('canvas.room-pack-3d')).toHaveCount(1);
   // o item (fundo da caixinha) fica inteiro dentro da cartela, no computador e no celular
   const c = await card.boundingBox();
   const w = await card.locator('.room-pack-window').boundingBox();

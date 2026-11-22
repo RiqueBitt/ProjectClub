@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { useParams, useSearchParams } from 'react-router-dom';
 import { slugify } from '../utils/prettyPaths';
 import { useAuth } from '../context/AuthContext.jsx';
@@ -382,7 +382,7 @@ export default function LojaPage() {
     { group: 'Exclusivos', crown: true, items: [
       { id: 'exclusive', label: 'Loja exclusiva', icon: 'crown', n: exclusives.length },
       // Estilo do cartão da carteira (Economia / "Mostrar cartão" no chat).
-      { id: 'cartao', label: 'Cartão da carteira', icon: 'coin' },
+      { id: 'cartao', label: 'Cartão da carteira', icon: 'walletcard' },
       ...(limiteds.length > 0 ? [{ id: 'limited', label: 'Limitados', icon: 'star', n: limiteds.filter((i) => i.remaining > 0).length }] : []),
     ] },
     { group: 'Você', items: [
@@ -395,6 +395,27 @@ export default function LojaPage() {
   ];
   const collection = section.startsWith('col:') ? collections.find((c) => c.id === section.slice(4)) : null;
   const searching = query.trim().length > 0;
+
+  // Pílula da categoria ativa: desliza até o item escolhido (vale pro menu
+  // em pé do PC e pra fileira deitada do celular).
+  const navRef = useRef(null);
+  const [pill, setPill] = useState(null);
+  useLayoutEffect(() => {
+    const box = navRef.current;
+    if (!box) return undefined;
+    const measure = () => {
+      const el = box.querySelector('.room-nav-item.active');
+      if (!el) { setPill(null); return; }
+      const a = el.getBoundingClientRect();
+      const b = box.getBoundingClientRect();
+      const next = { x: Math.round(a.left - b.left + box.scrollLeft), y: Math.round(a.top - b.top + box.scrollTop), w: Math.round(a.width), h: Math.round(a.height) };
+      setPill((cur) => (cur && cur.x === next.x && cur.y === next.y && cur.w === next.w && cur.h === next.h ? cur : next));
+    };
+    measure();
+    const ro = typeof ResizeObserver !== 'undefined' ? new ResizeObserver(measure) : null;
+    ro?.observe(box);
+    return () => ro?.disconnect();
+  }, [section, searching, nav.length, data]);
 
   let content;
   if (!data) content = loadError ? <LoadFailed text={loadError} retry={() => load()} /> : <Skeleton />;
@@ -441,11 +462,9 @@ export default function LojaPage() {
       <HubTabs tabs={ECONOMY_HUB_TABS} value="loja" label="Economia e Loja" />
       <div className="room-layout">
         <aside className="room-nav" aria-label="Categorias da loja">
-          <div className="room-brand">
-            <span className="room-brand-ico"><Ico name="store" size={18} /></span>
-            <div><strong>Loja</strong><small>Project Club</small></div>
-          </div>
-          <nav className="room-nav-scroll">
+          <ShopLogo onHome={() => { setQuery(''); go('home'); }} />
+          <nav className="room-nav-scroll" ref={navRef}>
+            <span className="room-nav-pill" aria-hidden="true" style={pill ? { transform: `translate(${pill.x}px, ${pill.y}px)`, width: pill.w, height: pill.h, opacity: 1 } : undefined} />
             {/* Assinatura sempre no topo, em destaque dourado. */}
             <button type="button" className={`room-nav-sub${!searching && section === 'plans' ? ' active' : ''}`} aria-current={!searching && section === 'plans' ? 'page' : undefined} onClick={() => go('plans')}>
               <Ico name="crown" size={17} />
@@ -504,6 +523,40 @@ export default function LojaPage() {
         />
       )}
     </div>
+  );
+}
+
+// ---------- Logo da Loja ----------
+// Uma etiqueta pendurada num gancho (a Loja é uma parede de expositor) que
+// balança de leve e ganha um brilho de vez em quando. É um botão de verdade:
+// leva pro Início da Loja.
+function ShopLogo({ onHome }) {
+  // "poked": a etiqueta balança mais forte uma vez (a classe sai quando a
+  // animação termina; não dá pra recriar o SVG aqui, senão o clique se perde).
+  const [poked, setPoked] = useState(false);
+  return (
+    <button type="button" className="room-brand" onClick={onHome} onPointerDown={() => setPoked(true)} aria-label="Loja — voltar ao início da Loja">
+      <span className="room-logo" aria-hidden="true">
+        <svg viewBox="0 0 48 56" width="44" height="51" className={poked ? 'poked' : undefined}>
+          <defs>
+            <linearGradient id="room-logo-g" x1="0" y1="0" x2="1" y2="1">
+              <stop offset="0" stopColor="var(--room-logo-a, #6aa8ff)" />
+              <stop offset="1" stopColor="var(--room-logo-b, #3b6cff)" />
+            </linearGradient>
+            <clipPath id="room-logo-clip"><path d="M10 18h28a5 5 0 0 1 5 5v24a5 5 0 0 1-5 5H10a5 5 0 0 1-5-5V23a5 5 0 0 1 5-5Z" /></clipPath>
+          </defs>
+          <circle cx="24" cy="5" r="3.2" className="room-logo-peg" />
+          <g className="room-logo-tag" onAnimationEnd={(e) => { if (e.animationName === 'room-logo-swing') setPoked(false); }}>
+            <path d="M24 6v9" className="room-logo-wire" />
+            <path d="M10 18h28a5 5 0 0 1 5 5v24a5 5 0 0 1-5 5H10a5 5 0 0 1-5-5V23a5 5 0 0 1 5-5Z" fill="url(#room-logo-g)" />
+            <g clipPath="url(#room-logo-clip)"><rect x="-30" y="10" width="14" height="52" className="room-logo-shine" /></g>
+            <rect x="19" y="21.5" width="10" height="3.6" rx="1.8" className="room-logo-hole" />
+            <path d="M16 34.5h16l-1.4 10.2a2 2 0 0 1-2 1.8h-9.2a2 2 0 0 1-2-1.8L16 34.5ZM20 34.5v-1.8a4 4 0 0 1 8 0v1.8" className="room-logo-bag" />
+          </g>
+        </svg>
+      </span>
+      <span className="room-brand-text"><strong>Loja</strong><small>Project Club</small></span>
+    </button>
   );
 }
 
@@ -985,22 +1038,27 @@ function packColors(item) {
   const hue = hueOf(tint);
   const tag = hue >= 240 || hue < 20 ? `hsl(${Math.round(hue)} 74% 45%)` : hue < 70 ? '#e23a2e' : '#e3207f';
   // Cada caixinha pende um tiquinho diferente no gancho.
-  const tilt = `${(((h >>> 3) % 5) - 2) * 0.6}deg`;
-  return { '--pack': tint, '--pack-tag': tag, '--pack-tilt': tilt };
+  const tilt = (((h >>> 3) % 5) - 2) * 0.6;
+  return { '--pack': tint, '--pack-tag': tag, '--pack-tilt': `${tilt}deg`, tint, tilt };
 }
 
-// A caixinha inclina pro lado do mouse e o brilho do plástico acompanha.
-// Só com mouse; escreve direto no elemento pra não redesenhar o React.
-function packLean(e) {
-  if (e.pointerType !== 'mouse') return;
-  const el = e.currentTarget;
-  const r = el.getBoundingClientRect();
-  el.style.setProperty('--mx', (((e.clientX - r.left) / r.width) * 2 - 1).toFixed(3));
-  el.style.setProperty('--my', (((e.clientY - r.top) / r.height) * 2 - 1).toFixed(3));
-}
-function packRest(e) {
-  e.currentTarget.style.removeProperty('--mx');
-  e.currentTarget.style.removeProperty('--my');
+// Liga a caixinha 3D da cartela (components/shop/pack3d.js: o modelo do
+// Blender desenhado ao vivo). O motor só carrega quando a primeira cartela
+// aparece; sem WebGL fica a imagem parada (classe .p3d-off).
+function usePack3D(cardRef, tint, tilt) {
+  const ctrl = useRef(null);
+  useEffect(() => {
+    const el = cardRef.current?.querySelector('.room-pack');
+    if (!el) return undefined;
+    let gone = false;
+    import('../components/shop/pack3d.js').then((m) => {
+      if (gone) return;
+      ctrl.current = m.mountPack(el, { color: tint, tilt });
+    }).catch(() => el.classList.add('p3d-off'));
+    return () => { gone = true; ctrl.current?.destroy(); ctrl.current = null; };
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => { ctrl.current?.update({ color: tint, tilt }); }, [tint, tilt]);
+  return ctrl;
 }
 
 function ItemCard({ item: base, ctx }) {
@@ -1012,28 +1070,52 @@ function ItemCard({ item: base, ctx }) {
   const on = isEquipped(item);
   const discount = Math.max(...sellsIn(item).map((c) => (priceOf(item, c).base - priceOf(item, c).final > 0 ? priceOf(item, c).discount || 0 : 0)), 0);
   const cur = sellsIn(item);
+  // Quando a cartela aparece na tela, a caixinha dá uma balançadinha no gancho.
+  const cardRef = useRef(null);
+  const colors = packColors(item);
+  const pack = usePack3D(cardRef, colors.tint, colors.tilt);
+  useEffect(() => {
+    const el = cardRef.current;
+    if (!el || typeof IntersectionObserver === 'undefined') return undefined;
+    const io = new IntersectionObserver((entries) => {
+      if (entries.some((x) => x.isIntersecting)) { setTimeout(() => pack.current?.nudge(0.25 + Math.random() * 0.4), 350); io.disconnect(); }
+    }, { threshold: 0.55 });
+    io.observe(el);
+    return () => io.disconnect();
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
   return (
     <article
+      ref={cardRef}
       className={`room-card k-${item.kind}${on ? ' is-on' : ''}${item.locked ? ' is-locked' : ''}${bk?.canAdd(item) ? ' is-grabbable' : ''}${bk?.has(item) ? ' in-basket' : ''}`}
-      onPointerDown={bk?.canAdd(item) ? (e) => bk.dragDown(e, item) : undefined}
-      onPointerMove={packLean} onPointerLeave={packRest}
-      style={packColors(item)}
+      onPointerDown={(e) => {
+        // no celular não existe "passar o mouse": encostar o dedo já vira e balança a caixinha
+        if (e.pointerType !== 'mouse') { pack.current?.pointer(e); pack.current?.nudge(0.5); }
+        if (bk?.canAdd(item)) bk.dragDown(e, item);
+      }}
+      onPointerMove={(e) => pack.current?.pointer(e)} onPointerLeave={() => pack.current?.release()}
+      onPointerUp={(e) => { if (e.pointerType !== 'mouse') pack.current?.release(); }} onPointerCancel={() => pack.current?.release()}
+      style={{ '--pack': colors['--pack'], '--pack-tag': colors['--pack-tag'], '--pack-tilt': colors['--pack-tilt'] }}
     >
       {/* Parede da loja: o gancho cromado segura a caixinha de plástico pela aba,
-          na frente da cartela. Gancho, caixinha e sombra são renders 3D
-          (tools/loja-3d); o item e a etiqueta ficam dentro da caixinha. */}
+          na frente da cartela. Gancho e caixinha são o modelo 3D do Blender
+          (tools/loja-3d) desenhado ao vivo (components/shop/pack3d.js): gira e
+          balança de verdade. O item e a etiqueta ficam no FUNDO da caixinha e
+          os selos na FRENTE — cada plano recebe a matriz da pose do modelo. */}
       <span className="room-hook" aria-hidden="true" />
       <button type="button" className="room-card-art" onClick={() => open(item)} aria-label={`Ver detalhes de ${item.name}`}>
         <span className="room-pack">
-          <span className="room-pack-window"><Preview item={item} user={user} /></span>
-          <span className="room-pack-label" aria-hidden="true" style={item.kind === 'font' ? nameStyleProps({ profileFont: fontValue(item) }) : undefined}>{item.name}</span>
+          <span className="room-pack-back">
+            <span className="room-pack-window"><Preview item={item} user={user} /></span>
+            <span className="room-pack-label" aria-hidden="true" style={item.kind === 'font' ? nameStyleProps({ profileFont: fontValue(item) }) : undefined}>{item.name}</span>
+          </span>
           <span className="room-pack-plastic" aria-hidden="true" />
-          <span className="room-pack-glare" aria-hidden="true" />
+          <span className="room-pack-front">
           <span className="room-card-flags">
             {item.exclusiveTier && <span className={`room-flag excl t-${item.exclusiveTier.toLowerCase()}`}><Ico name="crown" size={11} strokeWidth={2.2} /> {TIER_LABEL[item.exclusiveTier]}</span>}
             {!item.exclusiveTier && isNew(item, now) && <span className="room-flag new">Novo</span>}
             {discount > 0 && !item.owned && <span className="room-flag off">-{discount}%</span>}
             {item.limited && <LimitedFlag item={item} />}
+          </span>
           </span>
         </span>
         <span className="room-card-state"><StateBadge item={item} on={on} /></span>

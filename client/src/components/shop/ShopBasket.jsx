@@ -198,6 +198,18 @@ export function CheckoutPage({ basket, items, data, user, priceOf, sellsIn, kind
   const [phase, setPhase] = useState('idle'); // idle | paying | approved | declined
   const [message, setMessage] = useState('');
   const [badIndex, setBadIndex] = useState(null);
+  // Linha saindo da cesta: encolhe e some antes de sair de verdade.
+  const [leaving, setLeaving] = useState(() => new Set());
+  const removeRow = (kind, id) => {
+    const k = `${kind}:${id}`;
+    const quick = typeof window !== 'undefined' && window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
+    if (quick) { basket.remove(kind, id); return; }
+    setLeaving((cur) => new Set(cur).add(k));
+    setTimeout(() => {
+      basket.remove(kind, id);
+      setLeaving((cur) => { const n = new Set(cur); n.delete(k); return n; });
+    }, 260);
+  };
 
   // Junta as linhas da cesta com os itens atuais da Loja (preço do momento).
   const rows = useMemo(() => basket.lines.map((l) => {
@@ -242,6 +254,10 @@ export function CheckoutPage({ basket, items, data, user, priceOf, sellsIn, kind
             : short ? { tone: 'bad', top: 'SALDO INSUFICIENTE', sub: `Faltam ${short}` }
               : { tone: 'idle', top: 'PASSE O CARTÃO', sub: totalText };
 
+  // Etapas de verdade: 1 conferir a cesta, 2 pagar (quando está tudo certo), 3 pronto.
+  const step = phase === 'approved' ? 3 : ready || phase === 'paying' ? 2 : 1;
+  const STEPS = ['Cesta', 'Pagamento', 'Pronto'];
+
   return (
     <div className="room-stack shop-checkout">
       <div className="room-page-head">
@@ -249,15 +265,30 @@ export function CheckoutPage({ basket, items, data, user, priceOf, sellsIn, kind
         <h1>Checkout</h1>
         <p>Confira os itens da sua cestinha e passe o seu cartão na maquininha pra pagar. É tudo ou nada: se algum item não puder ser comprado, nada é cobrado.</p>
       </div>
+      <ol className="shop-steps" aria-label="Etapas do checkout">
+        {STEPS.map((label, i) => (
+          <li key={label} className="shop-step-wrap" style={{ display: 'contents' }}>
+            {i > 0 && <span className={`shop-step-line${step > i ? ' done' : ''}`} aria-hidden="true" />}
+            <span className={`shop-step${step === i + 1 ? ' on' : ''}${step > i + 1 ? ' done' : ''}`} aria-current={step === i + 1 ? 'step' : undefined}>
+              <i>{step > i + 1 ? <Ico name="check" size={13} strokeWidth={2.6} /> : i + 1}</i><span>{label}</span>
+            </span>
+          </li>
+        ))}
+      </ol>
       <div className="shop-checkout-grid">
         <section className="shop-receipt" aria-label="Itens da cestinha">
           <h2>Sua cestinha <small>{basket.lines.length} {basket.lines.length === 1 ? 'item' : 'itens'}</small></h2>
-          {rows.length === 0 && <p className="room-muted">Sua cestinha está vazia. Arraste itens dos ganchos pra cá.</p>}
+          {rows.length === 0 && (
+            <div className="shop-empty-basket">
+              <span>Sua cestinha está vazia. Arraste itens dos ganchos pra cá ou toque em "Pôr na cesta".</span>
+              <button type="button" className="room-btn primary" onClick={onBack}><Ico name="bag" size={15} /> Ver os itens da Loja</button>
+            </div>
+          )}
           <ul>
-            {rows.map((r) => {
+            {rows.map((r, idx) => {
               const k = `${r.line.kind}:${r.line.id}`;
               return (
-                <li key={k} className={`shop-receipt-row${r.missing || r.blocked || badIndex === k ? ' is-bad' : ''}`}>
+                <li key={k} style={{ '--i': idx }} className={`shop-receipt-row${r.missing || r.blocked || badIndex === k ? ' is-bad' : ''}${leaving.has(k) ? ' is-leaving' : ''}`}>
                   <span className="shop-receipt-art">{r.item ? <Preview item={r.item} user={user} mode="mini" /> : <Ico name="close" size={18} />}</span>
                   <span className="shop-receipt-text">
                     <strong className="truncate">{r.item?.name || 'Item que saiu da Loja'}</strong>
@@ -275,26 +306,35 @@ export function CheckoutPage({ basket, items, data, user, priceOf, sellsIn, kind
                   {r.price && !r.blocked && r.options.length === 1 && (
                     <span className={`shop-receipt-price ${r.currency}`}><Ico name={r.currency === 'gems' ? 'gem' : 'coin'} size={14} /> {r.price.final === 0 ? 'Grátis' : fmt(r.price.final)}</span>
                   )}
-                  <button type="button" className="shop-receipt-x" aria-label={`Tirar ${r.item?.name || 'item'} da cestinha`} disabled={phase === 'paying'} onClick={() => basket.remove(r.line.kind, r.line.id)}><Ico name="close" size={14} /></button>
+                  {(!r.price || r.blocked) && <span />}
+                  <button type="button" className="shop-receipt-x" aria-label={`Tirar ${r.item?.name || 'item'} da cestinha`} title="Tirar da cestinha" disabled={phase === 'paying' || leaving.has(k)} onClick={() => removeRow(r.line.kind, r.line.id)}><Ico name="close" size={15} /></button>
                 </li>
               );
             })}
           </ul>
-          <div className="shop-receipt-total">
-            <span>Total</span>
-            <strong>{totalText}</strong>
-          </div>
-          <p className="shop-receipt-after">
-            Saldo depois: <b><Ico name="coin" size={13} /> {fmt(Math.max(0, coins - totals.coins))}</b> · <b><Ico name="gem" size={13} /> {fmt(Math.max(0, gems - totals.gems))}</b>
-          </p>
-          {basket.lines.length > 0 && <button type="button" className="room-link" disabled={phase === 'paying'} onClick={basket.clear}>Esvaziar a cestinha</button>}
+          {basket.lines.length > 0 && (
+            <div className="shop-receipt-foot">
+              <button type="button" className="room-btn sm ghost" onClick={onBack}><Ico name="plus" size={14} /> Pôr mais itens</button>
+              <button type="button" className="room-btn sm ghost" disabled={phase === 'paying'} onClick={basket.clear}>Esvaziar a cestinha</button>
+            </div>
+          )}
         </section>
 
-        <section className="shop-pos-area" aria-label="Maquininha">
-          <CardSwipe
-            user={user} variant={card?.cardStyle || 'DEFAULT'} coins={data?.coins} gems={data?.gems}
-            disabled={!ready} phase={phase} screen={screen} onSwipe={pay}
-          />
+        <section className="shop-pos-area" aria-label="Resumo e pagamento">
+          <div className="shop-summary">
+            <div className="shop-summary-line"><span>Seu saldo</span><b><Ico name="coin" size={13} /> {fmt(coins)} · <Ico name="gem" size={13} /> {fmt(gems)}</b></div>
+            <div className="shop-summary-line shop-receipt-after"><span>Saldo depois</span><b><Ico name="coin" size={13} /> {fmt(Math.max(0, coins - totals.coins))} · <Ico name="gem" size={13} /> {fmt(Math.max(0, gems - totals.gems))}</b></div>
+            <div className="shop-receipt-total">
+              <span>Total</span>
+              <strong key={totalText}>{totalText}</strong>
+            </div>
+          </div>
+          <div className={`shop-pay${ready ? ' is-ready' : ''}${phase === 'approved' ? ' is-approved' : ''}`} aria-label="Maquininha">
+            <CardSwipe
+              user={user} variant={card?.cardStyle || 'DEFAULT'} coins={data?.coins} gems={data?.gems}
+              disabled={!ready} phase={phase} screen={screen} onSwipe={pay}
+            />
+          </div>
         </section>
       </div>
     </div>
