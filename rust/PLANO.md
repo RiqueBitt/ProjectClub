@@ -410,3 +410,8 @@ mexeu no servidor foi trazido pro Rust:
   argumento, igual a `emit('chests:update')`).
 - #161 só apagou coisas; o `raffle.js` e os emotes do CP (#158) são
   tarefas do Node que rodam sozinhas, não rotas.
+
+Produção (22/11/2026): 6 contas (uma ADMIN) em carteira, baús, rank,
+ranking (top 50 de verdade, com ETag), admin dos baús, cartão
+inexistente, estilo inválido, 4 cestinhas recusadas e a busca/categorias
+de GIFs da Klipy de verdade — 69 de 69 iguais ao Node.
