@@ -244,3 +244,27 @@
 .wcard-stage.is-compact .wcard-sign-strip b, .wcard-stage.is-compact .wcard .wcard-back .wcard-cvv { font-size: 13px; }
 .wcard-stage.is-compact .wcard-star { border-radius: 8px; }
 .wcard--gold .wcard-back .wcard-stripe, .wcard--rainbow .wcard-back .wcard-stripe { background: #2a2a2e; }
+
+/* ---------- Verso claro em TODOS os estilos (nov/2026, como na referência
+   do dono): fundo claro na cor do estilo, tarja preta, faixa branca da
+   assinatura, CVV e a estrelinha. ---------- */
+.wcard--gold .wcard-back {
+  color: #4a3a12;
+  background:
+    radial-gradient(90% 70% at 100% 0%, rgba(255, 255, 255, .45), transparent 60%),
+    linear-gradient(160deg, #f3e6bd 0%, #e2c98a 55%, #cfae63 100%);
+  border-color: rgba(201, 160, 72, .7);
+}
+.wcard--gold .wcard-back .wcard-sig-label { color: #6b5216; }
+.wcard--gold .wcard-back .wcard-star { background: rgba(255, 255, 255, .45); color: #fffaf0; }
+.wcard--rainbow .wcard-back {
+  color: #2f2b55;
+  background: linear-gradient(120deg, #ffd6e0, #ffe9c7, #fffbc7, #d4ffe6, #d6f1ff, #e5dcff, #ffd6f3);
+  background-size: 300% 100%;
+  animation: wcard-holo 10s ease-in-out infinite;
+}
+.wcard--rainbow .wcard-back::after { display: none; }
+.wcard--rainbow .wcard-back .wcard-sig-label { color: #3b3760; }
+.wcard--rainbow .wcard-back .wcard-star { background: rgba(255, 255, 255, .55); color: #fff; }
+.wcard--gold .wcard-back .wcard-stripe, .wcard--rainbow .wcard-back .wcard-stripe { background: #141414; }
+@media (prefers-reduced-motion: reduce) { .wcard--rainbow .wcard-back { animation: none; } }
