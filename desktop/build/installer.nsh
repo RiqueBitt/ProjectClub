@@ -21,4 +21,56 @@
       RMDir /r "$R9"
     ${EndIf}
   ${EndIf}
+
+  ; Instalação com a janela do Project Club (desktop/setupWindow.js): as telas
+  ; do Windows não aparecem; os arquivos são copiados em silêncio e, no fim,
+  ; o app abre a janela própria ("Aceitar & Instalar", opções, progresso).
+  ; Atualização automática (--updated) e instalação com /S seguem como antes.
+  ${IfNot} ${Silent}
+  ${AndIfNot} ${isUpdated}
+    SetSilent silent
+  ${EndIf}
+!macroend
+
+!macro customInstall
+  ; o silêncio foi nosso (não veio /S nem --updated): abre o app pra mostrar
+  ; o instalador do Project Club
+  ${GetParameters} $R0
+  ClearErrors
+  ${GetOptions} $R0 "/S" $R1
+  ${If} ${Errors}
+  ${AndIfNot} ${isUpdated}
+    Exec '"$INSTDIR\${APP_EXECUTABLE_FILENAME}"'
+  ${EndIf}
+!macroend
+
+; Desinstalar: abre a janela do Project Club e espera a escolha.
+;   0 = desinstalar   3 = desinstalar e apagar os dados deste PC
+;   1 = cancelar      2 = reinstalar (a janela já baixou e abriu o instalador)
+; Qualquer outro resultado (app com defeito, arquivo faltando) cai na
+; desinstalação padrão do Windows, pra ninguém ficar sem conseguir desinstalar.
+!macro customUnInit
+  ${IfNot} ${Silent}
+    ClearErrors
+    ExecWait '"$INSTDIR\${APP_EXECUTABLE_FILENAME}" --pc-uninstall' $R0
+    ${IfNot} ${Errors}
+      ${If} $R0 == 1
+      ${OrIf} $R0 == 2
+        Quit
+      ${ElseIf} $R0 == 0
+      ${OrIf} $R0 == 3
+        SetSilent silent
+      ${EndIf}
+    ${EndIf}
+  ${EndIf}
+!macroend
+
+; "Excluir meus dados": a janela grava o caminho da pasta de dados; apaga
+; aqui, depois que o app já foi fechado pelo desinstalador.
+!macro customUnInstall
+  ReadRegStr $R1 HKCU "Software\ProjectClub" "DeleteData"
+  ${If} $R1 != ""
+    RMDir /r "$R1"
+    DeleteRegValue HKCU "Software\ProjectClub" "DeleteData"
+  ${EndIf}
 !macroend
