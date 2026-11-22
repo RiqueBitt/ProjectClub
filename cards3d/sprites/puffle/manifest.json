@@ -1,0 +1,47 @@
+{
+ "black": {
+  "file": "black.webp",
+  "w": 450,
+  "h": 387
+ },
+ "blue": {
+  "file": "blue.webp",
+  "w": 450,
+  "h": 387
+ },
+ "green": {
+  "file": "green.webp",
+  "w": 450,
+  "h": 387
+ },
+ "orange": {
+  "file": "orange.webp",
+  "w": 450,
+  "h": 387
+ },
+ "pink": {
+  "file": "pink.webp",
+  "w": 450,
+  "h": 387
+ },
+ "purple": {
+  "file": "purple.webp",
+  "w": 450,
+  "h": 387
+ },
+ "red": {
+  "file": "red.webp",
+  "w": 450,
+  "h": 387
+ },
+ "white": {
+  "file": "white.webp",
+  "w": 450,
+  "h": 387
+ },
+ "yellow": {
+  "file": "yellow.webp",
+  "w": 450,
+  "h": 387
+ }
+}
