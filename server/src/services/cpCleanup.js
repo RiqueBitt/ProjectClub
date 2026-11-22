@@ -1,8 +1,9 @@
 const fs = require('fs');
 const path = require('path');
 
-// O Club Penguin (Praça, Mini-Jogos e emojis :cp_*:) foi removido da
-// plataforma em nov/2026, a pedido do dono. O código saiu do repositório, mas
+// O Club Penguin (Praça e Mini-Jogos) foi removido da plataforma em
+// nov/2026, a pedido do dono (as emojis :cp_*: ficaram — services/cpEmotes.js).
+// O código saiu do repositório, mas
 // instalações antigas ainda têm no disco a mídia que o jogo baixava (SWFs,
 // músicas, mapas; pode passar de 1 GB) em server/data/waddle (ou na pasta de
 // WADDLE_DATA_DIR / WADDLE_MEDIA_DIR). Isto apaga essas pastas no boot, uma
@@ -42,17 +43,8 @@ async function folderSize(dir) {
   return total;
 }
 
-/** Apaga as emojis :cp_*: (as imagens saíram do site) e a coleção delas. */
-async function removeCpEmojis(db) {
-  const coll = await db.assetCollection.findFirst({ where: { kind: 'EMOJI', name: 'Club Penguin' } }).catch(() => null);
-  const where = { url: { startsWith: '/emoji-sets/clubpenguin/' } };
-  const { count } = await db.emoji.deleteMany({ where }).catch(() => ({ count: 0 }));
-  if (coll) await db.assetCollection.delete({ where: { id: coll.id } }).catch(() => {});
-  return count;
-}
-
-async function removeLeftovers({ env = process.env, db = null, log = console.log } = {}) {
-  const out = { removed: [], bytes: 0, emojis: 0 };
+async function removeLeftovers({ env = process.env, log = console.log } = {}) {
+  const out = { removed: [], bytes: 0 };
   for (const dir of leftoverDirs(env)) {
     // eslint-disable-next-line no-await-in-loop
     const exists = await fs.promises.stat(dir).then((s) => s.isDirectory()).catch(() => false);
@@ -68,12 +60,6 @@ async function removeLeftovers({ env = process.env, db = null, log = console.log
     } catch (err) {
       log(`[club-penguin] não deu pra apagar ${dir}: ${err.message}`);
     }
-  }
-  try {
-    out.emojis = await removeCpEmojis(db || require('../config/prisma'));
-    if (out.emojis) log(`[club-penguin] ${out.emojis} emoji(s) :cp_*: removidos`);
-  } catch (err) {
-    log(`[club-penguin] emojis: ${err.message}`);
   }
   return out;
 }

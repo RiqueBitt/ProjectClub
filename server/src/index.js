@@ -145,6 +145,11 @@ backfillPollTopicPermissions().catch((err) => {
 // não trava o servidor aceitar conexões.
 // Instâncias padrão (Amigos e Empresarial), se ainda não existirem.
 require('./services/instances').seedDefaultInstances();
+// Emojis do Club Penguin (coleção "Club Penguin") — a única parte do CP que
+// ficou (pedido do dono, nov/2026). Recria as que faltarem.
+require('./services/cpEmotes').ensureCpEmotes().then((r) => {
+  if (r.created) console.log(`[emojis] Club Penguin: ${r.created} emoji(s) novos`);
+}).catch((err) => console.warn('[emojis] Club Penguin:', err.message));
 seedAchievements().catch((err) => {
   console.error('\x1b[31m[achievements-seed]\x1b[0m falhou:', err.message);
 });

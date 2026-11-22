@@ -1,0 +1,110 @@
+[
+  {
+    "name": "cp_cake",
+    "file": "cp_cake.webp",
+    "title": "Cake Emote",
+    "source": "https://static.wikia.nocookie.net/clubpenguinemoticons/images/e/e7/InterfaceShape52.png/revision/latest?cb=20150607120453"
+  },
+  {
+    "name": "cp_chocolate_ice_cream",
+    "file": "cp_chocolate_ice_cream.webp",
+    "title": "Chocolate Ice Cream Emote",
+    "source": "https://static.wikia.nocookie.net/clubpenguinemoticons/images/5/5b/Cie.PNG/revision/latest?cb=20150608122133"
+  },
+  {
+    "name": "cp_coffee",
+    "file": "cp_coffee.webp",
+    "title": "Coffee Emote",
+    "source": "https://static.wikia.nocookie.net/clubpenguinemoticons/images/2/29/Ce.PNG/revision/latest?cb=20150608121935"
+  },
+  {
+    "name": "cp_exclamation_point",
+    "file": "cp_exclamation_point.webp",
+    "title": "Exclamation Point Emote",
+    "source": "https://static.wikia.nocookie.net/clubpenguinemoticons/images/0/0e/Ei.PNG/revision/latest?cb=20150608122312"
+  },
+  {
+    "name": "cp_frown",
+    "file": "cp_frown.webp",
+    "title": "Frown Emote",
+    "source": "https://static.wikia.nocookie.net/clubpenguinemoticons/images/b/b1/Sad_Emoticon.png/revision/latest?cb=20150606043143"
+  },
+  {
+    "name": "cp_happy_face",
+    "file": "cp_happy_face.webp",
+    "title": "Happy Face",
+    "source": "https://static.wikia.nocookie.net/clubpenguinemoticons/images/0/07/Happy_emoticon.png/revision/latest?cb=20150606042746"
+  },
+  {
+    "name": "cp_heart",
+    "file": "cp_heart.webp",
+    "title": "Heart Emote",
+    "source": "https://static.wikia.nocookie.net/clubpenguinemoticons/images/c/c9/Heart_Emoticon.png/revision/latest?cb=20150606060515"
+  },
+  {
+    "name": "cp_ice_cream",
+    "file": "cp_ice_cream.webp",
+    "title": "Ice Cream Emote",
+    "source": "https://static.wikia.nocookie.net/clubpenguinemoticons/images/1/1e/Ice.PNG/revision/latest?cb=20150608122522"
+  },
+  {
+    "name": "cp_laughing_face",
+    "file": "cp_laughing_face.webp",
+    "title": "Laughing Face",
+    "source": "https://static.wikia.nocookie.net/clubpenguinemoticons/images/a/a9/Laugh_Emoticon.png/revision/latest?cb=20150606033351"
+  },
+  {
+    "name": "cp_lightbulb",
+    "file": "cp_lightbulb.webp",
+    "title": "Lightbulb Emote",
+    "source": "https://static.wikia.nocookie.net/clubpenguinemoticons/images/e/eb/Lightbulb_Emoticon.PNG/revision/latest?cb=20150608104159"
+  },
+  {
+    "name": "cp_mad_face",
+    "file": "cp_mad_face.webp",
+    "title": "Mad Face",
+    "source": "https://static.wikia.nocookie.net/clubpenguinemoticons/images/a/a3/Madface1.png/revision/latest?cb=20150606060135"
+  },
+  {
+    "name": "cp_meh_face",
+    "file": "cp_meh_face.webp",
+    "title": "Meh Face",
+    "source": "https://static.wikia.nocookie.net/clubpenguinemoticons/images/9/90/Hmm_Emoticon.png/revision/latest?cb=20150606055217"
+  },
+  {
+    "name": "cp_puffle",
+    "file": "cp_puffle.webp",
+    "title": "Puffle Emote",
+    "source": "https://static.wikia.nocookie.net/clubpenguinemoticons/images/3/31/Blue_Puffle_Emoticon.PNG/revision/latest?cb=20150608104442"
+  },
+  {
+    "name": "cp_question_mark",
+    "file": "cp_question_mark.webp",
+    "title": "Question Mark Emote",
+    "source": "https://static.wikia.nocookie.net/clubpenguinemoticons/images/8/81/Qe.PNG/revision/latest?cb=20150608122856"
+  },
+  {
+    "name": "cp_sad_face",
+    "file": "cp_sad_face.webp",
+    "title": "Sad Face",
+    "source": "https://static.wikia.nocookie.net/clubpenguinemoticons/images/4/45/Moody_Emoticon.png/revision/latest?cb=20150606040152"
+  },
+  {
+    "name": "cp_sick_face",
+    "file": "cp_sick_face.webp",
+    "title": "Sick Face",
+    "source": "https://static.wikia.nocookie.net/clubpenguinemoticons/images/c/cb/Sickface1.png/revision/latest?cb=20150606060319"
+  },
+  {
+    "name": "cp_straight_face",
+    "file": "cp_straight_face.webp",
+    "title": "Straight Face",
+    "source": "https://static.wikia.nocookie.net/clubpenguinemoticons/images/9/98/Straight_Face_Emoticon.png/revision/latest?cb=20150608103941"
+  },
+  {
+    "name": "cp_winking_face",
+    "file": "cp_winking_face.webp",
+    "title": "Winking Face",
+    "source": "https://static.wikia.nocookie.net/clubpenguinemoticons/images/5/5d/Wink_Emoticon.png/revision/latest?cb=20150606052929"
+  }
+]

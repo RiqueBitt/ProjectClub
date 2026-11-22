@@ -29,7 +29,8 @@ Responda sempre em **português do Brasil**. Dono: RiqueBitt.
    e reinicie o app.
 4. Confira: `curl https://projectclub.shardweb.app/api/system/deployed` mostra o SHA no ar.
 
-O Club Penguin (Praça, Mini-Jogos e emojis `:cp_*:`) foi **removido** em nov/2026.
+O Club Penguin (Praça e Mini-Jogos) foi **removido** em nov/2026 — só as emojis `:cp_*:`
+ficaram (`client/public/emoji-sets/clubpenguin`, `server/src/services/cpEmotes.js`).
 As tabelas dele no banco (`Plaza*`, `WaddlePenguin`…) ficaram (o `db push` roda sem
 `--accept-data-loss`); a mídia antiga no disco é apagada no boot (`server/src/services/cpCleanup.js`).
 
