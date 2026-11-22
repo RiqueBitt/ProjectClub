@@ -96,7 +96,7 @@ export default function WalletCard({ user, coins, gems, level, variant = 'DEFAUL
     <div className={`wcard-stage${compact ? ' is-compact' : ''}`}>
       <div
         ref={cardRef}
-        className={`wcard${VARIANTS[variant] || ''}${drag ? ' is-dragging' : ''}${snapping ? ' is-snapping' : ''}`}
+        className={`wcard${VARIANTS[variant] || ''}${drag ? ' is-dragging' : ''}${snapping ? ' is-snapping' : ''}${showingBack ? ' is-back' : ''}`}
         role="button" tabIndex={0}
         aria-label={`Cartão da carteira de ${name}: ${fmt(coins)} moedas e ${fmt(gems)} gemas${level ? `, nível ${level}` : ''}. ${showingBack ? 'Mostrando o verso' : 'Mostrando a frente'}. Enter vira o cartão.`}
         onPointerDown={onPointerDown} onPointerMove={onPointerMove} onPointerUp={endDrag} onPointerCancel={endDrag}

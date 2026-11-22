@@ -43,6 +43,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -106,6 +107,7 @@ fun EconomyScreen(repo: Repository, nav: AppNav) {
     var tick by remember { mutableStateOf(0L) }
     var season by remember { mutableStateOf<com.projectclub.android.data.SeasonInfo?>(null) }
     var seasonBusy by remember { mutableStateOf<String?>(null) }
+    val me by repo.me.collectAsState()
 
     suspend fun load() {
         try {
@@ -179,7 +181,7 @@ fun EconomyScreen(repo: Repository, nav: AppNav) {
             w == null -> EcoSkeleton()
             else -> PullToRefreshBox(refreshing, onRefresh = { scope.launch { refreshing = true; load(); refreshing = false } }, Modifier.fillMaxSize()) {
                 LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                    item(key = "wallet") { WalletCard(w) }
+                    item(key = "wallet") { FlipWalletCard(w, me) }
                     item(key = "daily") {
                         val wait = untilText(w.nextDailyAt, maxOf(tick, System.currentTimeMillis()))
                         DailyCard(w, wait, claiming, lastChest) { claimDaily() }

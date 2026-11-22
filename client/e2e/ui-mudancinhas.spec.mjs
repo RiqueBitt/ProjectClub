@@ -125,8 +125,14 @@ test('Economia: cartão da carteira com moedas e gemas vira ao clicar e no tecla
   await expect(card).toContainText('19');
   await expect(card).toContainText('ClubPay');
   await expect(card).toHaveAttribute('aria-label', /Mostrando a frente/);
+  await expect(card.locator('.wcard-back')).toBeHidden();
   await card.click();
   await expect(card).toHaveAttribute('aria-label', /Mostrando o verso/);
+  // O verso aparece de verdade (tarja, assinatura, CVV) e a frente some.
+  await expect(card.locator('.wcard-back')).toBeVisible();
+  await expect(card.locator('.wcard-sig-label')).toBeVisible();
+  await expect(card.locator('.wcard-cvv')).toBeVisible();
+  await expect(card.locator('.wcard-front')).toBeHidden();
   await card.focus();
   await page.keyboard.press('Enter');
   await expect(card).toHaveAttribute('aria-label', /Mostrando a frente/);
