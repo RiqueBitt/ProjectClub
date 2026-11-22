@@ -65,6 +65,33 @@ test('mergeChannelStates: soma não lidas por canal e nunca fica abaixo das men�
   assert.equal(states.c.unreadCount, 0);
 });
 
+test('countMentionsByChannel: menção (eu, cargo, @everyone) OU resposta a mensagem minha, numa consulta só', async () => {
+  const calls = [];
+  const prisma = { $queryRaw: async (strings, ...values) => { calls.push({ sql: strings.join('?'), values }); return [{ channelId: 'a', cnt: 2n, lastAt: new Date(0) }]; } };
+  const FakePrisma = { join: (ids) => ({ joined: ids }), sql: (strings, ...values) => ({ sql: strings.join('?'), values }), empty: { sql: '', values: [] } };
+  const floor = new Date('2026-10-01T00:00:00Z');
+  const rows = await unread.countMentionsByChannel(prisma, { userId: 'me', channelIds: ['a', 'b'], roleIds: ['r1'], floor }, FakePrisma);
+  assert.equal(calls.length, 1);
+  const { sql, values } = calls[0];
+  // resposta a uma mensagem MINHA também conta (antes só contava ao vivo e sumia ao recarregar)
+  assert.match(sql, /LEFT JOIN Message rt ON rt\.id = m\.replyToId AND rt\.authorId = \?/);
+  assert.match(sql, /\(mm\.id IS NOT NULL OR rt\.id IS NOT NULL\)/);
+  assert.match(sql, /COUNT\(DISTINCT m\.id\)/, 'mensagem que marca e responde ao mesmo tempo conta uma vez');
+  assert.match(sql, /m\.authorId <> \?/, 'mensagem minha nunca conta');
+  assert.match(sql, /r\.lastReadAt IS NULL OR m\.createdAt > r\.lastReadAt/, 'só depois da última leitura');
+  assert.match(sql, /GROUP BY m\.channelId/);
+  const role = values.find((v) => v && typeof v.sql === 'string');
+  assert.match(role.sql, /targetType = 'ROLE'/);
+  assert.deepEqual(role.values, [{ joined: ['r1'] }]);
+  assert.ok(values.some((v) => v && v.joined && v.joined.join() === 'a,b'));
+  assert.deepEqual(rows.map((r) => r.channelId), ['a']);
+  // Sem cargo: sem a parte de cargo. Sem canal: sem consulta.
+  await unread.countMentionsByChannel(prisma, { userId: 'me', channelIds: ['a'], roleIds: [], floor }, FakePrisma);
+  assert.ok(calls[1].values.includes(FakePrisma.empty));
+  assert.deepEqual(await unread.countMentionsByChannel(prisma, { userId: 'me', channelIds: [], floor }, FakePrisma), []);
+  assert.equal(calls.length, 2);
+});
+
 test('countUnreadByChannel: uma consulta agrupada só, com o piso de dias', async () => {
   const calls = [];
   const prisma = { $queryRaw: async (strings, ...values) => { calls.push({ sql: strings.join('?'), values }); return [{ channelId: 'a', cnt: 2n }]; } };

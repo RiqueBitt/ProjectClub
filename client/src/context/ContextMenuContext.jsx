@@ -11,6 +11,10 @@ const ContextMenuContext = createContext(null);
 //   { label, onClick, danger?, disabled?, icon?, hint?, checked? }
 //   { label, submenu: [...itens], icon?, hint? }   <- abre um submenu
 //   { divider: true }
+//   { emojis: [...], onPick }                      <- fileira de reações rápidas
+//   { actions: [{ label, icon, onClick, title?, disabled?, danger? }] }
+//       <- fileira de ações rápidas (ícone em cima, nome embaixo): junta as
+//          ações mais usadas numa linha só, em vez de uma linha pra cada.
 // `hint` é uma segunda linha pequena (ex.: "Faltam 42 min"); `checked`
 // mostra o item como opção marcada (true) ou desmarcada (false) — usado
 // em escolhas tipo "Todas as mensagens / Só @menções / Nada".
@@ -36,6 +40,8 @@ const ICONS = {
   id: <><rect x="3" y="5" width="18" height="14" rx="2.5" /><circle cx="9" cy="11" r="2" /><path d="M6 16a3 3 0 0 1 6 0M14.5 10h4M14.5 13.5h3" /></>,
   smilePlus: <><path d="M21 12a9 9 0 1 1-6.2-8.56" /><path d="M8.5 14.5a4.5 4.5 0 0 0 7 0M9 9.5h.01M15 9.5h.01M19 2v6M16 5h6" /></>,
   reply: <path d="M10 8 5 12.5 10 17M5.5 12.5H14a5 5 0 0 1 5 5V19" />,
+  forward: <path d="M14 8l5 4.5-5 4.5M18.5 12.5H10a5 5 0 0 0-5 5V19" />,
+  more: <><circle cx="5" cy="12" r="1.6" /><circle cx="12" cy="12" r="1.6" /><circle cx="19" cy="12" r="1.6" /></>,
   bookmark: <path d="M6 4h12v17l-6-4-6 4z" />,
   bookmarkOff: <><path d="M6 4h12v17l-6-4-6 4z" /><path d="M4 4l16 16" /></>,
   unread: <><circle cx="17" cy="7" r="3" /><path d="M20 12v6a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h7" /></>,
@@ -235,7 +241,7 @@ function toSections(items) {
 
 // Setas/Home/End/Tab entre os itens de um painel (← volta do submenu).
 function navKeyDown(e, panel, { onLeft } = {}) {
-  const list = [...(panel?.querySelectorAll('.cm-item:not(:disabled)') || [])];
+  const list = [...(panel?.querySelectorAll('.cm-item:not(:disabled), .cm-action:not(:disabled)') || [])];
   if (!list.length) return;
   const idx = list.indexOf(document.activeElement);
   let next = null;
@@ -275,6 +281,32 @@ function MenuSections({ items, onClose, onOpenSub, onHoverPlain, openSubKey, pre
             </div>
           );
         }
+        if (item.actions) {
+          // Ações rápidas: uma linha de botões pequenos (ícone + nome).
+          return (
+            <div key={key} className="cm-actions" role="group" aria-label="Ações rápidas" style={{ '--cm-actions': item.actions.length }}>
+              {item.actions.map((a) => (
+                <button
+                  key={a.label} type="button" role="menuitem" className={`cm-action${a.danger ? ' danger' : ''}`}
+                  disabled={a.disabled} title={a.title || a.label} aria-label={a.title || a.label}
+                  onMouseEnter={(e) => { if (!a.disabled) { e.currentTarget.focus({ preventScroll: true }); onHoverPlain?.(); } }}
+                  onKeyDown={(e) => {
+                    // ← → andam dentro da fileira.
+                    if (e.key !== 'ArrowRight' && e.key !== 'ArrowLeft') return;
+                    const row = [...e.currentTarget.parentElement.querySelectorAll('.cm-action:not(:disabled)')];
+                    const i = row.indexOf(e.currentTarget);
+                    const next = row[(i + (e.key === 'ArrowRight' ? 1 : row.length - 1)) % row.length];
+                    if (next) { e.preventDefault(); e.stopPropagation(); next.focus({ preventScroll: true }); }
+                  }}
+                  onClick={() => { a.onClick?.(); onClose(); }}
+                >
+                  <MenuIcon name={iconFor(a)} />
+                  <span className="cm-action-label">{a.label}</span>
+                </button>
+              ))}
+            </div>
+          );
+        }
         const hasSub = Array.isArray(item.submenu) && item.submenu.length > 0;
         const isRadio = typeof item.checked === 'boolean';
         const subOpen = hasSub && openSubKey === key;
@@ -291,7 +323,7 @@ function MenuSections({ items, onClose, onOpenSub, onHoverPlain, openSubKey, pre
             onMouseEnter={(e) => {
               if (item.disabled) return;
               e.currentTarget.focus({ preventScroll: true });
-              if (hasSub) onOpenSub?.(key, item, e.currentTarget, false);
+              if (hasSub) onOpenSub?.(key, item, e.currentTarget, false, true);
               else onHoverPlain?.();
             }}
             onKeyDown={(e) => {
@@ -363,8 +395,15 @@ function ContextMenuRender({ menuRef, items, x, y, sheet, onClose }) {
     if (ready) menuRef.current?.focus({ preventScroll: true });
   }, [menuRef, ready]);
 
-  const openSub = (key, item, el, focusFirst) => {
-    if (sheet) { setStack((st) => [...st, { label: item.label, items: item.submenu }]); return; }
+  const openSub = (key, item, el, focusFirst, hover = false) => {
+    if (sheet) {
+      // Na folha do celular só o toque abre: o toque também dispara um
+      // "mouseenter", e abrir nos dois empilhava o submenu duas vezes
+      // (o "Voltar" parecia não funcionar).
+      if (hover) return;
+      setStack((st) => (st.length && st[st.length - 1].items === item.submenu ? st : [...st, { label: item.label, items: item.submenu }]));
+      return;
+    }
     setSub((cur) => (cur && cur.key === key && !focusFirst
       ? cur
       : { key, items: item.submenu, rect: el.getBoundingClientRect(), focusFirst, el }));

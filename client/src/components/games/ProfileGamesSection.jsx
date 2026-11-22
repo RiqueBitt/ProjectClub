@@ -9,7 +9,9 @@ import { libraryPath } from '../../utils/prettyLinks';
 // Seção "Jogos" do perfil completo (UserProfileModal): totais, jogando
 // agora e os jogos mais recentes; "Ver biblioteca" abre a página inteira.
 // Respeita UserSettings.gamesVisibility (o servidor decide).
-export default function ProfileGamesSection({ userId }) {
+// `onContent(true|false)` avisa o perfil se há o que mostrar (é o que decide
+// se a aba "Jogos" aparece).
+export default function ProfileGamesSection({ userId, onContent }) {
   const navigate = useNavigate();
   const closeProfile = useStore((s) => s.closeProfile);
   const [data, setData] = useState(null);
@@ -24,9 +26,10 @@ export default function ProfileGamesSection({ userId }) {
 
   useLiveRefresh(({ put }) => getGameLibrary(userId).then(put(setData)), { enabled: !!data && !data.failed, interval: 45000, key: `profile-games:${userId}` });
 
-  if (!userId || !data || data.failed) return null;
   // Perfil de outra pessoa sem nenhum jogo: não ocupa espaço à toa.
-  if (data.visible && !data.isMe && (data.games || []).length === 0) return null;
+  const shows = !!userId && !!data && !data.failed && !(data.visible && !data.isMe && (data.games || []).length === 0);
+  useEffect(() => { onContent?.(shows); }, [shows, onContent]);
+  if (!shows) return null;
 
   const openLibrary = () => {
     closeProfile();
@@ -35,8 +38,8 @@ export default function ProfileGamesSection({ userId }) {
   const recent = (data.recent || []).slice(0, 3);
 
   return (
-    <section className="pf-onepage-section pf-onepage-games gl-profile" aria-label="Jogos">
-      <h3 className="pf-onepage-title"><GlIcon name="gamepad" size={16} /> Jogos</h3>
+    <section className="pf-onepage-section pf-onepage-games gl-profile" aria-label="Biblioteca de jogos">
+      <h3 className="pf-onepage-title"><GlIcon name="gamepad" size={16} /> Biblioteca</h3>
       <div className="gl-profile-card">
         {!data.visible ? (
           <LockedLibrary name={data.user?.displayName} visibility={data.visibility} />

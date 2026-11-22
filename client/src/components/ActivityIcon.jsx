@@ -1,10 +1,7 @@
 import { useStore } from '../store/useStore';
 import StatusEmoji from './StatusEmoji.jsx';
-import gameIcon from '../assets/icons/activity-game.png';
-import spotifyIcon from '../assets/icons/activity-spotify.png';
-import appIcon from '../assets/icons/activity-app.png';
+import ActivityGlyph from './ActivityGlyph.jsx';
 
-const ICON_BY_TYPE = { game: gameIcon, spotify: spotifyIcon, app: appIcon };
 const TITLE_BY_TYPE = { game: 'Jogando', spotify: 'Ouvindo Spotify', app: 'Usando' };
 
 // Item pedido: "não é pra mostrar assim {icon de jogo/música/app} •
@@ -28,16 +25,11 @@ export default function ActivityIcon({ userId, customStatusEmoji, customStatus, 
       {activity && (
         // Item pedido: "não os ícones da mídia/jogo em si, sim o ícone
         // que a plataforma já tem pro app, jogo e música" — sempre o
-        // ícone genérico fixo (ICON_BY_TYPE), nunca a imagem
+        // ícone genérico da plataforma (ActivityGlyph), nunca a imagem
         // específica daquela atividade (capa do álbum, ícone do jogo
         // em si — que existe em activity.imageUrl, usada só no card
         // grande e detalhado de ActivityBadge.jsx, não aqui).
-        <img
-          src={ICON_BY_TYPE[activity.type]}
-          alt=""
-          className="activity-inline-icon"
-          title={`${TITLE_BY_TYPE[activity.type]} ${activity.name}`}
-        />
+        <ActivityGlyph type={activity.type} title={`${TITLE_BY_TYPE[activity.type]} ${activity.name}`} />
       )}
       {/* Sem status personalizado, a linha ficaria só com o ícone —
           aí mostra "Jogando X" / "Ouvindo X" / "Usando X" por escrito. */}
