@@ -18,7 +18,7 @@ import ArenaPromo from '../cards/ArenaPromo.jsx';
 import MinecraftStatusCard from '../components/MinecraftStatusCard.jsx';
 import { isFeatureEnabled } from '../utils/features';
 import { channelPath, eventPath } from '../utils/prettyLinks';
-import { useCommunityHome, HomeCommunityMain, HomeCommunitySide } from '../components/community/HomeCommunity.jsx';
+import { useCommunityHome, HomeCommunityMain } from '../components/community/HomeCommunity.jsx';
 
 // Item pedido: mostra só os 4 vídeos mais recentes do canal.
 const VIDEOS_SHOWN = 6;
@@ -317,7 +317,6 @@ export default function InicioPage() {
           >
             <EventsCalendar events={events} />
           </Section>
-          <HomeCommunitySide home={communityHome} />
           <Section icon="voice" title="Em chamada agora" className="home-card">
             {liveCalls.length === 0 && <Empty>Ninguém em chamada. Entre numa sala e chame o pessoal.</Empty>}
             {liveCalls.map(({ channel, people }) => (

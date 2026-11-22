@@ -40,75 +40,134 @@ export function useBasket() {
 }
 
 // ---------- Arrastar do gancho pra cestinha ----------
-// Mouse: começa a arrastar depois de mexer 6px. Toque: segurar ~0,3s
-// (pra não brigar com a rolagem da página). Soltar em cima da cestinha
-// = item na cesta. Um clique sem arrastar continua abrindo o item.
+// O próprio pacote sai do gancho (o gancho fica vazio) e vai junto com o
+// mouse, balançando conforme a velocidade, como se estivesse pendurado nos
+// dedos. Perto da cestinha ele encolhe; soltando em cima dela, cai dentro.
+// Soltando fora, volta pro gancho. Mouse: começa depois de mexer 6px.
+// Toque: segurar ~0,3s (pra não brigar com a rolagem da página). Um
+// clique sem arrastar continua abrindo o item.
+const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
+const basketEl = () => document.querySelector('.shop-basket-fab');
+const basketRect = () => basketEl()?.getBoundingClientRect() || null;
+
 export function useDragToBasket(onDrop) {
   const state = useRef(null);
   const [dragging, setDragging] = useState(false);
 
-  const cleanup = () => {
-    const s = state.current;
-    if (!s) return;
+  const teardown = (s) => {
+    cancelAnimationFrame(s.raf);
     clearTimeout(s.timer);
-    s.ghost?.remove();
     window.removeEventListener('pointermove', s.move);
     window.removeEventListener('pointerup', s.up);
     window.removeEventListener('pointercancel', s.cancel);
-    document.querySelector('.shop-basket-fab')?.classList.remove('is-target', 'is-over');
-    state.current = null;
+    basketEl()?.classList.remove('is-target', 'is-over');
+  };
+  const finish = (s) => {
+    s.layer?.remove();
+    s.el.classList.remove('is-lifted');
+    if (state.current === s) state.current = null;
     setDragging(false);
   };
-  useEffect(() => cleanup, []); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => () => { const s = state.current; if (s) { teardown(s); finish(s); } }, []);
 
   const overBasket = (x, y) => {
-    const r = document.querySelector('.shop-basket-fab')?.getBoundingClientRect();
+    const r = basketRect();
     return !!r && x >= r.left - 24 && x <= r.right + 24 && y >= r.top - 24 && y <= r.bottom + 24;
+  };
+
+  // Desenha o pacote: posição do mouse, balanço (mola) e tamanho pela distância da cesta.
+  const frame = (s) => {
+    const vx = s.px - s.lastX;
+    s.lastX = s.px;
+    s.target = clamp(-vx * 1.6, -28, 28);                 // inclina pra trás do movimento
+    s.vel = (s.vel + (s.target - s.angle) * 0.18) * 0.78;  // mola com amortecimento
+    s.angle += s.vel;
+    const r = basketRect();
+    let scale = 1;
+    if (r) {
+      const d = Math.hypot(s.px - (r.left + r.width / 2), s.py - (r.top + r.height / 2));
+      scale = clamp(0.4 + d / 520, 0.4, 1);                 // encolhe chegando perto da cesta
+    }
+    s.card.style.left = `${s.px - s.dx}px`;
+    s.card.style.top = `${s.py - s.dy}px`;
+    s.card.style.transform = `rotate(${s.angle.toFixed(2)}deg) scale(${(scale * 1.03).toFixed(3)})`;
+    s.raf = requestAnimationFrame(() => frame(s));
   };
 
   const start = (s) => {
     const rect = s.el.getBoundingClientRect();
     const ghost = s.el.cloneNode(true);
     ghost.classList.add('shop-drag-ghost');
-    Object.assign(ghost.style, { width: `${rect.width}px`, height: `${rect.height}px`, left: `${rect.left}px`, top: `${rect.top}px` });
-    document.body.appendChild(ghost);
-    s.ghost = ghost; s.dx = s.x0 - rect.left; s.dy = s.y0 - rect.top; s.active = true;
-    document.querySelector('.shop-basket-fab')?.classList.add('is-target');
+    s.rect = rect; s.dx = s.x0 - rect.left; s.dy = s.y0 - rect.top;
+    Object.assign(ghost.style, {
+      width: `${rect.width}px`, height: `${rect.height}px`, left: `${rect.left}px`, top: `${rect.top}px`,
+      transformOrigin: `${s.dx}px ${s.dy}px`,
+    });
+    // Camada própria no <body> com a classe da Loja (cores do tema valem no clone).
+    const layer = document.createElement('div');
+    layer.className = 'shop-room shop-drag-layer';
+    layer.appendChild(ghost);
+    document.body.appendChild(layer);
+    s.layer = layer; s.card = ghost; s.active = true;
+    s.px = s.x0; s.py = s.y0; s.lastX = s.x0; s.angle = 0; s.vel = 0;
+    s.el.classList.add('is-lifted'); // o gancho fica vazio
+    basketEl()?.classList.add('is-target');
     setDragging(true);
     try { navigator.vibrate?.(12); } catch { /* sem vibração */ }
+    s.raf = requestAnimationFrame(() => frame(s));
+  };
+
+  // Cai dentro da cesta.
+  const dropIn = (s) => {
+    const r = basketRect();
+    const c = s.card;
+    c.style.transition = 'left .26s ease-in, top .26s ease-in, transform .26s ease-in, opacity .26s ease-in';
+    if (r) {
+      c.style.left = `${r.left + r.width / 2 - s.dx}px`;
+      c.style.top = `${r.top + r.height / 2 - s.dy}px`;
+    }
+    c.style.transform = 'rotate(0deg) scale(.08)';
+    c.style.opacity = '0';
+    setTimeout(() => finish(s), 270);
+  };
+  // Volta pro gancho.
+  const flyBack = (s) => {
+    const c = s.card;
+    const rect = s.el.getBoundingClientRect();
+    c.style.transition = 'left .34s cubic-bezier(.2,.8,.2,1.15), top .34s cubic-bezier(.2,.8,.2,1.15), transform .34s ease-out';
+    c.style.left = `${rect.left}px`;
+    c.style.top = `${rect.top}px`;
+    c.style.transform = 'rotate(0deg) scale(1)';
+    setTimeout(() => finish(s), 360);
   };
 
   const onPointerDown = (e, item) => {
     if (e.button !== undefined && e.button !== 0) return;
     if (e.target.closest('.room-wish, .room-variant, .room-card-foot button')) return;
-    cleanup();
+    if (state.current) return; // ainda terminando a animação anterior
     const el = e.currentTarget;
     const s = { item, el, x0: e.clientX, y0: e.clientY, active: false, touch: e.pointerType === 'touch' };
     s.move = (ev) => {
       if (!s.active) {
         const moved = Math.hypot(ev.clientX - s.x0, ev.clientY - s.y0);
-        if (s.touch) { if (moved > 10) cleanup(); return; } // rolou a página: não é arrastar
+        if (s.touch) { if (moved > 10) { teardown(s); state.current = null; } return; } // rolou a página
         if (moved < 6) return;
         start(s);
       }
       ev.preventDefault();
-      s.ghost.style.left = `${ev.clientX - s.dx}px`;
-      s.ghost.style.top = `${ev.clientY - s.dy}px`;
-      document.querySelector('.shop-basket-fab')?.classList.toggle('is-over', overBasket(ev.clientX, ev.clientY));
+      s.px = ev.clientX; s.py = ev.clientY;
+      basketEl()?.classList.toggle('is-over', overBasket(ev.clientX, ev.clientY));
     };
     s.up = (ev) => {
-      const wasActive = s.active;
-      const hit = wasActive && overBasket(ev.clientX, ev.clientY);
-      if (wasActive) {
-        // Engole o clique que vem logo depois de soltar (não abre o item).
-        const swallow = (ce) => { ce.stopPropagation(); ce.preventDefault(); };
-        window.addEventListener('click', swallow, { capture: true, once: true });
-        setTimeout(() => window.removeEventListener('click', swallow, { capture: true }), 50);
-      }
-      cleanup();
-      if (hit) onDrop(item);
+      teardown(s);
+      if (!s.active) { state.current = null; return; }
+      // Engole o clique que vem logo depois de soltar (não abre o item).
+      const swallow = (ce) => { ce.stopPropagation(); ce.preventDefault(); };
+      window.addEventListener('click', swallow, { capture: true, once: true });
+      setTimeout(() => window.removeEventListener('click', swallow, { capture: true }), 50);
+      if (overBasket(ev.clientX, ev.clientY)) { dropIn(s); onDrop(item); } else flyBack(s);
     };
-    s.cancel = () => cleanup();
+    s.cancel = () => { teardown(s); if (s.active) flyBack(s); else state.current = null; };
     if (s.touch) s.timer = setTimeout(() => start(s), 320);
     window.addEventListener('pointermove', s.move, { passive: false });
     window.addEventListener('pointerup', s.up);

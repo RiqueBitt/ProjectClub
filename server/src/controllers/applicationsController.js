@@ -203,8 +203,6 @@ async function submitApplication(req, res, next) {
         oauthSignup().clearSignupCookie(res);
       }
       await sendInitialVerificationCode(user);
-      // Fase 4: indicação (se veio com convite).
-      require('../services/community/hooks').onAccountApproved({ userId: user.id, referralCode: req.body.referralCode, ip: req.ip }, req.app.get('io'));
       const accessToken = await issueSession(res, user, req.headers['user-agent'], req.ip);
       const selfUser = await prisma.user.findUnique({ where: { id: user.id }, select: SELF_USER_FIELDS });
       return res.status(201).json({ autoApproved: true, user: selfUser, accessToken });
@@ -229,11 +227,6 @@ async function submitApplication(req, res, next) {
     });
 
     if (oauthIdentity) oauthSignup().clearSignupCookie(res);
-    // Fase 4: convite de amigo (código inválido é ignorado, nunca atrapalha).
-    if (req.body.referralCode) {
-      await require('../services/community/referrals').attachToApplication({ code: req.body.referralCode, applicationId: application.id, ip: req.ip })
-        .catch((err) => console.error('[indicações] falha ao guardar convite:', err?.message || err));
-    }
     res.status(201).json({ applicationId: application.id, oauthProvider: oauthFields.oauthProvider || undefined });
   } catch (err) { next(err); }
 }
@@ -286,8 +279,6 @@ async function approveApplication(req, res, next) {
       where: { id }, data: { status: 'APPROVED', reviewedById: req.user.id, reviewedAt: new Date() },
     });
     await logPlatformAction(req, { action: 'APPLICATION_APPROVE', targetType: 'APPLICATION', targetId: id, metadata: { email: application.email } });
-    // Fase 4: liga a indicação (se a inscrição veio com convite).
-    require('../services/community/hooks').onAccountApproved({ userId: user.id, applicationId: id }, req.app.get('io'));
     // Pingu dá as boas-vindas no canal configurado (sem esperar; nunca lança).
     require('../services/pingu/welcome').welcomeUser(req.app.get('io'), user);
 

@@ -37,6 +37,15 @@ async function main() {
         stdio: 'inherit',
         env: { ...process.env, PRISMA_HIDE_UPDATE_MESSAGE: '1' },
       });
+      // Atualização pelo self-update (só copia arquivos): se o schema ganhou
+      // tabela/campo novo, o cliente do Prisma precisa ser gerado de novo,
+      // senão o servidor sobe sem conhecer o que é novo. Falhar aqui não
+      // impede o servidor de subir (o cliente antigo continua lá).
+      try {
+        execSync('npx prisma generate', { stdio: 'inherit', env: { ...process.env, PRISMA_HIDE_UPDATE_MESSAGE: '1' } });
+      } catch (genErr) {
+        console.warn('[wait-for-db] prisma generate falhou (segue com o cliente atual):', genErr?.message || genErr);
+      }
       return; // conseguiu — segue a vida normalmente
     } catch (err) {
       if (attempt === MAX_ATTEMPTS) {

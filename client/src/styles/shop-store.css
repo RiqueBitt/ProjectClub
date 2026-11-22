@@ -53,17 +53,25 @@
 }
 .room-basket-btn { gap: 5px; }
 
-/* Pacote "voando" pra cestinha. */
+/* Pacote "voando" pra cestinha (numa camada própria no body). */
+.shop-drag-layer { position: fixed; inset: 0; z-index: 9990; pointer-events: none; background: transparent !important; overflow: visible; }
 .shop-drag-ghost {
-  position: fixed !important; z-index: 9999; margin: 0 !important; pointer-events: none;
-  transform: rotate(-6deg) scale(1.04); opacity: .95; transition: none !important;
+  position: fixed !important; z-index: 9990; margin: 0 !important; pointer-events: none;
+  opacity: .97; will-change: transform, left, top;
   box-shadow: 0 26px 46px -12px rgba(0, 0, 0, .7) !important; border-radius: 14px;
 }
 .shop-drag-ghost .room-hook { display: none !important; }
+.shop-drag-ghost .room-card-peek { display: none !important; }
+/* O pacote saiu do gancho: fica só o gancho vazio balançando de leve. */
+.shop-room .room-grid .room-card.is-lifted { background: transparent; border-color: transparent; box-shadow: none; transform: none; }
+.shop-room .room-grid .room-card.is-lifted > :not(.room-hook) { visibility: hidden; }
+.shop-room .room-grid .room-card.is-lifted::after { display: none; }
+.shop-room .room-grid .room-card.is-lifted .room-hook { transform-origin: 50% 0; animation: shop-hook-wobble .6s ease-out; }
+@keyframes shop-hook-wobble { 0% { transform: rotate(0); } 30% { transform: rotate(9deg); } 60% { transform: rotate(-5deg); } 100% { transform: rotate(0); } }
 
 /* ---------- Cestinha ---------- */
 .shop-basket-fab {
-  position: fixed; right: 22px; bottom: 22px; z-index: 9000; width: 78px; height: 72px; border: 0; cursor: pointer;
+  position: fixed; right: 22px; bottom: 22px; z-index: 10000; width: 78px; height: 72px; border: 0; cursor: pointer;
   display: flex; align-items: center; justify-content: center; color: #fff4df;
   border-radius: 14px 14px 22px 22px;
   background:

@@ -47,11 +47,6 @@ const PAGES = [
   { path: '/missoes', label: 'Economia e Loja › Missões', keywords: 'missões tarefas diárias semanais recompensas' },
   { path: '/loja', label: 'Economia e Loja › Loja', keywords: 'loja molduras efeitos comprar decorações fontes' },
   { path: '/economia?aba=temporada', label: 'Economia e Loja › Passe do clube', keywords: 'passe temporada assinante' },
-  { path: '/participar', label: 'Participar › Bora Jogar', keywords: 'bora jogar grupo jogatina partida lfg' },
-  { path: '/participar?aba=interesses', label: 'Participar › Interesses', keywords: 'interesses cargos jogos' },
-  { path: '/participar?aba=reputacao', label: 'Participar › Reputação', keywords: 'reputação agradecer ranking' },
-  { path: '/participar?aba=convites', label: 'Participar › Convidar amigos', keywords: 'convite indicação amigo código' },
-  { path: '/retrospectiva', label: 'Retrospectiva do mês', keywords: 'retrospectiva resumo mês estatísticas' },
   // Fase 8.
   { path: '/loja/criadores', label: 'Economia e Loja › Loja dos criadores', keywords: 'criadores criações vender emoji figurinha moldura comunidade' },
   { path: '/praca', label: 'Praça', keywords: 'praça club penguin pinguim ilha iglu puffle jogar online' },

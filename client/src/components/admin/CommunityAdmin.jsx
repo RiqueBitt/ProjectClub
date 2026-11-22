@@ -1,9 +1,8 @@
 import { useEffect, useState } from 'react';
 import {
   adminListCoupons, adminCreateCoupon, adminSetCouponActive,
-  adminListGoals, adminSaveGoal, adminRemoveGoal, setRoleInterestFlag, errText,
+  adminListGoals, adminSaveGoal, adminRemoveGoal, errText,
 } from '../../api/community';
-import { listRoles } from '../../api/endpoints';
 import '../../styles/community4.css';
 
 // Painel da equipe — ferramentas da Fase 4: cupons da Loja, metas coletivas
@@ -173,44 +172,3 @@ export function GoalsAdmin() {
   );
 }
 
-// ---------- Cargos por interesse ----------
-export function InterestRolesAdmin() {
-  const [roles, setRoles] = useState(null);
-  const [busy, setBusy] = useState('');
-  const [msg, flash] = useMsg();
-  const load = () => listRoles().then((d) => setRoles((d.roles || []).filter((r) => !r.isDefault))).catch(() => setRoles([]));
-  useEffect(() => { load(); }, []);
-  const toggle = async (r) => {
-    setBusy(r.id);
-    try {
-      await setRoleInterestFlag(r.id, !r.selfAssignable);
-      flash(!r.selfAssignable ? `"${r.name}" agora é um cargo de interesse.` : `"${r.name}" não é mais de interesse.`);
-      load();
-    } catch (err) { flash(errText(err)); } finally { setBusy(''); }
-  };
-  const hasPerms = (r) => { try { return BigInt(r.permissions || '0') !== 0n; } catch { return true; } };
-  return (
-    <div className="c4-admin">
-      <section className="settings-block">
-        <h3>Cargos por interesse</h3>
-        <p className="dim">Os membros escolhem esses cargos sozinhos em Participar → Interesses (ex.: jogos que curtem). Por segurança, só cargos <b>sem nenhuma permissão</b> podem ser de interesse — se você der permissão a um deles depois, ele deixa de ser de interesse automaticamente.</p>
-        {msg && <p className="c4-admin-msg" role="status">{msg}</p>}
-        {roles === null && <p className="dim">Carregando…</p>}
-        <ul className="c4-list">
-          {(roles || []).map((r) => (
-            <li key={r.id} className="c4-list-row">
-              <span className="c4-role-dot" style={{ background: String(r.color || '').startsWith('linear') ? r.color : r.color || '#99AAB5' }} />
-              <div className="c4-list-main">
-                <strong>{r.name}</strong>
-                <small>{hasPerms(r) ? 'Tem permissões — não pode ser de interesse' : r.selfAssignable ? 'Cargo de interesse' : 'Cargo normal'}</small>
-              </div>
-              <button type="button" className={r.selfAssignable ? 'btn-secondary' : 'btn-primary'} disabled={busy === r.id || (hasPerms(r) && !r.selfAssignable)} onClick={() => toggle(r)}>
-                {r.selfAssignable ? 'Tirar de interesse' : 'Marcar como interesse'}
-              </button>
-            </li>
-          ))}
-        </ul>
-      </section>
-    </div>
-  );
-}
