@@ -126,7 +126,6 @@ export default function TopSearchBar() {
   }, [moreOpen]);
   useEffect(() => { setMoreOpen(false); }, [pathname]);
   const runMore = (fn) => { setMoreOpen(false); fn(); };
-  const isMac = typeof navigator !== 'undefined' && /Mac|iPhone|iPad/.test(navigator.platform || '');
 
   return (
     <div className="top-search-bar" onMouseDown={(e) => { if (e.target === e.currentTarget) startManualDrag(e); }}>
@@ -202,7 +201,6 @@ export default function TopSearchBar() {
             autoComplete="off"
             spellCheck={false}
           />
-          {!searchOpen && !q && <kbd className="top-search-bar-kbd" aria-hidden="true">{isMac ? '⌘K' : 'Ctrl K'}</kbd>}
         </div>
         {searchOpen && (
           <div className="top-search-dropdown">

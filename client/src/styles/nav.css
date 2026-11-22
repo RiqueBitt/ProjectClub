@@ -467,11 +467,13 @@ button.mention-chip.channel-mention-chip:hover { background: color-mix(in srgb, 
 .top-search-dropdown .qs-item-label { font-size: 14px; }
 .qs-kind-search .qs-item-icon { color: var(--brand); }
 .qs-kind-search .qs-item-label { color: var(--brand); }
-/* A lupa só aparece onde a barra de busca não cabe. */
-.top-search-mobile-btn { display: none; }
+/* A lupa só aparece onde a barra de busca não cabe (celular). Seletor mais
+   forte que o .top-search-bar-icon-btn do global.css, que mostrava a lupa
+   solta no canto direito também no PC. */
+.top-search-bar .top-search-bar-icon-btn.top-search-mobile-btn { display: none; }
 @media (max-width: 600px) {
   .top-search-bar-form { display: none; }
-  .top-search-mobile-btn { display: flex; }
+  .top-search-bar .top-search-bar-icon-btn.top-search-mobile-btn { display: flex; }
 }
 
 /* Atividades (barra de mensagem): ação "Mostrar cartão" acima dos Mini-Jogos. */
