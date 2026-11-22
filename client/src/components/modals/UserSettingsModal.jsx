@@ -554,8 +554,8 @@ export default function UserSettingsModal({ onClose }) {
   useEffect(() => {
     const value = username.trim();
     if (value === user.username) { setError(''); return undefined; }
-    if (!/^[a-zA-Z0-9_.]{3,32}$/.test(value)) {
-      setError('A ClubTag deve ter de 3 a 32 caracteres: letras, números, _ ou ponto.');
+    if (!/^[a-zA-Z0-9_.]{4,32}$/.test(value)) {
+      setError('A ClubTag deve ter de 4 a 32 caracteres: letras, números, _ ou ponto.');
       return undefined;
     }
     if (usernameCooldownUntil) {
@@ -1656,12 +1656,12 @@ export default function UserSettingsModal({ onClose }) {
               <span className="settings-label-row">NOME DE USUÁRIO <CharCount value={username} max={32} /></span>
               <div className="settings-prefix-input">
                 <span aria-hidden="true">@</span>
-                <input value={username} maxLength={32} autoComplete="username" spellCheck={false} aria-invalid={!!error} onChange={(e) => setUsernameField(e.target.value.replace(/\s+/g, ''))} />
+                <input value={username} minLength={4} maxLength={32} autoComplete="username" spellCheck={false} aria-invalid={!!error} onChange={(e) => setUsernameField(e.target.value.replace(/[^a-zA-Z0-9_.]/g, '').slice(0, 32))} />
               </div>
             </label>
             <FieldError>{error}</FieldError>
             <p className="dim settings-autosave-hint">
-              Salvo automaticamente 1 segundo depois de parar de digitar. De 3 a 32 caracteres: letras, números, _ ou ponto. Só dá pra trocar uma vez a cada 7 dias.
+              Salvo automaticamente 1 segundo depois de parar de digitar. De 4 a 32 caracteres: letras, números, _ ou ponto. Só dá pra trocar uma vez a cada 7 dias.
               {usernameCooldownUntil && ` Próxima troca liberada em ${usernameCooldownUntil.toLocaleString('pt-BR')}.`}
             </p>
           </div>

@@ -637,7 +637,7 @@ pub fn suggest_username(username: Option<&str>, name: Option<&str>, email: Optio
     }
     let out = out.trim_matches(|c| c == '_' || c == '.');
     let out: String = out.chars().take(32).collect();
-    if out.len() >= 3 { out } else { String::new() }
+    if out.len() >= 4 { out } else { String::new() }
 }
 
 // ---------------------------------------------------------------- decisão do callback
@@ -1137,13 +1137,13 @@ mod tests {
     #[test]
     fn clubtag_sugerida_como_o_node() {
         assert_eq!(suggest_username(Some("João Ção"), None, None), "Joao_Cao");
-        assert_eq!(suggest_username(None, Some("__a.b__"), None), "a.b");
+        assert_eq!(suggest_username(None, Some("__ab.c__"), None), "ab.c");
         assert_eq!(suggest_username(None, None, Some("ze@x.com")), "");
         assert_eq!(
             suggest_username(None, None, Some("zezinho@x.com")),
             "zezinho"
         );
-        assert_eq!(suggest_username(Some("😀😀abc"), None, None), "abc");
+        assert_eq!(suggest_username(Some("😀😀abcd"), None, None), "abcd");
         assert_eq!(
             suggest_username(Some(&"a".repeat(40)), None, None).len(),
             32

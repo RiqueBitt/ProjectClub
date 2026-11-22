@@ -3,8 +3,8 @@
 // (userController.updateUsername). Antes a troca só checava "mínimo 3
 // caracteres", então dava pra trocar pra qualquer coisa (espaços, emoji,
 // 200 caracteres, "admin"...), furando a regra mostrada na inscrição.
-const USERNAME_RE = /^[a-zA-Z0-9_.]{3,32}$/;
-const USERNAME_RULE_MESSAGE = 'A ClubTag deve ter de 3 a 32 caracteres: letras, números, _ ou ponto.';
+const USERNAME_RE = /^[a-zA-Z0-9_.]{4,32}$/;
+const USERNAME_RULE_MESSAGE = 'A ClubTag deve ter de 4 a 32 caracteres: letras, números, _ ou ponto.';
 
 // Nomes que se passariam por conta oficial/da equipe. Comparados sem
 // diferenciar maiúsculas e ignorando "_" e "." (então "Admin", "ad.min" e

@@ -26,7 +26,7 @@ const ACTIVE_MEMBER_OPTIONS = ['Sim', 'Não', 'Mais ou menos', 'Ainda não sei']
 const MONTHS = ['Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho', 'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'];
 
 // Mesmas regras validadas no servidor (applicationsController.js).
-const USERNAME_RE = /^[a-zA-Z0-9_.]{3,32}$/;
+const USERNAME_RE = /^[a-zA-Z0-9_.]{4,32}$/;
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const MIN_REASON = 20;
 
@@ -155,7 +155,7 @@ export default function RegisterPage() {
     const e = {};
     if (s === 0) {
       if (!EMAIL_RE.test(form.email.trim())) e.email = 'Digite um e-mail válido.';
-      if (!USERNAME_RE.test(form.username.trim())) e.username = 'De 3 a 32 caracteres: letras, números, _ ou ponto.';
+      if (!USERNAME_RE.test(form.username.trim())) e.username = 'De 4 a 32 caracteres: letras, números, _ ou ponto.';
       if (form.displayName.length > 32) e.displayName = 'Máximo de 32 caracteres.';
       if (!isPasswordValid(form.password)) e.password = 'A senha ainda não cumpre os requisitos.';
       if (form.confirmPassword !== form.password) e.confirmPassword = 'As senhas não são iguais.';
@@ -297,7 +297,7 @@ export default function RegisterPage() {
             </div>
             <AuthField
               label="ClubTag" icon={AtIcon} name="username" value={form.username} onChange={onChange}
-              autoComplete="username" autoCapitalize="none" autoCorrect="off" spellCheck={false} maxLength={32}
+              autoComplete="username" autoCapitalize="none" autoCorrect="off" spellCheck={false} minLength={4} maxLength={32}
               placeholder="seu_nome" hint="Seu identificador único: letras, números, _ ou ponto." error={errors.username}
             />
             <div className="pc-grid-2">
