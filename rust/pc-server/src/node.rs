@@ -73,6 +73,42 @@ pub async fn send_email(state: &AppState, body: serde_json::Value) {
     }
 }
 
+/// Baú diário resgatado (`/api/internal/daily-claimed`): o Node soma na missão
+/// "baú do dia" e devolve as conquistas novas, que vão na resposta do resgate.
+/// Se o Node não responder, o resgate já valeu: a lista volta vazia.
+pub async fn daily_claimed(state: &AppState, user_id: &str) -> Vec<serde_json::Value> {
+    let url = format!("{}/api/internal/daily-claimed", state.config.node_upstream);
+    let secret = internal_secret(&state.config.jwt_access_secret);
+    let r = state
+        .web
+        .post(&url)
+        .header("x-pc-internal", secret)
+        .timeout(std::time::Duration::from_secs(8))
+        .json(&json!({ "userId": user_id }))
+        .send()
+        .await;
+    match r {
+        Ok(r) if r.status().is_success() => match r.json::<serde_json::Value>().await {
+            Ok(mut v) => match v.get_mut("newAchievements").map(serde_json::Value::take) {
+                Some(serde_json::Value::Array(list)) => list,
+                _ => Vec::new(),
+            },
+            Err(e) => {
+                tracing::error!("[daily] resposta do Node: {e}");
+                Vec::new()
+            }
+        },
+        Ok(r) => {
+            tracing::error!("[daily] o Node respondeu {}", r.status());
+            Vec::new()
+        }
+        Err(e) => {
+            tracing::error!("[daily] {e}");
+            Vec::new()
+        }
+    }
+}
+
 /// `io.kickUser`: avisa o evento nos sockets da pessoa e desconecta todos.
 pub fn kick(state: &AppState, user_id: &str, event: &str, payload: serde_json::Value) {
     let url = format!("{}/api/internal/kick", state.config.node_upstream);

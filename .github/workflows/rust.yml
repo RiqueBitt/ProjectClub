@@ -2,9 +2,9 @@ name: Rust (reescrita)
 
 on:
   push:
-    paths: ['rust/**', '.github/workflows/rust.yml', 'server/prisma/schema.prisma', 'server/src/data/levelsCatalog.js', 'server/src/data/chestsCatalog.js']
+    paths: ['rust/**', '.github/workflows/rust.yml', 'server/prisma/schema.prisma', 'server/src/data/levelsCatalog.js', 'server/src/data/chestsCatalog.js', 'server/src/services/missionSeason.js']
   pull_request:
-    paths: ['rust/**', '.github/workflows/rust.yml', 'server/prisma/schema.prisma', 'server/src/data/levelsCatalog.js', 'server/src/data/chestsCatalog.js']
+    paths: ['rust/**', '.github/workflows/rust.yml', 'server/prisma/schema.prisma', 'server/src/data/levelsCatalog.js', 'server/src/data/chestsCatalog.js', 'server/src/services/missionSeason.js']
 
 jobs:
   test:

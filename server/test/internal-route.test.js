@@ -139,3 +139,35 @@ test('/after só roda as ações conhecidas, na ordem', async () => {
     server.close();
   }
 });
+
+test('/daily-claimed soma na missão do baú e devolve as conquistas novas', async () => {
+  const express = require('express');
+  const { router } = require('../src/routes/internal');
+  const missionsPath = path.resolve(__dirname, '../src/services/missions.js');
+  const achievementsPath = path.resolve(__dirname, '../src/services/achievements.js');
+  const before = [require.cache[missionsPath], require.cache[achievementsPath]];
+  const tracked = [];
+  require.cache[missionsPath] = { exports: { track: async (...a) => { tracked.push(a.slice(0, 3)); } }, loaded: true, id: missionsPath };
+  require.cache[achievementsPath] = { exports: { checkAndUnlock: async (id) => [{ key: 'primeiro-bau', userId: id }] }, loaded: true, id: achievementsPath };
+  const app = express();
+  app.set('io', {});
+  app.use(express.json());
+  app.use('/api/internal', router);
+  const server = app.listen(0);
+  const port = server.address().port;
+  const post = (body) => fetch(`http://127.0.0.1:${port}/api/internal/daily-claimed`, {
+    method: 'POST', headers: { 'x-pc-internal': internalSecret(), 'content-type': 'application/json' }, body: JSON.stringify(body),
+  });
+  try {
+    assert.strictEqual((await post({})).status, 400);
+    const ok = await post({ userId: 'u1' });
+    assert.strictEqual(ok.status, 200);
+    assert.deepStrictEqual(await ok.json(), { ok: true, newAchievements: [{ key: 'primeiro-bau', userId: 'u1' }] });
+    await new Promise((r) => setTimeout(r, 20));
+    assert.deepStrictEqual(tracked, [['u1', 'DAILY_CHEST', 1]]);
+  } finally {
+    server.close();
+    if (before[0]) require.cache[missionsPath] = before[0]; else delete require.cache[missionsPath];
+    if (before[1]) require.cache[achievementsPath] = before[1]; else delete require.cache[achievementsPath];
+  }
+});
