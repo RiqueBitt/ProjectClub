@@ -49,6 +49,24 @@ pub(crate) async fn update_self(
     Ok(Value::Object(users::self_user(&row)?))
 }
 
+/// `prisma.user.update` com uma lista de campos (vazia = só lê, sem mexer
+/// no `updatedAt`, como o Prisma).
+pub(crate) async fn update_self_data(
+    db: &Db,
+    user_id: &str,
+    data: Vec<(String, db::Value)>,
+) -> anyhow::Result<Value> {
+    if data.is_empty() {
+        let row = db::first(db, &users::self_select_sql(), params![user_id])
+            .await?
+            .ok_or_else(|| anyhow::anyhow!("conta sumiu (P2025)"))?;
+        return Ok(Value::Object(users::self_user(&row)?));
+    }
+    let sets: Vec<String> = data.iter().map(|(k, _)| format!("`{k}` = ?")).collect();
+    let p: Vec<db::Value> = data.into_iter().map(|(_, v)| v).collect();
+    update_self(db, user_id, &sets.join(", "), p).await
+}
+
 /// `broadcastUserUpdate`: a versão completa vai pras abas da própria pessoa
 /// e a pública (sem e-mail/2FA) pro resto da comunidade.
 pub(crate) fn user_update_emits(user: &Value) -> Vec<Emit> {
@@ -173,7 +191,7 @@ pub async fn set_status(State(state): State<AppState>, parts: Parts, body: Bytes
 }
 
 /// `new Date(x)` pro horário do status (número = ms; texto no formato ISO).
-fn js_date(v: &Value) -> Option<DateTime<Utc>> {
+pub(crate) fn js_date(v: &Value) -> Option<DateTime<Utc>> {
     match v {
         Value::Number(n) => {
             let ms = n.as_f64()?;

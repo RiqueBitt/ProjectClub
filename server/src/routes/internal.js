@@ -96,4 +96,26 @@ router.post('/realtime', (req, res) => {
   res.json({ ok: true, emitted: list.length });
 });
 
+// Serviços do Node que o Rust ainda não tem, disparados depois de uma ação
+// que já foi feita no Rust (melhor esforço, na ordem, sem esperar):
+//   { actions: [{ name: 'ups' | 'achievements' | 'profileChanged', userId }] }
+// - ups: recalcula os "ups" e avisa a pessoa (services/ups.emitUpsUpdate)
+// - achievements: confere conquistas novas (services/achievements.checkAndUnlock)
+// - profileChanged: avisa os amigos que o perfil mudou (services/profileUpdates)
+const AFTER_ACTIONS = {
+  ups: (req, userId) => require('../services/ups').emitUpsUpdate(req.app.get('io'), userId),
+  achievements: (req, userId) => require('../services/achievements').checkAndUnlock(userId, req.app.get('io')),
+  profileChanged: (req, userId) => require('../services/profileUpdates').profileChanged(req, userId),
+};
+router.post('/after', async (req, res) => {
+  const list = Array.isArray(req.body?.actions) ? req.body.actions : [];
+  let done = 0;
+  for (const a of list) {
+    const fn = a && Object.prototype.hasOwnProperty.call(AFTER_ACTIONS, a.name) ? AFTER_ACTIONS[a.name] : null;
+    if (!fn || typeof a.userId !== 'string') continue;
+    try { await fn(req, a.userId); done += 1; } catch (err) { console.error(`[internal/after] ${a.name}:`, err?.message || err); }
+  }
+  res.json({ ok: true, done });
+});
+
 module.exports = { router, internalSecret };

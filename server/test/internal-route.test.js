@@ -104,3 +104,29 @@ test('/realtime emite na ordem, com salas e exceções, e repassa a presença', 
     server.close();
   }
 });
+
+test('/after só roda as ações conhecidas, na ordem', async () => {
+  const express = require('express');
+  const calls = [];
+  const fake = (name) => ({ exports: new Proxy({}, { get: (_, fn) => async (...args) => calls.push([name, fn, typeof args[0] === 'string' ? args[0] : args[1]]) }) });
+  for (const [file, name] of [['ups', 'ups'], ['achievements', 'achievements'], ['profileUpdates', 'profile']]) {
+    const full = path.resolve(__dirname, `../src/services/${file}.js`);
+    require.cache[full] = { ...fake(name), loaded: true, id: full, filename: full, children: [], paths: [] };
+  }
+  const { router } = require('../src/routes/internal');
+  const app = express();
+  app.set('io', {});
+  app.use(express.json());
+  app.use('/api/internal', router);
+  const server = app.listen(0);
+  try {
+    const r = await fetch(`http://127.0.0.1:${server.address().port}/api/internal/after`, {
+      method: 'POST', headers: { 'x-pc-internal': internalSecret(), 'content-type': 'application/json' },
+      body: JSON.stringify({ actions: [{ name: 'ups', userId: 'u1' }, { name: 'rm -rf', userId: 'u1' }, { name: 'achievements', userId: 'u2' }, { name: 'profileChanged', userId: 'u3' }] }),
+    });
+    assert.deepStrictEqual(await r.json(), { ok: true, done: 3 });
+    assert.deepStrictEqual(calls.map((c) => c[0]), ['ups', 'achievements', 'profile']);
+  } finally {
+    server.close();
+  }
+});

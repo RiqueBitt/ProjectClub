@@ -159,6 +159,21 @@ pub fn realtime(
     let _ = state.realtime.0.send((url, secret, body));
 }
 
+/// Dispara serviços do Node que o Rust ainda não tem (`/api/internal/after`):
+/// `ups`, `achievements`, `profileChanged` — na mesma fila do tempo real.
+pub fn after(state: &AppState, actions: &[(&str, &str)]) {
+    let list: Vec<serde_json::Value> = actions
+        .iter()
+        .map(|(name, user)| json!({ "name": name, "userId": user }))
+        .collect();
+    let url = format!("{}/api/internal/after", state.config.node_upstream);
+    let secret = internal_secret(&state.config.jwt_access_secret);
+    let _ = state
+        .realtime
+        .0
+        .send((url, secret, json!({ "actions": list })));
+}
+
 #[cfg(test)]
 mod tests {
     #[test]

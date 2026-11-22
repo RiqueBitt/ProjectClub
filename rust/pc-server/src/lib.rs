@@ -228,6 +228,35 @@ fn ported(state: &AppState) -> Router<AppState> {
         .route("/api/users/search", get(routes::users::search))
         .route("/api/users/me/ignored", get(routes::users::list_ignored))
         .route("/api/users/{id}", get(routes::profile::get_user))
+        .route("/api/users/me", patch(routes::profile_edit::update_profile))
+        .route(
+            "/api/users/me/username",
+            patch(routes::profile_edit::update_username),
+        )
+        .route(
+            "/api/users/me/displayed-achievements",
+            patch(routes::profile_edit::set_displayed_achievements),
+        )
+        .route(
+            "/api/users/{id}/vote",
+            post(routes::profile_edit::vote_profile),
+        )
+        .route(
+            "/api/users/{id}/extras",
+            get(routes::profile_extras::get_extras),
+        )
+        .route(
+            "/api/users/me/widgets",
+            put(routes::profile_extras::set_widgets),
+        )
+        .route(
+            "/api/users/me/wishlist",
+            get(routes::profile_extras::my_wishlist).post(routes::profile_extras::toggle_wishlist),
+        )
+        .route(
+            "/api/users/{id}/report",
+            post(routes::profile_edit::report_profile),
+        )
         .route("/api/users/{id}/ignore", post(routes::users::toggle_ignore))
         .route("/api/users/{id}/note", put(routes::users::set_note))
         .route(
