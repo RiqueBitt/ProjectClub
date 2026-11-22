@@ -100,6 +100,32 @@ test('painel: gerenciamento de apoio pede motivo e confirma antes de remover', a
   expect(errors).toEqual([]);
 });
 
+test('parede em 3D: gancho, caixinha e painel carregam e a caixinha cabe na cartela', async ({ page }) => {
+  await page.goto('/loja');
+  await page.locator('.room-nav-item', { hasText: 'Molduras de avatar' }).click();
+  const card = page.locator('.room-card', { hasText: 'Brasa' });
+  await expect(card.locator('.room-pack-plastic')).toHaveCount(1);
+  // os renders (tools/loja-3d) vão junto com o site
+  for (const f of ['caixinha', 'sombra', 'gancho', 'painel']) {
+    const r = await page.request.get(new URL(`/loja/parede/${f}.webp`, page.url()).href);
+    expect(r.status(), f).toBe(200);
+    expect(r.headers()['content-type'], f).toContain('image/webp');
+  }
+  const bg = (sel) => page.locator(sel).first().evaluate((el) => getComputedStyle(el).backgroundImage);
+  expect(await bg('.room-grid')).toContain('/loja/parede/painel.webp');
+  expect(await card.locator('.room-hook').evaluate((el) => getComputedStyle(el).backgroundImage)).toContain('/loja/parede/gancho.webp');
+  // o item (fundo da caixinha) fica inteiro dentro da cartela, no computador e no celular
+  const c = await card.boundingBox();
+  const w = await card.locator('.room-pack-window').boundingBox();
+  expect(w.x).toBeGreaterThanOrEqual(c.x);
+  expect(w.x + w.width).toBeLessThanOrEqual(c.x + c.width);
+  expect(w.y).toBeGreaterThan(c.y);
+  expect(w.width).toBeGreaterThan(c.width * 0.55);
+  // botão da cesta simples: sem brilho nem sombra no texto
+  const btn = card.getByRole('button', { name: /Pôr Brasa na cestinha/ });
+  expect(await btn.evaluate((el) => { const st = getComputedStyle(el); return [st.textShadow, st.backgroundImage, st.fontWeight]; })).toEqual(['none', 'none', '600']);
+});
+
 test('loja de conveniência: pega do gancho, cestinha e paga passando o cartão', async ({ page }) => {
   await page.addInitScript(() => { try { localStorage.removeItem('shopBasket:v1'); } catch { /* ok */ } });
   let paidWith = null;
