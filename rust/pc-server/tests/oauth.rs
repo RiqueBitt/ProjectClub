@@ -602,6 +602,7 @@ async fn json_com_etag_e_304_como_o_express() {
         r.headers()["content-type"],
         "application/json; charset=utf-8"
     );
+    assert_eq!(r.headers()["vary"], "Origin, Accept-Encoding");
     let tag = r.headers()["etag"].to_str().unwrap().to_string();
     let body = r.text().await.unwrap();
     assert_eq!(tag, pc_server::web::weak_etag(body.as_bytes()));

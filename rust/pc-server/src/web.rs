@@ -58,6 +58,10 @@ const SECURITY_HEADERS: [(&str, &str); 12] = [
 /// Coloca os cabeçalhos do helmet e do cors numa resposta do Rust.
 pub async fn headers(State(state): State<AppState>, req: Request, next: Next) -> Response {
     let mut res = next.run(req).await;
+    // resposta do Node (método que o Rust não tem): já vem pronta
+    if res.extensions().get::<crate::proxy::Proxied>().is_some() {
+        return res;
+    }
     let h = res.headers_mut();
     for (name, value) in SECURITY_HEADERS {
         h.entry(HeaderName::from_static(name))
@@ -70,7 +74,26 @@ pub async fn headers(State(state): State<AppState>, req: Request, next: Next) ->
         header::ACCESS_CONTROL_ALLOW_CREDENTIALS,
         HeaderValue::from_static("true"),
     );
-    h.append(header::VARY, HeaderValue::from_static("Origin"));
+    // `Vary` na ordem do Node: `Origin` (cors), o que a rota pôs (`Accept`
+    // no redirecionamento) e `Accept-Encoding` (compression, só em texto/JSON)
+    let mut vary = vec!["Origin".to_string()];
+    for v in h.get_all(header::VARY).iter().filter_map(|v| v.to_str().ok()) {
+        for t in v.split(',').map(str::trim).filter(|t| !t.is_empty()) {
+            if !t.eq_ignore_ascii_case("origin") && !t.eq_ignore_ascii_case("accept-encoding") {
+                vary.push(t.to_string());
+            }
+        }
+    }
+    let compressible = h
+        .get(header::CONTENT_TYPE)
+        .and_then(|v| v.to_str().ok())
+        .is_some_and(|t| t.starts_with("text/") || t.starts_with("application/json"));
+    if compressible {
+        vary.push("Accept-Encoding".into());
+    }
+    if let Ok(v) = HeaderValue::from_str(&vary.join(", ")) {
+        h.insert(header::VARY, v);
+    }
     h.insert("x-served-by", HeaderValue::from_static("rust"));
     res
 }
