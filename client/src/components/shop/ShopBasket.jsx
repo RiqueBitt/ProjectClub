@@ -229,6 +229,9 @@ export function CheckoutPage({ basket, items, data, user, priceOf, sellsIn, kind
   const short = totals.coins > coins ? 'moedas' : totals.gems > gems ? 'gemas' : null;
   const hasProblem = rows.some((r) => r.missing || r.blocked);
   const ready = valid.length > 0 && !hasProblem && !short && phase !== 'paying' && phase !== 'approved';
+  // número e data do cupom (o número muda quando muda o que está na cesta)
+  const ticketNo = String(basket.lines.reduce((h, l) => (h * 31 + [...`${l.kind}${l.id}`].reduce((a, c) => a + c.charCodeAt(0), 0)) % 99991, 7)).padStart(5, '0');
+  const ticketDate = new Date().toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' });
   const totalText = [totals.coins > 0 && `${fmt(totals.coins)} moedas`, totals.gems > 0 && `${fmt(totals.gems)} gemas`].filter(Boolean).join(' + ') || 'Grátis';
 
   const pay = async () => {
@@ -277,6 +280,13 @@ export function CheckoutPage({ basket, items, data, user, priceOf, sellsIn, kind
       </ol>
       <div className="shop-checkout-grid">
         <section className="shop-receipt" aria-label="Itens da cestinha">
+          {/* Cupom da cestinha: folha de recibo de papel (bordas picotadas,
+              letra de impressora, total e código de barras no pé). */}
+          <header className="shop-ticket-head" aria-hidden="true">
+            <strong>PROJECT CLUB</strong>
+            <span>LOJA · CUPOM Nº {ticketNo}</span>
+            <span>{ticketDate}</span>
+          </header>
           <h2>Sua cestinha <small>{basket.lines.length} {basket.lines.length === 1 ? 'item' : 'itens'}</small></h2>
           {rows.length === 0 && (
             <div className="shop-empty-basket">
@@ -312,6 +322,15 @@ export function CheckoutPage({ basket, items, data, user, priceOf, sellsIn, kind
               );
             })}
           </ul>
+          {rows.length > 0 && (
+            <div className="shop-ticket-sum">
+              <div><span>{valid.length} {valid.length === 1 ? 'item' : 'itens'}</span><span>{totals.coins > 0 ? `${fmt(totals.coins)} moedas` : '—'}</span></div>
+              {totals.gems > 0 && <div><span>Em gemas</span><span>{fmt(totals.gems)} gemas</span></div>}
+              <div className="shop-ticket-total"><span>TOTAL</span><span key={totalText}>{totalText}</span></div>
+              <div className="shop-ticket-bars" aria-hidden="true" />
+              <p className="shop-ticket-thanks">Obrigado pela preferência!</p>
+            </div>
+          )}
           {basket.lines.length > 0 && (
             <div className="shop-receipt-foot">
               <button type="button" className="room-btn sm ghost" onClick={onBack}><Ico name="plus" size={14} /> Pôr mais itens</button>
