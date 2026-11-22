@@ -42,7 +42,13 @@ for p in server/src server/prisma server/scripts scripts client/dist; do
 done
 # Club Penguin removido (nov/2026): tira o servidor do jogo e a mídia baixada
 # por ele (o boot também apaga a mídia, ver server/src/services/cpCleanup.js).
-rm -rf "$APP/server/waddle" "$APP/server/data/waddle"
+# É limpeza, não pode parar a publicação: no app da Shard Cloud parte dessa
+# mídia é de outro dono no disco e o `rm` devolvia "Permission denied"; com
+# o `set -e` o script morria aqui, DEPOIS de trocar as pastas e ANTES de
+# trocar o Rust, os package.json e o .deployed-sha — o vigia tentava de novo
+# a cada minuto e nenhuma versão nova entrava no ar.
+rm -rf "$APP/server/waddle" "$APP/server/data/waddle" 2>/dev/null \
+  || echo "AVISO: sobrou mídia do Club Penguin em server/data/waddle (sem permissão pra apagar)"
 # Rust: troca a pasta do binário do mesmo jeito (o processo que está rodando
 # continua com o arquivo antigo até reiniciar). Sem binário nesta versão, tira
 # o antigo pra não rodar Rust de uma versão com Node de outra.
