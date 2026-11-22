@@ -1,4 +1,5 @@
-import { useState } from 'react';
+import { useRef, useState } from 'react';
+import { useSlidingPill } from '../utils/slidingPill';
 import { useSearchParams } from 'react-router-dom';
 import { QuickMessageBox, RecentDMs } from '../components/DMQuick.jsx';
 import { useAuth } from '../context/AuthContext.jsx';
@@ -41,6 +42,8 @@ export default function AmigosPage() {
   });
   const setTab = (v) => { setTabState(v); try { localStorage.setItem('pc-social-tab', v); } catch { /* ignora */ } };
 
+  const tabsRef = useRef(null);
+  const underline = useSlidingPill(tabsRef, '.social-tab.active', [tab, pendingIncoming, unread]);
   const counter = (key) => {
     if (key === 'amigos') return pendingIncoming ? { n: pendingIncoming, alert: true } : null;
     if (key === 'mensagens') return unread ? { n: unread, alert: true } : null;
@@ -52,16 +55,17 @@ export default function AmigosPage() {
       <header className="social-hero">
         <div>
           <h1>Amigos</h1>
-          <p>
-            {accepted.length} amigo{accepted.length === 1 ? '' : 's'}
-            {' · '}
+          <p className="social-stats">
+            <span>{accepted.length} amigo{accepted.length === 1 ? '' : 's'}</span>
             <span className="social-online"><span className="social-dot" /> {onlineCount} online</span>
+            {pendingIncoming > 0 && <span className="social-pending">{pendingIncoming} pedido{pendingIncoming === 1 ? '' : 's'}</span>}
           </p>
         </div>
         <div className="social-hero-actions">
           <QuickMessageBox />
         </div>
-        <nav className="social-tabs" role="tablist" aria-label="Seções de Amigos">
+        <nav className="social-tabs" role="tablist" aria-label="Seções de Amigos" ref={tabsRef}>
+          <span className="social-tabs-line" aria-hidden="true" style={underline} />
           {TABS.map((t) => {
             const c = counter(t.key);
             return (

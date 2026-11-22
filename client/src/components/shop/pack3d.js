@@ -168,6 +168,9 @@ async function createEngine() {
   const tabMat = plasticMaterial({ alphaMin: 0.32, alphaMax: 0.7, power: 1.8, rough: 0.1 });
   const chrome = chromeMaterial();
 
+  const backMat = plasticMaterial({ alphaMin: 0.55, alphaMax: 0.8, power: 1.5, rough: 0.2 });
+  let backPlate = null;
+  const assembly = new Group(); // no 360° gira tudo junto (gancho e caixinha)
   const box = new Group();      // tudo que gira: caixinha + aba
   const hook = new Group();     // o gancho fica parado
   const casters = [];
@@ -178,7 +181,9 @@ async function createEngine() {
     const mesh = new Mesh(o.geometry, o.material);
     mesh.applyMatrix4(o.matrixWorld);
     if (name.includes('cromado')) { mesh.material = chrome; mesh.castShadow = true; hook.add(mesh); return; }
-    if (name.includes('fundo')) return;            // a placa de trás é o próprio HTML do item
+    // a placa de trás: na parede quem faz o papel dela é o HTML do item; só
+    // aparece no visualizador 360° quando a caixinha está de costas
+    if (name.includes('fundo')) { mesh.material = backMat; mesh.visible = false; mesh.renderOrder = 0; backPlate = mesh; box.add(mesh); return; }
     if (name.includes('frente')) { mesh.material = film; mesh.renderOrder = 3; box.add(mesh); return; }
     const isTab = (o.parent?.name || o.name || '').toLowerCase().includes('aba') || name.endsWith('.001');
     mesh.material = isTab ? tabMat : walls;
@@ -187,8 +192,9 @@ async function createEngine() {
     casters.push(mesh);
     box.add(mesh);
   });
-  scene.add(hook);
-  scene.add(box);
+  assembly.add(hook);
+  assembly.add(box);
+  scene.add(assembly);
 
   // Sombras: na cartela (atrás) e no item (dentro da caixinha, a parede de
   // cima/esquerda faz sombra nele). Planos invisíveis que só recebem sombra.
@@ -234,7 +240,26 @@ async function createEngine() {
 
   // Coloca a caixinha na pose do estado: giro (yaw) em volta do arame, inclinação
   // (pitch, a base sai da parede) e balanço (swing, no plano da cartela).
+  const CENTER = new Vector3(0, 2.2, (Z_BACK + Z_FRONT) / 2);
   function pose(s) {
+    if (s.orbit) {
+      // visualizador 360°: gira o conjunto em volta do próprio centro, sem parede atrás
+      box.matrix.identity();
+      box.matrixAutoUpdate = false;
+      tmpQ.setFromEuler(tmpE.set((s.pitch * Math.PI) / 180, (s.yaw * Math.PI) / 180, 0, 'YXZ'));
+      assembly.matrix.makeTranslation(CENTER.x, CENTER.y, CENTER.z)
+        .multiply(tmpM.makeRotationFromQuaternion(tmpQ))
+        .multiply(new Matrix4().makeTranslation(-CENTER.x, -CENTER.y, -CENTER.z));
+      assembly.matrixAutoUpdate = false;
+      assembly.updateMatrixWorld(true);
+      return;
+    }
+    assembly.matrix.identity();
+    assembly.matrixAutoUpdate = false;
+    assembly.updateMatrixWorld(true);
+    return poseOnWall(s);
+  }
+  function poseOnWall(s) {
     const yaw = (s.yaw * Math.PI) / 180;
     const pitch = (-s.pitch * Math.PI) / 180;
     const swing = ((s.swing + s.tilt) * Math.PI) / 180;
@@ -263,12 +288,20 @@ async function createEngine() {
     tint.set(s.color || '#35d05a').lerp(white, 0.58);
     walls.color.copy(tint);
     tabMat.color.copy(tint);
+    backMat.color.copy(tint);
     film.color.copy(white);
     // a luz principal acompanha um pouco o mouse (o brilho anda no plástico)
     key.position.set(-9 + s.lx * 8, 15 - s.ly * 4, 40);
     key.target.position.set(0, 1, 0);
     key.target.updateMatrixWorld();
     pose(s);
+    wallShadow.visible = !s.orbit;
+    const quad = (r, z) => [
+      project(new Vector3(-r.x, r.y, z), w, h), project(new Vector3(r.x, r.y, z), w, h),
+      project(new Vector3(r.x, -r.y, z), w, h), project(new Vector3(-r.x, -r.y, z), w, h),
+    ];
+    const qInsert = quad(INSERT, INSERT.z);
+    if (backPlate) backPlate.visible = !!s.orbit && !facesViewer(qInsert);
     const t0 = performance.now();
     renderer.render(scene, camera);
     if (!slow && frames < 30) { frames += 1; spent += performance.now() - t0; if (frames >= 8 && spent / frames > 28) slow = true; }
@@ -276,11 +309,7 @@ async function createEngine() {
     ctx.clearRect(0, 0, target.canvas.width, target.canvas.height);
     ctx.drawImage(canvas, 0, 0, target.canvas.width, target.canvas.height);
     // planos de HTML: fundo (o item) e frente (os selos)
-    const quad = (r, z) => [
-      project(new Vector3(-r.x, r.y, z), w, h), project(new Vector3(r.x, r.y, z), w, h),
-      project(new Vector3(r.x, -r.y, z), w, h), project(new Vector3(-r.x, -r.y, z), w, h),
-    ];
-    return { insert: quad(INSERT, INSERT.z), front: quad(FRONT, FRONT.z) };
+    return { insert: qInsert, front: quad(FRONT, FRONT.z) };
   }
 
   return { render, isSlow: () => slow, dispose: () => renderer.dispose() };
@@ -361,7 +390,7 @@ export function mountPack(el, opts = {}) {
   const insertEl = el.querySelector('.room-pack-back');
   const frontEl = el.querySelector('.room-pack-front');
   const s = {
-    color: opts.color, tilt: opts.tilt || 0,
+    color: opts.color, tilt: opts.tilt || 0, orbit: !!opts.orbit, drag: null,
     yaw: 0, yawV: 0, yawT: 0, pitch: 0, pitchV: 0, pitchT: 0, swing: 0, swingV: 0,
     lx: 0, ly: 0, lxT: 0, lyT: 0,
   };
@@ -389,6 +418,8 @@ export function mountPack(el, opts = {}) {
       last = now;
       // molas: giro e inclinação seguem o alvo; o balanço é um pêndulo amortecido
       const spring = (x, v, t, k, c) => { const a = k * (t - x) - c * v; v += a * dt; return [x + v * dt, v]; };
+      // 360°: sem ninguém arrastando, roda devagarinho sozinha
+      if (s.orbit && !s.drag && !isQuiet()) s.yawT += dt * 22;
       [s.yaw, s.yawV] = spring(s.yaw, s.yawV, s.yawT, 70, 11);
       [s.pitch, s.pitchV] = spring(s.pitch, s.pitchV, s.pitchT, 80, 12);
       [s.swing, s.swingV] = spring(s.swing, s.swingV, 0, 150, 4.2);
@@ -397,6 +428,7 @@ export function mountPack(el, opts = {}) {
       const moving = Math.abs(s.yaw - s.yawT) > 0.05 || Math.abs(s.yawV) > 0.05 || Math.abs(s.pitch - s.pitchT) > 0.05
         || Math.abs(s.pitchV) > 0.05 || Math.abs(s.swing) > 0.02 || Math.abs(s.swingV) > 0.05
         || Math.abs(s.lx - s.lxT) > 0.005 || Math.abs(s.ly - s.lyT) > 0.005;
+      if (s.orbit && !s.drag && !isQuiet()) { draw(); dirty = false; return true; }
       if (!moving && !dirty) { last = 0; return false; }
       if (!moving) { s.yaw = s.yawT; s.pitch = s.pitchT; s.swing = 0; s.yawV = s.pitchV = s.swingV = 0; last = 0; }
       draw();
@@ -406,6 +438,14 @@ export function mountPack(el, opts = {}) {
     // Mouse/dedo em cima: a caixinha vira pro lado do ponteiro e a base sai um
     // pouquinho da parede; o brilho acompanha.
     pointer(e) {
+      if (s.orbit) {
+        if (!s.drag) return;
+        s.yawT = s.drag.yaw + (e.clientX - s.drag.x) * 0.75;
+        s.pitchT = Math.max(-28, Math.min(28, s.drag.pitch + (e.clientY - s.drag.y) * 0.35));
+        if (isQuiet()) { s.yaw = s.yawT; s.pitch = s.pitchT; dirty = true; }
+        wake();
+        return;
+      }
       const r = el.getBoundingClientRect();
       if (!r.width) return;
       const nx = Math.max(-1, Math.min(1, ((e.clientX - r.left) / r.width) * 2 - 1));
@@ -416,8 +456,12 @@ export function mountPack(el, opts = {}) {
       s.lxT = nx; s.lyT = ny;
       wake();
     },
+    // 360°: começa/termina de arrastar.
+    grab(e) { s.drag = { x: e.clientX, y: e.clientY, yaw: s.yawT, pitch: s.pitchT }; wake(); },
+    drop() { s.drag = null; wake(); },
     // Soltou/saiu: volta pro lugar e balança com o embalo que tinha.
     release() {
+      if (s.orbit) return;
       if (isQuiet()) return;
       s.swingV += -s.yawV * 0.35 + (Math.random() - 0.5) * 6;
       s.yawT = 0; s.pitchT = 0; s.lxT = 0; s.lyT = 0;

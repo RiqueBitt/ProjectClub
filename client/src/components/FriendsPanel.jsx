@@ -1,4 +1,5 @@
-import { useState } from 'react';
+import { useRef, useState } from 'react';
+import { useSlidingPill } from '../utils/slidingPill';
 import { useStore } from '../store/useStore';
 import {
   sendFriendRequest, respondFriendRequest, removeFriend, blockUser, searchUsers, listFriends, createConversation,
@@ -15,6 +16,7 @@ const TABS = ['ONLINE', 'ALL', 'PENDING', 'BLOCKED', 'ADD'];
 
 export default function FriendsPanel() {
   const [tab, setTab] = useState('ONLINE');
+  const filtersRef = useRef(null);
   const navigate = useNavigate();
   const friends = useStore((s) => s.friends);
   const presence = useStore((s) => s.presence);
@@ -92,10 +94,13 @@ export default function FriendsPanel() {
     } catch { /* sem DM: a pessoa pode ter bloqueado DMs */ }
   };
 
+  const filterPill = useSlidingPill(filtersRef, '.fx-filter.active', [tab, counts.ONLINE, counts.ALL, counts.PENDING, counts.BLOCKED]);
+
   return (
     <div className="friends-panel fx">
       <div className="fx-bar">
-        <div className="fx-filters" role="tablist" aria-label="Filtrar amigos">
+        <div className="fx-filters" role="tablist" aria-label="Filtrar amigos" ref={filtersRef}>
+          <span className="fx-filters-pill" aria-hidden="true" style={filterPill} />
           {TABS.filter((t) => t !== 'ADD').map((t) => (
             <button
               key={t} type="button" role="tab" aria-selected={tab === t}
@@ -172,7 +177,7 @@ export default function FriendsPanel() {
                 </span>
                 <span className="fx-names">
                   <strong className="truncate">{f.user.displayName}</strong>
-                  <span className="truncate">
+                  <span className={`truncate fx-sub${f.status === 'ACCEPTED' && f.liveStatus ? ` st-${String(f.liveStatus).toLowerCase()}` : ''}`}>
                     {f.status === 'PENDING' ? (f.isIncoming ? 'Quer ser seu amigo' : 'Pedido enviado')
                       : f.status === 'BLOCKED' ? 'Bloqueado'
                         : (f.user.customStatus || STATUS_LABEL[f.liveStatus] || '')}
