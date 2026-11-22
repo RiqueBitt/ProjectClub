@@ -221,7 +221,8 @@
 .wcard--gold ~ .wcard-shadow { --pool: #e2b24a; }
 .wcard--rainbow ~ .wcard-shadow { --pool: #9a7bff; }
 @keyframes wcard-shadow { 0%, 100% { opacity: 1; } 50% { opacity: .7; } }
-[data-theme='light'] .wcard-shadow, [data-theme='facebook'] .wcard-shadow, [data-theme='clubpenguin'] .wcard-shadow { --wcard-shadow: 30%; --wcard-pool: 0%; }
+
+[data-theme='light'] .wcard-shadow, [data-theme='facebook'] .wcard-shadow { --wcard-shadow: 30%; --wcard-pool: 0%; }
 .wcard-hint { margin: 0; font-size: 12.5px; color: var(--text-muted); transition: opacity .5s ease; }
 .wcard-hint.is-used { opacity: 0; }
 

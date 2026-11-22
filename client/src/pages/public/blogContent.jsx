@@ -149,12 +149,6 @@ function AppsGuide() {
   );
 }
 
-const MINIGAMES = [
-  { src: '/minigames/pizzatron/cover.webp', alt: 'Capa do Pizzatron 3000', caption: 'Pizzatron 3000' },
-  { src: '/minigames/sledracing/cover.webp', alt: 'Capa da Corrida de Trenó', caption: 'Corrida de Trenó' },
-  { src: '/minigames/beancounters/cover.webp', alt: 'Capa do Pilha de Café', caption: 'Pilha de Café' },
-  { src: '/minigames/flash/thinice/cover.webp', alt: 'Capa do Thin Ice', caption: 'Um dos fliperamas em Flash' },
-];
 
 // ---------- Seções ----------
 // group: agrupa o índice lateral. Cada seção vira <section id={id}>.
@@ -333,16 +327,6 @@ export const GUIDE_SECTIONS = [
           ['Identidade', 'Nome, descrição, ícone e cor, além da tag do clã que pode aparecer junto do seu nome.'],
           ['Conversa', 'Chat do clã e uma sala de voz só para os membros.'],
         ]} />
-      </>
-    ),
-  },
-  {
-    id: 'minijogos', group: 'Diversão', title: 'Minijogos',
-    body: (
-      <>
-        <p className="wk-lead">Minijogos que já vêm no Project Club e rodam direto na página, sem instalar nada.</p>
-        <p>São recriações feitas por fãs dos minijogos do Club Penguin: três em HTML5 (Pizzatron 3000, Corrida de Trenó e Pilha de Café) e uma coleção de fliperamas em Flash, que rodam por um emulador embutido. Os jogos são separados por categoria (ação, casual, corrida, puffles, arcade e música) e têm placar.</p>
-        <Gallery cols={2} items={MINIGAMES.map((m) => ({ ...m, ratio: '16 / 9' }))} />
       </>
     ),
   },

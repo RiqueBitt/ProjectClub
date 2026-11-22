@@ -63,15 +63,6 @@
             android:windowSoftInputMode="adjustResize"
             android:configChanges="orientation|screenSize|screenLayout|smallestScreenSize|keyboardHidden|uiMode" />
 
-        <!-- Club Penguin (Praça): WebView em tela cheia, deitado. Ver ui/praca/PracaActivity. -->
-        <activity
-            android:name=".ui.praca.PracaActivity"
-            android:exported="false"
-            android:launchMode="singleTask"
-            android:screenOrientation="sensorLandscape"
-            android:hardwareAccelerated="true"
-            android:configChanges="orientation|screenSize|screenLayout|smallestScreenSize|keyboardHidden|uiMode" />
-
         <!-- Ícone do app escolhido em Configurações → Aparência: cada ícone é um
              "atalho" (activity-alias) da mesma tela; só um fica ligado por vez
              (ver ui/theme/AppIcons.kt). -->

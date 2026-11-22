@@ -26,7 +26,7 @@ export default function BlogPage() {
       page="blog"
       kicker={`Blog · guia completo · ${GUIDE_SECTIONS.length} seções`}
       title="Tudo sobre o Project Club"
-      lede="Da inscrição aos atalhos de teclado: como funciona a comunidade, o chat, a voz, a economia, os clãs, os minijogos, os mods e cada um dos nove apps."
+      lede="Da inscrição aos atalhos de teclado: como funciona a comunidade, o chat, a voz, a economia, os clãs, os mods e cada um dos nove apps."
       meta="Atualizado em 12 de outubro de 2026"
       heroArt={<HeroArt />}
       sections={GUIDE_SECTIONS}

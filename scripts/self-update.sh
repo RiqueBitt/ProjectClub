@@ -15,7 +15,7 @@ TMP=/tmp/pc-update
 rm -rf "$TMP" && mkdir -p "$TMP"
 curl -fsSL -o "$TMP/pacote.tar.gz" "https://codeload.github.com/RiqueBitt/ProjectClub/tar.gz/$SHA"
 tar xzf "$TMP/pacote.tar.gz" -C "$TMP" \
-  --wildcards '*/server/src' '*/server/prisma' '*/server/scripts' '*/server/waddle' '*/server/package.json' \
+  --wildcards '*/server/src' '*/server/prisma' '*/server/scripts' '*/server/package.json' \
   '*/scripts' '*/client/dist' '*/client/package.json' '*/package.json' '*/package-lock.json'
 # Servidor em Rust (rust/bin/pc-server, compilado pelo CI): vem junto quando
 # existe; versão antiga do branch sem ele não é erro (o app sobe só com o Node).
@@ -33,14 +33,16 @@ if [ -f "$SRC/rust/bin/pc-server" ]; then
 fi
 
 # Troca pasta por pasta (renomear é instantâneo: nunca fica meio copiado).
-# server/waddle: servidor do Club Penguin da Praça (dist compilado + manifesto da mídia).
-for p in server/src server/prisma server/scripts server/waddle scripts client/dist; do
+for p in server/src server/prisma server/scripts scripts client/dist; do
   rm -rf "$APP/$p.novo" "$APP/$p.velho"
   cp -a "$SRC/$p" "$APP/$p.novo"
   if [ -e "$APP/$p" ]; then mv "$APP/$p" "$APP/$p.velho"; fi
   mv "$APP/$p.novo" "$APP/$p"
   rm -rf "$APP/$p.velho"
 done
+# Club Penguin removido (nov/2026): tira o servidor do jogo e a mídia baixada
+# por ele (o boot também apaga a mídia, ver server/src/services/cpCleanup.js).
+rm -rf "$APP/server/waddle" "$APP/server/data/waddle"
 # Rust: troca a pasta do binário do mesmo jeito (o processo que está rodando
 # continua com o arquivo antigo até reiniciar). Sem binário nesta versão, tira
 # o antigo pra não rodar Rust de uma versão com Node de outra.

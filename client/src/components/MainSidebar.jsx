@@ -51,8 +51,6 @@ export const ITEMS = [
   // Fórum removido do app (nov/2026, pedido do dono).
   // (removido do menu a pedido do dono — rota continua existindo)
   { to: '/dms', icon: friendsIcon, isImg: true, labelKey: 'nav.amigos', match: (p) => p === '/dms' || isDmPath(p) || p.startsWith('/clans') },
-  // Praça (Club Penguin): virou o botão "Club Penguin" junto de Novidades e
-  // Economia (components/FeaturedChannels.jsx), fora da barra de ícones.
   // Item pedido originalmente: "crie uma nova categoria chamada Jogos,
   // posicionada logo abaixo da categoria Amigos" — item único levando
   // pra /jogos (ver JogosPage.jsx), mesmo padrão que o resto desta
@@ -61,8 +59,6 @@ export const ITEMS = [
   // as categorias Jogos, Aplicativos e deixe todos os apps em um só
   // menu") — a "Aplicativos" nunca listava nada de verdade, virou uma
   // aba morta. Agora é uma grade única com tudo do catálogo.
-  // (removido do menu a pedido do dono — rota continua existindo)
-  // Mini-Jogos: jogos que já vêm no app (MiniJogosPage.jsx). `label` = texto padrão enquanto não houver tradução.
   // (removido do menu a pedido do dono — rota continua existindo)
   // Item pedido: "remover a aba Notificações do menu lateral esquerdo
   // e deixar as notificações disponíveis somente pelo ícone de sino

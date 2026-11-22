@@ -12,9 +12,7 @@
     "prisma:push": "node scripts/write-certs-from-env.js && node scripts/prisma-push-with-retry.js",
     "prisma:seed": "node prisma/seed.js",
     "postinstall": "PRISMA_HIDE_UPDATE_MESSAGE=1 prisma generate",
-    "test": "node --test",
-    "waddle:build": "tsc -p waddle/tsconfig.json && tsc-alias -p waddle/tsconfig.json",
-    "waddle:standalone": "node waddle/standalone.js"
+    "test": "node --test"
   },
   "prisma": {
     "seed": "node prisma/seed.js"

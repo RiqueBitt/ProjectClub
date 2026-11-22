@@ -450,7 +450,7 @@ async fn qr_vencido() {
 }
 
 #[tokio::test]
-async fn app_abre_o_jogo_no_webview() {
+async fn app_abre_a_pagina_no_webview() {
     let Some(env) = env().await else { return };
     user(&env, "cel", true).await;
     session(&env, "s-cel", "cel", "cookie-do-celular").await;
@@ -486,10 +486,10 @@ async fn app_abre_o_jogo_no_webview() {
         user: None,
         cookie: None,
     };
-    let path = format!("/api/auth/app-handoff/{code}?to=%2Fpraca%2Fapp%3Fsala%3D1");
+    let path = format!("/api/auth/app-handoff/{code}?to=%2Fadmin%3Faba%3D1");
     let r = call(&env, "GET", &path, &webview, json!(null)).await;
     assert_eq!(r.status, 302, "{}", r.text);
-    assert_eq!(r.headers["location"], "/praca/app?sala=1");
+    assert_eq!(r.headers["location"], "/admin?aba=1");
     assert!(
         r.headers
             .get_all("set-cookie")
@@ -512,7 +512,7 @@ async fn app_abre_o_jogo_no_webview() {
         "Este link de entrada expirou. Abra o jogo de novo pelo app."
     );
 
-    // destino de fora vira a Praça
+    // destino de fora vira a Central
     let r = call(&env, "POST", "/api/auth/app-handoff", &app, json!(null)).await;
     let code = r.body["code"].as_str().unwrap();
     let r = call(
@@ -523,5 +523,5 @@ async fn app_abre_o_jogo_no_webview() {
         json!(null),
     )
     .await;
-    assert_eq!(r.headers["location"], "/praca/app");
+    assert_eq!(r.headers["location"], "/inicio");
 }

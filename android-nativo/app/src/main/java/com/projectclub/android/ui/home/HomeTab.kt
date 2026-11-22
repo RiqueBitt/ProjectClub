@@ -120,19 +120,6 @@ fun HomeTab(repo: Repository, actions: HomeActions, nav: com.projectclub.android
                 }
             }
 
-            // Club Penguin (a Praça): jogo em tela cheia
-            PcCard(onClick = { nav.praca() }, padding = PaddingValues(14.dp)) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    IconTile(Icons.Outlined.SportsEsports, Color(0xFF3B7BFF), 44.dp, 24.dp)
-                    Spacer(Modifier.width(12.dp))
-                    Column(Modifier.weight(1f)) {
-                        Text("Club Penguin", style = MaterialTheme.typography.titleSmall, color = PC.Header, maxLines = 1)
-                        Text("Entre na ilha com seu pinguim — deitado, em tela cheia", color = PC.Muted, style = MaterialTheme.typography.bodySmall, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                    }
-                    Icon(Icons.AutoMirrored.Outlined.KeyboardArrowRight, null, tint = PC.Faint)
-                }
-            }
-
             // Atalhos 2x2
             Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                 QuickCard(Icons.Outlined.ChatBubbleOutline, "Conversar", firstChat?.let { "# ${it.name}" } ?: "Canais", Modifier.weight(1f)) {

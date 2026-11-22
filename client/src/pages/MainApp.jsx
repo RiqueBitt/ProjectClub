@@ -56,7 +56,6 @@ import { lastRememberedPath, lastRememberedChannelId } from '../utils/appearance
 import { isFeatureEnabled } from '../utils/features';
 import { ChannelRoute, DmRoute, LibraryRoute } from '../components/PrettyRoutes.jsx';
 import { channelPath, isChannelPath, roomFromCurrentPath, useRouteRoom } from '../utils/prettyLinks';
-import PracaKeepAlive from '../praca/PracaKeepAlive.jsx';
 
 // BUG CORRIGIDO ("web mais rápido e otimizado"): todas essas páginas de
 // seção (Amigos, Perfil, Notificações, Busca, Painel da staff, Economia,
@@ -133,7 +132,6 @@ const JogosPage = lazy(() => import('./JogosPage.jsx'));
 // pedido 1: "não crie uma nova categoria principal Jogos").
 const ModsPage = lazy(() => import('./ModsPage.jsx'));
 const GameLibraryPage = lazy(() => import('./GameLibraryPage.jsx')); // biblioteca de jogos (tempo de jogo)
-const MiniJogosPage = lazy(() => import('./MiniJogosPage.jsx')); // Mini-Jogos (jogos que já vêm no app)
 // "Não fui eu" do aviso de novo acesso → Configurações → Segurança (Fase 5).
 const SecurityShortcutPage = lazy(() => import('./SecurityShortcutPage.jsx'));
 // Fase 4 — comunidade e economia.
@@ -451,7 +449,7 @@ export default function MainApp() {
     if (!isReady) return undefined;
     return preloadPages([
       InicioPage, LojaPage, ProfilePage, NotificationsPage, AmigosPage, EconomyPage, ProgressPage,
-      CommunityEventsPage, CommunityGalleryPage, ClanPage, TicketsPage, MiniJogosPage,
+      CommunityEventsPage, CommunityGalleryPage, ClanPage, TicketsPage,
       AnunciosPage, AnunciosEventosPage, AtividadePage, SearchPage, UserProfileModal, UserSettingsModal,
     ]);
   }, [isReady]);
@@ -559,9 +557,9 @@ export default function MainApp() {
                 <Route path="/loja/colecao/:colecao" element={<LojaPage />} />
                 <Route path="/loja/criadores" element={<LojaCriadoresPage />} />
                 <Route path="/meu-pinguim" element={isFeatureEnabled('profilePet') ? <MeuPinguimPage /> : <Navigate to="/economia" replace />} />
-                {/* O jogo fica montado fora das rotas (PracaKeepAlive, logo
-                    abaixo): continua rodando em segundo plano ao sair daqui. */}
-                <Route path="/praca" element={null} />
+                {/* Club Penguin (Praça e Mini-Jogos) removido em nov/2026: links antigos vão pro início. */}
+                <Route path="/praca" element={<Navigate to="/inicio" replace />} />
+                <Route path="/minijogos" element={<Navigate to="/inicio" replace />} />
                 {/* Anúncios agora aparecem direto na Central (InicioPage.jsx). */}
                 <Route path="/anuncios" element={<Navigate to="/inicio" replace />} />
                 <Route path="/anuncios-e-eventos" element={<Navigate to="/inicio" replace />} />
@@ -577,7 +575,6 @@ export default function MainApp() {
                 <Route path="/jogos/mods" element={<ModsPage />} />
                 <Route path="/jogos/biblioteca" element={<GameLibraryPage />} />
                 <Route path="/jogos/biblioteca/:ref" element={<LibraryRoute Page={GameLibraryPage} />} />
-                <Route path="/minijogos" element={<MiniJogosPage />} />
                 <Route path="/seguranca/sessoes" element={<SecurityShortcutPage />} />
                 {/* "Participar" (Bora Jogar, Interesses, Convites, Reputação) e Retrospectiva saíram (nov/2026). */}
                 <Route path="/participar" element={<Navigate to="/inicio" replace />} />
@@ -598,10 +595,6 @@ export default function MainApp() {
               </Routes>
             </ErrorBoundary>
           </Suspense>
-          {/* Club Penguin: aparece em /praca e segue conectado (sem desenhar) fora dela. */}
-          <ErrorBoundary compact>
-            <PracaKeepAlive fallback={<RouteLoadingFallback />} />
-          </ErrorBoundary>
           {/* Navegador ao lado do chat (painel redimensionável). */}
           {BROWSER_ON && <Suspense fallback={null}><BrowserDock /></Suspense>}
         </div>

@@ -92,13 +92,11 @@ fun MoreTab(repo: Repository, actions: HomeActions, nav: com.projectclub.android
     var confirmLogout by remember { mutableStateOf(false) }
 
     val grid = listOf(
-        Entry(Icons.Outlined.SportsEsports, "Club Penguin", Color(0xFF3B7BFF), "/praca"),
         Entry(Icons.Outlined.LocalMall, "Loja", PC.Store, "/loja"),
         Entry(Icons.Outlined.MonetizationOn, "Economia", PC.Purple, "/economia"),
         Entry(Icons.Outlined.TaskAlt, "Missões", PC.Pink, "/missoes"),
         Entry(Icons.Outlined.EmojiEvents, "Conquistas", PC.Yellow, "/progresso?tab=conquistas"),
         Entry(Icons.Outlined.Leaderboard, "Rank", PC.Brand, "/rank"),
-        Entry(Icons.Outlined.SportsEsports, "Minijogos", Color(0xFF22D3EE), "/minijogos"),
         Entry(Icons.Outlined.Groups, "Clubes", Color(0xFFFB923C), "/clans"),
         Entry(Icons.Outlined.CalendarMonth, "Eventos", PC.Events, "/comunidade/eventos"),
         Entry(Icons.AutoMirrored.Outlined.Article, "Fórum", PC.Forum, "/comunidades"),
@@ -142,7 +140,7 @@ fun MoreTab(repo: Repository, actions: HomeActions, nav: com.projectclub.android
                         Spacer(Modifier.width(12.dp))
                         Column(Modifier.weight(1f)) {
                             Text("Painel da Equipe", style = MaterialTheme.typography.titleSmall, color = PC.Header, maxLines = 1)
-                            Text("Usuários, denúncias, economia, Club Penguin e tudo mais", color = PC.Muted, style = MaterialTheme.typography.bodySmall, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                            Text("Usuários, denúncias, economia e tudo mais", color = PC.Muted, style = MaterialTheme.typography.bodySmall, maxLines = 1, overflow = TextOverflow.Ellipsis)
                         }
                         Icon(Icons.AutoMirrored.Outlined.KeyboardArrowRight, null, tint = PC.Faint)
                     }

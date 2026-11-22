@@ -49,7 +49,7 @@ internal data class Handoff(val code: String = "")
  * WebView (cookie dele, persistente) e redireciona pra página. Das próximas
  * vezes o cookie do WebView já está lá e a página abre direto.
  *
- * [PracaActivity] (o jogo) estende esta tela: deitada, imersiva, com HUD.
+ * Telas filhas podem mudar path, modo imersivo e texto de carregando.
  */
 open class SiteActivity : ComponentActivity() {
     protected lateinit var web: WebView

@@ -10,15 +10,10 @@ export const FEATURES = Object.freeze({
   // busca, da Loja (aba Cartas/versos), do perfil, do Início e dos canais em
   // destaque; /cartas mostra "Em breve" (CardsDisabledPage). Baús/Economia continuam.
   cardsWar: false,
-  // Praça: Club Penguin completo (Waddle Forever embutido no servidor).
-  plaza: true,
+  // (O Club Penguin / Praça e os Mini-Jogos foram removidos em nov/2026.)
   // Cartão do servidor de Minecraft no Início. DESLIGADO (pedido do dono, nov/2026);
   // a integração continua no painel (Integrações) e no Pingu.
   minecraftHome: false,
-  // Botão "Festa" dentro do Club Penguin (quests, loja do evento, mascotes,
-  // Jigsaw…). DESLIGADO por enquanto (pedido do dono, nov/2026) — o servidor
-  // e o painel da staff continuam; só o botão no jogo some.
-  plazaFesta: false,
   // Mascote pinguim do perfil (Fase 8: "Meu pinguim", mascote no perfil grande
   // e no mini-perfil). DESLIGADO (pedido do dono, nov/2026): some do perfil,
   // da busca e a rota /meu-pinguim redireciona; a API continua guardada.

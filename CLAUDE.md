@@ -13,7 +13,6 @@ Responda sempre em **português do Brasil**. Dono: RiqueBitt.
 | Site + API (Node/Express/Prisma) | Shard Cloud, app **ProjectClub** (`f9ba88be-b4b5-4c12-aa4a-699e94d41570`), https://projectclub.shardweb.app | `server/`, `client/` |
 | Servidor em Rust (na frente do Node) | dentro do mesmo app: fica na porta do app, responde as rotas já portadas e repassa o resto pro Node (porta interna 3001). Ver "Rust na frente do Node" abaixo | `rust/`, `scripts/rustGateway.js` |
 | Banco | MySQL e Redis da Shard Cloud (`DATABASE_URL`, `REDIS_URL` nas variáveis do app) | `server/prisma/` |
-| Club Penguin (Praça) | dentro do mesmo app (Waddle Forever, TS → `dist` commitado) | `server/waddle/` |
 | Servidor de voz/vídeo/tela (mediasoup + TURN) | VPS da **Hostinger** `srv2072093` (179.197.228.137), código em `/opt/projectclub/media-server`. `wss://179-197-228-137.sslip.io` (saúde: `https://179-197-228-137.sslip.io/health`) | `media-server/` |
 | VPS `projectclub-voz` (`7830da54-…`, 38.92.41.54) | IA Pingu (Ollama) e vigia de deploy — **pode estar desligada** | `scripts/deploy-watch.sh` |
 | App do PC | Electron | `desktop/` |
@@ -30,8 +29,9 @@ Responda sempre em **português do Brasil**. Dono: RiqueBitt.
    e reinicie o app.
 4. Confira: `curl https://projectclub.shardweb.app/api/system/deployed` mostra o SHA no ar.
 
-Mudanças no Club Penguin (`server/waddle/src`): rode `npm run waddle:build`
-na pasta `server/` e commite o `server/waddle/dist` junto.
+O Club Penguin (Praça, Mini-Jogos e emojis `:cp_*:`) foi **removido** em nov/2026.
+As tabelas dele no banco (`Plaza*`, `WaddlePenguin`…) ficaram (o `db push` roda sem
+`--accept-data-loss`); a mídia antiga no disco é apagada no boot (`server/src/services/cpCleanup.js`).
 
 ## Rust na frente do Node
 

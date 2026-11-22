@@ -111,7 +111,7 @@ macro_rules! simple_setter {
 simple_setter!(
     set_theme,
     "theme",
-    &["facebook", "light", "dark", "amoled", "clubpenguin"],
+    &["facebook", "light", "dark", "amoled"],
     "Tema inválido.",
     "preferredTheme = ?"
 );

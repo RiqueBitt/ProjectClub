@@ -1,7 +1,7 @@
 import UnreadCountBadge from './UnreadCountBadge.jsx';
 import { convertEmoticons } from '../utils/extraPrefs';
 import { setConversationInbox, shareWalletCard } from '../api/endpoints';
-import MiniJogosComposerButton from '../minijogos/MiniJogosComposerButton.jsx';
+import ActivitiesComposerButton from './ActivitiesComposerButton.jsx';
 import { Fragment, Suspense, memo, useEffect, useMemo, useRef, useState, useLayoutEffect } from 'react';
 import { lazyWithRetry as lazy } from '../utils/lazyWithRetry';
 import { useElementHeight } from '../utils/useElementHeight';
@@ -1912,7 +1912,7 @@ function ChatWindowInner({ conversationId, channelId }) {
             <button ref={emojiBtnRef} type="button" className={`icon-btn chat-composer-btn chat-media-picker-btn ${emojiPickerOpen ? 'on' : ''}`} title="Emojis, figurinhas e GIFs" aria-label="Emojis, figurinhas e GIFs" aria-haspopup="dialog" aria-expanded={emojiPickerOpen} onClick={() => setPickerTab((t) => (t ? null : readLastPickerTab()))}>
               <ChatIcon name="smile" />
             </button>
-            <MiniJogosComposerButton onShowCard={showWalletCard} />
+            <ActivitiesComposerButton onShowCard={showWalletCard} />
             {emojiPickerOpen && createPortal(
               <EmojiPicker
                 key={pickerTab}
