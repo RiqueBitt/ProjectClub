@@ -39,6 +39,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.EmojiEmotions
+import androidx.compose.material.icons.outlined.Casino
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.InsertDriveFile
 import androidx.compose.material.icons.automirrored.filled.Reply
@@ -176,6 +177,7 @@ fun ChatScreen(
     LaunchedEffect(nearTop) { if (nearTop) vm.loadOlder() }
 
     var showPicker by remember { mutableStateOf(false) }
+    var showActivities by remember { mutableStateOf(false) }
     LaunchedEffect(state.editing?.id) { state.editing?.let { text = it.content.orEmpty() } }
 
     val picker = rememberLauncherForActivityResult(ActivityResultContracts.GetMultipleContents()) { uris ->
@@ -227,7 +229,7 @@ fun ChatScreen(
                         Text(state.error!!, color = PC.Muted)
                         Button(onClick = vm::retry, modifier = Modifier.padding(top = 12.dp)) { Text("Tentar de novo") }
                     }
-                    else -> LazyColumn(state = list, reverseLayout = true, modifier = Modifier.fillMaxSize(), contentPadding = androidx.compose.foundation.layout.PaddingValues(vertical = 8.dp)) {
+                    else -> androidx.compose.runtime.CompositionLocalProvider(LocalOpenLink provides onOpenWeb) { LazyColumn(state = list, reverseLayout = true, modifier = Modifier.fillMaxSize(), contentPadding = androidx.compose.foundation.layout.PaddingValues(vertical = 8.dp)) {
                         itemsIndexed(reversed, key = { _, m -> m.id }) { i, m ->
                             val prev = reversed.getOrNull(i + 1)
                             MessageItem(
@@ -265,7 +267,7 @@ fun ChatScreen(
                                 )
                             }
                         }
-                    }
+                    } }
                 }
             }
             TypingLine(state.typing.keys.mapNotNull { repo.user(it)?.name })
@@ -279,12 +281,15 @@ fun ChatScreen(
                     onSend = { val t = text; text = ""; vm.send(t) { failed -> if (text.isBlank()) text = failed } },
                     onPicker = { showPicker = true },
                     onSchedule = { scheduling = true },
+                    onActivities = { showActivities = true },
                 )
                 callBar()
             }
         }
     }
     }
+
+    if (showActivities) ActivitiesSheet(repo, onDismiss = { showActivities = false }) { t -> vm.send(t) { } }
 
     if (showPicker) PickerSheet(
         repo, onDismiss = { showPicker = false },
@@ -431,7 +436,8 @@ private fun MessageItem(
                 Spacer(Modifier.width(8.dp))
                 Text(formatTime(m.createdAt), color = PC.Muted, style = MaterialTheme.typography.labelSmall)
             }
-            val content = m.content
+            // Links de atividade (dados, carteira, vídeo, música) viram cartão e somem do texto (igual ao site).
+            val content = remember(m.content) { m.content?.let(InternalLinks::stripActivities) }
             if (m.contentFiltered) Text("Mensagem escondida pelo seu filtro de conteúdo.", color = PC.Muted)
             else if (!content.isNullOrBlank()) {
                 val trimmed = content.trim()
@@ -462,6 +468,7 @@ private fun MessageItem(
             if (m.edited) Text("(editado)", color = PC.Muted, style = MaterialTheme.typography.labelSmall)
             status?.let { Text(it, color = PC.Yellow, style = MaterialTheme.typography.labelSmall) }
             m.stickerUrl?.let { AsyncImage(Config.media(it), "Figurinha", modifier = Modifier.padding(top = 4.dp).size(140.dp)) }
+            if (!m.contentFiltered) InternalLinkCards(m.content, repo)
             m.embed?.let { EmbedCard(it) }
             val images = m.attachments.filter { it.isImage && !it.isSpoiler }
             if (images.isNotEmpty()) FlowRow(Modifier.padding(top = 6.dp), horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
@@ -565,6 +572,7 @@ private fun Composer(
     onAttach: () -> Unit, onRemoveFile: (com.projectclub.android.data.PickedFile) -> Unit, onCancel: () -> Unit, onSend: () -> Unit,
     onPicker: () -> Unit,
     onSchedule: () -> Unit = {},
+    onActivities: () -> Unit = {},
 ) {
     Column(Modifier.fillMaxWidth().background(PC.Bg).padding(horizontal = 10.dp, vertical = 8.dp).clip(RoundedCornerShape(26.dp)).background(PC.Surface).border(1.dp, PC.Line, RoundedCornerShape(26.dp))) {
         val banner = state.editing?.let { "Editando mensagem" } ?: state.replyTo?.let { "Respondendo a ${it.author?.name ?: "mensagem"}" }
@@ -596,6 +604,8 @@ private fun Composer(
                 ),
             )
             // Emojis, GIFs e figurinhas (o mesmo seletor do PC).
+            // Atividades: rolar dados, YouTube, música e mostrar o cartão (igual ao site).
+            if (state.editing == null && text.isBlank()) IconButton(onClick = onActivities) { Icon(Icons.Outlined.Casino, "Atividades", tint = PC.Muted) }
             if (state.editing == null) IconButton(onClick = onPicker) { Icon(Icons.Outlined.EmojiEmotions, "Emojis, GIFs e figurinhas", tint = PC.Muted) }
             val canSend = text.isNotBlank() || state.files.isNotEmpty()
             Box(
