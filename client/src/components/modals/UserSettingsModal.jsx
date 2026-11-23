@@ -2,8 +2,7 @@ import { AppearanceExtras, AccessibilityMore, NotificationExtras, VoiceExtras, P
 import PasskeysBlock from '../settings/PasskeysBlock.jsx';
 import { setExtra, getExtra, useExtra } from '../../utils/extraPrefs';
 import { useLiveRefresh } from '../../utils/liveRefresh';
-import ProfileShopItems from '../shop/ProfileShopItems.jsx';
-import { useState, useEffect, useRef, lazy, Suspense } from 'react';
+import { useState, useEffect, useRef, useMemo, lazy, Suspense } from 'react';
 import { currentHighQualityAvailability, NOISE_QUALITY } from '../../voice/noiseModels.js';
 import { useTranslation } from 'react-i18next';
 import { createPortal } from 'react-dom';
@@ -69,8 +68,6 @@ import { useStore } from '../../store/useStore';
 import { proxyImage } from '../../utils/imageProxy';
 import ImageCropperModal from './ImageCropperModal.jsx';
 import BannerImage, { PROFILE_BANNER_ASPECT, MINI_BANNER_ASPECT, ID_CARD_ASPECT } from '../ProfileBanner.jsx';
-import { PENGUIN_COLORS, penguinAvatarUrl, isPenguinAvatarUrl } from '../PenguinAvatar.jsx';
-import PenguinAvatar from '../PenguinAvatar.jsx';
 import youtubeConnIcon from '../../assets/icons/social-youtube.png';
 import steamConnIcon from '../../assets/icons/social-steam.png';
 import { useVoice } from '../../context/VoiceContext.jsx';
@@ -105,6 +102,7 @@ import {
 } from '../../api/endpoints';
 // Clipes (Fase 7): só baixa no app de PC com suporte, quando a aba abre.
 import ProfileEditorFrame from '../profileEditor/ProfileEditorFrame.jsx';
+import { useOwnedShop, ShopTileGrid, NameFontGrid } from '../profileEditor/ProfileShopPickers.jsx';
 const ClipsSettings = lazy(() => import('../settings/ClipsSettings.jsx'));
 
 // Item pedido: separar "Edição do Perfil" das "Configurações gerais" da
@@ -313,8 +311,9 @@ export default function UserSettingsModal({ onClose, mode = 'settings', initialT
     // Item pedido: cor da barra de nível personalizável — null usa o
     // verde padrão (ver .profile-level-progress-fill em global.css).
     levelBarColor: user.levelBarColor || '',
-    // Item pedido: "cores do mini perfil separadas do perfil grande"
-    miniProfileColor: user.miniProfileColor || '',
+    // Cor do miniperfil: deixou de existir (nov/2026) — miniperfil e perfil
+    // completo usam a mesma cor (profileColor). Fica vazio no formulário.
+    miniProfileColor: '',
     miniProfileButtonColor: user.miniProfileButtonColor || '',
     // (Removido) A cor personalizada da bolinha de status (statusBubbleColor)
     // não é mais oferecida na interface — a bolinha mostra só a cor real
@@ -335,12 +334,14 @@ export default function UserSettingsModal({ onClose, mode = 'settings', initialT
     youtubeUrl: user.youtubeUrl || '', steamUrl: user.steamUrl || '',
     robloxUrl: user.robloxUrl || '', xUrl: user.xUrl || '',
   });
+  // Editor de perfil: itens da Loja (moldura, estilo, efeito, fonte) e a
+  // prévia do que está sendo editado (o usuário salvo + o formulário).
+  const shop = useOwnedShop(isProfileEditor);
+  const previewUser = useMemo(() => ({ ...user, ...form }), [user, form]);
   const [username, setUsernameField] = useState(user.username);
   // Item pedido: "quero que abra um menu e mostre as fontes" — em vez
   // do grid sempre visível, um botão compacto abre um popover só
   // quando clicado.
-  const [fontMenuOpen, setFontMenuOpen] = useState(false);
-  const [effectMenuOpen, setEffectMenuOpen] = useState(false);
   const [error, setError] = useState('');
   const [sessions, setSessions] = useState(null);
   const [sessionsError, setSessionsError] = useState('');
@@ -647,7 +648,7 @@ export default function UserSettingsModal({ onClose, mode = 'settings', initialT
   // Item pedido: "remover o fundo preto das fotos de perfil" — reabre a
   // foto ATUAL no editor (pelo nosso servidor, pra poder ler os pixels)
   // com "Tirar fundo preto", sem precisar achar o arquivo de novo.
-  const canFixAvatarBg = !!user.avatarUrl && !isPenguinAvatarUrl(user.avatarUrl) && !/\.gif(\?|$)/i.test(user.avatarUrl);
+  const canFixAvatarBg = !!user.avatarUrl && !String(user.avatarUrl).startsWith('penguin:') && !/\.gif(\?|$)/i.test(user.avatarUrl);
   const fixAvatarBackground = () => {
     if (!canFixAvatarBg) return;
     setCropperState({
@@ -658,11 +659,6 @@ export default function UserSettingsModal({ onClose, mode = 'settings', initialT
         setCropperState(null);
       },
     });
-  };
-
-  const pickPenguinAvatar = async (colorKey) => {
-    const { user: updated } = await updateProfile({ avatarUrl: penguinAvatarUrl(colorKey) });
-    setUser(updated);
   };
 
   // Editor de banner estilo Discord (ImageCropperModal): a moldura tem
@@ -1016,470 +1012,349 @@ export default function UserSettingsModal({ onClose, mode = 'settings', initialT
       </div>
 
       {tab === 'PROFILE' && (
-        <div className="settings-grid">
-          <div className="settings-block profile-edit-card">
-            <div className="profile-preview-banner profile-edit-banner" style={{ background: form.profileColor }}>
-              <BannerImage url={user.bannerUrl} framing={user.bannerFraming} />
-            </div>
-            <div className="profile-edit-identity">
-              <div className="avatar large profile-edit-avatar" style={{ background: form.profileColor, display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden' }}>
-                {isPenguinAvatarUrl(user.avatarUrl)
-                  ? <PenguinAvatar color={PENGUIN_COLORS[user.avatarUrl.slice(8)] || PENGUIN_COLORS.blue} size={80} />
-                  : user.avatarUrl ? <img src={proxyImage(user.avatarUrl)} alt="" /> : user.displayName[0].toUpperCase()}
-              </div>
-              <div className="profile-edit-identity-info">
-                <div className="profile-edit-identity-name truncate">{form.displayName || user.displayName}</div>
-                <div className="profile-edit-identity-username truncate">@{user.username}</div>
-              </div>
-              <button
-                type="button"
-                className="btn-link profile-edit-preview-link"
-                onClick={(e) => useStore.getState().openMiniProfile(user.id, e.currentTarget.getBoundingClientRect())}
-              >
-                <SIcon name="eye" /> Ver miniperfil
-              </button>
-            </div>
-
-            <div className="profile-edit-body">
-              <div className="image-uploads">
+        <div className="pe-groups">
+          <section className="pe-group" aria-labelledby="pe-g-avatar">
+            <h3 className="pe-group-title" id="pe-g-avatar">Avatar e decorações</h3>
+            <div className="pe-card pe-avatar-card">
+              <span className="pe-avatar-thumb"><UserAvatar user={user} size={72} /></span>
+              <div className="pe-avatar-side">
                 <AvatarChangeMenu onFile={onAvatar} canFixBackground={canFixAvatarBg} onFixBackground={fixAvatarBackground} />
-                {/* Item pedido: "adicione uma nova opção chamada mini
-                    perfil, mova tudo que é sobre mini perfil pra lá" —
-                    o botão de banner do miniperfil (que morava aqui
-                    junto do banner do perfil completo) foi pra sua
-                    seção "Miniperfil" mais abaixo nesta mesma aba. */}
-                <label className="btn-secondary">Alterar banner do perfil completo<input type="file" accept="image/png,image/jpeg,image/webp,image/gif" hidden onChange={onBanner} /></label>
-                {user.bannerUrl && (
-                  <button type="button" className="btn-secondary pb-adjust-btn" onClick={() => adjustCurrentBanner('profile')}>Ajustar enquadramento</button>
-                )}
-                <span className="dim settings-upload-hint">Aceita GIF animado (até 25 MB)</span>
-              </div>
-
-              <div className="profile-edit-subsection">
-                <div className="profile-edit-subsection-label">OU ESCOLHA UM AVATAR DE PINGUIM</div>
-                <div className="penguin-avatar-picker">
-                  {Object.entries(PENGUIN_COLORS).map(([key, hex]) => (
-                    <button
-                      key={key}
-                      type="button"
-                      className={`penguin-avatar-option ${user.avatarUrl === penguinAvatarUrl(key) ? 'active' : ''}`}
-                      title={key}
-                      onClick={() => pickPenguinAvatar(key)}
-                    >
-                      <PenguinAvatar color={hex} size={40} />
-                    </button>
-                  ))}
-                </div>
+                <span className="dim settings-upload-hint">PNG, JPG ou GIF animado (até 25 MB)</span>
               </div>
             </div>
-          </div>
-
-          <div className="settings-block">
-            <h4>Informações básicas</h4>
-            <div className="display-name-row">
+            <h4 className="pe-sub">Moldura do avatar</h4>
+            <ShopTileGrid kind="deco" shop={shop} user={previewUser} />
+          </section>
+          <section className="pe-group" aria-labelledby="pe-g-nome">
+            <h3 className="pe-group-title" id="pe-g-nome">Nome exibido</h3>
+            <p className="pe-group-desc">Como seu nome aparece. Efeitos mais chamativos (néon, arco-íris, glitch…) aparecem no miniperfil e no perfil completo; em mensagens e na lista de membros ficam só a fonte e a cor.</p>
+            <div className="pe-card">
               <label>
                 <span className="settings-label-row">NOME DE EXIBIÇÃO <CharCount value={form.displayName} max={32} /></span>
                 <input name="displayName" value={form.displayName} onChange={onChange} maxLength={32} aria-invalid={!form.displayName.trim()} />
               </label>
               {!form.displayName.trim() && <FieldError>O nome de exibição não pode ficar vazio. Enquanto estiver vazio, ele não é salvo.</FieldError>}
-            </div>
-            <label>
-              <span className="settings-label-row">PRONOMES <CharCount value={form.pronouns} max={40} /></span>
-              <input name="pronouns" value={form.pronouns} onChange={onChange} maxLength={40} placeholder="ele/dele, ela/dela..." />
-            </label>
-            <label>
-              <span className="settings-label-row">BIOGRAFIA <CharCount value={form.bio} max={190} /></span>
-              <div className="bio-input-row">
-                <textarea name="bio" value={form.bio} onChange={onChange} maxLength={190} placeholder="Conte um pouco sobre você" />
-                <div className="composer-picker-anchor">
-                  <button type="button" className="icon-btn" title="Emoji" onClick={() => setBioEmojiOpen((v) => !v)}><img className="ui-icon" src={emojiPickerIcon} alt="" /></button>
-                  {bioEmojiOpen && <EmojiPicker serverEmojis={useStore.getState().usableEmojis} onPick={insertBioEmoji} onClose={() => setBioEmojiOpen(false)} />}
-                </div>
+              <div className="name-style-preview pe-name-preview">
+                <span className={nameStyleClassName(previewUser, { fullEffect: true })} style={nameStyleProps(previewUser, { fullEffect: true })}>{form.displayName || user.displayName}</span>
               </div>
-            </label>
-          </div>
-
-          <div className="profile-edit-columns">
-          <div className="settings-block">
-            <h4>Status de presença</h4>
-            <p className="dim">Escolher qualquer um diferente de Online desativa o "ausente automático" — só volta a valer quando você escolher Online de novo.</p>
-            <StatusPicker />
-          </div>
-          <div className="settings-block">
-            <h4>Status personalizado</h4>
-            <label>
-              <div className="bio-input-row">
-                <input name="customStatus" value={form.customStatus} onChange={onChange} maxLength={128} placeholder="O que você está pensando?" />
-                <div className="composer-picker-anchor">
-                  <button ref={statusEmojiBtnRef} type="button" className="icon-btn" title="Emoji do status" onClick={() => setStatusEmojiOpen((v) => !v)}>
-                    {form.customStatusEmoji || <SIcon name="smile" size={18} />}
+            </div>
+            <h4 className="pe-sub">Fonte <small>padrão e compradas na Loja</small></h4>
+            <NameFontGrid form={form} setForm={setForm} shop={shop} user={user} />
+            <h4 className="pe-sub">Efeito do nome</h4>
+            <div className="pe-font-grid pe-effect-grid" role="radiogroup" aria-label="Efeito do nome">
+              {NAME_EFFECTS.map((f) => {
+                const u = { ...previewUser, profileNameEffect: f.value };
+                const on = form.profileNameEffect === f.value;
+                return (
+                  <button type="button" key={f.value} role="radio" aria-checked={on} className={`pe-font${on ? ' is-on' : ''}`} onClick={() => setForm((st) => ({ ...st, profileNameEffect: f.value }))}>
+                    <span className={`pe-font-sample ${nameStyleClassName(u, { fullEffect: true })}`} style={nameStyleProps(u, { fullEffect: true })}>Abc</span>
+                    <span className="pe-font-label">{f.label}</span>
                   </button>
-                  {statusEmojiOpen && createPortal(
-                    <div ref={statusEmojiPickerRef} style={{ display: 'contents' }}>
-                      <EmojiPicker
-                        variant="reaction"
-                        serverEmojis={useStore.getState().usableEmojis}
-                        style={statusEmojiPickerStyle || {}}
-                        onPick={(e) => { setForm((f) => ({ ...f, customStatusEmoji: e })); setStatusEmojiOpen(false); }}
-                        onClose={() => setStatusEmojiOpen(false)}
-                      />
-                    </div>,
-                    document.body,
-                  )}
-                </div>
-              </div>
-            </label>
-            {(form.customStatus || form.customStatusEmoji) && (
-              <button type="button" className="btn-link settings-inline-link" onClick={() => setForm((f) => ({ ...f, customStatus: '', customStatusEmoji: '' }))}>Limpar status</button>
-            )}
-          </div>
-
-          <div className="settings-block">
-            <h4>Pingente</h4>
-            <p className="dim">Uma imagenzinha sua (pode ser GIF animado) que aparece ao lado do seu nome no chat, no miniperfil e no perfil completo.</p>
-            <div className="pendant-editor">
-              <div className="pendant-editor-preview">
-                {user.customPendantUrl
-                  ? <img src={proxyImage(user.customPendantUrl)} alt="Seu pingente" />
-                  : <span aria-hidden="true">+</span>}
-              </div>
-              <div className="pendant-editor-side">
-                <div className="pendant-editor-sample">
-                  <strong>{user.displayName}</strong>
-                  {user.customPendantUrl && <img src={proxyImage(user.customPendantUrl)} alt="" className="pendant-icon" style={{ width: 20, height: 20 }} />}
-                </div>
-                <div className="pendant-editor-actions">
-                  <label className={`btn-primary pendant-editor-upload${pendantSaving ? ' is-busy' : ''}`}>
-                    {pendantSaving ? 'Enviando…' : user.customPendantUrl ? 'Trocar imagem' : 'Enviar imagem'}
-                    <input type="file" accept="image/png,image/jpeg,image/webp,image/gif" hidden disabled={pendantSaving} onChange={(e) => { const f = e.target.files[0]; if (f) uploadCustomPendant(f); e.target.value = ''; }} />
-                  </label>
-                  {user.customPendantUrl && <button type="button" className="btn-link" disabled={pendantSaving} onClick={clearCustomPendant}>Remover</button>}
-                </div>
-                <span className="dim settings-upload-hint">PNG, JPG, WEBP ou GIF · até 10 MB · imagem quadrada fica melhor</span>
-                {pendantError && <span className="pendant-editor-error" role="alert">{pendantError}</span>}
-              </div>
+                );
+              })}
             </div>
-          </div>
-
-          {profileColorEditEnabled && (
-          <div className="settings-block">
-            <h4>Cor do perfil</h4>
-            <p className="dim">A cor (ou degradê) de fundo do seu banner e avatar quando você não tem uma imagem própria.</p>
-            {/* Gradient toggle just for the profile banner/avatar fallback
-                color — separate from the page-wide "Aparência" background
-                gradient (that one repaints the whole app; this one is
-                scoped to just this user's own profile card, same
-                field/string trick already used for role colors, see
-                utils/roleColor.js). */}
-            <div className="role-color-row profile-color-row">
-              <div className="role-color-pickers">
-                {isGradientColor(form.profileColor) ? (
-                  <>
+            <div className="pe-card pe-name-colors">
+                {form.profileNameEffect !== 'RAINBOW' && (
+                  <div className="name-style-color-row">
                     <label>
-                      COR DO PERFIL (INÍCIO)
-                      <input
-                        type="color"
-                        defaultValue={gradientStops(form.profileColor)[0]}
-                        onChange={(e) => setForm((f) => ({ ...f, profileColor: makeGradient(e.target.value, gradientStops(f.profileColor)[1]) }))}
-                      />
+                      {form.profileNameEffect === 'GRADIENT' ? 'COR DO NOME (INÍCIO)' : form.profileNameEffect === 'POP' ? 'COR DE TRÁS (CONTORNO)' : 'COR DO NOME'}
+                      <input type="color" name="profileNameColor" value={form.profileNameColor} onChange={onChange} />
                     </label>
-                    <label>
-                      COR DO PERFIL (FIM)
-                      <input
-                        type="color"
-                        defaultValue={gradientStops(form.profileColor)[1]}
-                        onChange={(e) => setForm((f) => ({ ...f, profileColor: makeGradient(gradientStops(f.profileColor)[0], e.target.value) }))}
-                      />
-                    </label>
-                  </>
-                ) : (
-                  <label>COR DO PERFIL<input type="color" name="profileColor" value={form.profileColor} onChange={onChange} /></label>
-                )}
-                <label className="checkbox-row role-gradient-toggle">
-                  <input
-                    type="checkbox"
-                    checked={isGradientColor(form.profileColor)}
-                    onChange={(e) => {
-                      const [a, b] = gradientStops(form.profileColor);
-                      setForm((f) => ({ ...f, profileColor: e.target.checked ? makeGradient(a, b) : a }));
-                    }}
-                  />
-                  Degradê
-                </label>
-              </div>
-            </div>
-          </div>
-          )}
-
-          <div className="settings-block">
-            <h4>Cor da barra de nível</h4>
-            <p className="dim">A barra de progresso de nível no seu perfil é verde por padrão — escolha outra cor se preferir.</p>
-            <div className="role-color-row profile-color-row">
-              <label>
-                COR DA BARRA
-                <input type="color" value={form.levelBarColor || '#23a55a'} onChange={(e) => setForm((f) => ({ ...f, levelBarColor: e.target.value }))} />
-              </label>
-              <span className="settings-level-preview" aria-hidden="true"><i style={{ background: form.levelBarColor || 'var(--green)' }} /></span>
-              {form.levelBarColor && (
-                <button type="button" className="btn-link" onClick={() => setForm((f) => ({ ...f, levelBarColor: '' }))}>Usar verde padrão</button>
-              )}
-            </div>
-          </div>
-
-          {/* Item pedido: "poder mudar a opacidade das caixas das
-              colunas, deixando invisível ou mostrando melhor" — 0 =
-              sem fundo nenhum (invisível), 100 = fundo bem visível. */}
-          <div className="settings-block">
-            <h4>Opacidade das caixas do perfil</h4>
-            <p className="dim">Controla o quanto o fundo das seções (Sobre, Recados, etc) aparece — 0 deixa invisível, valores altos deixam bem visível.</p>
-            <div className="birthday-picker-row">
-              <input
-                type="range" min={0} max={100} step={5}
-                value={sectionOpacity}
-                onChange={(e) => { const v = Number(e.target.value); setSectionOpacity(v); saveSectionOpacity(v); }}
-              />
-              <span className="dim" style={{ minWidth: 36, textAlign: 'right' }}>{sectionOpacity}%</span>
-            </div>
-          </div>
-
-          <div className="settings-block">
-            <h4>Estilo do nome</h4>
-            <p className="dim">
-              A fonte e a cor abaixo aparecem em mensagens e na lista de membros. Efeitos mais elaborados (néon,
-              arco-íris, glitch...) só aparecem no seu mini perfil e perfil completo — em mensagens e na lista de
-              membros o nome fica só com a fonte e a cor, mais discreto e legível.
-            </p>
-            <div className="name-style-preview" style={{ fontSize: 22, fontWeight: 700 }}>
-              <span className={nameStyleClassName(form, { fullEffect: true })} style={nameStyleProps(form, { fullEffect: true })}>{form.displayName || user.displayName}</span>
-            </div>
-
-            <div className="name-style-picker-row">
-              <NameStylePickerButton
-                label="Fonte" open={fontMenuOpen} setOpen={setFontMenuOpen}
-                currentLabel={NAME_FONTS.find((f) => f.value === form.profileNameFont)?.label}
-                menu={(
-                  <div className="name-style-picker-menu">
-                    <div className="name-style-picker-grid">
-                      {NAME_FONTS.map((f) => (
-                        <button
-                          type="button" key={f.value}
-                          className={`name-style-picker-option ${form.profileNameFont === f.value ? 'active' : ''}`}
-                          onClick={() => { setForm((s) => ({ ...s, profileNameFont: f.value })); setFontMenuOpen(false); }}
-                        >
-                          <span className={nameStyleClassName(form, { fullEffect: true })} style={{ ...nameStyleProps(form, { fullEffect: true }), fontFamily: FONT_FAMILY[f.value] }}>Abc</span>
-                          <span className="name-style-picker-option-label">{f.label}</span>
-                        </button>
-                      ))}
-                    </div>
+                    {(form.profileNameEffect === 'GRADIENT' || form.profileNameEffect === 'POP') && (
+                      <label>
+                        {form.profileNameEffect === 'GRADIENT' ? 'COR DO NOME (FIM)' : 'COR DA FRENTE (PREENCHIMENTO)'}
+                        <input type="color" name="profileNameColor2" value={form.profileNameColor2} onChange={onChange} />
+                      </label>
+                    )}
                   </div>
                 )}
-              >
-                <span className={`name-style-picker-button-sample ${nameStyleClassName(form, { fullEffect: true })}`} style={{ ...nameStyleProps(form, { fullEffect: true }), fontFamily: FONT_FAMILY[form.profileNameFont] }}>Abc</span>
-              </NameStylePickerButton>
-            </div>
-
-            <div className="name-style-picker-row">
-              <NameStylePickerButton
-                label="Efeito" open={effectMenuOpen} setOpen={setEffectMenuOpen}
-                currentLabel={NAME_EFFECTS.find((f) => f.value === form.profileNameEffect)?.label}
-                menu={(
-                  <div className="name-style-picker-menu">
-                    <div className="name-style-picker-grid">
-                      {NAME_EFFECTS.map((f) => {
-                        const previewUser = { ...form, profileNameEffect: f.value };
-                        return (
-                          <button
-                            type="button" key={f.value}
-                            className={`name-style-picker-option ${form.profileNameEffect === f.value ? 'active' : ''}`}
-                            onClick={() => { setForm((s) => ({ ...s, profileNameEffect: f.value })); setEffectMenuOpen(false); }}
-                          >
-                            <span className={nameStyleClassName(previewUser, { fullEffect: true })} style={nameStyleProps(previewUser, { fullEffect: true })}>Abc</span>
-                            <span className="name-style-picker-option-label">{f.label}</span>
-                          </button>
-                        );
-                      })}
-                    </div>
-                  </div>
+                {DEFAULT_MULTI_COLORS[form.profileNameEffect] && (
+                  <MultiColorEditor effect={form.profileNameEffect} form={form} setForm={setForm} />
                 )}
-              >
-                <span className={`name-style-picker-button-sample ${nameStyleClassName(form, { fullEffect: true })}`} style={nameStyleProps(form, { fullEffect: true })}>Abc</span>
-              </NameStylePickerButton>
-            </div>
-            {form.profileNameEffect !== 'RAINBOW' && (
-              <div className="name-style-color-row">
-                <label>
-                  {form.profileNameEffect === 'GRADIENT' ? 'COR DO NOME (INÍCIO)' : form.profileNameEffect === 'POP' ? 'COR DE TRÁS (CONTORNO)' : 'COR DO NOME'}
-                  <input type="color" name="profileNameColor" value={form.profileNameColor} onChange={onChange} />
-                </label>
-                {(form.profileNameEffect === 'GRADIENT' || form.profileNameEffect === 'POP') && (
-                  <label>
-                    {form.profileNameEffect === 'GRADIENT' ? 'COR DO NOME (FIM)' : 'COR DA FRENTE (PREENCHIMENTO)'}
-                    <input type="color" name="profileNameColor2" value={form.profileNameColor2} onChange={onChange} />
-                  </label>
+                {form.profileNameEffect !== 'RAINBOW' && form.profileNameEffect !== 'GLITCH' && (
+                  <NameColorPresets setForm={setForm} />
                 )}
+            </div>
+          </section>
+          <section className="pe-group" aria-labelledby="pe-g-banners">
+            <h3 className="pe-group-title" id="pe-g-banners">Banners e cor</h3>
+            <div className="pe-banners">
+              <div className="pe-banner">
+                <span className="pe-banner-label">Perfil completo</span>
+                <div className="pe-banner-art" style={{ background: form.profileColor }}>
+                  {(user.bannerUrl) ? <BannerImage url={user.bannerUrl} framing={user.bannerFraming} /> : <span className="pe-banner-empty">Sem imagem · usa a cor do perfil</span>}
+                </div>
+                <div className="pe-banner-actions">
+                  <label className="btn-secondary">{user.bannerUrl ? 'Trocar' : 'Enviar imagem'}<input type="file" accept="image/png,image/jpeg,image/webp,image/gif" hidden onChange={onBanner} /></label>
+                  {user.bannerUrl && <button type="button" className="btn-secondary pb-adjust-btn" onClick={() => adjustCurrentBanner('profile')}>Ajustar enquadramento</button>}
+                </div>
+                <span className="dim settings-upload-hint">Aceita GIF animado (até 25 MB)</span>
               </div>
-            )}
-            {DEFAULT_MULTI_COLORS[form.profileNameEffect] && (
-              <MultiColorEditor effect={form.profileNameEffect} form={form} setForm={setForm} />
-            )}
-            {form.profileNameEffect !== 'RAINBOW' && form.profileNameEffect !== 'GLITCH' && (
-              <NameColorPresets setForm={setForm} />
-            )}
-          </div>
-
-          <div className="settings-block">
-            <h4>Placa de identificação</h4>
-            <p className="dim">Uma imagem ou GIF que aparece no fundo da sua linha, na lista de membros de qualquer servidor que você participa — outras pessoas veem essa imagem ali.</p>
-            <div className="id-card-settings-row">
-              {user.idCardUrl && <img src={user.idCardUrl} alt="" className="id-card-settings-preview" />}
-              <label className="btn-secondary">
-                {user.idCardUrl ? 'Trocar imagem' : 'Escolher imagem ou GIF'}
-                <input
-                  type="file" accept="image/png,image/jpeg,image/webp,image/gif" hidden
-                  onChange={(e) => { const f = e.target.files[0]; if (f) openIdCardEditor(f); e.target.value = ''; }}
-                />
-              </label>
-              {user.idCardUrl && (
-                <button type="button" className="btn-secondary" onClick={adjustCurrentIdCard}>Ajustar posição/zoom</button>
-              )}
-              {user.idCardUrl && (
-                <button className="btn-link danger" onClick={removeIdCardNow}>Remover</button>
-              )}
-            </div>
-          </div>
-
-          </div>
-
-          {/* Miniperfil (antes era uma aba própria): banner, cores e bolha de status. */}
-          <div className="settings-section-title" id="settings-miniperfil">Miniperfil</div>
-          {/* Item pedido: "acabei com a categoria exibição e passa...
-              as conquistas pro perfil e o mini perfil" — a parte do
-              miniperfil, movida de dentro da extinta aba "Exibição".
-              ATUALIZADO ("remover conquistas em destaque do mini
-              perfil, deixar somente no perfil completo") — o
-              miniperfil não mostra mais conquistas nenhuma (ver
-              MiniProfileCard.jsx), então essa escolha aqui não tinha
-              mais efeito nenhum — removida junto. */}
-          <div className="settings-block">
-            <h4>Banner do miniperfil</h4>
-            <p className="dim">Esse banner aparece só no cartão pequeno que abre ao clicar no seu nome/avatar — independente do banner do seu perfil completo.</p>
-            {(user.miniProfileBannerUrl || user.bannerUrl) && (
-              <div className="pb-mini-preview" style={{ background: user.miniProfileColor || form.profileColor }}>
-                <BannerImage
-                  url={user.miniProfileBannerUrl || user.bannerUrl}
-                  framing={user.miniProfileBannerUrl ? user.miniProfileBannerFraming : user.bannerFraming}
-                />
+              <div className="pe-banner">
+                <span className="pe-banner-label">Miniperfil</span>
+                <div className="pe-banner-art is-mini" style={{ background: form.profileColor }}>
+                  {(user.miniProfileBannerUrl || user.bannerUrl) ? <BannerImage url={user.miniProfileBannerUrl || user.bannerUrl} framing={user.miniProfileBannerUrl ? user.miniProfileBannerFraming : user.bannerFraming} /> : <span className="pe-banner-empty">Sem imagem · usa a cor do perfil</span>}
+                </div>
+                <div className="pe-banner-actions">
+                  <label className="btn-secondary">{user.miniProfileBannerUrl ? 'Trocar' : 'Enviar imagem'}<input type="file" accept="image/png,image/jpeg,image/webp,image/gif" hidden onChange={onMiniProfileBanner} /></label>
+                  {user.miniProfileBannerUrl && <button type="button" className="btn-secondary pb-adjust-btn" onClick={() => adjustCurrentBanner('mini')}>Ajustar enquadramento</button>}
+                </div>
+                <span className="dim settings-upload-hint">Sem escolher, usa o banner do perfil completo</span>
               </div>
-            )}
-            <div className="pb-settings-actions">
-              <label className="btn-secondary">Alterar banner do miniperfil<input type="file" accept="image/png,image/jpeg,image/webp,image/gif" hidden onChange={onMiniProfileBanner} /></label>
-              {user.miniProfileBannerUrl && (
-                <button type="button" className="btn-secondary pb-adjust-btn" onClick={() => adjustCurrentBanner('mini')}>Ajustar enquadramento</button>
-              )}
             </div>
-            <span className="dim settings-upload-hint">Aceita GIF animado (até 25 MB)</span>
-          </div>
-
-          <div className="profile-edit-columns">
-          <div className="settings-block">
-            <h4>Cor do miniperfil</h4>
-            <p className="dim">Sem escolher aqui, o miniperfil usa a mesma cor do seu perfil completo — escolha uma diferente se quiser.</p>
-            <div className="role-color-row profile-color-row">
-              <label>
-                COR DO MINIPERFIL
-                <input type="color" value={form.miniProfileColor || form.profileColor} onChange={(e) => setForm((f) => ({ ...f, miniProfileColor: e.target.value }))} />
-              </label>
-              {form.miniProfileColor && (
-                <button type="button" className="btn-link" onClick={() => setForm((f) => ({ ...f, miniProfileColor: '' }))}>Usar a mesma do perfil completo</button>
-              )}
-            </div>
-          </div>
-
-          <div className="settings-block">
-            <h4>Cor do botão "Ver perfil completo"</h4>
-            <div className="role-color-row profile-color-row">
-              <label>
-                COR DO BOTÃO
-                <input type="color" value={form.miniProfileButtonColor || '#4C9FFF'} onChange={(e) => setForm((f) => ({ ...f, miniProfileButtonColor: e.target.value }))} />
-              </label>
-              {form.miniProfileButtonColor && (
-                <button type="button" className="btn-link" onClick={() => setForm((f) => ({ ...f, miniProfileButtonColor: '' }))}>Usar cor padrão</button>
-              )}
-            </div>
-          </div>
-
-          {/* (Removido) O seletor de "cor de fundo da bolha de status"
-              saiu da interface: a bolinha de status mostra só a cor real
-              da presença (online/ausente/não perturbe/offline). A coluna
-              statusBubbleColor continua no banco, mas não é mais lida
-              nem gravada daqui. */}
-          </div>
-
-          <div className="settings-block">
-            <h4>Conexões</h4>
-            <p className="dim">Links que aparecem como botões no seu perfil completo. Deixe vazio pra esconder.</p>
-            <div className="profile-edit-connections-grid">
-              <label>
-                <span className="connection-label"><img className="ui-icon-sm" src={youtubeConnIcon} alt="" /> YOUTUBE</span>
-                <input name="youtubeUrl" value={form.youtubeUrl} onChange={onChange} placeholder="Link do seu canal do YouTube" inputMode="url" aria-invalid={!looksLikeLink(form.youtubeUrl)} />
-                {!looksLikeLink(form.youtubeUrl) && <FieldError>Isso não parece um link. Exemplo: https://site.com/seu-perfil</FieldError>}
-              </label>
-              <label>
-                <span className="connection-label"><img className="ui-icon-sm" src={steamConnIcon} alt="" /> STEAM</span>
-                <input name="steamUrl" value={form.steamUrl} onChange={onChange} placeholder="Link do seu perfil da Steam" inputMode="url" aria-invalid={!looksLikeLink(form.steamUrl)} />
-                {!looksLikeLink(form.steamUrl) && <FieldError>Isso não parece um link. Exemplo: https://site.com/seu-perfil</FieldError>}
-              </label>
-              <label>
-                <span className="connection-label"><img className="ui-icon-sm" src={robloxConnIcon} alt="" /> ROBLOX</span>
-                <input name="robloxUrl" value={form.robloxUrl} onChange={onChange} placeholder="Link do seu perfil do Roblox" inputMode="url" aria-invalid={!looksLikeLink(form.robloxUrl)} />
-                {!looksLikeLink(form.robloxUrl) && <FieldError>Isso não parece um link. Exemplo: https://site.com/seu-perfil</FieldError>}
-              </label>
-              <label>
-                <span className="connection-label"><img className="ui-icon-sm" src={xConnIcon} alt="" /> X (TWITTER)</span>
-                <input name="xUrl" value={form.xUrl} onChange={onChange} placeholder="Link do seu perfil no X" inputMode="url" aria-invalid={!looksLikeLink(form.xUrl)} />
-                {!looksLikeLink(form.xUrl) && <FieldError>Isso não parece um link. Exemplo: https://site.com/seu-perfil</FieldError>}
-              </label>
-            </div>
-          </div>
-
-          {/* Item pedido: "acabei com a categoria exibição e passa a
-              tag pro perfil e as conquistas pro perfil e o mini
-              perfil" — movido de dentro da extinta aba "Exibição". */}
-          {/* Item pedido: "Ranks e Conquistas ficam dentro da mesma
-              categoria (Progresso)" + "tudo que modifica somente o
-              perfil completo fica na aba Perfil Completo" — quais
-              conquistas aparecem em destaque só afeta o perfil
-              completo (ver UserProfileModal.jsx; o mini perfil não
-              mostra mais conquistas, ver aba Mini Perfil), então essa
-              escolha se mudou pra lá, junto do Álbum/Enquetes que já
-              eram só do perfil completo. */}
-
-          {myClan?.tags?.length > 0 && (
+            {profileColorEditEnabled && (
             <div className="settings-block">
-              <h4>Tag do clube</h4>
-              <p className="dim">Exiba a tag do seu clube do lado do seu nome no chat, na lista de membros e no seu perfil.</p>
-              <div className="server-tag-options">
-                <button
-                  type="button"
-                  className={`server-tag-option ${!user.clanTagId ? 'active' : ''}`}
-                  disabled={tagSaving}
-                  onClick={async () => { setTagSaving(true); try { const { clanTagId, clanTag } = await setMyClanTag(null); setUser({ ...user, clanTagId, clanTag }); } finally { setTagSaving(false); } }}
-                >
-                  Nenhuma
-                </button>
-                <button
-                  type="button"
-                  className={`server-tag-option ${user.clanTagId ? 'active' : ''}`}
-                  disabled={tagSaving}
-                  onClick={() => pickClanTag(true)}
-                >
-                  <span className="server-tag-badge clan-tag-badge"><ClanIcon icon={myClan.icon} color={myClan.iconColor} size={14} /> {myClan.tags[0].tag}</span>
-                </button>
+              <h4>Cor do perfil</h4>
+              <p className="dim">A cor (ou degradê) do seu perfil completo e do miniperfil — os dois usam a mesma. Aparece no fundo do banner e do avatar quando não tem imagem.</p>
+              {/* Gradient toggle just for the profile banner/avatar fallback
+                  color — separate from the page-wide "Aparência" background
+                  gradient (that one repaints the whole app; this one is
+                  scoped to just this user's own profile card, same
+                  field/string trick already used for role colors, see
+                  utils/roleColor.js). */}
+              <div className="role-color-row profile-color-row">
+                <div className="role-color-pickers">
+                  {isGradientColor(form.profileColor) ? (
+                    <>
+                      <label>
+                        COR DO PERFIL (INÍCIO)
+                        <input
+                          type="color"
+                          defaultValue={gradientStops(form.profileColor)[0]}
+                          onChange={(e) => setForm((f) => ({ ...f, profileColor: makeGradient(e.target.value, gradientStops(f.profileColor)[1]) }))}
+                        />
+                      </label>
+                      <label>
+                        COR DO PERFIL (FIM)
+                        <input
+                          type="color"
+                          defaultValue={gradientStops(form.profileColor)[1]}
+                          onChange={(e) => setForm((f) => ({ ...f, profileColor: makeGradient(gradientStops(f.profileColor)[0], e.target.value) }))}
+                        />
+                      </label>
+                    </>
+                  ) : (
+                    <label>COR DO PERFIL<input type="color" name="profileColor" value={form.profileColor} onChange={onChange} /></label>
+                  )}
+                  <label className="checkbox-row role-gradient-toggle">
+                    <input
+                      type="checkbox"
+                      checked={isGradientColor(form.profileColor)}
+                      onChange={(e) => {
+                        const [a, b] = gradientStops(form.profileColor);
+                        setForm((f) => ({ ...f, profileColor: e.target.checked ? makeGradient(a, b) : a }));
+                      }}
+                    />
+                    Degradê
+                  </label>
+                </div>
               </div>
             </div>
-          )}
-
-          <ProfileShopItems />
+            )}
+          </section>
+          <section className="pe-group" aria-labelledby="pe-g-efeitos">
+            <h3 className="pe-group-title" id="pe-g-efeitos">Estilo e efeitos do perfil</h3>
+            <p className="pe-group-desc">Itens que você tem da Loja.</p>
+            <h4 className="pe-sub">Estilo do perfil</h4>
+            <ShopTileGrid kind="style" shop={shop} user={previewUser} />
+            <h4 className="pe-sub">Efeito do perfil</h4>
+            <ShopTileGrid kind="effect" shop={shop} user={previewUser} />
+            {shop.msg && <p className={`pe-shop-msg${shop.msg.bad ? ' is-bad' : ''}`} role="status">{shop.msg.text}</p>}
+          </section>
+          <section className="pe-group" aria-labelledby="pe-g-sobre">
+            <h3 className="pe-group-title" id="pe-g-sobre">Sobre você</h3>
+            <div className="pe-card">
+              <label>
+                <span className="settings-label-row">PRONOMES <CharCount value={form.pronouns} max={40} /></span>
+                <input name="pronouns" value={form.pronouns} onChange={onChange} maxLength={40} placeholder="ele/dele, ela/dela..." />
+              </label>
+              <label>
+                <span className="settings-label-row">BIOGRAFIA <CharCount value={form.bio} max={190} /></span>
+                <div className="bio-input-row">
+                  <textarea name="bio" value={form.bio} onChange={onChange} maxLength={190} placeholder="Conte um pouco sobre você" />
+                  <div className="composer-picker-anchor">
+                    <button type="button" className="icon-btn" title="Emoji" onClick={() => setBioEmojiOpen((v) => !v)}><img className="ui-icon" src={emojiPickerIcon} alt="" /></button>
+                    {bioEmojiOpen && <EmojiPicker serverEmojis={useStore.getState().usableEmojis} onPick={insertBioEmoji} onClose={() => setBioEmojiOpen(false)} />}
+                  </div>
+                </div>
+              </label>
+            </div>
+            <div className="settings-block">
+              <h4>Status de presença</h4>
+              <p className="dim">Escolher qualquer um diferente de Online desativa o "ausente automático" — só volta a valer quando você escolher Online de novo.</p>
+              <StatusPicker />
+            </div>
+            <div className="settings-block">
+              <h4>Status personalizado</h4>
+              <label>
+                <div className="bio-input-row">
+                  <input name="customStatus" value={form.customStatus} onChange={onChange} maxLength={128} placeholder="O que você está pensando?" />
+                  <div className="composer-picker-anchor">
+                    <button ref={statusEmojiBtnRef} type="button" className="icon-btn" title="Emoji do status" onClick={() => setStatusEmojiOpen((v) => !v)}>
+                      {form.customStatusEmoji || <SIcon name="smile" size={18} />}
+                    </button>
+                    {statusEmojiOpen && createPortal(
+                      <div ref={statusEmojiPickerRef} style={{ display: 'contents' }}>
+                        <EmojiPicker
+                          variant="reaction"
+                          serverEmojis={useStore.getState().usableEmojis}
+                          style={statusEmojiPickerStyle || {}}
+                          onPick={(e) => { setForm((f) => ({ ...f, customStatusEmoji: e })); setStatusEmojiOpen(false); }}
+                          onClose={() => setStatusEmojiOpen(false)}
+                        />
+                      </div>,
+                      document.body,
+                    )}
+                  </div>
+                </div>
+              </label>
+              {(form.customStatus || form.customStatusEmoji) && (
+                <button type="button" className="btn-link settings-inline-link" onClick={() => setForm((f) => ({ ...f, customStatus: '', customStatusEmoji: '' }))}>Limpar status</button>
+              )}
+            </div>
+          </section>
+          <section className="pe-group" aria-labelledby="pe-g-placa">
+            <h3 className="pe-group-title" id="pe-g-placa">Placa e pingente</h3>
+            <div className="settings-block">
+              <h4>Placa de identificação</h4>
+              <p className="dim">Uma imagem ou GIF que aparece no fundo da sua linha, na lista de membros de qualquer servidor que você participa — outras pessoas veem essa imagem ali.</p>
+              <div className="id-card-settings-row">
+                {user.idCardUrl && <img src={user.idCardUrl} alt="" className="id-card-settings-preview" />}
+                <label className="btn-secondary">
+                  {user.idCardUrl ? 'Trocar imagem' : 'Escolher imagem ou GIF'}
+                  <input
+                    type="file" accept="image/png,image/jpeg,image/webp,image/gif" hidden
+                    onChange={(e) => { const f = e.target.files[0]; if (f) openIdCardEditor(f); e.target.value = ''; }}
+                  />
+                </label>
+                {user.idCardUrl && (
+                  <button type="button" className="btn-secondary" onClick={adjustCurrentIdCard}>Ajustar posição/zoom</button>
+                )}
+                {user.idCardUrl && (
+                  <button className="btn-link danger" onClick={removeIdCardNow}>Remover</button>
+                )}
+              </div>
+            </div>
+            <div className="settings-block">
+              <h4>Pingente</h4>
+              <p className="dim">Uma imagenzinha sua (pode ser GIF animado) que aparece ao lado do seu nome no chat, no miniperfil e no perfil completo.</p>
+              <div className="pendant-editor">
+                <div className="pendant-editor-preview">
+                  {user.customPendantUrl
+                    ? <img src={proxyImage(user.customPendantUrl)} alt="Seu pingente" />
+                    : <span aria-hidden="true">+</span>}
+                </div>
+                <div className="pendant-editor-side">
+                  <div className="pendant-editor-sample">
+                    <strong>{user.displayName}</strong>
+                    {user.customPendantUrl && <img src={proxyImage(user.customPendantUrl)} alt="" className="pendant-icon" style={{ width: 20, height: 20 }} />}
+                  </div>
+                  <div className="pendant-editor-actions">
+                    <label className={`btn-primary pendant-editor-upload${pendantSaving ? ' is-busy' : ''}`}>
+                      {pendantSaving ? 'Enviando…' : user.customPendantUrl ? 'Trocar imagem' : 'Enviar imagem'}
+                      <input type="file" accept="image/png,image/jpeg,image/webp,image/gif" hidden disabled={pendantSaving} onChange={(e) => { const f = e.target.files[0]; if (f) uploadCustomPendant(f); e.target.value = ''; }} />
+                    </label>
+                    {user.customPendantUrl && <button type="button" className="btn-link" disabled={pendantSaving} onClick={clearCustomPendant}>Remover</button>}
+                  </div>
+                  <span className="dim settings-upload-hint">PNG, JPG, WEBP ou GIF · até 10 MB · imagem quadrada fica melhor</span>
+                  {pendantError && <span className="pendant-editor-error" role="alert">{pendantError}</span>}
+                </div>
+              </div>
+            </div>
+          </section>
+          <section className="pe-group" aria-labelledby="pe-g-detalhes">
+            <h3 className="pe-group-title" id="pe-g-detalhes">Detalhes</h3>
+            <div className="settings-block">
+              <h4>Cor do botão "Ver perfil completo"</h4>
+              <div className="role-color-row profile-color-row">
+                <label>
+                  COR DO BOTÃO
+                  <input type="color" value={form.miniProfileButtonColor || '#4C9FFF'} onChange={(e) => setForm((f) => ({ ...f, miniProfileButtonColor: e.target.value }))} />
+                </label>
+                {form.miniProfileButtonColor && (
+                  <button type="button" className="btn-link" onClick={() => setForm((f) => ({ ...f, miniProfileButtonColor: '' }))}>Usar cor padrão</button>
+                )}
+              </div>
+            </div>
+            <div className="settings-block">
+              <h4>Cor da barra de nível</h4>
+              <p className="dim">A barra de progresso de nível no seu perfil é verde por padrão — escolha outra cor se preferir.</p>
+              <div className="role-color-row profile-color-row">
+                <label>
+                  COR DA BARRA
+                  <input type="color" value={form.levelBarColor || '#23a55a'} onChange={(e) => setForm((f) => ({ ...f, levelBarColor: e.target.value }))} />
+                </label>
+                <span className="settings-level-preview" aria-hidden="true"><i style={{ background: form.levelBarColor || 'var(--green)' }} /></span>
+                {form.levelBarColor && (
+                  <button type="button" className="btn-link" onClick={() => setForm((f) => ({ ...f, levelBarColor: '' }))}>Usar verde padrão</button>
+                )}
+              </div>
+            </div>
+            <div className="settings-block">
+              <h4>Opacidade das caixas do perfil</h4>
+              <p className="dim">Controla o quanto o fundo das seções (Sobre, Recados, etc) aparece — 0 deixa invisível, valores altos deixam bem visível.</p>
+              <div className="birthday-picker-row">
+                <input
+                  type="range" min={0} max={100} step={5}
+                  value={sectionOpacity}
+                  onChange={(e) => { const v = Number(e.target.value); setSectionOpacity(v); saveSectionOpacity(v); }}
+                />
+                <span className="dim" style={{ minWidth: 36, textAlign: 'right' }}>{sectionOpacity}%</span>
+              </div>
+            </div>
+            {myClan?.tags?.length > 0 && (
+              <div className="settings-block">
+                <h4>Tag do clube</h4>
+                <p className="dim">Exiba a tag do seu clube do lado do seu nome no chat, na lista de membros e no seu perfil.</p>
+                <div className="server-tag-options">
+                  <button
+                    type="button"
+                    className={`server-tag-option ${!user.clanTagId ? 'active' : ''}`}
+                    disabled={tagSaving}
+                    onClick={async () => { setTagSaving(true); try { const { clanTagId, clanTag } = await setMyClanTag(null); setUser({ ...user, clanTagId, clanTag }); } finally { setTagSaving(false); } }}
+                  >
+                    Nenhuma
+                  </button>
+                  <button
+                    type="button"
+                    className={`server-tag-option ${user.clanTagId ? 'active' : ''}`}
+                    disabled={tagSaving}
+                    onClick={() => pickClanTag(true)}
+                  >
+                    <span className="server-tag-badge clan-tag-badge"><ClanIcon icon={myClan.icon} color={myClan.iconColor} size={14} /> {myClan.tags[0].tag}</span>
+                  </button>
+                </div>
+              </div>
+            )}
+          </section>
+          <section className="pe-group" aria-labelledby="pe-g-conexoes">
+            <h3 className="pe-group-title" id="pe-g-conexoes">Conexões</h3>
+            <div className="settings-block">
+              <p className="dim">Links que aparecem como botões no seu perfil completo. Deixe vazio pra esconder.</p>
+              <div className="profile-edit-connections-grid">
+                <label>
+                  <span className="connection-label"><img className="ui-icon-sm" src={youtubeConnIcon} alt="" /> YOUTUBE</span>
+                  <input name="youtubeUrl" value={form.youtubeUrl} onChange={onChange} placeholder="Link do seu canal do YouTube" inputMode="url" aria-invalid={!looksLikeLink(form.youtubeUrl)} />
+                  {!looksLikeLink(form.youtubeUrl) && <FieldError>Isso não parece um link. Exemplo: https://site.com/seu-perfil</FieldError>}
+                </label>
+                <label>
+                  <span className="connection-label"><img className="ui-icon-sm" src={steamConnIcon} alt="" /> STEAM</span>
+                  <input name="steamUrl" value={form.steamUrl} onChange={onChange} placeholder="Link do seu perfil da Steam" inputMode="url" aria-invalid={!looksLikeLink(form.steamUrl)} />
+                  {!looksLikeLink(form.steamUrl) && <FieldError>Isso não parece um link. Exemplo: https://site.com/seu-perfil</FieldError>}
+                </label>
+                <label>
+                  <span className="connection-label"><img className="ui-icon-sm" src={robloxConnIcon} alt="" /> ROBLOX</span>
+                  <input name="robloxUrl" value={form.robloxUrl} onChange={onChange} placeholder="Link do seu perfil do Roblox" inputMode="url" aria-invalid={!looksLikeLink(form.robloxUrl)} />
+                  {!looksLikeLink(form.robloxUrl) && <FieldError>Isso não parece um link. Exemplo: https://site.com/seu-perfil</FieldError>}
+                </label>
+                <label>
+                  <span className="connection-label"><img className="ui-icon-sm" src={xConnIcon} alt="" /> X (TWITTER)</span>
+                  <input name="xUrl" value={form.xUrl} onChange={onChange} placeholder="Link do seu perfil no X" inputMode="url" aria-invalid={!looksLikeLink(form.xUrl)} />
+                  {!looksLikeLink(form.xUrl) && <FieldError>Isso não parece um link. Exemplo: https://site.com/seu-perfil</FieldError>}
+                </label>
+              </div>
+            </div>
+          </section>
         </div>
       )}
 
@@ -2637,27 +2512,6 @@ function NameColorPresets({ setForm }) {
   );
 }
 
-function NameStylePickerButton({ label, open, setOpen, currentLabel, children, menu }) {
-  const ref = useRef(null);
-  useEffect(() => {
-    if (!open) return;
-    const onDocClick = (e) => { if (!ref.current?.contains(e.target)) setOpen(false); };
-    document.addEventListener('mousedown', onDocClick);
-    return () => document.removeEventListener('mousedown', onDocClick);
-  }, [open, setOpen]);
-
-  return (
-    <div className="name-style-picker-button-wrap" ref={ref}>
-      <button type="button" className="name-style-picker-button" onClick={() => setOpen((v) => !v)}>
-        <span className="name-style-picker-button-label">{label}</span>
-        {children}
-        <span className="name-style-picker-button-current truncate">{currentLabel}</span>
-        <span className={`name-style-picker-button-caret ${open ? 'open' : ''}`}><SIcon name="caret" size={14} /></span>
-      </button>
-      {open && menu}
-    </div>
-  );
-}
 
 function VoiceSettingsTab() {
   const voice = useVoice();
