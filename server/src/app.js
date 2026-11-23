@@ -516,6 +516,16 @@ function createApp() {
   }));
   app.get('*', (req, res, next) => {
     if (req.path.startsWith('/api') || req.path.startsWith('/uploads')) return next();
+    // Arquivo que não existe (ex.: /assets/index-<hash>.js de outra versão,
+    // ou no meio de uma publicação) NUNCA recebe o index.html: o navegador
+    // e a Cloudflare guardavam esse HTML no lugar do JS e o site inteiro
+    // ficava em branco por horas. Agora é 404 sem cache — a próxima
+    // tentativa já pega o arquivo certo.
+    if (isMissingStaticFile(req.path)) {
+      res.setHeader('Cache-Control', 'no-store, max-age=0');
+      res.setHeader('CDN-Cache-Control', 'no-store');
+      return res.status(404).type('text/plain').send('Arquivo não encontrado');
+    }
     res.setHeader('Cache-Control', 'no-cache');
     res.sendFile(path.join(clientDist, 'index.html'), (err) => { if (err) next(); });
   });
@@ -526,4 +536,16 @@ function createApp() {
   return app;
 }
 
+// Caminho de arquivo do site (tem extensão, ou fica em /assets/) — não é
+// rota do app React (/canal/x, /perfil/y...), então não cai no index.html.
+// Cuidado: ClubTag pode ter ponto (/perfil/rique.bitt), então fora de
+// /assets/ só conta arquivo na raiz com extensão conhecida.
+const STATIC_EXT = /\.(js|mjs|css|map|json|wasm|png|jpe?g|gif|webp|avif|svg|ico|woff2?|ttf|otf|mp3|ogg|wav|mp4|webm|txt|xml|webmanifest|glb|swf)$/i;
+function isMissingStaticFile(p) {
+  if (p.startsWith('/assets/')) return true;
+  const parts = p.split('/');
+  return parts.length === 2 && STATIC_EXT.test(parts[1]);
+}
+
 module.exports = createApp;
+module.exports.isMissingStaticFile = isMissingStaticFile;
