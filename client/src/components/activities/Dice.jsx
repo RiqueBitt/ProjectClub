@@ -22,23 +22,71 @@ function pt(cx, cy, r, deg) {
 }
 const join = (pts) => pts.map((p) => p.join(',')).join(' ');
 
-// Facetas de cada tipo (viewBox 0 0 100 100): [pontos, tom 0 = mais claro … 3 = mais escuro].
+// Tom de cada face pela posição (luz vindo de cima à esquerda): a face da
+// frente é a mais clara (0); as viradas pra baixo/direita escurecem até 3.
+function toneOf(pts, front = false) {
+  if (front) return 0;
+  const cx = pts.reduce((a, p) => a + p[0], 0) / pts.length - 50;
+  const cy = pts.reduce((a, p) => a + p[1], 0) / pts.length - 50;
+  const len = Math.hypot(cx, cy) || 1;
+  const d = (cx * 0.55 + cy * 0.83) / len; // -1 (virada pra luz) … 1 (de costas)
+  return Math.max(0, Math.min(3, Math.round(1.6 + d * 1.5)));
+}
+const faces = (list) => list.map(([pts, front]) => [join(pts), toneOf(pts, front)]);
+
+// Geometria de cada dado, desenhada como ele é de verdade (viewBox 0 0 100 100):
+//  D4  tetraedro: triângulo, 3 faces vistas de cima, número na frente.
+//  D6  cubo em 3/4: face da frente quadrada + topo e lado.
+//  D8  octaedro (duas pirâmides base com base), ponta pra cima: losango com 4 faces.
+//  D10 trapezoedro pentagonal: pipa na frente, 4 pipas em volta (contorno de 6 pontas).
+//  D12 dodecaedro: pentágono na frente, 5 pentágonos em volta (contorno de 10 lados).
+//  D20 icosaedro: triângulo no centro, 9 triângulos em volta (contorno hexagonal).
+//  D100 = D10 de porcentagem (marca %). Outros (D2, D3…): moeda.
+const GEO = (() => {
+  const T4 = [50, 6]; const L4 = [5, 88]; const R4 = [95, 88]; const C4 = [50, 64];
+  const d4 = { ty: 66, outline: join([T4, R4, L4]), facets: faces([[[T4, C4, L4], true], [[T4, R4, C4]], [[L4, C4, R4]]]) };
+
+  const d6 = { ty: 58, tx: 44, outline: '12,28 30,10 92,10 92,72 74,90 12,90', facets: [['30,10 92,10 74,28 12,28', 1], ['74,28 92,10 92,72 74,90', 3], ['12,28 74,28 74,90 12,90', 0]] };
+
+  const T8 = [50, 3]; const B8 = [50, 97]; const L8 = [8, 48]; const R8 = [92, 48]; const F8 = [50, 62];
+  const d8 = { ty: 47, outline: join([T8, R8, B8, L8]), facets: faces([[[T8, L8, F8], true], [[T8, F8, R8]], [[L8, F8, B8]], [[F8, R8, B8]]]) };
+  d8.facets[0][1] = 0; d8.facets[1][1] = 1;
+
+  const T10 = [50, 3]; const B10 = [50, 97]; const L1 = [5, 42]; const R1 = [95, 42]; const L2 = [12, 64]; const R2 = [88, 64];
+  const a = [25, 54]; const c = [50, 71]; const b = [75, 54];
+  const d10 = {
+    ty: 44,
+    outline: join([T10, R1, R2, B10, L2, L1]),
+    facets: faces([[[T10, a, c, b], true], [[T10, L1, L2, a]], [[T10, b, R2, R1]], [[a, L2, B10, c]], [[c, B10, R2, b]]]),
+  };
+
+  const out = Array.from({ length: 10 }, (_, i) => pt(50, 50, 47, -90 + 36 * i));
+  const inn = Array.from({ length: 5 }, (_, i) => pt(50, 51, 24, -90 + 72 * i));
+  const d12 = {
+    ty: 53,
+    outline: join(out),
+    facets: [
+      ...faces(inn.map((p, i) => [[p, out[2 * i], out[2 * i + 1], out[(2 * i + 2) % 10], inn[(i + 1) % 5]]])),
+      [join(inn), 0],
+    ],
+  };
+
+  const H = [[50, 3], [91, 27], [91, 73], [50, 97], [9, 73], [9, 27]];
+  const A = [50, 24]; const Bv = [24, 68]; const Cv = [76, 68];
+  const d20 = {
+    ty: 54,
+    outline: join(H),
+    facets: faces([
+      [[A, H[5], H[0]]], [[A, H[0], H[1]]], [[A, Bv, H[5]]], [[A, H[1], Cv]],
+      [[Bv, H[4], H[5]]], [[Cv, H[1], H[2]]], [[Bv, Cv, H[3]]], [[Bv, H[3], H[4]]], [[Cv, H[2], H[3]]],
+      [[A, Bv, Cv], true],
+    ]),
+  };
+  return { 4: d4, 6: d6, 8: d8, 10: { ...d10, ty: 47 }, 12: d12, 20: d20, 100: { ...d10, ty: 41 } };
+})();
+
 function shapeOf(sides) {
-  switch (sides) {
-    case 4: return { ty: 64, outline: '50,6 95,88 5,88', facets: [['50,6 50,62 5,88', 1], ['50,6 95,88 50,62', 2], ['5,88 50,62 95,88', 3]], face: '50,6 50,62 5,88' };
-    case 6: return { ty: 52, cube: true };
-    case 8: return { ty: 55, outline: '50,3 93,50 50,97 7,50', facets: [['50,3 30,50 7,50', 1], ['50,3 70,50 30,50', 0], ['50,3 93,50 70,50', 2], ['7,50 30,50 50,97', 2], ['30,50 70,50 50,97', 1], ['70,50 93,50 50,97', 3]] };
-    case 10:
-    case 100: return { ty: 42, outline: '50,3 93,40 50,97 7,40', facets: [['50,3 93,40 50,60 7,40', 0], ['7,40 50,60 50,97', 2], ['93,40 50,60 50,97', 3]] };
-    case 12: {
-      const out = Array.from({ length: 5 }, (_, i) => pt(50, 52, 47, -90 + 72 * i));
-      const inn = Array.from({ length: 5 }, (_, i) => pt(50, 52, 25, -90 + 72 * i));
-      const tones = [1, 2, 3, 3, 1];
-      return { ty: 54, outline: join(out), facets: [...out.map((p, i) => [join([p, out[(i + 1) % 5], inn[(i + 1) % 5], inn[i]]), tones[i]]), [join(inn), 0]] };
-    }
-    case 20: return { ty: 52, outline: '50,3 91,27 91,73 50,97 9,73 9,27', facets: [['50,3 9,27 9,73 22,66', 1], ['50,3 91,27 91,73 78,66', 2], ['9,73 22,66 50,97', 2], ['22,66 78,66 50,97', 3], ['78,66 91,73 50,97', 3], ['50,3 22,66 78,66', 0]] };
-    default: return { ty: 54, coin: true };
-  }
+  return GEO[sides] || { ty: 54, coin: true };
 }
 
 export function DieFace({ sides, value, rolling = false, delay = 0, size = 64, tone = '' }) {
@@ -68,14 +116,6 @@ export function DieFace({ sides, value, rolling = false, delay = 0, size = 64, t
             <stop offset="1" stopColor="#fff" stopOpacity="0" />
           </linearGradient>
         </defs>
-        {s.cube && (
-          <g>
-            <rect className="die-f3" x="9" y="9" width="82" height="82" rx="16" />
-            <rect className="die-f0" x="17" y="15" width="66" height="66" rx="11" />
-            <rect x="17" y="15" width="66" height="66" rx="11" fill={gloss} />
-            <rect className="die-rim" x="9" y="9" width="82" height="82" rx="16" />
-          </g>
-        )}
         {s.coin && (
           <g>
             <circle className="die-f3" cx="50" cy="50" r="45" />
@@ -93,8 +133,8 @@ export function DieFace({ sides, value, rolling = false, delay = 0, size = 64, t
             <polygon className="die-rim" points={s.outline} />
           </g>
         )}
-        <text className="die-num" x="50" y={s.ty} fontSize={fs} textAnchor="middle" dominantBaseline="central">{label}</text>
-        {sides === 100 && <text className="die-tag" x="50" y="79" fontSize="15" textAnchor="middle">%</text>}
+        <text className="die-num" x={s.tx || 50} y={s.ty} fontSize={fs} textAnchor="middle" dominantBaseline="central">{label}</text>
+        {sides === 100 && <text className="die-tag" x="50" y="63" fontSize="14" textAnchor="middle">%</text>}
         {!DICE_TYPES.includes(sides) && <text className="die-tag" x="50" y="25" fontSize="11" textAnchor="middle">D{sides}</text>}
       </svg>
     </span>
