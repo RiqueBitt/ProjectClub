@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { matchSteamGames, matchWorkshopGames, matchGameBananaGames, matchThunderstoreGames, matchNexusGames } from '../../api/endpoints';
-import { isDesktopModsAvailable, detectSteamGames, listInstalledModsLocally } from '../../utils/mods';
+import { isDesktopModsAvailable, detectSteamGames, listInstalledModsLocally, detectOtherGames, hasLauncherMods, launcherMods } from '../../utils/mods';
 import { Icon, GameCover, SourceChip, EmptyState, SkeletonGrid, SearchField, ChipRow, SOURCE_ORDER } from './shared.jsx';
 import { NexusLinkToggle } from './NexusViews.jsx';
 import ModsHome from './ModsHome.jsx';
@@ -18,41 +18,66 @@ function isSteamTool(game) {
 // Detecção da biblioteca (Steam local + cruzamento com as fontes de mods),
 // sem estado de React — usada pelo hook abaixo e pela atualização
 // automática em segundo plano (ModAutoUpdater.jsx).
+// Jogos com launcher próprio no ecossistema: o Mod Manager cuida dos mods
+// por instância (LauncherModsManager.jsx), sem passar pelos catálogos da Steam.
+export const LAUNCHER_GAMES = [
+  { kind: 'minecraft', displayName: 'Minecraft', launcher: 'ProjectMC', iconUrl: '/apps/projectmc/icon.png' },
+  { kind: 'hytale', displayName: 'Hytale', launcher: 'HyProject', iconUrl: '/apps/hyproject/icon.png' },
+];
+export const gameKey = (g) => g.key || String(g.steamAppId);
+
 export async function loadModsLibrary() {
-  // Item pedido 30: a detecção roda LOCALMENTE (steamDetector.js,
-  // dentro do app desktop) — só a lista de AppIDs encontrados
-  // sobe pro servidor, pra cruzar com os catálogos de suporte
-  // (mod.io, Workshop, GameBanana e Thunderstore, todos
-  // staff-editáveis).
-  const detection = await detectSteamGames();
-  if (!(detection.steamFound && detection.games?.length > 0)) return { steamFound: detection.steamFound, games: [] };
-  const appIds = detection.games.map((g) => g.steamAppId);
-  const names = Object.fromEntries(detection.games.map((g) => [g.steamAppId, g.name || '']));
-  const [{ games: modioSupported }, { games: workshopSupported }, { games: gamebananaSupported }, { games: thunderstoreSupported }, { games: nexusSupported }] = await Promise.all([
-    matchSteamGames(appIds).catch(() => ({ games: [] })),
-    matchWorkshopGames(appIds).catch(() => ({ games: [] })),
-    matchGameBananaGames(appIds).catch(() => ({ games: [] })),
-    matchThunderstoreGames(appIds).catch(() => ({ games: [] })),
-    // Nexus Mods (fonte do Vortex): acha o jogo pelo AppID ou nome.
-    matchNexusGames(appIds, names).catch(() => ({ games: [] })),
+  // Item pedido 30: a detecção roda LOCALMENTE (steamDetector.js e
+  // otherGames.js, dentro do app desktop) — só a lista de AppIDs sobe
+  // pro servidor, pra cruzar com os catálogos de suporte.
+  // Mod Manager único: além da Steam, entram os jogos da Epic e da GOG
+  // (ligados ao mesmo jogo da Steam pelo nome) e Minecraft/Hytale.
+  const [detection, others, launchers] = await Promise.all([
+    detectSteamGames().catch(() => ({ steamFound: false, games: [] })),
+    detectOtherGames().catch(() => ({ games: [] })),
+    hasLauncherMods()
+      ? Promise.all(LAUNCHER_GAMES.map((l) => launcherMods.instances(l.kind).then((list) => [l, list]).catch(() => [l, []])))
+      : Promise.resolve([]),
   ]);
 
-  // Álbum: TODOS os jogos detectados viram um cartão (com ou
-  // sem suporte). Item pedido: "funda o Workshop e o GameBanana
-  // na mesma aba... pra não ter esse tipo de game repetido" —
-  // tudo num Map por steamAppId, então um jogo com suporte em
-  // mais de uma fonte continua sendo UM cartão só.
+  // Álbum: TODOS os jogos detectados viram um cartão (com ou sem
+  // suporte), um só por jogo mesmo que ele esteja em mais de uma loja.
   const merged = new Map();
-  for (const g of detection.games.filter((x) => !isSteamTool(x))) {
-    if (merged.has(g.steamAppId)) continue;
-    merged.set(g.steamAppId, { steamAppId: g.steamAppId, displayName: g.name || `App ${g.steamAppId}`, iconUrl: null, installPath: g.installPath, sources: {} });
+  for (const g of (detection.games || []).filter((x) => !isSteamTool(x))) {
+    if (merged.has(String(g.steamAppId))) continue;
+    merged.set(String(g.steamAppId), { steamAppId: g.steamAppId, displayName: g.name || `App ${g.steamAppId}`, iconUrl: null, installPath: g.installPath, sources: {}, platforms: ['steam'] });
   }
+  for (const g of others.games || []) {
+    if (g.steamAppId) {
+      const prev = merged.get(String(g.steamAppId));
+      if (prev) { if (!prev.platforms.includes(g.platform)) prev.platforms.push(g.platform); prev.storeIds = { ...(prev.storeIds || {}), [g.platform]: g.id }; continue; }
+      merged.set(String(g.steamAppId), { steamAppId: g.steamAppId, displayName: g.name, iconUrl: null, installPath: g.installPath, sources: {}, platforms: [g.platform], storeIds: { [g.platform]: g.id } });
+    } else {
+      // Sem o mesmo jogo na Steam: aparece no álbum, mas ainda sem catálogo de mods.
+      const key = `${g.platform}:${g.id}`;
+      if (!merged.has(key)) merged.set(key, { key, steamAppId: null, displayName: g.name, iconUrl: null, installPath: g.installPath, sources: {}, platforms: [g.platform], storeIds: { [g.platform]: g.id }, unmatched: true });
+    }
+  }
+  const steamEntries = [...merged.values()].filter((e) => e.steamAppId);
+  const appIds = steamEntries.map((e) => e.steamAppId);
+  const names = Object.fromEntries(steamEntries.map((e) => [e.steamAppId, e.displayName || '']));
+  const [{ games: modioSupported }, { games: workshopSupported }, { games: gamebananaSupported }, { games: thunderstoreSupported }, { games: nexusSupported }] = appIds.length
+    ? await Promise.all([
+      matchSteamGames(appIds).catch(() => ({ games: [] })),
+      matchWorkshopGames(appIds).catch(() => ({ games: [] })),
+      matchGameBananaGames(appIds).catch(() => ({ games: [] })),
+      matchThunderstoreGames(appIds).catch(() => ({ games: [] })),
+      matchNexusGames(appIds, names).catch(() => ({ games: [] })),
+    ])
+    : [{ games: [] }, { games: [] }, { games: [] }, { games: [] }, { games: [] }];
   const addSource = (list, sourceKey) => {
     for (const s of list || []) {
-      const entry = merged.get(s.steamAppId);
+      const entry = merged.get(String(s.steamAppId));
       if (!entry) continue;
       if (s.displayName && !entry.namedBySource) { entry.displayName = s.displayName; entry.namedBySource = true; }
       if (!entry.iconUrl && s.iconUrl) entry.iconUrl = s.iconUrl;
+      // O Workshop só funciona pela própria Steam: jogo só da Epic/GOG fica sem ele.
+      if (sourceKey === 'workshop' && !entry.platforms.includes('steam')) continue;
       entry.sources[sourceKey] = s;
     }
   };
@@ -61,7 +86,17 @@ export async function loadModsLibrary() {
   addSource(gamebananaSupported, 'gamebanana');
   addSource(thunderstoreSupported, 'thunderstore');
   addSource(nexusSupported, 'nexus');
-  return { steamFound: detection.steamFound, games: Array.from(merged.values()) };
+
+  // Minecraft e Hytale: um cartão cada, quando o launcher tem instância.
+  const launcherCards = launchers.filter(([, list]) => list.length > 0).map(([l, list]) => ({
+    key: l.kind, kind: l.kind, steamAppId: null, displayName: l.displayName, iconUrl: l.iconUrl,
+    sources: { [l.kind]: true }, platforms: [l.kind], launcher: l.launcher, instances: list,
+  }));
+  return {
+    steamFound: detection.steamFound,
+    stores: { steam: !!detection.steamFound, epic: !!others.epicFound, gog: !!others.gogFound, minecraft: launcherCards.some((c) => c.kind === 'minecraft'), hytale: launcherCards.some((c) => c.kind === 'hytale') },
+    games: [...launcherCards, ...merged.values()],
+  };
 }
 
 // Carrega a biblioteca uma vez só (fica no ModsPage), pra voltar do
@@ -71,16 +106,20 @@ export function useModsLibrary() {
   const [loading, setLoading] = useState(desktopReady);
   const [steamFound, setSteamFound] = useState(null);
   const [games, setGames] = useState([]);
+  const [stores, setStores] = useState({});
   const [installedCounts, setInstalledCounts] = useState({}); // steamAppId -> nº de mods
 
   // Conta os mods instalados de cada jogo COM suporte (leitura local de
   // pasta pelo app desktop — barato). Jogo sem suporte fica de fora:
   // não sabemos qual pasta de mods ele usaria.
   const refreshCounts = useCallback((list) => {
-    const targets = (list || []).filter((g) => g.installPath && Object.keys(g.sources).length > 0);
-    Promise.all(targets.map((g) => listInstalledModsLocally(g.installPath)
-      .then((d) => [g.steamAppId, (d.enabled?.length || 0) + (d.disabled?.length || 0)])
-      .catch(() => [g.steamAppId, 0])))
+    const targets = (list || []).filter((g) => (g.installPath || g.kind) && Object.keys(g.sources).length > 0);
+    Promise.all(targets.map((g) => (g.kind
+      // Minecraft/Hytale: soma os mods de todas as instâncias.
+      ? Promise.all((g.instances || []).map((i) => launcherMods.list(g.kind, i.id).then((r) => r.mods.length).catch(() => 0))).then((n) => [gameKey(g), n.reduce((a, b) => a + b, 0)])
+      : listInstalledModsLocally(g.installPath)
+        .then((d) => [gameKey(g), (d.enabled?.length || 0) + (d.disabled?.length || 0)])
+        .catch(() => [gameKey(g), 0]))))
       .then((pairs) => setInstalledCounts(Object.fromEntries(pairs)));
   }, []);
 
@@ -90,6 +129,7 @@ export function useModsLibrary() {
       try {
         const detected = await loadModsLibrary();
         setSteamFound(detected.steamFound);
+        setStores(detected.stores || {});
         if (detected.games.length > 0) {
           setGames(detected.games);
           refreshCounts(detected.games);
@@ -102,7 +142,7 @@ export function useModsLibrary() {
     })();
   }, [desktopReady, refreshCounts]);
 
-  return { desktopReady, loading, steamFound, games, installedCounts, refreshCounts: () => refreshCounts(games) };
+  return { desktopReady, loading, steamFound, stores, games, installedCounts, refreshCounts: () => refreshCounts(games) };
 }
 
 const SORTS = [
@@ -110,10 +150,24 @@ const SORTS = [
   { value: 'az', label: 'A–Z' },
 ];
 
+const PLATFORMS = [
+  { value: 'steam', label: 'Steam' },
+  { value: 'epic', label: 'Epic Games' },
+  { value: 'gog', label: 'GOG' },
+  { value: 'launchers', label: 'Minecraft e Hytale' },
+];
+const PLATFORM_LABEL = { steam: 'Steam', epic: 'Epic', gog: 'GOG', minecraft: 'ProjectMC', hytale: 'HyProject' };
+const inPlatform = (g, p) => (p === 'launchers' ? !!g.kind : (g.platforms || ['steam']).includes(p));
+
 export default function ModsLibrary({ library, updates, onBack, onOpenGame, notice, onDismissNotice }) {
   const { desktopReady, loading, steamFound, games, installedCounts } = library;
   const [query, setQuery] = useState('');
   const [filter, setFilter] = useState('all'); // 'all' | 'supported' | 'unsupported'
+  const [platform, setPlatform] = useState('all');
+  const platformOptions = useMemo(() => [
+    { value: 'all', label: 'Todas as lojas', count: games.length },
+    ...PLATFORMS.map((p) => ({ ...p, count: games.filter((g) => inPlatform(g, p.value)).length })).filter((p) => p.count > 0),
+  ], [games]);
   const [sort, setSort] = useState('mods');
 
   const supportedCount = games.filter((g) => Object.keys(g.sources).length > 0).length;
@@ -125,6 +179,7 @@ export default function ModsLibrary({ library, updates, onBack, onOpenGame, noti
       const supported = Object.keys(g.sources).length > 0;
       if (filter === 'supported' && !supported) return false;
       if (filter === 'unsupported' && supported) return false;
+      if (platform !== 'all' && !inPlatform(g, platform)) return false;
       return !q || g.displayName.toLowerCase().includes(q);
     });
     list = [...list].sort((a, b) => {
@@ -132,16 +187,17 @@ export default function ModsLibrary({ library, updates, onBack, onOpenGame, noti
         const sa = Object.keys(a.sources).length > 0 ? 1 : 0;
         const sb = Object.keys(b.sources).length > 0 ? 1 : 0;
         if (sa !== sb) return sb - sa;
-        const ia = installedCounts[a.steamAppId] || 0;
-        const ib = installedCounts[b.steamAppId] || 0;
+        const ia = installedCounts[gameKey(a)] || 0;
+        const ib = installedCounts[gameKey(b)] || 0;
         if (ia !== ib) return ib - ia;
       }
       return a.displayName.localeCompare(b.displayName, 'pt-BR');
     });
     return list;
-  }, [games, query, filter, sort, installedCounts]);
+  }, [games, query, filter, platform, sort, installedCounts]);
 
-  const ready = desktopReady && !loading && steamFound;
+  // Pronto quando achou QUALQUER loja (Steam, Epic, GOG) ou Minecraft/Hytale.
+  const ready = desktopReady && !loading && (steamFound || games.length > 0);
   const updateTotal = Object.values(updates?.byGame || {}).reduce((a, l) => a + l.length, 0);
 
   return (
@@ -152,7 +208,7 @@ export default function ModsLibrary({ library, updates, onBack, onOpenGame, noti
         <div className="mdx-lib-hero-text">
           <span className="mdx-eyebrow"><Icon name="library" size={14} /> Biblioteca</span>
           <h1>Mods</h1>
-          <p>Todos os jogos da sua Steam num lugar só. Escolha um jogo pra explorar mods compatíveis, gerenciar o que já está instalado e mexer nos arquivos.</p>
+          <p>Um gerenciador só pra todos os seus jogos: Steam, Epic Games, GOG, Minecraft e Hytale. Escolha um jogo pra explorar mods, instalar, atualizar, organizar e remover.</p>
         </div>
         {ready && (
           <dl className="mdx-lib-stats">
@@ -180,7 +236,7 @@ export default function ModsLibrary({ library, updates, onBack, onOpenGame, noti
         <span className="mdx-home-head-icon"><Icon name="library" size={17} /></span>
         <div>
           <h2>Sua biblioteca</h2>
-          <p>{desktopReady ? 'Todos os jogos da sua Steam — escolha um pra gerenciar os mods.' : 'Seus jogos aparecem aqui quando você abre o Project Club pelo app do PC.'}</p>
+          <p>{desktopReady ? 'Todos os jogos deste PC — escolha um pra gerenciar os mods.' : 'Seus jogos aparecem aqui quando você abre o Project Club pelo app do PC.'}</p>
         </div>
       </div>
 
@@ -192,20 +248,20 @@ export default function ModsLibrary({ library, updates, onBack, onOpenGame, noti
 
       {desktopReady && loading && (
         <>
-          <p className="mdx-loading-line"><span className="mdx-spinner" /> Procurando jogos na sua Steam...</p>
+          <p className="mdx-loading-line"><span className="mdx-spinner" /> Procurando jogos na Steam, Epic, GOG, ProjectMC e HyProject...</p>
           <SkeletonGrid count={12} variant="poster" />
         </>
       )}
 
-      {desktopReady && !loading && steamFound === false && (
-        <EmptyState icon="search" title="Não encontramos a Steam">
-          Verifique se a Steam está instalada neste computador. Se ela estiver num lugar incomum, a detecção pode falhar — estamos de olho nisso pra próxima fase.
+      {desktopReady && !loading && steamFound === false && games.length === 0 && (
+        <EmptyState icon="search" title="Nenhum jogo encontrado neste PC">
+          Procuramos na Steam, na Epic Games, na GOG e nos launchers ProjectMC e HyProject. Instale um jogo por uma dessas lojas (ou crie uma instância no ProjectMC/HyProject) e volte aqui.
         </EmptyState>
       )}
 
       {ready && games.length === 0 && (
         <EmptyState icon="gamepad" title="Nenhum jogo encontrado">
-          Detectamos sua Steam, mas nenhum jogo instalado apareceu. Instale um jogo pela Steam e volte aqui.
+          Nenhum jogo instalado apareceu. Instale um jogo pela Steam, Epic ou GOG e volte aqui.
         </EmptyState>
       )}
 
@@ -213,6 +269,11 @@ export default function ModsLibrary({ library, updates, onBack, onOpenGame, noti
         <>
           <div className="mdx-lib-toolbar">
             <SearchField value={query} onChange={setQuery} placeholder="Pesquisar nos seus jogos..." />
+            {platformOptions.length > 2 && (
+              <div className="mdx-lib-toolbar-row">
+                <ChipRow label="Loja" value={platform} onChange={setPlatform} options={platformOptions} />
+              </div>
+            )}
             <div className="mdx-lib-toolbar-row">
               <ChipRow
                 label="Filtrar"
@@ -237,8 +298,13 @@ export default function ModsLibrary({ library, updates, onBack, onOpenGame, noti
             <EmptyState icon="search" title="Nenhum jogo por aqui">Tente outra busca ou outro filtro.</EmptyState>
           ) : (
             <div className="mdx-album-grid">
-              {visible.map((g) => (
-                <PosterCard key={g.steamAppId} game={g} installedCount={installedCounts[g.steamAppId] || 0} updateCount={updates?.byGame?.[g.steamAppId]?.length || 0} onClick={() => onOpenGame(g, updates?.byGame?.[g.steamAppId]?.length ? { tab: 'installed' } : undefined)} />
+              {visible.map((g, i) => (
+                <PosterCard
+                  key={gameKey(g)} game={g} index={i}
+                  installedCount={installedCounts[gameKey(g)] || 0}
+                  updateCount={(g.steamAppId && updates?.byGame?.[g.steamAppId]?.length) || 0}
+                  onClick={() => onOpenGame(g, g.steamAppId && updates?.byGame?.[g.steamAppId]?.length ? { tab: 'installed' } : undefined)}
+                />
               ))}
             </div>
           )}
@@ -248,13 +314,20 @@ export default function ModsLibrary({ library, updates, onBack, onOpenGame, noti
   );
 }
 
-function PosterCard({ game, installedCount, updateCount = 0, onClick }) {
+function PosterCard({ game, installedCount, updateCount = 0, onClick, index = 0 }) {
   const sources = SOURCE_ORDER.filter((k) => game.sources[k]);
-  const supported = sources.length > 0;
+  const supported = sources.length > 0 || !!game.kind;
+  const platforms = (game.platforms || ['steam']).filter((p) => p !== 'steam' || game.platforms.length > 1);
   return (
-    <button type="button" className={`mdx-poster ${supported ? '' : 'unsupported'}`} onClick={onClick} title={game.displayName}>
+    <button
+      type="button" className={`mdx-poster ${supported ? '' : 'unsupported'} ${game.kind ? `is-${game.kind}` : ''}`}
+      onClick={onClick} title={game.displayName} style={{ '--i': Math.min(index, 24) }}
+    >
       <div className="mdx-poster-art">
         <GameCover appId={game.steamAppId} name={game.displayName} iconUrl={game.iconUrl} />
+        {platforms.length > 0 && (
+          <span className="mdx-poster-stores">{platforms.map((p) => <span key={p} className={`mdx-store mdx-store-${p}`}>{PLATFORM_LABEL[p] || p}</span>)}</span>
+        )}
         <div className="mdx-poster-shade" />
         {installedCount > 0 && (
           <span className="mdx-poster-count" title={`${installedCount} mods instalados`}><Icon name="puzzle" size={13} /> {installedCount}</span>
@@ -265,7 +338,9 @@ function PosterCard({ game, installedCount, updateCount = 0, onClick }) {
           </span>
         )}
         <div className="mdx-poster-foot">
-          {supported ? (
+          {game.kind ? (
+            <div className="mdx-poster-sources"><span className="mdx-poster-modchip"><Icon name="layers" size={12} /> {game.instances.length === 1 ? '1 instância' : `${game.instances.length} instâncias`}</span></div>
+          ) : supported ? (
             <div className="mdx-poster-sources"><span className="mdx-poster-modchip"><Icon name="puzzle" size={12} /> Mods</span></div>
           ) : (
             <span className="mdx-poster-nosupport">Sem suporte ainda</span>

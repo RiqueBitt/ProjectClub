@@ -155,3 +155,48 @@ export function onModsProgress(callback) {
 export function installThunderstorePackageLocally(payload) {
   return window.electronAPI.mods.installThunderstore(payload);
 }
+
+// ---------- Mod Manager único: outras lojas e jogos com launcher próprio ----------
+
+/** Jogos da Epic e da GOG (com o AppID da Steam achado pelo nome). Versões antigas do app não têm. */
+export function detectOtherGames() {
+  const fn = window.electronAPI?.mods?.detectOtherGames;
+  return fn ? fn() : Promise.resolve({ success: false, games: [] });
+}
+
+/** Minecraft (ProjectMC) e Hytale (HyProject): mods por instância. */
+export function hasLauncherMods() {
+  return !!window.electronAPI?.mods?.launcher;
+}
+
+async function unwrap(p) {
+  const r = await p;
+  if (!r?.success) throw new Error(r?.error || 'Não deu certo.');
+  return r;
+}
+
+export const launcherMods = {
+  instances: (game) => unwrap(window.electronAPI.mods.launcher.instances(game)).then((r) => r.instances || []),
+  list: (game, instanceId) => unwrap(window.electronAPI.mods.launcher.list(game, instanceId)),
+  setEnabled: (game, instanceId, file, enabled) => unwrap(window.electronAPI.mods.launcher.setEnabled(game, instanceId, file, enabled)),
+  remove: (game, instanceId, file) => unwrap(window.electronAPI.mods.launcher.remove(game, instanceId, file)),
+  installUrl: (game, instanceId, payload) => unwrap(window.electronAPI.mods.launcher.installUrl(game, instanceId, payload)),
+  installFile: (game, instanceId) => unwrap(window.electronAPI.mods.launcher.installFile(game, instanceId)),
+  openFolder: (game, instanceId) => unwrap(window.electronAPI.mods.launcher.openFolder(game, instanceId)),
+  catalog: (game, route, opts) => unwrap(window.electronAPI.mods.launcher.catalog(game, route, opts)).then((r) => r.data),
+};
+
+/** Modpacks em pasta (Project Club → ModManager → <Jogo> → Modpacks). Versões antigas do app não têm. */
+export function hasFolderModpacks() {
+  return !!window.electronAPI?.mods?.folderPacks;
+}
+export const folderModpacks = {
+  list: (gameName) => unwrap(window.electronAPI.mods.folderPacks.list(gameName)),
+  create: (gameName, packName, steamAppId) => unwrap(window.electronAPI.mods.folderPacks.create(gameName, packName, steamAppId)),
+  remove: (gameName, packId) => unwrap(window.electronAPI.mods.folderPacks.remove(gameName, packId)),
+  addMod: (payload) => unwrap(window.electronAPI.mods.folderPacks.addMod(payload)),
+  openFolder: (gameName, packId) => unwrap(window.electronAPI.mods.folderPacks.openFolder(gameName, packId)),
+  play: (payload) => unwrap(window.electronAPI.mods.folderPacks.play(payload)),
+  collect: () => unwrap(window.electronAPI.mods.folderPacks.collect()),
+  onState: (cb) => window.electronAPI?.mods?.folderPacks?.onState?.(cb),
+};

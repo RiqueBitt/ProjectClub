@@ -24,7 +24,7 @@ export default function ModsHome({ library, updates, onOpenGame }) {
   // Jogos do PC usados no "Em alta": os com suporte, com mais mods
   // instalados primeiro (no máximo 6).
   const trendingGames = useMemo(() => games
-    .filter((g) => Object.keys(g.sources).length > 0)
+    .filter((g) => g.steamAppId && Object.keys(g.sources).length > 0)
     .sort((a, b) => (installedCounts[b.steamAppId] || 0) - (installedCounts[a.steamAppId] || 0) || a.displayName.localeCompare(b.displayName, 'pt-BR'))
     .slice(0, 6)
     .map((g) => ({ steamAppId: g.steamAppId, name: g.displayName })), [games, installedCounts]);

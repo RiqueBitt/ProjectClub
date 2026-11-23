@@ -229,6 +229,33 @@ contextBridge.exposeInMainWorld('electronAPI', {
   },
   mods: {
     detectSteamGames: () => ipcRenderer.invoke('mods:detect-steam-games'),
+    // Mod Manager único: Epic/GOG e os mods de Minecraft/Hytale por instância.
+    detectOtherGames: () => ipcRenderer.invoke('mods:detect-other-games'),
+    // Modpacks em pasta (Project Club → ModManager → <Jogo> → Modpacks → <Modpack>).
+    folderPacks: {
+      list: (gameName) => ipcRenderer.invoke('mods:fpacks-list', { gameName }),
+      create: (gameName, packName, steamAppId) => ipcRenderer.invoke('mods:fpacks-create', { gameName, packName, steamAppId }),
+      remove: (gameName, packId) => ipcRenderer.invoke('mods:fpacks-delete', { gameName, packId }),
+      addMod: (payload) => ipcRenderer.invoke('mods:fpacks-add-mod', payload || {}),
+      openFolder: (gameName, packId) => ipcRenderer.invoke('mods:fpacks-open-folder', { gameName, packId }),
+      play: (payload) => ipcRenderer.invoke('mods:fpacks-play', payload || {}),
+      collect: () => ipcRenderer.invoke('mods:fpacks-collect'),
+      onState: (cb) => {
+        const listener = (_e, data) => cb(data);
+        ipcRenderer.on('mods:fpacks-state', listener);
+        return () => ipcRenderer.removeListener('mods:fpacks-state', listener);
+      },
+    },
+    launcher: {
+      instances: (game) => ipcRenderer.invoke('mods:launcher-instances', { game }),
+      list: (game, instanceId) => ipcRenderer.invoke('mods:launcher-list', { game, instanceId }),
+      setEnabled: (game, instanceId, file, enabled) => ipcRenderer.invoke('mods:launcher-set-enabled', { game, instanceId, file, enabled }),
+      remove: (game, instanceId, file) => ipcRenderer.invoke('mods:launcher-remove', { game, instanceId, file }),
+      installUrl: (game, instanceId, payload) => ipcRenderer.invoke('mods:launcher-install-url', { ...(payload || {}), game, instanceId }),
+      installFile: (game, instanceId) => ipcRenderer.invoke('mods:launcher-install-file', { game, instanceId }),
+      openFolder: (game, instanceId) => ipcRenderer.invoke('mods:launcher-open-folder', { game, instanceId }),
+      catalog: (game, route, opts) => ipcRenderer.invoke('mods:launcher-catalog', { game, route, query: opts?.query, body: opts?.body }),
+    },
     selectGameFolder: () => ipcRenderer.invoke('mods:select-game-folder'),
     install: (payload) => ipcRenderer.invoke('mods:install', payload),
     uninstall: (payload) => ipcRenderer.invoke('mods:uninstall', payload),

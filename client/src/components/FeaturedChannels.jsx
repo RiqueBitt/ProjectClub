@@ -49,6 +49,8 @@ const PATHS = {
   // Suporte: boia
   support: 'M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18zM12 16a4 4 0 1 0 0-8 4 4 0 0 0 0 8zM5.6 5.6l3.6 3.6M14.8 14.8l3.6 3.6M18.4 5.6l-3.6 3.6M9.2 14.8l-3.6 3.6',
   // BLACKOUT: dado de 6 faces
+  // Peça de quebra-cabeça: Mod Manager.
+  puzzle: 'M10 4a2 2 0 1 1 4 0v1h3a1 1 0 0 1 1 1v3h1a2 2 0 1 1 0 4h-1v3a1 1 0 0 1-1 1h-3v-1a2 2 0 1 0-4 0v1H7a1 1 0 0 1-1-1v-3h1a2 2 0 1 0 0-4H6V6a1 1 0 0 1 1-1h3z',
   dice: 'M5 3h14a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2zM8.5 8.5h.01M15.5 8.5h.01M8.5 15.5h.01M15.5 15.5h.01M12 12h.01',
   cards: 'M8 4h9a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2zM4 7.5 6 7M4 7.5v10.2a2 2 0 0 0 1.6 2L6 20M12.5 9l1.3 2.6 2.7.4-2 1.9.5 2.7-2.5-1.3-2.5 1.3.5-2.7-2-1.9 2.7-.4z',
 };
@@ -109,6 +111,13 @@ export const FEATURED = [
     hint: 'Ranks, conquistas e recompensas',
     match: (p) => p.startsWith('/progresso') || p.startsWith('/rank') || p.startsWith('/conquistas'),
     n2Only: true, fixed: true,
+  },
+  {
+    // Mod Manager único (Steam, Epic, GOG, Minecraft, Hytale e modpacks).
+    key: 'mods', label: 'Mod Manager', icon: 'puzzle', to: '/jogos/mods',
+    hint: 'Instale, organize e jogue com mods e modpacks',
+    match: (p) => p.startsWith('/jogos/mods') || p.startsWith('/mod/') || p.startsWith('/modpack/'),
+    fixed: true,
   },
 ].filter((f) => !f.feature || isFeatureEnabled(f.feature));
 

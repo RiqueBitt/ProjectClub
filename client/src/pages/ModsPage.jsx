@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import ModsLibrary, { useModsLibrary } from './mods/ModsLibrary.jsx';
 import GameManager from './mods/GameManager.jsx';
+import LauncherModsManager from './mods/LauncherModsManager.jsx';
 import { NxmLinkHandler } from './mods/NexusViews.jsx';
 import { peekPendingModpack, peekAnyPendingModpack, clearPendingModpack } from './mods/modpackShared.js';
 import { useLibraryUpdates } from './mods/modUpdates.js';
@@ -50,6 +51,8 @@ export default function ModsPage() {
   }, [library.games]);
 
   const openGame = (game, opts) => {
+    // Jogo da Epic/GOG sem o mesmo jogo na Steam: ainda sem catálogo de mods.
+    if (game.unmatched) { setNotice(`${game.displayName} ainda não tem catálogo de mods no Project Club.`); return; }
     albumScroll.current = scrollRef.current?.scrollTop || 0;
     setOpenOpts(opts || null);
     setSelectedGame(game);
@@ -95,7 +98,9 @@ export default function ModsPage() {
 
   return (
     <div className="mdx-page" ref={scrollRef}>
-      {selectedGame ? (
+      {selectedGame?.kind ? (
+        <LauncherModsManager key={selectedGame.kind} game={selectedGame} onBack={backToLibrary} />
+      ) : selectedGame ? (
         <GameManager
           key={selectedGame.steamAppId}
           game={selectedGame}
