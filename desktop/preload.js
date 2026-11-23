@@ -231,6 +231,21 @@ contextBridge.exposeInMainWorld('electronAPI', {
     detectSteamGames: () => ipcRenderer.invoke('mods:detect-steam-games'),
     // Mod Manager único: Epic/GOG e os mods de Minecraft/Hytale por instância.
     detectOtherGames: () => ipcRenderer.invoke('mods:detect-other-games'),
+    // Modpacks em pasta (Project Club → ModManager → <Jogo> → Modpacks → <Modpack>).
+    folderPacks: {
+      list: (gameName) => ipcRenderer.invoke('mods:fpacks-list', { gameName }),
+      create: (gameName, packName, steamAppId) => ipcRenderer.invoke('mods:fpacks-create', { gameName, packName, steamAppId }),
+      remove: (gameName, packId) => ipcRenderer.invoke('mods:fpacks-delete', { gameName, packId }),
+      addMod: (payload) => ipcRenderer.invoke('mods:fpacks-add-mod', payload || {}),
+      openFolder: (gameName, packId) => ipcRenderer.invoke('mods:fpacks-open-folder', { gameName, packId }),
+      play: (payload) => ipcRenderer.invoke('mods:fpacks-play', payload || {}),
+      collect: () => ipcRenderer.invoke('mods:fpacks-collect'),
+      onState: (cb) => {
+        const listener = (_e, data) => cb(data);
+        ipcRenderer.on('mods:fpacks-state', listener);
+        return () => ipcRenderer.removeListener('mods:fpacks-state', listener);
+      },
+    },
     launcher: {
       instances: (game) => ipcRenderer.invoke('mods:launcher-instances', { game }),
       list: (game, instanceId) => ipcRenderer.invoke('mods:launcher-list', { game, instanceId }),

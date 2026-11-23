@@ -24,6 +24,8 @@ import { NexusModDetail, nexusIds } from './NexusViews.jsx';
 import UnifiedExplore, { CompatBadge } from './UnifiedExplore.jsx';
 import InstalledPanel, { InstallProfileCard } from './InstalledPanel.jsx';
 import SharedModpacksTab from './ModpacksTab.jsx';
+import FolderModpacks from './FolderModpacks.jsx';
+import { hasFolderModpacks } from '../../utils/mods';
 import { peekPendingModpack } from './modpackShared.js';
 import GameSummary from './GameSummary.jsx';
 import { useNavigate } from 'react-router-dom';
@@ -279,6 +281,10 @@ export default function GameManager({ game, onBack, scrollRef, initialTab = null
         )}
 
         {/* Modpacks públicos (qualquer jogo) — os perfis/coleções antigos do mod.io ficam numa sub-aba. */}
+        {/* Modpacks em pasta do Project Club (jogar com o modpack e recolher ao fechar). */}
+        {tab === 'modpacks' && canTouchDisk && hasFolderModpacks() && (
+          <FolderModpacks game={game} installedState={installedState} onChanged={refreshInstalled} />
+        )}
         {tab === 'modpacks' && (
           <SharedModpacksTab
             game={game}

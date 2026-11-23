@@ -54,6 +54,7 @@ const steamDetector = lazy('./steamDetector');
 const modsManager = lazy('./modsManager');
 const otherGames = lazy('./otherGames');
 const launcherMods = lazy('./launcherMods');
+const folderModpacks = lazy('./folderModpacks');
 // Navegador do Project Club (abas <webview> dentro do app): sessão isolada,
 // bloqueio de anúncios/rastreadores e privacidade ao estilo LibreWolf.
 const browserEngine = lazy('./browserEngine');
@@ -169,6 +170,29 @@ function isAllowedExternalUrl(raw) {
     return /^run\/\d{1,10}\/?$/i.test(rest) || /^url\/CommunityFilePage\/\d{1,20}\/?$/i.test(rest);
   }
   return false;
+}
+
+// ---------- Modpack aplicado: vigia o jogo e recolhe os mods quando ele fecha ----------
+let stopFpackWatch = null;
+function sendFpackState(state) {
+  for (const w of BrowserWindow.getAllWindows()) { try { if (!w.isDestroyed()) w.webContents.send('mods:fpacks-state', state); } catch { /* janela fechando */ } }
+  if (state.state === 'purged' && state.purged > 0 && Notification.isSupported()) {
+    try { new Notification({ title: 'Mods guardados', body: `Os mods do modpack voltaram pra pasta dele e ${state.gameName || 'o jogo'} ficou limpo.` }).show(); } catch { /* sem notificação */ }
+  }
+}
+function startFpackWatch() {
+  stopFpackWatch?.();
+  stopFpackWatch = folderModpacks().watch(path.join(app.getPath('userData'), 'ModManager'), { onState: sendFpackState });
+}
+/** Abriu o app com um modpack ainda aplicado (PC desligou, app fechou): arruma. */
+async function recoverFpack() {
+  try {
+    const root = path.join(app.getPath('userData'), 'ModManager');
+    const j = folderModpacks().readJournal(root);
+    if (!j) return;
+    if (await folderModpacks().isGameRunning(j.gameInstallPath)) startFpackWatch();
+    else sendFpackState({ state: 'purged', reason: 'recovered', ...folderModpacks().purge(root) });
+  } catch (err) { console.warn('[modpacks] recuperação falhou:', err.message); }
 }
 
 // ---------- Pastas de jogo conhecidas (config de mods) ----------
@@ -1308,6 +1332,50 @@ if (!gotLock) {
     return { files: r.filePaths.map((f) => launcherMods().installFromFile(a.game, String(a.instanceId || ''), f).file) };
   }));
   secureHandle('mods:launcher-catalog', launcherCall(async (a) => ({ data: await launcherMods().catalogRequest(a.route, { query: a.query, body: a.body }) })));
+  // Modpacks em pasta: <dados>/ModManager/<Jogo>/Modpacks/<Modpack> — ver
+  // folderModpacks.js. Jogar com um modpack põe os mods na pasta do jogo e
+  // devolve tudo pro modpack quando o jogo fecha.
+  const fpackRoot = () => path.join(app.getPath('userData'), 'ModManager');
+  const fpackCall = (fn) => async (event, arg) => {
+    try { return { success: true, ...(await fn(arg || {}, event)) }; } catch (err) { return { success: false, error: err.message }; }
+  };
+  const fpackBrief = () => { const j = folderModpacks().readJournal(fpackRoot()); return j ? { gameName: j.gameName, gameKey: j.gameKey, packId: j.packId, startedAt: j.startedAt } : null; };
+  secureHandle('mods:fpacks-list', fpackCall((a) => ({
+    packs: folderModpacks().listPacks(fpackRoot(), String(a.gameName || ''), { journal: folderModpacks().readJournal(fpackRoot()) }),
+    deployed: fpackBrief(),
+    root: folderModpacks().gameDir(fpackRoot(), String(a.gameName || '')),
+  })));
+  secureHandle('mods:fpacks-create', fpackCall((a) => folderModpacks().createPack(fpackRoot(), String(a.gameName || ''), String(a.packName || ''), { steamAppId: a.steamAppId || null })));
+  secureHandle('mods:fpacks-delete', fpackCall((a) => folderModpacks().deletePack(fpackRoot(), String(a.gameName || ''), String(a.packId || ''), folderModpacks().readJournal(fpackRoot()))));
+  secureHandle('mods:fpacks-add-mod', fpackCall((a) => {
+    if (!isKnownGameDir(a.gameInstallPath)) throw new Error('Pasta de jogo desconhecida.');
+    if (folderModpacks().readJournal(fpackRoot())) throw new Error('Tem um modpack aplicado agora. Feche o jogo primeiro.');
+    return modsManager().moveModToFolderPack({ ...a, rootDir: fpackRoot(), gameName: String(a.gameName || ''), packId: String(a.packId || '') });
+  }));
+  secureHandle('mods:fpacks-open-folder', fpackCall((a) => {
+    const dir = a.packId ? folderModpacks().packDir(fpackRoot(), String(a.gameName || ''), String(a.packId)) : folderModpacks().gameDir(fpackRoot(), String(a.gameName || ''));
+    fs.mkdirSync(dir, { recursive: true });
+    shell.openPath(dir);
+    return {};
+  }));
+  secureHandle('mods:fpacks-play', fpackCall(async (a) => {
+    if (!isKnownGameDir(a.gameInstallPath)) throw new Error('Pasta de jogo desconhecida.');
+    if (await folderModpacks().isGameRunning(a.gameInstallPath)) throw new Error('O jogo já está aberto. Feche o jogo e tente de novo.');
+    const r = folderModpacks().deploy(fpackRoot(), { gameName: String(a.gameName || ''), packId: String(a.packId || ''), gameInstallPath: a.gameInstallPath, gameKey: a.gameKey || null });
+    const launched = await folderModpacks().launchGame({ platform: a.platform, steamAppId: a.steamAppId, epicAppName: a.epicAppName, gameInstallPath: a.gameInstallPath }, (u) => shell.openExternal(u)).catch(() => false);
+    startFpackWatch();
+    return { ...r, launched };
+  }));
+  secureHandle('mods:fpacks-collect', fpackCall(async () => {
+    const j = folderModpacks().readJournal(fpackRoot());
+    if (!j) return { purged: 0 };
+    if (await folderModpacks().isGameRunning(j.gameInstallPath)) throw new Error('O jogo ainda está aberto. Feche o jogo que os mods voltam sozinhos pro modpack.');
+    stopFpackWatch?.();
+    const r = folderModpacks().purge(fpackRoot());
+    sendFpackState({ state: 'purged', reason: 'manual', ...r });
+    return r;
+  }));
+
   secureHandle('mods:launcher-open-folder', launcherCall((a) => { shell.openPath(launcherMods().modsFolder(a.game, String(a.instanceId || ''))); return {}; }));
 
   // Item pedido 29: jogo não encontrado automaticamente — deixa a pessoa
@@ -2000,6 +2068,7 @@ if (!gotLock) {
   }
 
   app.whenReady().then(() => {
+    setTimeout(recoverFpack, 4000);
     setupScreenShareHandler();
     setupDownloadHandler();
     // BUG CORRIGIDO — CAUSA RAIZ CONFIRMADA de "no PC eu falo e não sai

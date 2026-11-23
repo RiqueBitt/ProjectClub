@@ -484,7 +484,44 @@ function scanInstalled({ gameInstallPath, steamAppId }) {
   };
 }
 
+// ---------- Modpack em pasta (folderModpacks.js) ----------
+// Tira um mod do jogo e guarda os arquivos dele dentro de um modpack, no
+// mesmo caminho relativo à pasta do jogo. O mod sai do registro do jogo
+// (manifesto) e só volta pro jogo quando alguém joga com aquele modpack.
+function moveModToFolderPack({ gameInstallPath, steamAppId, modName, path: detectedPath, rootDir, gameName, packId }) {
+  const fp = require('./folderModpacks');
+  const pdir = fp.packDir(rootDir, gameName, packId);
+  const metaFile = path.join(pdir, 'modpack.json');
+  const meta = JSON.parse(fs.readFileSync(metaFile, 'utf8'));
+  // 1) desliga (isso também "adota" um mod detectado e põe os arquivos na área desativada)
+  const r = setModEnabled({ gameInstallPath, modName, enabled: false, steamAppId, path: detectedPath });
+  const dir = manifestDir();
+  const manifest = router.loadManifest(dir, gameInstallPath);
+  const key = r.key || sanitizeModFolderName(modName || '');
+  const entry = manifest.mods[key];
+  if (!entry) throw new Error('Esse mod não pode ir pra um modpack (não foi possível achar os arquivos dele).');
+  const filesDir = path.join(pdir, 'files');
+  let moved = 0;
+  for (const f of entry.files || []) {
+    const from = fs.existsSync(f.stash) ? f.stash : (fs.existsSync(f.path) ? f.path : null);
+    if (!from || !router.isInside(f.path, gameInstallPath)) continue;
+    const dest = path.resolve(filesDir, path.relative(gameInstallPath, f.path));
+    if (!router.isInside(dest, filesDir)) continue;
+    router.moveFile(from, dest);
+    moved += 1;
+  }
+  // 2) limpa o que sobrou (área desativada, originais que o mod tinha trocado voltam)
+  router.removeEntryFiles(entry);
+  delete manifest.mods[key];
+  router.saveManifest(dir, gameInstallPath, manifest);
+  const mods = new Set(meta.mods || []);
+  mods.add(entry.name || modName);
+  fs.writeFileSync(metaFile, JSON.stringify({ ...meta, mods: [...mods], updatedAt: new Date().toISOString() }, null, 2));
+  return { moved };
+}
+
 module.exports = {
+  moveModToFolderPack,
   installMod, uninstallMod, listInstalledMods, setModEnabled, applyProfileMods, detectInstallStrategy,
   installLocalFile, listConfigFiles, readConfigFile, writeConfigFile,
   saveModpackLocally, listLocalModpacks, loadLocalModpack, deleteLocalModpack,

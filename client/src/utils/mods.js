@@ -185,3 +185,18 @@ export const launcherMods = {
   openFolder: (game, instanceId) => unwrap(window.electronAPI.mods.launcher.openFolder(game, instanceId)),
   catalog: (game, route, opts) => unwrap(window.electronAPI.mods.launcher.catalog(game, route, opts)).then((r) => r.data),
 };
+
+/** Modpacks em pasta (Project Club → ModManager → <Jogo> → Modpacks). Versões antigas do app não têm. */
+export function hasFolderModpacks() {
+  return !!window.electronAPI?.mods?.folderPacks;
+}
+export const folderModpacks = {
+  list: (gameName) => unwrap(window.electronAPI.mods.folderPacks.list(gameName)),
+  create: (gameName, packName, steamAppId) => unwrap(window.electronAPI.mods.folderPacks.create(gameName, packName, steamAppId)),
+  remove: (gameName, packId) => unwrap(window.electronAPI.mods.folderPacks.remove(gameName, packId)),
+  addMod: (payload) => unwrap(window.electronAPI.mods.folderPacks.addMod(payload)),
+  openFolder: (gameName, packId) => unwrap(window.electronAPI.mods.folderPacks.openFolder(gameName, packId)),
+  play: (payload) => unwrap(window.electronAPI.mods.folderPacks.play(payload)),
+  collect: () => unwrap(window.electronAPI.mods.folderPacks.collect()),
+  onState: (cb) => window.electronAPI?.mods?.folderPacks?.onState?.(cb),
+};

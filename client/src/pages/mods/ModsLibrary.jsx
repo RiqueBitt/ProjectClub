@@ -50,12 +50,12 @@ export async function loadModsLibrary() {
   for (const g of others.games || []) {
     if (g.steamAppId) {
       const prev = merged.get(String(g.steamAppId));
-      if (prev) { if (!prev.platforms.includes(g.platform)) prev.platforms.push(g.platform); continue; }
-      merged.set(String(g.steamAppId), { steamAppId: g.steamAppId, displayName: g.name, iconUrl: null, installPath: g.installPath, sources: {}, platforms: [g.platform] });
+      if (prev) { if (!prev.platforms.includes(g.platform)) prev.platforms.push(g.platform); prev.storeIds = { ...(prev.storeIds || {}), [g.platform]: g.id }; continue; }
+      merged.set(String(g.steamAppId), { steamAppId: g.steamAppId, displayName: g.name, iconUrl: null, installPath: g.installPath, sources: {}, platforms: [g.platform], storeIds: { [g.platform]: g.id } });
     } else {
       // Sem o mesmo jogo na Steam: aparece no álbum, mas ainda sem catálogo de mods.
       const key = `${g.platform}:${g.id}`;
-      if (!merged.has(key)) merged.set(key, { key, steamAppId: null, displayName: g.name, iconUrl: null, installPath: g.installPath, sources: {}, platforms: [g.platform], unmatched: true });
+      if (!merged.has(key)) merged.set(key, { key, steamAppId: null, displayName: g.name, iconUrl: null, installPath: g.installPath, sources: {}, platforms: [g.platform], storeIds: { [g.platform]: g.id }, unmatched: true });
     }
   }
   const steamEntries = [...merged.values()].filter((e) => e.steamAppId);
