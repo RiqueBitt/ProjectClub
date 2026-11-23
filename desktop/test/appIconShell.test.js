@@ -38,3 +38,27 @@ test('Linux: troca o Icon= do .desktop do Project Club e volta ao original', { s
     assert.match(fs.readFileSync(f, 'utf8'), /^Icon=appimagekit-projectclub$/m);
   } finally { process.env.HOME = oldHome; }
 });
+
+test('Windows: acha os atalhos também nas subpastas (fixados do Windows 11, pasta do menu Iniciar)', () => {
+  const { windowsShortcuts } = require('../appIconShell');
+  const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'pc-lnk-'));
+  const mk = (rel) => { const f = path.join(tmp, rel); fs.mkdirSync(path.dirname(f), { recursive: true }); fs.writeFileSync(f, ''); return f; };
+  const want = [
+    mk('Roaming/Microsoft/Windows/Start Menu/Programs/Project Club.lnk'),
+    mk('Roaming/Microsoft/Windows/Start Menu/Programs/Project Club/Project Club.lnk'),
+    mk('Roaming/Microsoft/Internet Explorer/Quick Launch/User Pinned/TaskBar/Project Club.lnk'),
+    mk('Roaming/Microsoft/Internet Explorer/Quick Launch/User Pinned/ImplicitAppShortcuts/abc123/Project Club.lnk'),
+    mk('Desktop/Project Club.lnk'),
+  ];
+  mk('Roaming/Microsoft/Windows/Start Menu/Programs/leia-me.txt');
+  const old = { APPDATA: process.env.APPDATA, ProgramData: process.env.ProgramData, PUBLIC: process.env.PUBLIC };
+  process.env.APPDATA = path.join(tmp, 'Roaming');
+  process.env.ProgramData = path.join(tmp, 'ProgramData');
+  process.env.PUBLIC = path.join(tmp, 'Public');
+  try {
+    const got = windowsShortcuts({ getPath: () => path.join(tmp, 'Desktop') });
+    assert.deepEqual([...got].sort(), [...want].sort());
+  } finally {
+    for (const [k, v] of Object.entries(old)) { if (v === undefined) delete process.env[k]; else process.env[k] = v; }
+  }
+});

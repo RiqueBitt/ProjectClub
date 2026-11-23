@@ -48,32 +48,40 @@ function writeIco(img, file) {
   return file;
 }
 
+// .lnk do Project Club: área de trabalho, menu Iniciar (de onde a Pesquisa do
+// Windows tira o ícone) e itens fixados na barra de tarefas — inclusive as
+// subpastas (o Windows 11 guarda fixados em TaskBar\ImplicitAppShortcuts\<id>).
 function windowsShortcuts(app) {
   const appData = process.env.APPDATA || path.join(os.homedir(), 'AppData', 'Roaming');
   const programData = process.env.ProgramData || 'C:\\ProgramData';
-  const dirs = [
-    app.getPath('desktop'),
-    path.join(appData, 'Microsoft', 'Windows', 'Start Menu', 'Programs'),
-    path.join(programData, 'Microsoft', 'Windows', 'Start Menu', 'Programs'),
-    path.join(appData, 'Microsoft', 'Internet Explorer', 'Quick Launch', 'User Pinned', 'TaskBar'),
-    path.join(appData, 'Microsoft', 'Internet Explorer', 'Quick Launch'),
+  const roots = [
+    [app.getPath('desktop'), 0],
+    [path.join(process.env.PUBLIC || 'C:\\Users\\Public', 'Desktop'), 0],
+    [path.join(appData, 'Microsoft', 'Windows', 'Start Menu', 'Programs'), 2],
+    [path.join(programData, 'Microsoft', 'Windows', 'Start Menu', 'Programs'), 2],
+    [path.join(appData, 'Microsoft', 'Internet Explorer', 'Quick Launch'), 4],
   ];
-  const out = [];
-  for (const d of dirs) {
-    let names = [];
-    try { names = fs.readdirSync(d); } catch { continue; }
-    for (const n of names) if (/\.lnk$/i.test(n)) out.push(path.join(d, n));
-  }
-  return out;
+  const out = new Set();
+  const walk = (dir, depth) => {
+    let entries = [];
+    try { entries = fs.readdirSync(dir, { withFileTypes: true }); } catch { return; }
+    for (const e of entries) {
+      const full = path.join(dir, e.name);
+      if (e.isFile() && /\.lnk$/i.test(e.name)) out.add(full);
+      else if (e.isDirectory() && depth > 0) walk(full, depth - 1);
+    }
+  };
+  for (const [d, depth] of roots) walk(d, depth);
+  return [...out];
 }
 
 function applyWindows({ app, shell, win, appId, icoPath }) {
-  const exe = process.execPath.toLowerCase();
+  const exe = path.resolve(process.execPath).toLowerCase();
   let changed = 0;
   for (const lnk of windowsShortcuts(app)) {
     try {
       const info = shell.readShortcutLink(lnk);
-      if (!info?.target || info.target.toLowerCase() !== exe) continue;
+      if (!info?.target || path.resolve(info.target).toLowerCase() !== exe) continue;
       const ok = shell.writeShortcutLink(lnk, 'update', icoPath
         ? { icon: icoPath, iconIndex: 0 }
         : { icon: process.execPath, iconIndex: 0 });
@@ -92,6 +100,8 @@ function applyWindows({ app, shell, win, appId, icoPath }) {
     }
   } catch { /* ok */ }
   // Explorer guarda os ícones em cache: pede pra recarregar (Windows 10/11).
+  // Como o .ico novo tem outro nome (ver applySystemIcon), a Pesquisa, o menu
+  // Iniciar e a barra de tarefas não reaproveitam a imagem velha do cache.
   if (changed) {
     const ie4 = path.join(process.env.SystemRoot || 'C:\\Windows', 'System32', 'ie4uinit.exe');
     execFile(ie4, ['-show'], { windowsHide: true }, () => {});
@@ -146,16 +156,34 @@ function applyLinux({ app, pngPath, defaultIcon }) {
 function applySystemIcon({ app, shell, win, appId, img, userDataDir, defaultIconPng }) {
   try {
     if (process.platform === 'win32') {
-      const icoPath = img ? writeIco(img, path.join(userDataDir, 'app-icon.ico')) : null;
-      if (!img) { try { fs.unlinkSync(path.join(userDataDir, 'app-icon.ico')); } catch { /* não tinha */ } }
+      // Um .ico com nome novo a cada ícone (app-icon-<hash>.ico): o Windows
+      // guarda o ícone do atalho em cache pelo caminho do arquivo, então
+      // regravar sempre o mesmo "app-icon.ico" deixava a imagem antiga na
+      // Pesquisa e na barra de tarefas até reiniciar o PC.
+      let icoPath = null;
+      if (img) {
+        const png = img.toPNG();
+        const hash = require('crypto').createHash('sha1').update(png).digest('hex').slice(0, 10);
+        icoPath = path.join(userDataDir, `app-icon-${hash}.ico`);
+        if (!fs.existsSync(icoPath)) writeIco(img, icoPath);
+      }
+      for (const n of safeList(userDataDir)) {
+        if (/^app-icon(-[0-9a-f]+)?\.ico$/i.test(n) && (!icoPath || path.join(userDataDir, n) !== icoPath)) {
+          try { fs.unlinkSync(path.join(userDataDir, n)); } catch { /* em uso: fica */ }
+        }
+      }
       return applyWindows({ app, shell, win, appId, icoPath });
     }
     if (process.platform === 'linux') {
       const pngPath = img ? path.join(userDataDir, 'app-icon.png') : null;
       return applyLinux({ app, pngPath, defaultIcon: defaultIconPng });
     }
-  } catch { /* melhor esforço */ }
+  } catch (err) { console.warn('[app-icon] não deu pra trocar o ícone dos atalhos:', err?.message || err); }
   return 0;
 }
 
-module.exports = { applySystemIcon, pngsToIco };
+function safeList(dir) {
+  try { return fs.readdirSync(dir); } catch { return []; }
+}
+
+module.exports = { applySystemIcon, pngsToIco, windowsShortcuts };
