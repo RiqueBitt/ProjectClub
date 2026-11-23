@@ -58,6 +58,14 @@ export default defineConfig({
       // (importante no container pequeno do deploy).
       maxParallelFileOps: 2,
       output: {
+        // Nome com ponto antes do hash (nov/2026): troca o endereço de todos
+        // os arquivos de uma vez — durante uma publicação a Cloudflare
+        // guardou o HTML no lugar do JS em /assets/index-<hash>.js e o site
+        // ficou em branco. Com outro formato de nome nenhum endereço
+        // "envenenado" é reaproveitado.
+        entryFileNames: 'assets/[name].[hash].js',
+        chunkFileNames: 'assets/[name].[hash].js',
+        assetFileNames: 'assets/[name].[hash][extname]',
         // Splits third-party libraries into their own chunk(s), separate
         // from the app's own code — react/react-dom/react-router-dom
         // together (they change together, rarely on their own), and
