@@ -554,3 +554,55 @@ fun PollComposer(busy: Boolean, onCreate: (question: String, options: List<Strin
         ) { Text(if (busy) "Criando…" else "Criar enquete", color = if (can) PC.OnBrand else PC.Muted, fontWeight = FontWeight.Bold) }
     }
 }
+
+/* ---------------- Moderação: advertir e silenciar ---------------- */
+
+private val TIMEOUTS = listOf(10 to "10 minutos", 60 to "1 hora", 360 to "6 horas", 1440 to "1 dia", 10080 to "1 semana")
+
+@Composable
+fun ModerationDialog(repo: Repository, m: Message, kind: String, onDone: (String?) -> Unit) {
+    val userId = m.authorId ?: return
+    val who = m.author?.name ?: "quem escreveu"
+    var reason by remember { mutableStateOf("") }
+    var minutes by remember { mutableIntStateOf(10) }
+    var busy by remember { mutableStateOf(false) }
+    var error by remember { mutableStateOf<String?>(null) }
+    val scope = rememberCoroutineScope()
+    val warn = kind == "warn"
+    AlertDialog(
+        onDismissRequest = { onDone(null) },
+        title = { Text(if (warn) "Advertir $who" else "Silenciar $who") },
+        text = {
+            Column {
+                if (!warn) TIMEOUTS.forEach { (min, label) ->
+                    Row(Modifier.fillMaxWidth().clip(RoundedCornerShape(8.dp)).clickable { minutes = min }, verticalAlignment = Alignment.CenterVertically) {
+                        RadioButton(selected = minutes == min, onClick = { minutes = min })
+                        Text(label, color = PC.Text)
+                    }
+                }
+                OutlinedTextField(
+                    reason, { reason = it.take(500) }, Modifier.fillMaxWidth(), maxLines = 4,
+                    label = { Text(if (warn) "Motivo da advertência" else "Motivo (opcional)") },
+                )
+                error?.let { Text(it, color = PC.Red, style = MaterialTheme.typography.bodySmall) }
+            }
+        },
+        confirmButton = {
+            TextButton(enabled = !busy && (!warn || reason.isNotBlank()), onClick = {
+                busy = true; error = null
+                scope.launch {
+                    runCatching {
+                        if (warn) repo.api.postIgnore("/api/community/members/$userId/warnings", buildJsonObject { put("reason", reason.trim()) })
+                        else repo.api.postIgnore("/api/community/members/$userId/timeout", buildJsonObject {
+                            put("minutes", minutes); if (reason.isNotBlank()) put("reason", reason.trim())
+                        })
+                    }.onSuccess { onDone(if (warn) "$who foi advertido." else "$who foi silenciado.") }
+                        .onFailure { error = errText(it, "Não deu certo.") }
+                    busy = false
+                }
+            }) { Text(if (busy) "Enviando…" else if (warn) "Advertir" else "Silenciar", color = PC.Red) }
+        },
+        dismissButton = { TextButton(onClick = { onDone(null) }) { Text("Cancelar") } },
+        containerColor = PC.Surface,
+    )
+}

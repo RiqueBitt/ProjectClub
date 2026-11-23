@@ -28,6 +28,9 @@ import androidx.compose.material.icons.automirrored.outlined.KeyboardArrowRight
 import androidx.compose.material.icons.automirrored.outlined.Logout
 import androidx.compose.material.icons.outlined.AlternateEmail
 import androidx.compose.material.icons.outlined.Devices
+import androidx.compose.material.icons.outlined.Explore
+import com.projectclub.android.ui.common.Avatar
+import androidx.compose.material.icons.outlined.PersonAdd
 import androidx.compose.material.icons.outlined.Edit
 import androidx.compose.material.icons.outlined.Lock
 import androidx.compose.material.icons.outlined.Mail
@@ -123,6 +126,7 @@ fun SettingsScreen(repo: Repository, nav: AppNav) {
     val me by repo.me.collectAsState()
     val presence by repo.presence.collectAsState()
     var settings by remember { mutableStateOf<JsonObject?>(null) }
+    var showTour by remember { mutableStateOf(false) }
     var sessions by remember { mutableStateOf<List<SessionInfo>?>(null) }
     var choosing by remember { mutableStateOf<Triple<String, String, List<Choice>>?>(null) }
     var dialog by remember { mutableStateOf<String?>(null) }
@@ -284,6 +288,53 @@ fun SettingsScreen(repo: Repository, nav: AppNav) {
                 if ((list?.count { !it.isCurrent } ?: 0) > 0) TextButton(onClick = {
                     scope.launch { try { repo.api.delete("/api/auth/sessions/other"); loadSessions(); toast("Os outros aparelhos foram desconectados.") } catch (e: Exception) { toast(e.message ?: "Não deu certo.") } }
                 }, modifier = Modifier.padding(start = 4.dp)) { Text("Desconectar todos os outros", color = PC.Red) }
+            }
+
+            PcCard(padding = PaddingValues(6.dp)) {
+                Line(Icons.Outlined.Explore, "Ver o tour de boas-vindas", null, PC.Brand) { showTour = true }
+            }
+            if (showTour) com.projectclub.android.ui.home.WelcomeTour { showTour = false }
+
+            Section("Contas")
+            PcCard(padding = PaddingValues(6.dp)) {
+                val saved by repo.accounts.list.collectAsState()
+                var switching by remember { mutableStateOf<String?>(null) }
+                me?.let { u ->
+                    Row(Modifier.fillMaxWidth().padding(10.dp), verticalAlignment = Alignment.CenterVertically) {
+                        Avatar(u, 36.dp)
+                        Column(Modifier.weight(1f).padding(horizontal = 12.dp)) {
+                            Text(u.displayName ?: u.username.orEmpty(), color = PC.Header, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                            Text("@${u.username.orEmpty()} · em uso", color = PC.Green, style = MaterialTheme.typography.bodySmall)
+                        }
+                    }
+                }
+                saved.filter { it.id != me?.id && it.cookies != null }.forEach { a ->
+                    Row(
+                        Modifier.fillMaxWidth().clip(RoundedCornerShape(14.dp)).clickable(enabled = switching == null) {
+                            switching = a.id
+                            scope.launch {
+                                val ok = repo.switchAccount(a.id)
+                                switching = null
+                                if (!ok) toast("Essa conta saiu do aparelho. Entre de novo nela.")
+                            }
+                        }.padding(10.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Avatar(a.asUser(), 36.dp)
+                        Column(Modifier.weight(1f).padding(horizontal = 12.dp)) {
+                            Text(a.displayName ?: a.username.orEmpty(), color = PC.Header, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                            Text(if (switching == a.id) "Trocando…" else "@${a.username.orEmpty()} · tocar pra trocar", color = PC.Muted, style = MaterialTheme.typography.bodySmall)
+                        }
+                        TextButton(onClick = { repo.accounts.remove(a.id) }) { Text("Tirar", color = PC.Muted) }
+                    }
+                }
+                if (saved.count { it.id != me?.id && it.cookies != null } < 4) {
+                    Line(Icons.Outlined.PersonAdd, "Adicionar outra conta", null, PC.Brand) { scope.launch { repo.addAnotherAccount() } }
+                }
+                Text(
+                    "As contas ficam guardadas só neste aparelho. Dá pra trocar sem digitar a senha de novo.",
+                    color = PC.Faint, style = MaterialTheme.typography.bodySmall, modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
+                )
             }
 
             PcCard(padding = PaddingValues(6.dp)) {

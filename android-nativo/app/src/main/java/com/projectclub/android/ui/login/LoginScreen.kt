@@ -47,6 +47,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -253,6 +254,35 @@ fun LoginScreen(repo: Repository, notice: String?) {
                     Icon(Icons.AutoMirrored.Filled.ArrowBack, null, tint = PC.Muted, modifier = Modifier.size(18.dp))
                     Spacer(Modifier.width(6.dp))
                     Text("Voltar", color = PC.Muted, fontWeight = FontWeight.SemiBold)
+                }
+            }
+
+            // Contas guardadas neste aparelho: entra sem digitar a senha.
+            val saved by repo.accounts.list.collectAsState()
+            val quick = saved.filter { it.cookies != null }
+            if (!needsCode && quick.isNotEmpty()) {
+                Spacer(Modifier.height(20.dp))
+                Text("Contas neste aparelho", color = PC.Muted, style = MaterialTheme.typography.labelMedium)
+                quick.forEach { a ->
+                    Row(
+                        Modifier.padding(top = 8.dp).fillMaxWidth().clip(RoundedCornerShape(14.dp)).background(PC.Surface)
+                            .clickable(enabled = !busy) {
+                                busy = true; error = null
+                                scope.launch {
+                                    if (!repo.switchAccount(a.id)) { error = "Essa conta saiu do aparelho. Entre de novo com a senha."; repo.accounts.remove(a.id) }
+                                    busy = false
+                                }
+                            }.padding(10.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        com.projectclub.android.ui.common.Avatar(a.asUser(), 36.dp)
+                        Spacer(Modifier.width(12.dp))
+                        Column(Modifier.weight(1f)) {
+                            Text(a.displayName ?: a.username.orEmpty(), color = PC.Header, fontWeight = FontWeight.SemiBold, maxLines = 1)
+                            Text("@${a.username.orEmpty()}", color = PC.Muted, style = MaterialTheme.typography.bodySmall, maxLines = 1)
+                        }
+                        Text("Entrar", color = PC.Brand, fontWeight = FontWeight.Bold)
+                    }
                 }
             }
 

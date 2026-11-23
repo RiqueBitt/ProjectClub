@@ -49,6 +49,18 @@ class PersistentCookieJar(context: Context) : CookieJar {
         prefs.edit().remove(KEY).commit()
     }
 
+    /** Foto dos cookies de login (pra trocar de conta sem sair). */
+    @Synchronized
+    fun snapshot(): String = CookieCodec.encodeAll(cookies.values)
+
+    /** Troca todos os cookies pelos de outra conta. */
+    @Synchronized
+    fun replaceAll(encoded: String?) {
+        cookies.clear()
+        CookieCodec.decodeAll(encoded).forEach { cookies[CookieCodec.key(it)] = it }
+        persist()
+    }
+
     private fun persist() {
         prefs.edit().putString(KEY, CookieCodec.encodeAll(cookies.values)).commit()
     }
