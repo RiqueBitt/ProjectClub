@@ -441,6 +441,7 @@ button.sx-item-body:hover { border-color: color-mix(in srgb, var(--brand) 40%, v
 .featured-inicio { --fc: #4f8cff; }
 .featured-amigos { --fc: #ff8a3d; }
 .featured-progresso { --fc: #f5c518; }
+.featured-mods { --fc: #ff5c93; }
 .featured-suporte { --fc: #22c1c3; }
 .featured-channel-soon {
   margin-left: auto; flex-shrink: 0; height: 18px; padding: 0 7px; border-radius: 999px; display: inline-flex; align-items: center;
