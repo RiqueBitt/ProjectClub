@@ -104,7 +104,9 @@
 .room-nav-item.active em { color: var(--room-accent-ink); }
 
 .room-main { min-width: 0; min-height: 0; height: 100%; overflow-y: auto; overflow-x: hidden; -webkit-overflow-scrolling: touch; overscroll-behavior: contain; }
-.room-content { max-width: 1120px; margin: 0 auto; box-sizing: border-box; }
+.room-content { max-width: 1120px; margin: 0 auto; box-sizing: border-box;
+  /* o canvas 3D das caixinhas passa um pouco da cartela (margem pra ponta e a sombra): corta só nas laterais da página, sem criar rolagem pro lado */
+  overflow-x: clip; }
 .room-top { position: sticky; top: 0; z-index: 5; display: flex; align-items: center; gap: 12px; padding: 14px 32px; width: 100%;
   background: color-mix(in srgb, var(--room-bg) 88%, transparent); backdrop-filter: saturate(1.4) blur(10px); -webkit-backdrop-filter: saturate(1.4) blur(10px);
   border-bottom: 1px solid transparent; }
