@@ -45,6 +45,14 @@ test('loja segue o tema, com vitrine, filtros, detalhe e confirmação', async (
   await expect(page.getByRole('heading', { level: 1, name: 'Molduras de avatar' })).toBeVisible();
   await page.locator('.room-chip', { hasText: 'Adquiridos' }).click();
   await expect(page.locator('.room-card')).toHaveCount(1);
+  // Já comprado: sem caixinha nem gancho, só o item com o carimbo "Comprado".
+  const owned = page.locator('.room-card').first();
+  await expect(owned.locator('.room-pack')).toHaveCount(0);
+  await expect(owned.locator('.room-hook')).toHaveCount(0);
+  await expect(owned.locator('.room-owned-art')).toBeVisible();
+  await expect(owned.locator('.room-stamp')).toHaveText(/Comprado|Liberado/);
+  // E nenhuma caixinha tem mais a faixa com o nome.
+  await expect(page.locator('.room-pack-label')).toHaveCount(0);
   await page.locator('.room-chip', { hasText: 'Tudo' }).click();
   await shot(page, 'molduras', info);
 
@@ -173,6 +181,10 @@ test('loja de conveniência: o pacote sai do gancho e vai arrastado até a cesti
   // Saiu do gancho: o pacote original some e o "voando" aparece.
   await expect(card).toHaveClass(/is-lifted/);
   await expect(page.locator('.shop-drag-layer .shop-drag-ghost')).toHaveCount(1);
+  // Só a caixinha voa: a cartela verde (nome, preço, botões) fica na parede.
+  await expect(page.locator('.shop-drag-layer .shop-drag-ghost.room-pack')).toHaveCount(1);
+  await expect(page.locator('.shop-drag-layer .room-card-body')).toHaveCount(0);
+  await expect(card.locator('.room-card-body')).toBeVisible();
   await page.mouse.move(to.x + to.width / 2, to.y + to.height / 2, { steps: 20 });
   await expect(page.locator('.shop-basket-fab')).toHaveClass(/is-over/);
   await page.mouse.up();

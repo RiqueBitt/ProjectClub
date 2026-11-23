@@ -101,23 +101,13 @@
   box-shadow: inset calc(var(--sw) * .05) calc(var(--sw) * .06) calc(var(--sw) * .07) calc(var(--sw) * -.03) rgba(0, 0, 0, .55), inset 0 0 calc(var(--sw) * .05) rgba(0, 0, 0, .28);
 }
 .room-pack-window > * { max-width: 100%; zoom: var(--k); }
-/* A faixa do nome cobre a base: o item fica centrado na parte livre. */
-.room-pack-window > :is(.room-art-deco, .room-art-font, .shop-art-back) { padding-bottom: 36px; box-sizing: border-box; }
-.room-pack-window > .room-art-deco { zoom: calc(var(--k) * 1.22); padding-bottom: 28px; }
-.room-pack-window > .room-art-font { height: 100%; padding: 10px 10px 46px; }
+/* Sem faixa do nome na caixinha (o nome fica só embaixo, na cartela): o item centra no fundo todo. */
+.room-pack-window > .room-art-deco { zoom: calc(var(--k) * 1.22); }
+.room-pack-window > .room-art-font { height: 100%; padding: 10px; box-sizing: border-box; }
 .room-pack-window > .room-art-font span { font-size: 23px; color: #fff; }
 .room-pack-window > .room-art-font small { color: rgba(255, 255, 255, .72) !important; }
 .room-pack-window > .shop-mock { width: 100%; height: 100%; border-radius: 0; box-shadow: none; }
 .room-pack-window > .shop-mock .shop-mock-lines { display: none; }
-/* etiqueta com o nome, colada no fundo da caixinha (o plástico passa por cima) */
-.room-pack-label {
-  position: absolute; left: .85%; width: 91%; bottom: 5.9%; z-index: 2; box-sizing: border-box;
-  padding: calc(var(--sw) * .022) calc(var(--sw) * .04) calc(var(--sw) * .026); border-radius: 3px;
-  transform: rotate(-2.4deg); text-align: center; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
-  font-size: calc(var(--sw) * .059); font-weight: 800; line-height: 1.25; color: #fff; text-shadow: 0 1.5px 0 rgba(0, 0, 0, .42);
-  background: linear-gradient(180deg, color-mix(in srgb, var(--pack-tag, #e3207f) 82%, #fff), var(--pack-tag, #e3207f));
-  box-shadow: 0 4px 8px rgba(0, 0, 0, .45), inset 0 1px 0 rgba(255, 255, 255, .4);
-}
 /* o plástico (render cinza) tingido com a cor do item */
 .room-pack-plastic {
   position: absolute; inset: 0; z-index: 3; pointer-events: none;
@@ -211,19 +201,18 @@
 }
 .room-basket-btn { gap: 5px; }
 
-/* Pacote "voando" pra cestinha (numa camada própria no body). */
+/* Só a CAIXINHA "voa" pra cestinha (numa camada própria no body); a
+   cartela verde fica na parede com o gancho vazio. */
 .shop-drag-layer { position: fixed; inset: 0; z-index: 9990; pointer-events: none; background: transparent !important; overflow: visible; }
 .shop-drag-ghost {
   position: fixed !important; z-index: 9990; margin: 0 !important; pointer-events: none;
-  opacity: .97; will-change: transform, left, top;
-  box-shadow: 0 26px 46px -12px rgba(0, 0, 0, .7) !important; border-radius: 22px;
+  opacity: .98; will-change: transform, left, top; transition: none;
+  filter: drop-shadow(0 22px 26px rgba(0, 0, 0, .55));
 }
-.shop-drag-ghost .room-hook { display: none !important; }
-.shop-drag-ghost .room-card-peek { display: none !important; }
-/* O pacote saiu do gancho: fica só o gancho vazio balançando de leve. */
-.shop-room .room-grid .room-card.is-lifted { background: transparent; border-color: transparent; box-shadow: none; transform: none; }
-.shop-room .room-grid .room-card.is-lifted > :not(.room-hook) { visibility: hidden; }
-.shop-room .room-grid .room-card.is-lifted::after { display: none; }
+.shop-drag-ghost.room-pack { scale: 1.04; }
+/* A caixinha saiu do gancho: a cartela continua, o gancho balança vazio. */
+.shop-room .room-grid .room-card.is-lifted .room-pack { visibility: hidden; }
+.shop-room .room-grid .room-card.is-lifted .room-card-flags { visibility: hidden; }
 .shop-room .room-grid .room-card.is-lifted .room-hook { transform-origin: 45% 7%; animation: shop-hook-wobble .6s ease-out; }
 @keyframes shop-hook-wobble { 0% { transform: rotate(0); } 30% { transform: rotate(9deg); } 60% { transform: rotate(-5deg); } 100% { transform: rotate(0); } }
 
@@ -589,3 +578,38 @@
   .shop-checkout .shop-pos-area { position: static; }
   .shop-checkout .shop-pos .pos-stage { zoom: .9; }
 }
+
+/* ---------- Item já comprado: sem caixinha, só o item + carimbo ---------- */
+.shop-room .room-card.is-owned .room-card-art { cursor: pointer; }
+.room-owned {
+  position: absolute; inset: 0; display: grid; place-items: center; overflow: hidden;
+  border-radius: inherit; isolation: isolate;
+}
+.room-owned-art {
+  display: grid; place-items: center; width: calc(var(--sw) * .78); height: calc(var(--sw) * .9);
+  filter: drop-shadow(0 10px 16px rgba(0, 0, 0, .45));
+}
+.room-owned-art > * { max-width: 100%; zoom: var(--k); }
+.room-owned-art > .room-art-deco { zoom: calc(var(--k) * 1.22); }
+.room-owned-art > .room-art-font span { font-size: 23px; color: #fff; }
+.room-owned-art > .shop-mock { width: 100%; height: 100%; border-radius: 12px; }
+.room-owned-art > .shop-mock .shop-mock-lines { display: none; }
+/* Carimbo de tinta, torto, por cima do item. */
+.room-stamp {
+  position: absolute; left: 50%; top: 52%; z-index: 5; pointer-events: none;
+  transform: translate(-50%, -50%) rotate(-14deg);
+  padding: calc(var(--sw) * .02) calc(var(--sw) * .07);
+  font-family: 'Barlow Condensed', 'Oswald', Impact, 'Arial Narrow', system-ui, sans-serif;
+  font-size: calc(var(--sw) * .17); font-weight: 900; line-height: 1; letter-spacing: .06em; text-transform: uppercase;
+  color: #ff4d4d; border: calc(var(--sw) * .016) solid currentColor; border-radius: calc(var(--sw) * .03);
+  box-shadow: inset 0 0 0 calc(var(--sw) * .008) rgba(10, 30, 18, .9), inset 0 0 0 calc(var(--sw) * .02) currentColor;
+  text-shadow: 0 0 1px currentColor;
+  opacity: .9; mix-blend-mode: screen;
+  /* falhas da tinta: um ruído recortando o carimbo */
+  -webkit-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='120' height='60'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='2'/%3E%3CfeComponentTransfer%3E%3CfeFuncA type='discrete' tableValues='0 1 1 1 1 1 1 1'/%3E%3C/feComponentTransfer%3E%3C/filter%3E%3Crect width='120' height='60' filter='url(%23n)'/%3E%3C/svg%3E");
+  mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='120' height='60'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='2'/%3E%3CfeComponentTransfer%3E%3CfeFuncA type='discrete' tableValues='0 1 1 1 1 1 1 1'/%3E%3C/feComponentTransfer%3E%3C/filter%3E%3Crect width='120' height='60' filter='url(%23n)'/%3E%3C/svg%3E");
+  animation: room-stamp-in .35s cubic-bezier(.2, 1.4, .4, 1) both;
+}
+.shop-room .room-card.is-on .room-stamp { color: #4dff8a; }
+@keyframes room-stamp-in { from { transform: translate(-50%, -50%) rotate(-14deg) scale(1.8); opacity: 0; } to { transform: translate(-50%, -50%) rotate(-14deg) scale(1); opacity: .9; } }
+@media (prefers-reduced-motion: reduce) { .room-stamp { animation: none; } }
