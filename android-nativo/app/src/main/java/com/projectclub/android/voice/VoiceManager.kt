@@ -50,6 +50,9 @@ data class CallState(
     /** Silenciado/ensurdecido pela MODERAÇÃO (servidor) — separado do seu próprio mudo. */
     val serverMuted: Boolean = false,
     val serverDeafened: Boolean = false,
+    /** Apertar para falar: microfone só abre enquanto segura o botão. */
+    val pushToTalk: Boolean = false,
+    val pttHeld: Boolean = false,
 )
 
 data class CallReaction(val id: Long, val userId: String, val emoji: String)
@@ -199,6 +202,12 @@ class VoiceManager(context: Context, private val repo: Repository, private val s
                         leave(notifyServer = false)
                         _state.update { it.copy(error = "Você foi desconectado da chamada por um moderador.") }
                     }
+                    "soundboard:play" -> {
+                        val o = e.data as? JsonObject ?: return@collect
+                        if ((o["channelId"] as? JsonPrimitive)?.content != ch) return@collect
+                        val url = ((o["sound"] as? JsonObject)?.get("url") as? JsonPrimitive)?.content ?: return@collect
+                        main.post { onSoundboardPlay(url) }
+                    }
                     "voice:reaction" -> {
                         val o = e.data as? JsonObject ?: return@collect
                         fun f(k: String) = (o[k] as? JsonPrimitive)?.content
@@ -238,6 +247,7 @@ class VoiceManager(context: Context, private val repo: Repository, private val s
         _state.value = CallState(
             channelName = channelName, title = title, status = CallStatus.Connecting, listenOnly = listenOnly,
             muted = listenOnly || keepMuted, deafened = keepDeafened,
+            pushToTalk = prefs.pushToTalk, pttHeld = false,
         )
         startService(title)
         connectJob?.cancel()
@@ -308,7 +318,7 @@ class VoiceManager(context: Context, private val repo: Repository, private val s
         val ice = MediasoupEngine.iceServers(runCatching { JSONObject(pc.toString()).optJSONArray("iceServers") }.getOrNull())
         audio.start(_state.value.speakerOn)
         val e = own ?: MediasoupEngine(appContext, ownEvents).also { own = it }
-        e.join(OwnMediaCreds(url, token, ice), myId, startMuted = st.muted || st.deafened || interrupted, listenOnly = st.listenOnly || !hasMic())
+        e.join(OwnMediaCreds(url, token, ice), myId, startMuted = st.muted || st.deafened || interrupted || st.pushToTalk, listenOnly = st.listenOnly || !hasMic())
         if (st.deafened) e.setDeafened(true)
         armWatchdog(s, PROVIDER_OWN, OWN_CONNECT_TIMEOUT_MS)
         return true
@@ -414,7 +424,7 @@ class VoiceManager(context: Context, private val repo: Repository, private val s
         val s = _state.value
         val ch = s.channelName ?: return
         repo.realtime.emit("voice:state", JSONObject().apply {
-            put("channelId", ch); put("muted", s.muted || s.deafened); put("deafened", s.deafened)
+            put("channelId", ch); put("muted", s.muted || s.deafened || (s.pushToTalk && !s.pttHeld)); put("deafened", s.deafened)
             put("video", false); put("screenSharing", s.sharingScreen)
         })
     }
@@ -422,7 +432,52 @@ class VoiceManager(context: Context, private val repo: Repository, private val s
     /** Mudo efetivo do microfone (meu, ensurdecido ou ligação do telefone). */
     private fun applyMicMute() {
         val st = _state.value
-        if (usingOwn) own?.setMuted(st.muted || st.deafened || interrupted)
+        if (usingOwn) own?.setMuted(st.muted || st.deafened || interrupted || (st.pushToTalk && !st.pttHeld))
+    }
+
+    /** Liga/desliga o "apertar para falar" (fica salvo pras próximas calls). */
+    fun setPushToTalk(on: Boolean) {
+        prefs.pushToTalk = on
+        _state.update { it.copy(pushToTalk = on, pttHeld = false) }
+        applyMicMute()
+        sendState()
+    }
+
+    /** Segurando (true) ou soltou (false) o botão de falar. */
+    fun pushToTalk(held: Boolean) {
+        val st = _state.value
+        if (!st.pushToTalk || st.pttHeld == held) return
+        if (held && (st.muted || st.deafened)) return
+        _state.update { it.copy(pttHeld = held) }
+        applyMicMute()
+        sendState()
+    }
+
+    // ---------------- Soundboard (igual ao site: socket 'soundboard:play') ----------------
+
+    private var soundPlayer: android.media.MediaPlayer? = null
+
+    fun playSoundboard(soundId: String, onResult: (String?) -> Unit) {
+        val ch = _state.value.channelName ?: return onResult("Entre na call para tocar sons.")
+        repo.realtime.emitObjectWithAck("soundboard:play", JSONObject().put("channelId", ch).put("soundId", soundId)) { r ->
+            main.post { onResult(if (r?.optBoolean("ok") == true) null else r?.optString("reason")?.ifBlank { null } ?: "Não consegui tocar o som.") }
+        }
+    }
+
+    private fun onSoundboardPlay(url: String) {
+        if (_state.value.deafened) return
+        val full = com.projectclub.android.Config.media(url) ?: return
+        runCatching { soundPlayer?.release() }
+        soundPlayer = android.media.MediaPlayer().apply {
+            runCatching {
+                setAudioAttributes(android.media.AudioAttributes.Builder().setUsage(android.media.AudioAttributes.USAGE_VOICE_COMMUNICATION).setContentType(android.media.AudioAttributes.CONTENT_TYPE_SONIFICATION).build())
+                setVolume(0.7f, 0.7f)
+                setDataSource(full)
+                setOnPreparedListener { it.start() }
+                setOnCompletionListener { it.release(); if (soundPlayer === it) soundPlayer = null }
+                prepareAsync()
+            }.onFailure { release(); soundPlayer = null }
+        }
     }
 
     private fun onAudioInterrupted(on: Boolean) {

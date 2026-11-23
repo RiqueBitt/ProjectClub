@@ -124,6 +124,12 @@ class Realtime(private val api: Api, private val scope: CoroutineScope) {
         })
     }
 
+    /** Emite um objeto e devolve a resposta do servidor (ou null se não respondeu). */
+    fun emitObjectWithAck(event: String, data: JSONObject, onAck: (JSONObject?) -> Unit) {
+        val s = socket ?: return onAck(null)
+        s.emit(event, arrayOf<Any>(data), Ack { args -> onAck(args.firstOrNull() as? JSONObject) })
+    }
+
     fun joinChannel(channelId: String, onAck: (Boolean) -> Unit = {}) = emitWithAck("channel:join", channelId, onAck)
     fun leaveChannel(channelId: String) = emit("channel:leave", channelId)
     fun joinConversation(conversationId: String) = emitWithAck("conversation:join", conversationId)

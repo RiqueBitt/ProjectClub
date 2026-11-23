@@ -112,6 +112,10 @@ class CallActions(
     val volumeOf: (String) -> Int = { 100 },
     val setVolume: (String, Int) -> Unit = { _, _ -> },
     val openProfile: (String) -> Unit = {},
+    val loadSounds: suspend () -> List<SoundboardSound> = { emptyList() },
+    val playSound: (String, (String?) -> Unit) -> Unit = { _, _ -> },
+    val setPushToTalk: (Boolean) -> Unit = {},
+    val pushToTalk: (Boolean) -> Unit = {},
 )
 
 @Composable
@@ -156,6 +160,10 @@ fun VoiceScreen(voice: VoiceManager, repo: Repository, onBack: () -> Unit) {
             volumeOf = { voice.prefs.userVolume(it) },
             setVolume = voice::setUserVolume,
             openProfile = openUser,
+            loadSounds = { runCatching { repo.api.get<SoundboardList>("/api/soundboard").sounds }.getOrDefault(emptyList()) },
+            playSound = voice::playSoundboard,
+            setPushToTalk = voice::setPushToTalk,
+            pushToTalk = voice::pushToTalk,
         ),
         screen = { userId, modifier ->
             Box(modifier) {
@@ -275,8 +283,12 @@ fun CallLayout(
 
             if (!fullscreen) {
                 AnimatedVisibility(picker, enter = expandVertically() + fadeIn(), exit = shrinkVertically() + fadeOut(), modifier = Modifier.align(Alignment.CenterHorizontally)) {
-                    ReactionPicker { actions.react(it); picker = false }
+                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                        ReactionPicker { actions.react(it); picker = false }
+                        SoundboardPanel(state, actions)
+                    }
                 }
+                if (state.pushToTalk) PushToTalkButton(state, actions)
                 ControlDock(state, actions, picker) { picker = !picker }
             }
         }

@@ -23,6 +23,11 @@ class VoicePrefs(context: Context) {
         get() = sp.getBoolean("automaticGain", true)
         set(v) { sp.edit().putBoolean("automaticGain", v).apply(); changed() }
 
+    /** Apertar para falar (o microfone só abre segurando o botão). */
+    var pushToTalk: Boolean
+        get() = sp.getBoolean("pushToTalk", false)
+        set(v) { sp.edit().putBoolean("pushToTalk", v).apply() }
+
     /** Volume geral de quem você ouve, 0–200 (%). */
     var outputVolume: Int
         get() = sp.getInt("outputVolume", 100)
