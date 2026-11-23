@@ -721,13 +721,29 @@ export const useStore = create((set, get) => ({
   // Aplica dados públicos atualizados de um usuário (tag, avatar, nome...)
   // em todo lugar que já tem uma cópia em cache: lista de membros da
   // comunidade e autor de toda mensagem já carregada.
-  patchUserEverywhere: (user) => set((s) => ({
-    members: s.members.map((m) => (m.user.id === user.id ? { ...m, user: { ...m.user, ...user } } : m)),
-    messagesByRoom: Object.fromEntries(Object.entries(s.messagesByRoom).map(([roomKey, msgs]) => [
-      roomKey,
-      msgs.map((m) => (m.authorId === user.id ? { ...m, author: { ...m.author, ...user } } : m)),
-    ])),
-  })),
+  // Só troca o que é daquele usuário: antes recriava TODAS as mensagens de
+  // TODAS as salas (e a lista de membros inteira) a cada 'user:update', o
+  // que fazia a tela toda redesenhar à toa — agora salas e mensagens de
+  // outras pessoas mantêm a mesma referência.
+  patchUserEverywhere: (user) => set((s) => {
+    let membersChanged = false;
+    const members = s.members.map((m) => {
+      if (m.user.id !== user.id) return m;
+      membersChanged = true;
+      return { ...m, user: { ...m.user, ...user } };
+    });
+    let roomsChanged = false;
+    const messagesByRoom = {};
+    for (const [roomKey, msgs] of Object.entries(s.messagesByRoom)) {
+      if (!msgs.some((m) => m.authorId === user.id)) { messagesByRoom[roomKey] = msgs; continue; }
+      roomsChanged = true;
+      messagesByRoom[roomKey] = msgs.map((m) => (m.authorId === user.id ? { ...m, author: { ...m.author, ...user } } : m));
+    }
+    const out = {};
+    if (membersChanged) out.members = members;
+    if (roomsChanged) out.messagesByRoom = messagesByRoom;
+    return out;
+  }),
   resolveOptimisticMessage: (roomKey, tempId, realMessage) => set((s) => {
     const existing = s.messagesByRoom[roomKey] || [];
     const alreadyHasReal = existing.some((m) => m.id === realMessage.id);

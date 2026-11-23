@@ -154,6 +154,7 @@ function MemberGroup({ label, members, roles, dim, cargosEnabled }) {
           className={`member-row ${dim ? 'dim' : ''} ${m.user.idCardUrl ? 'has-id-card' : ''}${m.user.supporterTier === 'SUPER' ? ' is-supporter tier-super' : m.user.supporterTier === 'SUBSCRIBER' ? ' is-supporter tier-sub' : ''}`}
           style={m.user.idCardUrl ? { backgroundImage: `linear-gradient(90deg, var(--bg-secondary) 15%, transparent), url(${m.user.idCardUrl})`, '--id-card': `url(${JSON.stringify(m.user.idCardUrl)})`, ...idCardFramingVars(m.user.idCardFraming) } : undefined}
           onContextMenu={(e) => onContextMenu(e, m)}
+          data-profile-id={m.user.id}
           onClick={(e) => useStore.getState().openMiniProfile(m.user.id, e.currentTarget.getBoundingClientRect(), 'left')}
         >
           <div className="avatar-wrap small">

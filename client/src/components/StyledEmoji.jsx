@@ -29,6 +29,28 @@ import { emojiImageUrl, useEmojiSet } from '../utils/emojiStyle';
 // baixar a imagem quando o emoji realmente entra (ou chega perto de
 // entrar) na área visível da tela, soltando o observador assim que
 // isso acontece uma vez (não precisa ficar observando pra sempre).
+// UM IntersectionObserver só pra todos os emojis (antes era um por emoji:
+// ~1900 observadores criados toda vez que o seletor abria).
+let sharedObserver = null;
+const visibleCallbacks = new WeakMap();
+function watchVisible(el, onVisible) {
+  if (typeof IntersectionObserver === 'undefined') { onVisible(); return () => {}; }
+  if (!sharedObserver) {
+    sharedObserver = new IntersectionObserver((entries) => {
+      for (const entry of entries) {
+        if (!entry.isIntersecting) continue;
+        const cb = visibleCallbacks.get(entry.target);
+        sharedObserver.unobserve(entry.target);
+        visibleCallbacks.delete(entry.target);
+        cb?.();
+      }
+    }, { rootMargin: '200px' }); // começa um pouco antes de entrar na tela, pra rolagem ficar suave
+  }
+  visibleCallbacks.set(el, onVisible);
+  sharedObserver.observe(el);
+  return () => { visibleCallbacks.delete(el); sharedObserver?.unobserve(el); };
+}
+
 export default function StyledEmoji({ emoji, size, className }) {
   const style = useStore((s) => s.emojiStyle);
   const [loaded, setLoaded] = useState(false);
@@ -45,12 +67,7 @@ export default function StyledEmoji({ emoji, size, className }) {
 
   useEffect(() => {
     if (!url || inView || !ref.current) return undefined;
-    const observer = new IntersectionObserver(
-      (entries) => { if (entries[0].isIntersecting) setInView(true); },
-      { rootMargin: '200px' }, // começa um pouco antes de entrar na tela, pra rolagem ficar suave
-    );
-    observer.observe(ref.current);
-    return () => observer.disconnect();
+    return watchVisible(ref.current, () => setInView(true));
   }, [url, inView]);
 
   if (!url || failed || !loaded) {

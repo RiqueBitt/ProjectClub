@@ -34,6 +34,7 @@ import './styles/presence.css';
 import './styles/auth.css';
 import './i18n/index.js';
 import { isChunkLoadError, reloadForNewVersion } from './utils/lazyWithRetry';
+import { installProfilePrefetch } from './api/profileCache';
 
 // Depois de uma atualização do site, abas abertas ainda pedem os arquivos
 // antigos (com outro nome) e a página travava com "Failed to fetch
@@ -57,6 +58,9 @@ window.addEventListener('unhandledrejection', (e) => {
 if (window.electronAPI) {
   document.documentElement.classList.add('is-electron-app');
 }
+
+// Busca o perfil antes do clique (ver api/profileCache.js).
+installProfilePrefetch();
 
 ReactDOM.createRoot(document.getElementById('root')).render(
   <React.StrictMode>

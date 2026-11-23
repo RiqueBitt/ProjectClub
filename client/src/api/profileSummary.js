@@ -1,5 +1,6 @@
 import { api } from './client';
 import { getUserProfile, getFanStatus, getTraitStatus, listProfilePollsByAuthor, listProfileVisitors } from './endpoints';
+import { rememberSummary } from './profileCache';
 
 // Cabeçalho do perfil completo numa requisição só (GET /users/:id/summary,
 // ver server/src/controllers/profileSummaryController.js): perfil + "sou
@@ -19,7 +20,13 @@ async function legacySummary(userId, isMe) {
   return { profile, fan, traits, polls, visitors };
 }
 
-export async function getProfileSummary(userId, { isMe = false } = {}) {
+export async function getProfileSummary(userId, opts = {}) {
+  const data = await fetchSummary(userId, opts);
+  rememberSummary(userId, data);
+  return data;
+}
+
+async function fetchSummary(userId, { isMe = false } = {}) {
   if (unsupported) return legacySummary(userId, isMe);
   try {
     const { data } = await api.get(`/users/${userId}/summary`);

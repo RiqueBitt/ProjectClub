@@ -34,6 +34,7 @@ import robloxIcon from '../../assets/icons/social-roblox.png';
 import xIcon from '../../assets/icons/social-x.png';
 import { proxyImage } from '../../utils/imageProxy';
 import { getProfileSummary } from '../../api/profileSummary';
+import { peekSummary, peekProfile } from '../../api/profileCache';
 import { visibleProfileSectionOrder } from '../../utils/profileSections';
 import FeaturedModpackSection from '../FeaturedModpackSection.jsx';
 import ProfileGamesSection from '../games/ProfileGamesSection.jsx';
@@ -305,8 +306,20 @@ export default function UserProfileModal() {
   };
   useEffect(() => {
     if (!userId) { setData(null); return; }
-    setLoading(true);
+    // Já visto (perfil completo ou miniperfil): mostra na hora e atualiza
+    // por trás — ver api/profileCache.js. Só mostra o esqueleto de
+    // "carregando" quando não há NADA desse usuário ainda.
+    const cachedSummary = peekSummary(userId);
+    const cachedProfile = cachedSummary?.profile || peekProfile(userId);
     let alive = true;
+    // Depois dos efeitos abaixo que zeram "sou fã"/enquetes/visitantes ao
+    // trocar de perfil (rodam em seguida, na mesma passada).
+    if (cachedSummary) queueMicrotask(() => { if (alive) applySummary(cachedSummary); });
+    if (cachedProfile) {
+      setData(cachedProfile);
+      if (cachedProfile.activity) useStore.getState().setActivity(userId, cachedProfile.activity);
+      setLoading(false);
+    } else setLoading(true);
     getProfileSummary(userId, { isMe: userId === me.id }).then((summary) => {
       if (!alive) return;
       const result = summary.profile;
@@ -320,7 +333,7 @@ export default function UserProfileModal() {
       // carregou, o badge ficava vazio mesmo com a atividade
       // existindo de verdade no servidor.
       if (result?.activity) useStore.getState().setActivity(userId, result.activity);
-    }).catch(() => { if (alive) setData(null); }).finally(() => { if (alive) setLoading(false); });
+    }).catch(() => { if (alive && !cachedProfile) setData(null); }).finally(() => { if (alive) setLoading(false); });
     return () => { alive = false; };
   }, [userId]);
 

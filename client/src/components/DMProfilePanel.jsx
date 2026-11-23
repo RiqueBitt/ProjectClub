@@ -3,7 +3,7 @@ import { useEffect, useState } from 'react';
 import { useRouteRoom } from '../utils/prettyLinks';
 import { useStore } from '../store/useStore';
 import { useAuth } from '../context/AuthContext.jsx';
-import { getUserProfile } from '../api/endpoints';
+import { peekProfile, fetchProfile } from '../api/profileCache';
 import { STATUS_LABEL } from '../utils/status';
 import PresenceDot from './PresenceDot.jsx';
 import { renderRichContent } from '../utils/richTextRender.jsx';
@@ -51,17 +51,22 @@ export default function DMProfilePanel({ onToggle }) {
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
-    if (!other) { setData(null); return; }
-    setLoading(true);
-    getUserProfile(other.id).then((result) => {
+    if (!other) { setData(null); return undefined; }
+    // Já visto: aparece na hora e atualiza por trás (api/profileCache.js).
+    const cached = peekProfile(other.id);
+    if (cached) { setData(cached); setLoading(false); } else setLoading(true);
+    let alive = true;
+    fetchProfile(other.id).then((result) => {
+      if (!alive) return;
       setData(result);
       if (result?.activity) useStore.getState().setActivity(other.id, result.activity);
-    }).catch(() => setData(null)).finally(() => setLoading(false));
+    }).catch(() => { if (alive && !cached) setData(null); }).finally(() => { if (alive) setLoading(false); });
+    return () => { alive = false; };
   }, [other?.id]);
 
   // Tempo real (30s; 60s com socket): perfil da outra pessoa da DM, em silêncio.
   useLiveRefresh(async ({ put, ok }) => {
-    const result = await getUserProfile(other.id);
+    const result = await fetchProfile(other.id);
     put(setData)(result);
     if (ok() && result?.activity) useStore.getState().setActivity(other.id, result.activity);
   }, { enabled: !!other?.id && !!data, key: other?.id, interval: 30000, realtimeInterval: 60000 });

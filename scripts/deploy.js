@@ -25,6 +25,15 @@ const path = require('path');
 const { startWarmupServer, resolveServerPort } = require('./warmupServer');
 const gateway = require('./rustGateway');
 
+// Memória nativa: o glibc cria uma "arena" de malloc por thread (Node +
+// Prisma + libuv + V8 = dezenas de threads numa máquina com muitos núcleos)
+// e quase nunca devolve ao sistema o que é liberado nelas — medido em
+// produção: ~160 MB de [heap] nativo pra ~40 MB de objetos JS vivos.
+// Limitar a 2 arenas é o ajuste padrão pra servidores Node (mesma
+// velocidade na prática, bem menos memória presa). Vale pra tudo que este
+// supervisor inicia (Node, Rust, Prisma). Dá pra mudar pela variável.
+if (!process.env.MALLOC_ARENA_MAX) process.env.MALLOC_ARENA_MAX = '2';
+
 const ROOT = path.resolve(__dirname, '..');
 const DIST_INDEX = path.join(ROOT, 'client', 'dist', 'index.html');
 const prebuilt = fs.existsSync(DIST_INDEX);
@@ -129,7 +138,10 @@ async function main() {
   ];
   // Mesmos passos (e mesma pasta) do "npm start -w server".
   await run('node', [path.join('scripts', 'write-certs-from-env.js')], {}, SERVER_DIR);
-  await run('node', [path.join('scripts', 'wait-for-db.js')], {}, SERVER_DIR);
+  // (Sem o wait-for-db aqui: o prisma:push acima já esperou o banco, fez o
+  // db push e gerou o cliente — o wait-for-db repetia tudo isso e somava
+  // ~7 s de site fora do ar a cada reinício. O "npm start -w server"
+  // continua usando ele.)
   // O Node não cria a pasta do relatório sozinho.
   try { fs.mkdirSync(path.join(SERVER_DIR, 'reports'), { recursive: true }); } catch { /* sem permissão: só fica sem relatório */ }
   // Rust na frente (scripts/rustGateway.js): o Node vai pra uma porta
