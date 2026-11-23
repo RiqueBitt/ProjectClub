@@ -25,6 +25,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.outlined.VolumeUp
 import androidx.compose.material.icons.outlined.Campaign
+import androidx.compose.material.icons.outlined.Casino
 import androidx.compose.material.icons.outlined.EmojiEvents
 import androidx.compose.material.icons.outlined.GridView
 import androidx.compose.material.icons.outlined.People
@@ -117,6 +118,11 @@ fun ChannelsTab(repo: Repository, actions: HomeActions) {
                 Column(Modifier.padding(horizontal = 10.dp, vertical = 8.dp), verticalArrangement = Arrangement.spacedBy(2.dp)) {
                     // Iguais aos do site (FeaturedChannels.jsx, "minimalistas"): só o ícone colorido,
                     // sem fundo nem borda. (A Guerra das Cartas está desativada.)
+                    // BLACKOUT: só dentro da instância BLACKOUT; abre o compêndio em tela cheia.
+                    if (c.community?.instance == "blackout") {
+                        val ctx = androidx.compose.ui.platform.LocalContext.current
+                        Featured(Icons.Outlined.Casino, "BLACKOUT", Color.White) { com.projectclub.android.ui.praca.BlackoutActivity.open(ctx) }
+                    }
                     Featured(Icons.Outlined.GridView, "Central", Color(0xFF4F8CFF)) { actions.openWeb("/inicio") }
                     Featured(Icons.Outlined.People, "Amigos", Color(0xFFFF8A3D)) { actions.openWeb("/dms") }
                     Featured(Icons.Outlined.MonetizationOn, "Economia", PC.Store) { actions.openWeb("/economia") }

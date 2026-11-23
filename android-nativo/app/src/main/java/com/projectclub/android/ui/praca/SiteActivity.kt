@@ -1,6 +1,13 @@
 package com.projectclub.android.ui.praca
 
 import android.annotation.SuppressLint
+import android.content.ContentValues
+import android.os.Build
+import android.provider.MediaStore
+import android.util.Base64
+import android.webkit.ValueCallback
+import android.widget.Toast
+import androidx.activity.result.contract.ActivityResultContracts
 import android.content.Context
 import android.content.Intent
 import android.graphics.Bitmap
@@ -57,6 +64,22 @@ open class SiteActivity : ComponentActivity() {
     private lateinit var status: TextView
     private var handoffTried = false
 
+    // Arquivos: o WebView sozinho não baixa nada gerado pela página (blob:/data:,
+    // ex.: "Baixar PDF") nem abre o seletor de <input type="file">.
+    private var pendingSave: Pair<String, ByteArray>? = null
+    private val createDoc = registerForActivityResult(ActivityResultContracts.CreateDocument("*/*")) { uri ->
+        val p = pendingSave; pendingSave = null
+        if (uri != null && p != null) {
+            runCatching { contentResolver.openOutputStream(uri)?.use { it.write(p.second) } ?: error("sem saída") }
+                .onSuccess { toast("Arquivo salvo.") }.onFailure { toast("Não deu pra salvar o arquivo.") }
+        }
+    }
+    private var fileCallback: ValueCallback<Array<Uri>>? = null
+    private val pickFile = registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { r ->
+        fileCallback?.onReceiveValue(WebChromeClient.FileChooserParams.parseResult(r.resultCode, r.data))
+        fileCallback = null
+    }
+
     /** Caminho no site (extra "path"); as subclasses podem fixar. */
     protected open val path: String get() = intent?.getStringExtra(EXTRA_PATH)?.takeIf { it.startsWith("/") } ?: "/inicio"
     protected open val immersive: Boolean get() = false
@@ -111,6 +134,11 @@ open class SiteActivity : ComponentActivity() {
                 return true
             }
             override fun onPermissionRequest(request: PermissionRequest) { request.deny() }
+            override fun onShowFileChooser(view: WebView, callback: ValueCallback<Array<Uri>>, params: FileChooserParams): Boolean {
+                fileCallback?.onReceiveValue(null)
+                fileCallback = callback
+                return try { pickFile.launch(params.createIntent()); true } catch (_: Exception) { fileCallback = null; false }
+            }
         }
         web.webViewClient = object : WebViewClient() {
             override fun shouldOverrideUrlLoading(view: WebView, request: WebResourceRequest): Boolean {
@@ -127,7 +155,7 @@ open class SiteActivity : ComponentActivity() {
                 // Sessão do WebView morreu (90 dias / revogada): entra de novo pelo app, uma vez.
                 if (Uri.parse(url).path.orEmpty().startsWith("/login") && !handoffTried) { handoffTried = true; openViaHandoff() }
             }
-            override fun onPageFinished(view: WebView, url: String) { hideLoading() }
+            override fun onPageFinished(view: WebView, url: String) { hideLoading(); view.evaluateJavascript(DOWNLOAD_JS, null) }
             override fun onReceivedError(view: WebView, request: WebResourceRequest, error: WebResourceError) {
                 if (request.isForMainFrame) showError("Não deu pra abrir (${error.description}). Confira a conexão.")
             }
@@ -141,7 +169,7 @@ open class SiteActivity : ComponentActivity() {
     }
 
     /** Já tem sessão própria no WebView? Vai direto; senão, entra pelo app. */
-    private fun open() {
+    protected open fun open() {
         val cookies = CookieManager.getInstance().getCookie("${Config.baseUrl}/api/auth/refresh").orEmpty()
         if (cookies.contains("refreshToken=")) web.loadUrl(Config.baseUrl + path)
         else { handoffTried = true; openViaHandoff() }
@@ -177,6 +205,31 @@ open class SiteActivity : ComponentActivity() {
     }
 
     private fun hideLoading() { loading.visibility = View.GONE }
+    protected fun showLoading(text: String) { loading.visibility = View.VISIBLE; status.tag = null; status.text = text }
+    private fun toast(msg: String) = Toast.makeText(this, msg, Toast.LENGTH_SHORT).show()
+
+    /** Salva em Downloads (Android 10+); sem isso, pergunta onde salvar. */
+    private fun saveDownload(name: String, mime: String, bytes: ByteArray) {
+        val safe = name.replace(Regex("[\\\\/:*?\"<>|]"), "_").take(120).ifBlank { "arquivo" }
+        if (Build.VERSION.SDK_INT >= 29) {
+            val ok = runCatching {
+                val v = ContentValues().apply {
+                    put(MediaStore.Downloads.DISPLAY_NAME, safe)
+                    put(MediaStore.Downloads.MIME_TYPE, mime.ifBlank { "application/octet-stream" })
+                    put(MediaStore.Downloads.IS_PENDING, 1)
+                }
+                val uri = contentResolver.insert(MediaStore.Downloads.EXTERNAL_CONTENT_URI, v) ?: error("sem pasta")
+                contentResolver.openOutputStream(uri)?.use { it.write(bytes) } ?: error("sem saída")
+                v.clear(); v.put(MediaStore.Downloads.IS_PENDING, 0)
+                contentResolver.update(uri, v, null, null)
+            }.isSuccess
+            if (ok) { toast("Salvo em Downloads: $safe"); return }
+        }
+        pendingSave = safe to bytes
+        runCatching { createDoc.launch(safe) }.onFailure { pendingSave = null; toast("Não deu pra salvar o arquivo.") }
+    }
+
+    protected fun showLoadingError(msg: String) = showError(msg)
     private fun showError(msg: String) {
         loading.visibility = View.VISIBLE
         status.tag = "error"
@@ -198,10 +251,23 @@ open class SiteActivity : ComponentActivity() {
     /** window.PracaApp na página: "Sair" fecha esta tela. */
     inner class Bridge {
         @JavascriptInterface fun exit() { runOnUiThread { finish() } }
+        /** Arquivo gerado pela página (ver DOWNLOAD_JS), em base64. */
+        @JavascriptInterface fun saveFile(name: String, mime: String, base64: String) {
+            val bytes = runCatching { Base64.decode(base64, Base64.DEFAULT) }.getOrNull()
+            runOnUiThread { if (bytes != null) saveDownload(name, mime, bytes) else toast("Não deu pra salvar o arquivo.") }
+        }
+        @JavascriptInterface fun saveFailed(@Suppress("UNUSED_PARAMETER") msg: String) { runOnUiThread { toast("Não deu pra salvar o arquivo.") } }
     }
 
     companion object {
         const val EXTRA_PATH = "path"
+        // Links de download da página (<a download> com blob:/data:, inclusive os
+        // criados por script e clicados com a.click()) → arquivo pelo app.
+        private const val DOWNLOAD_JS = """(function(){if(window.__pcDl||!window.PracaApp||!PracaApp.saveFile)return;window.__pcDl=1;
+function grab(a){var h=a.href||'';if(!/^(blob:|data:)/.test(h))return false;var n=a.getAttribute('download')||'arquivo';
+fetch(h).then(function(r){return r.blob()}).then(function(b){var f=new FileReader();f.onload=function(){var s=String(f.result);PracaApp.saveFile(n,b.type||'application/octet-stream',s.slice(s.indexOf(',')+1))};f.readAsDataURL(b)}).catch(function(e){PracaApp.saveFailed(String(e))});return true}
+var o=HTMLAnchorElement.prototype.click;HTMLAnchorElement.prototype.click=function(){if(this.hasAttribute('download')&&grab(this))return;return o.apply(this,arguments)};
+document.addEventListener('click',function(e){var a=e.target&&e.target.closest&&e.target.closest('a[download]');if(a&&grab(a))e.preventDefault()},true);})();"""
         private val BG = Color.parseColor("#0B0D12")
         /** Abre um caminho do site (ex.: "/admin") numa tela própria, logado. */
         fun open(context: Context, path: String) =

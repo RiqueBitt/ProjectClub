@@ -7,8 +7,9 @@
 //   BLACKOUT_REPO          dono/repo (padrão MrPinguimBr/blackout)
 //   BLACKOUT_REF           branch (padrão: o principal do repo)
 //
-// Baixa no boot e confere a cada 15 min se teve commit novo (push no BLACKOUT
-// = atualiza sozinho aqui). Falhou? Continua servindo a última cópia baixada.
+// Baixa quando o servidor liga e, depois, SÓ quando a administração pede
+// (Painel da Equipe → Instâncias → "Atualizar BLACKOUT" → POST
+// /api/blackout/sync). Falhou? Continua servindo a última cópia baixada.
 // Quem pode abrir: routes/blackoutSite.js.
 const fs = require('fs');
 const os = require('os');
@@ -16,12 +17,11 @@ const path = require('path');
 const { execFile } = require('child_process');
 
 const SITE_DIR = process.env.BLACKOUT_SITE_DIR || path.resolve(__dirname, '../../data/blackout-site');
-const CHECK_MS = 15 * 60 * 1000;
 const repo = () => (process.env.BLACKOUT_REPO || 'MrPinguimBr/blackout').trim();
 const ref = () => (process.env.BLACKOUT_REF || '').trim();
 
 let status = { sha: null, at: null, error: null, syncing: false };
-let timer = null;
+let started = false;
 
 function headers() {
   const h = { 'User-Agent': 'ProjectClub-blackout-sync', Accept: 'application/vnd.github+json', 'X-GitHub-Api-Version': '2022-11-28' };
@@ -95,10 +95,9 @@ async function sync() {
 }
 
 function start() {
-  if (process.env.BLACKOUT_SYNC === '0' || timer) return;
+  if (process.env.BLACKOUT_SYNC === '0' || started) return;
+  started = true;
   sync();
-  timer = setInterval(sync, CHECK_MS);
-  timer.unref?.();
 }
 
 module.exports = { SITE_DIR, start, sync, hasSite, getStatus: () => ({ ...status, repo: repo(), hasSite: hasSite(), hasToken: !!(process.env.BLACKOUT_GITHUB_TOKEN || '').trim() }) };

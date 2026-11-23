@@ -62,6 +62,12 @@
             android:exported="false"
             android:windowSoftInputMode="adjustResize"
             android:configChanges="orientation|screenSize|screenLayout|smallestScreenSize|keyboardHidden|uiMode" />
+        <!-- Compêndio BLACKOUT (instância BLACKOUT), abre direto com um passe do app. -->
+        <activity
+            android:name=".ui.praca.BlackoutActivity"
+            android:exported="false"
+            android:windowSoftInputMode="adjustResize"
+            android:configChanges="orientation|screenSize|screenLayout|smallestScreenSize|keyboardHidden|uiMode" />
 
         <!-- Ícone do app escolhido em Configurações → Aparência: cada ícone é um
              "atalho" (activity-alias) da mesma tela; só um fica ligado por vez

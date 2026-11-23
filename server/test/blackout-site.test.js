@@ -71,7 +71,7 @@ test('quem tem a instância ganha o cookie e abre o site; /blackout redireciona 
 test('sem a instância: nem ganha cookie; e perder o acesso derruba o cookie', async () => withServer(async (base) => {
   const s = await fetch(`${base}/api/blackout/session`, { method: 'POST', headers: { 'x-test-user': 'bia' } });
   assert.equal(s.status, 403);
-  const token = jwt.sign({ sub: 'bia' }, site.siteSecret(), { algorithm: 'HS256', expiresIn: 60 });
+  const token = jwt.sign({ sub: 'bia', typ: 'site' }, site.siteSecret(), { algorithm: 'HS256', expiresIn: 60 });
   const r = await fetch(`${base}/blackout/`, { headers: { cookie: `${site.COOKIE}=${token}` } });
   assert.equal(r.status, 403);
 }));
@@ -102,4 +102,30 @@ test('site ainda não baixado: 503 com aviso', async () => withServer(async (bas
     assert.equal(r.status, 503);
     assert.match(await r.text(), /sendo baixado/);
   } finally { fs.renameSync(path.join(siteDir, 'x.html'), path.join(siteDir, 'index.html')); }
+}));
+
+test('passe do app: vale uma vez, vira cookie e sai do endereço', async () => withServer(async (base) => {
+  const s = await fetch(`${base}/api/blackout/session`, { method: 'POST', headers: { 'x-test-user': 'ana' } });
+  const { ticket } = await s.json();
+  assert.ok(ticket);
+  const r = await fetch(`${base}/blackout/?t=${encodeURIComponent(ticket)}`, { redirect: 'manual' });
+  assert.equal(r.status, 302);
+  assert.equal(r.headers.get('location'), '/blackout/');
+  const cookie = (r.headers.get('set-cookie') || '').split(';')[0];
+  assert.equal((await fetch(`${base}/blackout/`, { headers: { cookie } })).status, 200);
+  // de novo: o passe já foi usado
+  assert.equal((await fetch(`${base}/blackout/?t=${encodeURIComponent(ticket)}`, { redirect: 'manual' })).status, 403);
+}));
+
+test('passe não serve como cookie (nem o cookie como passe)', async () => withServer(async (base) => {
+  const s = await fetch(`${base}/api/blackout/session`, { method: 'POST', headers: { 'x-test-user': 'ana' } });
+  const { ticket } = await s.json();
+  assert.equal((await fetch(`${base}/blackout/`, { headers: { cookie: `${site.COOKIE}=${ticket}` } })).status, 403);
+  const cookieTok = jwt.sign({ sub: 'ana', typ: 'site' }, site.siteSecret(), { algorithm: 'HS256', expiresIn: 60 });
+  assert.equal((await fetch(`${base}/blackout/?t=${cookieTok}`, { redirect: 'manual' })).status, 403);
+}));
+
+test('atualizar o compêndio: só ADMIN', async () => withServer(async (base) => {
+  const r = await fetch(`${base}/api/blackout/sync`, { method: 'POST', headers: { 'x-test-user': 'ana' } });
+  assert.equal(r.status, 403);
 }));

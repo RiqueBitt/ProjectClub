@@ -169,6 +169,7 @@ class AppNavigator(
             "clans" -> clubs()
             "admin" -> site(uri.path.orEmpty().ifBlank { "/admin" } + (uri.query?.let { "?$it" } ?: ""))
             "tickets" -> tickets()
+            "compendio-blackout", "blackout" -> com.projectclub.android.ui.praca.BlackoutActivity.open(context)
             "atividade" -> activity()
             "search" -> search()
             "entrar-qr" -> {
