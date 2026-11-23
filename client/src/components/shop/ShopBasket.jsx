@@ -95,9 +95,26 @@ export function useDragToBasket(onDrop) {
   };
 
   const start = (s) => {
-    const rect = s.el.getBoundingClientRect();
-    const ghost = s.el.cloneNode(true);
+    // Só a CAIXINHA sai do gancho (não a cartela verde inteira).
+    const src = s.el.querySelector('.room-pack') || s.el;
+    const box = src.getBoundingClientRect();
+    const w = src.offsetWidth || box.width;
+    const h = src.offsetHeight || box.height;
+    const rect = { left: box.left + box.width / 2 - w / 2, top: box.top + box.height / 2 - h / 2, width: w, height: h };
+    const ghost = src.cloneNode(true);
     ghost.classList.add('shop-drag-ghost');
+    // O modelo 3D é desenhado num <canvas>: o clone vem em branco, copia o quadro.
+    const from = src.querySelectorAll('canvas');
+    ghost.querySelectorAll('canvas').forEach((c, i) => {
+      try { c.width = from[i].width; c.height = from[i].height; c.getContext('2d')?.drawImage(from[i], 0, 0); } catch { /* sem 2D */ }
+    });
+    // As medidas da caixinha vêm de variáveis da cartela (--sw, --k, cores).
+    const cs = getComputedStyle(s.el);
+    for (const v of ['--k', '--pack', '--pack-tag', '--pack-tilt']) {
+      const val = cs.getPropertyValue(v);
+      if (val) ghost.style.setProperty(v, val.trim());
+    }
+    ghost.style.setProperty('--sw', `${w}px`);
     s.rect = rect; s.dx = s.x0 - rect.left; s.dy = s.y0 - rect.top;
     Object.assign(ghost.style, {
       width: `${rect.width}px`, height: `${rect.height}px`, left: `${rect.left}px`, top: `${rect.top}px`,
@@ -133,10 +150,14 @@ export function useDragToBasket(onDrop) {
   // Volta pro gancho.
   const flyBack = (s) => {
     const c = s.card;
-    const rect = s.el.getBoundingClientRect();
+    // Volta pro lugar da caixinha no gancho (a cartela pode ter rolado).
+    const src = s.el.querySelector('.room-pack');
+    const box = (src || s.el).getBoundingClientRect();
+    const left = src ? box.left + box.width / 2 - s.rect.width / 2 : box.left;
+    const top = src ? box.top + box.height / 2 - s.rect.height / 2 : box.top;
     c.style.transition = 'left .34s cubic-bezier(.2,.8,.2,1.15), top .34s cubic-bezier(.2,.8,.2,1.15), transform .34s ease-out';
-    c.style.left = `${rect.left}px`;
-    c.style.top = `${rect.top}px`;
+    c.style.left = `${left}px`;
+    c.style.top = `${top}px`;
     c.style.transform = 'rotate(0deg) scale(1)';
     setTimeout(() => finish(s), 360);
   };

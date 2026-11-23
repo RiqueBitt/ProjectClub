@@ -1012,9 +1012,10 @@ function LimitedFlag({ item, big }) {
   );
 }
 
-function StateBadge({ item, on }) {
+function StateBadge({ item, on, inCard = false }) {
   if (on) return <span className="room-state equipped"><Ico name="check" size={12} strokeWidth={2.6} /> Equipado</span>;
-  if (item.owned) return <span className="room-state owned">{item.ownedVia === 'SUPPORTER' ? 'Liberado' : 'Adquirido'}</span>;
+  // Na cartela, Comprado/Liberado já aparece no carimbo em cima do item.
+  if (item.owned) return inCard ? null : <span className="room-state owned">{item.ownedVia === 'SUPPORTER' ? 'Liberado' : 'Adquirido'}</span>;
   if (item.locked) return <span className="room-state locked"><Ico name="crown" size={12} strokeWidth={2.2} /> Exclusivo</span>;
   return null;
 }
@@ -1050,10 +1051,11 @@ function packColors(item) {
 // Liga a caixinha 3D da cartela (components/shop/pack3d.js: o modelo do
 // Blender desenhado ao vivo). O motor só carrega quando a primeira cartela
 // aparece; sem WebGL fica a imagem parada (classe .p3d-off).
-function usePack3D(cardRef, tint, tilt) {
+function usePack3D(cardRef, tint, tilt, enabled = true) {
   const ctrl = useRef(null);
   useEffect(() => {
-    const el = cardRef.current?.querySelector('.room-pack');
+    // Item já comprado não tem caixinha (fica só o item com o carimbo).
+    const el = enabled ? cardRef.current?.querySelector('.room-pack') : null;
     if (!el) return undefined;
     let gone = false;
     import('../components/shop/pack3d.js').then((m) => {
@@ -1061,7 +1063,7 @@ function usePack3D(cardRef, tint, tilt) {
       ctrl.current = m.mountPack(el, { color: tint, tilt });
     }).catch(() => el.classList.add('p3d-off'));
     return () => { gone = true; ctrl.current?.destroy(); ctrl.current = null; };
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [enabled]); // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => { ctrl.current?.update({ color: tint, tilt }); }, [tint, tilt]);
   return ctrl;
 }
@@ -1078,7 +1080,7 @@ function ItemCard({ item: base, ctx }) {
   // Quando a cartela aparece na tela, a caixinha dá uma balançadinha no gancho.
   const cardRef = useRef(null);
   const colors = packColors(item);
-  const pack = usePack3D(cardRef, colors.tint, colors.tilt);
+  const pack = usePack3D(cardRef, colors.tint, colors.tilt, !item.owned);
   useEffect(() => {
     const el = cardRef.current;
     if (!el || typeof IntersectionObserver === 'undefined') return undefined;
@@ -1091,7 +1093,7 @@ function ItemCard({ item: base, ctx }) {
   return (
     <article
       ref={cardRef}
-      className={`room-card k-${item.kind}${on ? ' is-on' : ''}${item.locked ? ' is-locked' : ''}${bk?.canAdd(item) ? ' is-grabbable' : ''}${bk?.has(item) ? ' in-basket' : ''}`}
+      className={`room-card k-${item.kind}${item.owned ? ' is-owned' : ''}${on ? ' is-on' : ''}${item.locked ? ' is-locked' : ''}${bk?.canAdd(item) ? ' is-grabbable' : ''}${bk?.has(item) ? ' in-basket' : ''}`}
       onPointerDown={(e) => {
         // no celular não existe "passar o mouse": encostar o dedo já vira e balança a caixinha
         if (e.pointerType !== 'mouse') { pack.current?.pointer(e); pack.current?.nudge(0.5); }
@@ -1106,12 +1108,18 @@ function ItemCard({ item: base, ctx }) {
           (tools/loja-3d) desenhado ao vivo (components/shop/pack3d.js): gira e
           balança de verdade. O item e a etiqueta ficam no FUNDO da caixinha e
           os selos na FRENTE — cada plano recebe a matriz da pose do modelo. */}
-      <span className="room-hook" aria-hidden="true" />
+      {!item.owned && <span className="room-hook" aria-hidden="true" />}
       <button type="button" className="room-card-art" onClick={() => open(item)} aria-label={`Ver detalhes de ${item.name}`}>
+        {item.owned ? (
+          // Já é seu: a caixinha some e o item fica na cartela com o carimbo "Comprado".
+          <span className="room-owned">
+            <span className="room-owned-art"><Preview item={item} user={user} /></span>
+            <span className="room-stamp" aria-hidden="true">{item.ownedVia === 'SUPPORTER' ? 'Liberado' : 'Comprado'}</span>
+          </span>
+        ) : (
         <span className="room-pack">
           <span className="room-pack-back">
             <span className="room-pack-window"><Preview item={item} user={user} /></span>
-            <span className="room-pack-label" aria-hidden="true" style={item.kind === 'font' ? nameStyleProps({ profileFont: fontValue(item) }) : undefined}>{item.name}</span>
           </span>
           <span className="room-pack-plastic" aria-hidden="true" />
           <span className="room-pack-front">
@@ -1123,7 +1131,8 @@ function ItemCard({ item: base, ctx }) {
           </span>
           </span>
         </span>
-        <span className="room-card-state"><StateBadge item={item} on={on} /></span>
+        )}
+        <span className="room-card-state"><StateBadge item={item} on={on} inCard /></span>
         <span className="room-card-peek"><Ico name="eye" size={14} /> Pré-visualizar</span>
       </button>
       {item.kind !== 'back' && !item.owned && !item.exclusiveTier && (
@@ -1219,7 +1228,6 @@ function Pack360({ item, user }) {
       >
         <span className="room-pack-back">
           <span className="room-pack-window"><Preview item={item} user={user} /></span>
-          <span className="room-pack-label" aria-hidden="true">{item.name}</span>
         </span>
         <span className="room-pack-front" />
       </span>
