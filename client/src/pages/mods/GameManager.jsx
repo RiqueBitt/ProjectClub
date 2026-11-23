@@ -8,7 +8,7 @@ import {
 } from '../../api/endpoints';
 import {
   isDesktopModsAvailable, installModLocally, listInstalledModsLocally, onModsProgress,
-  applyProfileLocally, listInstalledWorkshopItemsLocally, openWorkshopItemInSteam,
+  applyProfileLocally, listInstalledWorkshopItemsLocally, openWorkshopItemInSteam, listVortexModsLocally,
   openModsFolder, pickLocalModFile, installLocalModFile, listModConfigFiles, readModConfigFile, writeModConfigFile,
   steamCoverUrl, steamHeroUrl, saveModpackLocal, getModInstallProfileLocally,
 } from '../../utils/mods';
@@ -44,6 +44,9 @@ export default function GameManager({ game, onBack, scrollRef, initialTab = null
   const supported = sourceKeys.length > 0;
   const hasModio = !!game.sources.modio;
   const hasWorkshop = !!game.sources.workshop;
+  // Inscritos no Workshop: vale pra qualquer jogo da Steam (a pasta da
+  // Workshop usa o AppID do jogo), mesmo os que não estão no catálogo.
+  const workshopAppId = game.sources.workshop?.workshopAppId || ((game.platforms || ['steam']).includes('steam') ? game.steamAppId : null);
 
   // "Ver modpack" vindo do perfil abre direto na aba Modpacks.
   const [tab, setTab] = useState(() => (peekPendingModpack(game.steamAppId) ? 'modpacks'
@@ -59,6 +62,9 @@ export default function GameManager({ game, onBack, scrollRef, initialTab = null
   const [installedState, setInstalledState] = useState({ enabled: [], disabled: [] });
   const [installedLoaded, setInstalledLoaded] = useState(false);
   const [workshopIds, setWorkshopIds] = useState([]);
+  const [vortexMods, setVortexMods] = useState([]);
+  // Categoria da aba Instalados: todos, Project Club, Steam Workshop ou Vortex.
+  const [instCat, setInstCat] = useState('all');
   const [profiles, setProfiles] = useState(null);
   const [localInstallBusy, setLocalInstallBusy] = useState(false);
   const [localInstallError, setLocalInstallError] = useState('');
@@ -96,21 +102,29 @@ export default function GameManager({ game, onBack, scrollRef, initialTab = null
   useEffect(() => { refreshInstallProfile(); }, [refreshInstallProfile, installedState]);
 
   const refreshWorkshop = useCallback(() => {
-    if (!desktopReady || !game.installPath || !hasWorkshop) return;
-    return listInstalledWorkshopItemsLocally(game.installPath, game.sources.workshop.workshopAppId).then((d) => {
+    if (!desktopReady || !game.installPath || !workshopAppId) return;
+    return listInstalledWorkshopItemsLocally(game.installPath, workshopAppId).then((d) => {
       const next = d.items || [];
       setWorkshopIds((prev) => (sameData(prev, next) ? prev : next));
     });
-  }, [desktopReady, game.installPath, hasWorkshop, game.sources.workshop]);
+  }, [desktopReady, game.installPath, workshopAppId]);
+
+  const refreshVortex = useCallback(() => {
+    if (!desktopReady || !game.installPath) return;
+    return listVortexModsLocally(game.installPath).then((d) => {
+      const next = d.mods || [];
+      setVortexMods((prev) => (sameData(prev, next) ? prev : next));
+    });
+  }, [desktopReady, game.installPath]);
 
   const refreshProfiles = useCallback(() => {
     if (!hasModio) return;
     listModProfiles(game.sources.modio.modioGameId).then((d) => setProfiles(d.profiles)).catch(() => setProfiles([]));
   }, [hasModio, game.sources.modio]);
 
-  useEffect(() => { refreshInstalled(); refreshWorkshop(); refreshProfiles(); }, [refreshInstalled, refreshWorkshop, refreshProfiles]);
+  useEffect(() => { refreshInstalled(); refreshWorkshop(); refreshVortex(); refreshProfiles(); }, [refreshInstalled, refreshWorkshop, refreshVortex, refreshProfiles]);
   // Ao vivo: mods colocados/tirados da pasta por fora aparecem sozinhos.
-  useLiveRefresh(() => Promise.all([refreshInstalled(), refreshWorkshop()]), { enabled: desktopReady && !!game.installPath });
+  useLiveRefresh(() => Promise.all([refreshInstalled(), refreshWorkshop(), refreshVortex()]), { enabled: desktopReady && !!game.installPath });
 
   const finishLater = useCallback((id) => {
     setTimeout(() => setProgressById((prev) => {
@@ -184,11 +198,19 @@ export default function GameManager({ game, onBack, scrollRef, initialTab = null
   };
 
   const installedTotal = installedState.enabled.length + installedState.disabled.length;
+  const allInstalled = installedTotal + workshopIds.length + vortexMods.length;
+  const instCats = [
+    { key: 'all', label: 'Todos', n: allInstalled },
+    { key: 'pc', label: 'Project Club', n: installedTotal },
+    { key: 'workshop', label: 'Steam Workshop', n: workshopIds.length, hide: !workshopAppId },
+    { key: 'vortex', label: 'Vortex', n: vortexMods.length },
+  ].filter((c) => !c.hide);
+  const showCat = (k) => instCat === 'all' || instCat === k;
   const canTouchDisk = desktopReady && !!game.installPath;
 
   const tabs = [
     supported && { key: 'explore', label: 'Explorar', icon: 'compass' },
-    { key: 'installed', label: 'Instalados', icon: 'puzzle', count: canTouchDisk && installedLoaded ? installedTotal + (hasWorkshop ? workshopIds.length : 0) : null },
+    { key: 'installed', label: 'Instalados', icon: 'puzzle', count: canTouchDisk && installedLoaded ? allInstalled : null },
     { key: 'modpacks', label: 'Modpacks', icon: 'layers' },
     { key: 'files', label: 'Arquivos', icon: 'folder' },
   ].filter(Boolean);
@@ -223,7 +245,7 @@ export default function GameManager({ game, onBack, scrollRef, initialTab = null
         {/* Tempo de jogo + mods instalados + modpacks, juntos. */}
         <GameSummary
           game={game}
-          installedTotal={canTouchDisk && installedLoaded ? installedTotal + (hasWorkshop ? workshopIds.length : 0) : null}
+          installedTotal={canTouchDisk && installedLoaded ? allInstalled : null}
           onOpenTab={(k) => { setTab(k); requestAnimationFrame(() => document.getElementById('mdx-tabs-anchor')?.scrollIntoView({ block: 'start' })); }}
           onOpenLibrary={() => navigate('/jogos/biblioteca')}
         />
@@ -263,7 +285,15 @@ export default function GameManager({ game, onBack, scrollRef, initialTab = null
         {tab === 'installed' && (
           canTouchDisk ? (
             <>
-              <InstalledPanel
+              <div className="mdx-instcats" role="tablist" aria-label="Origem dos mods">
+                {instCats.map((c) => (
+                  <button key={c.key} type="button" role="tab" aria-selected={instCat === c.key} className={`mdx-instcat k-${c.key}${instCat === c.key ? ' on' : ''}`} onClick={() => setInstCat(c.key)}>
+                    {c.key === 'workshop' ? <Icon name="users" size={14} /> : c.key === 'vortex' ? <Icon name="layers" size={14} /> : c.key === 'pc' ? <Icon name="puzzle" size={14} /> : <Icon name="library" size={14} />}
+                    {c.label}<em>{c.n}</em>
+                  </button>
+                ))}
+              </div>
+              {showCat('pc') && <InstalledPanel
                 game={game}
                 installedState={installedState}
                 refreshInstalled={refreshInstalled}
@@ -274,8 +304,9 @@ export default function GameManager({ game, onBack, scrollRef, initialTab = null
                 onAddLocal={doInstallLocalFile}
                 localInstallBusy={localInstallBusy}
                 onUpdatesChanged={onUpdatesChanged}
-              />
-              {hasWorkshop && <div className="mdx-tab-body"><WorkshopSubscribed ids={workshopIds} /></div>}
+              />}
+              {workshopAppId && showCat('workshop') && (instCat === 'workshop' || workshopIds.length > 0) && <div className="mdx-tab-body"><WorkshopSubscribed ids={workshopIds} /></div>}
+              {showCat('vortex') && (instCat === 'vortex' || vortexMods.length > 0) && <div className="mdx-tab-body"><VortexInstalled mods={vortexMods} /></div>}
             </>
           ) : <DiskGuard desktopReady={desktopReady} game={game} what="Gerenciar mods instalados" />
         )}
@@ -419,6 +450,32 @@ function WorkshopSubscribed({ ids }) {
           ))}
         </div>
       )}
+    </Section>
+  );
+}
+
+// Mods que o Vortex implantou neste jogo (só leitura: quem ativa,
+// desativa e atualiza esses é o próprio Vortex).
+function VortexInstalled({ mods }) {
+  const on = mods.filter((m) => m.deployed).length;
+  return (
+    <Section title="Instalados pelo Vortex" icon="layers" right={<span className="mdx-muted">{on} ativos de {mods.length}</span>}>
+      {mods.length === 0 ? (
+        <p className="mdx-muted mdx-pad">Nenhum mod do Vortex neste jogo. Quando o Vortex implantar mods aqui, eles aparecem nesta lista.</p>
+      ) : (
+        <div className="mdx-rows">
+          {mods.map((m) => (
+            <div key={m.folder} className="mdx-row">
+              <span className="mdx-row-icon" style={{ '--h1': hashHue(m.name) }}><Icon name="box" size={18} /></span>
+              <div className="mdx-row-text">
+                <strong title={m.folder}>{m.name}</strong>
+                <span className={`mdx-status ${m.deployed ? 'on' : 'off'}`}>{m.deployed ? `Ativo · ${m.files} ${m.files === 1 ? 'arquivo' : 'arquivos'}` : 'Desativado no Vortex'}</span>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+      <p className="mdx-muted mdx-pad">Esses mods são cuidados pelo Vortex: para ativar, desativar ou atualizar, use o Vortex.</p>
     </Section>
   );
 }
