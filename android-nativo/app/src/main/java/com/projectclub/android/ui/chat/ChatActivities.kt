@@ -297,12 +297,12 @@ private fun YoutubePicker(repo: Repository, music: Boolean, onPick: (String) -> 
             keyboardActions = KeyboardActions(onSearch = { submit() }),
         )
         Spacer(Modifier.height(8.dp))
-        val items = list
+        val vids = list
         when {
-            items == null -> Box(Modifier.fillMaxWidth().height(160.dp), contentAlignment = Alignment.Center) { CircularProgressIndicator(Modifier.size(26.dp)) }
-            items.isEmpty() -> Text("Nada encontrado. Tente outra busca ou cole o link do vídeo.", color = PC.Muted, modifier = Modifier.padding(vertical = 24.dp))
+            vids == null -> Box(Modifier.fillMaxWidth().height(160.dp), contentAlignment = Alignment.Center) { CircularProgressIndicator(Modifier.size(26.dp)) }
+            vids.isEmpty() -> Text("Nada encontrado. Tente outra busca ou cole o link do vídeo.", color = PC.Muted, modifier = Modifier.padding(vertical = 24.dp))
             else -> LazyColumn(Modifier.heightIn(max = 420.dp)) {
-                items(items, key = { it.videoId }) { v ->
+                items(vids, key = { it.videoId }) { v ->
                     Row(
                         Modifier.fillMaxWidth().clip(RoundedCornerShape(10.dp)).clickable { onPick(v.videoId) }.padding(vertical = 6.dp),
                         verticalAlignment = Alignment.CenterVertically,

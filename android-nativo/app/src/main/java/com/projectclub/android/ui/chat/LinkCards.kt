@@ -78,7 +78,7 @@ import kotlin.math.sin
 
 /*
  * Links INTERNOS nas mensagens do chat (igual ao site: utils/internalLinks.js
- * + InternalLinkCard.jsx + activities/*). Cada link do próprio Project Club
+ * + InternalLinkCard.jsx + a pasta activities). Cada link do próprio Project Club
  * vira um cartão: rolagem de dados, cartão da carteira em 3D, vídeo/música do
  * YouTube, perfil, post, evento, canal, Tema do Fórum e Wiki.
  * As "atividades" (carteira, dados, vídeo, música) somem do texto da mensagem.
