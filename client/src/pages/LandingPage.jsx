@@ -181,13 +181,31 @@ function CommandPalette({ open, onClose, onPickApp, actions }) {
 // Cada ícone anda numa elipse em volta do título. Quando passa "atrás"
 // (metade de cima da elipse) fica menor, mais escuro e abaixo das letras;
 // na frente, maior e por cima. A elipse inclina conforme o mouse.
+// O que gira em volta do nome: peças de tecnologia do clube (voz, chat,
+// mods, dados, nuvem...) em dois anéis que giram em sentidos opostos.
+const TECH = [
+  { k: 'chat', c: '#5b8cff', d: 'M4 5h16v11H9l-5 4zM8 9.5h8M8 12.5h5' },
+  { k: 'mic', c: '#22d3ee', d: 'M12 3a3 3 0 0 1 3 3v5a3 3 0 0 1-6 0V6a3 3 0 0 1 3-3zM6 11a6 6 0 0 0 12 0M12 17v4M9 21h6' },
+  { k: 'pad', c: '#a78bfa', d: 'M7 8h10a5 5 0 0 1 4.6 7l-.7 1.7a2.2 2.2 0 0 1-3.8.4L15.5 15h-7l-1.6 2.1a2.2 2.2 0 0 1-3.8-.4L2.4 15A5 5 0 0 1 7 8zM7 11v3M5.5 12.5h3M16 12h.01M18 13.5h.01' },
+  { k: 'mods', c: '#ff5c93', d: 'M10 4a2 2 0 1 1 4 0v1h3a1 1 0 0 1 1 1v3h1a2 2 0 1 1 0 4h-1v3a1 1 0 0 1-1 1h-3v-1a2 2 0 1 0-4 0v1H7a1 1 0 0 1-1-1v-3h1a2 2 0 1 0 0-4H6V6a1 1 0 0 1 1-1h3z' },
+  { k: 'd20', c: '#ff3b3b', d: 'M12 2.5 20.5 7.3v9.4L12 21.5 3.5 16.7V7.3zM12 2.5 8 9.5h8zM3.5 7.3 8 9.5M20.5 7.3 16 9.5M8 9.5l4 7 4-7M12 16.5v5' },
+  { k: 'cloud', c: '#7dd3fc', d: 'M7 18a4.5 4.5 0 0 1-.6-9 6 6 0 0 1 11.4 1.6A3.8 3.8 0 0 1 17.5 18z' },
+  { k: 'code', c: '#4ade80', d: 'M8 7l-5 5 5 5M16 7l5 5-5 5M14 4l-4 16' },
+  { k: 'shield', c: '#facc15', d: 'M12 3l7 3v6c0 4.5-3 7.5-7 9-4-1.5-7-4.5-7-9V6zM9 12l2 2 4-4' },
+  { k: 'bolt', c: '#fb923c', d: 'M13 2 4 14h7l-1 8 9-12h-7z' },
+  { k: 'chip', c: '#c4b5fd', d: 'M7 7h10v10H7zM10 10h4v4h-4zM9 3v4M15 3v4M9 17v4M15 17v4M3 9h4M3 15h4M17 9h4M17 15h4' },
+];
+const TAGS = ['Voz em HD', 'Tempo real', 'Mods', 'RPG', 'Fórum', 'Loja', 'Modpacks', 'Conquistas'];
+
 function Orbit() {
   const ref = useRef(null);
   useEffect(() => {
     const box = ref.current;
     if (!box) return undefined;
-    const items = [...box.querySelectorAll('.lp-orbit-item')];
-    const n = items.length;
+    const items = [...box.querySelectorAll('[data-ring]')];
+    const rings = [...box.querySelectorAll('.lp-ring')];
+    const count = { 0: 0, 1: 0 };
+    items.forEach((el) => { count[el.dataset.ring] += 1; });
     const still = reducedMotion();
     let t = 0; let raf = 0; let last = performance.now();
     let tiltX = 0; let tiltY = 0; let wantX = 0; let wantY = 0;
@@ -198,14 +216,25 @@ function Orbit() {
     };
     const place = () => {
       const w = box.clientWidth; const h = box.clientHeight;
-      const rx = Math.min(w * 0.46, 760);
-      const ry = Math.min(h * 0.24, 170) * (1 + tiltY * 0.3);
-      items.forEach((el, i) => {
-        const a = t + (i / n) * Math.PI * 2;
-        const depth = Math.sin(a); // -1 atrás, 1 na frente
-        const x = Math.cos(a) * rx;
-        const y = depth * ry + h * 0.1 + tiltX * Math.cos(a) * 26;
-        const s = 0.62 + (depth + 1) * 0.26;
+      const R = [
+        { rx: Math.min(w * 0.47, 780), ry: Math.min(h * 0.26, 180), dir: 1, off: 0.1 },
+        { rx: Math.min(w * 0.33, 520), ry: Math.min(h * 0.16, 110), dir: -1.35, off: 0.02 },
+      ];
+      rings.forEach((el, i) => {
+        const r = R[i];
+        el.style.width = `${r.rx * 2}px`; el.style.height = `${r.ry * 2 * (1 + tiltY * 0.3)}px`;
+        el.style.transform = `translate(-50%, calc(-50% + ${(h * r.off).toFixed(1)}px)) rotate(${(tiltX * 3).toFixed(2)}deg)`;
+      });
+      const idx = { 0: 0, 1: 0 };
+      items.forEach((el) => {
+        const ring = el.dataset.ring;
+        const r = R[ring];
+        const i = idx[ring]++;
+        const a = t * r.dir + (i / count[ring]) * Math.PI * 2 + ring * 0.4;
+        const depth = Math.sin(a);
+        const x = Math.cos(a) * r.rx;
+        const y = depth * r.ry * (1 + tiltY * 0.3) + h * r.off + tiltX * Math.cos(a) * 22;
+        const s = 0.6 + (depth + 1) * 0.27;
         el.style.transform = `translate3d(${x.toFixed(1)}px, ${y.toFixed(1)}px, 0) scale(${s.toFixed(3)})`;
         el.style.zIndex = depth > 0 ? 3 : 1;
         el.style.setProperty('--depth', ((depth + 1) / 2).toFixed(3));
@@ -213,7 +242,7 @@ function Orbit() {
     };
     const loop = (now) => {
       const dt = Math.min(64, now - last); last = now;
-      t += dt * 0.00012;
+      t += dt * 0.00011;
       tiltX += (wantX - tiltX) * 0.05; tiltY += (wantY - tiltY) * 0.05;
       place();
       raf = requestAnimationFrame(loop);
@@ -225,10 +254,15 @@ function Orbit() {
   }, []);
   return (
     <div className="lp-orbit" ref={ref} aria-hidden="true">
-      {APPS.map((a, i) => (
-        <span key={a.id} className="lp-orbit-item" style={{ '--c': a.color, '--i': i }}>
-          <img src={`/apps/${a.id}/icon.png`} alt="" width="96" height="96" />
+      <span className="lp-ring is-outer" />
+      <span className="lp-ring is-inner" />
+      {TECH.map((it, i) => (
+        <span key={it.k} data-ring="0" className="lp-orbit-item" style={{ '--c': it.c, '--i': i }}>
+          <span className="lp-tech"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round"><path d={it.d} /></svg></span>
         </span>
+      ))}
+      {TAGS.map((tg, i) => (
+        <span key={tg} data-ring="1" className="lp-orbit-item is-tag" style={{ '--i': i + TECH.length }}><span className="lp-tag"><i />{tg}</span></span>
       ))}
     </div>
   );
@@ -273,17 +307,6 @@ function Embers({ count = 70 }) {
     return () => { on = false; cancelAnimationFrame(raf); io.disconnect(); window.removeEventListener('resize', size); };
   }, [count]);
   return <canvas ref={ref} className="lp-embers" aria-hidden="true" />;
-}
-
-// Personagens do BLACKOUT (arte do compêndio) dos dois lados da abertura.
-// Seguem o mouse com profundidade diferente (--mx/--my vêm da página).
-function HeroCast() {
-  return (
-    <div className="lp-cast" aria-hidden="true">
-      <img className="lp-cast-l" src="/site/personagens/bruxo.webp" alt="" width="656" height="900" />
-      <img className="lp-cast-r" src="/site/personagens/sacerdotisa.webp" alt="" width="575" height="900" />
-    </div>
-  );
 }
 
 // Faixa que corre entre as seções.
@@ -559,8 +582,8 @@ export default function LandingPage() {
       <main id="conteudo">
         <section className="lp-hero" aria-labelledby="titulo">
           <div className="lp-hero-glow" aria-hidden="true" />
+          <div className="lp-hero-grid" aria-hidden="true" />
           <Embers />
-          <HeroCast />
           <div className="lp-hero-stage">
             <Orbit />
             <h1 id="titulo" className="lp-display" aria-label="Project Club"><Letters text="Project" /> <Letters text="Club" start={420} /></h1>
