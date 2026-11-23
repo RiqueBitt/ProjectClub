@@ -107,6 +107,8 @@ data class Role(
     val hoist: Boolean = false,
     val isDefault: Boolean = false,
     val icon: String? = null,
+    /** Bits de permissão em texto (igual ao servidor: BigInt em string). */
+    val permissions: String = "0",
 )
 
 @Serializable

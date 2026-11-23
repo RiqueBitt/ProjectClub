@@ -37,6 +37,7 @@ import kotlinx.coroutines.withTimeoutOrNull
 import kotlinx.serialization.KSerializer
 import kotlinx.serialization.builtins.ListSerializer
 import kotlinx.serialization.builtins.serializer
+import kotlinx.coroutines.async
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.json.JsonArray
@@ -411,10 +412,61 @@ class Repository(private val context: Context, val api: Api, private val scope: 
         _alerts.tryEmit(Alert.SessionStarted)
     }
 
+    // ---------------- permissões (igual a utils/permissions.js do site) ----------------
+
+    /** Tenho [bit] na comunidade? ADMINISTRATOR e o admin da plataforma têm tudo. */
+    fun can(bit: Int): Boolean {
+        val me = _me.value ?: return false
+        if (me.platformRole == "ADMIN") return true
+        val c = _community.value ?: return false
+        val mine = c.members.firstOrNull { it.user.id == me.id } ?: return false
+        var bits = java.math.BigInteger.ZERO
+        c.roles.filter { it.isDefault || it.id in mine.roleIds }.forEach { r ->
+            runCatching { bits = bits.or(java.math.BigInteger(r.permissions)) }
+        }
+        return bits.testBit(PERM_ADMINISTRATOR) || bits.testBit(bit)
+    }
+
+    // ---------------- várias contas (igual ao "Trocar de conta" do site) ----------------
+
+    val accounts = AccountVault(context)
+
+    /**
+     * Guarda a conta atual e troca pra [userId]. Os cookies de login de cada
+     * conta ficam guardados no aparelho e só voltam a ser usados quando você
+     * troca de volta (o servidor gira o cookie a cada renovação, então a foto é
+     * tirada na hora de sair dela e apagada ao entrar).
+     */
+    suspend fun switchAccount(userId: String): Boolean {
+        val target = accounts.cookiesOf(userId) ?: return false
+        // Roda no escopo do app: a tela que pediu sai da composição no meio da troca.
+        return scope.async {
+            parkCurrentAccount()
+            endLocalSession(null)
+            api.cookies.replaceAll(target)
+            accounts.forgetCookies(userId)
+            restore()
+            _session.value == SessionState.LoggedIn
+        }.await()
+    }
+
+    /** "Adicionar outra conta": guarda a atual e abre o login. */
+    suspend fun addAnotherAccount() {
+        parkCurrentAccount()
+        endLocalSession(null)
+    }
+
+    private suspend fun parkCurrentAccount() {
+        val me = _me.value ?: return
+        runCatching { beforeLogout?.invoke() }
+        accounts.save(me, api.cookies.snapshot())
+    }
+
     /** Roda antes de sair (ex.: parar as notificações push deste aparelho). */
     @Volatile var beforeLogout: (suspend () -> Unit)? = null
 
     suspend fun logout() {
+        _me.value?.id?.let(accounts::remove)
         runCatching { beforeLogout?.invoke() }
         runCatching { api.postIgnore("/api/auth/logout") }
         endLocalSession(null)
@@ -970,3 +1022,7 @@ object ChatLogic {
         return instant(m.createdAt) - instant(prev.createdAt) > 5 * 60_000
     }
 }
+
+const val PERM_MANAGE_MESSAGES = 2
+const val PERM_ADMINISTRATOR = 19
+const val PERM_MODERATE_MEMBERS = 20

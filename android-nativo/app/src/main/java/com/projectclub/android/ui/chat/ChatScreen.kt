@@ -45,6 +45,8 @@ import androidx.compose.material.icons.automirrored.filled.InsertDriveFile
 import androidx.compose.material.icons.automirrored.filled.Reply
 import androidx.compose.material.icons.automirrored.filled.Forward
 import androidx.compose.material.icons.filled.Alarm
+import androidx.compose.material.icons.filled.VolumeOff
+import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material.icons.filled.Forum
 import androidx.compose.material.icons.filled.Timer
 import androidx.compose.material.icons.filled.Translate
@@ -190,6 +192,7 @@ fun ChatScreen(
     var showActivities by remember { mutableStateOf(false) }
     val openUserFromMenu = com.projectclub.android.ui.profile.LocalOpenUser.current
     var tipFor by remember { mutableStateOf<Message?>(null) }
+    var moderate by remember { mutableStateOf<Pair<Message, String>?>(null) }
     var threadOpen by remember { mutableStateOf<Message?>(null) }
     var threadFrom by remember { mutableStateOf<Message?>(null) }
     var reportFor by remember { mutableStateOf<Message?>(null) }
@@ -350,6 +353,7 @@ fun ChatScreen(
 
     threadOpen?.let { r -> ThreadScreen(repo, r) { threadOpen = null } }
     threadFrom?.let { m -> CreateThreadDialog(repo, m) { root, msg -> threadFrom = null; msg?.let(::toast); root?.let { threadOpen = it } } }
+    moderate?.let { (m, kind) -> ModerationDialog(repo, m, kind) { msg -> moderate = null; msg?.let(::toast) } }
     tipFor?.let { m -> TipDialog(repo, m) { msg -> tipFor = null; msg?.let(::toast) } }
     reportFor?.let { m -> ReportDialog(repo, m) { msg -> reportFor = null; msg?.let(::toast) } }
     if (showEphemeral && conv != null) EphemeralDialog(repo, conv) { msg -> showEphemeral = false; msg?.let(::toast) }
@@ -429,6 +433,15 @@ fun ChatScreen(
             if (m.authorId == me?.id) {
                 if (!m.content.isNullOrBlank()) SheetItem(Icons.Filled.Edit, "Editar") { vm.setEditing(m); menuFor = null }
                 SheetItem(Icons.Filled.Delete, "Apagar", danger = true) { confirmDelete = m; menuFor = null }
+            } else if (m.channelId != null && repo.can(com.projectclub.android.data.PERM_MANAGE_MESSAGES)) {
+                SheetItem(Icons.Filled.Delete, "Apagar mensagem", danger = true) { confirmDelete = m; menuFor = null }
+            }
+            // Moderação (igual ao site): só em canal, não em si mesmo nem em admin, com MODERATE_MEMBERS.
+            if (m.channelId != null && m.authorId != null && m.authorId != me?.id && m.author?.platformRole != "ADMIN" &&
+                repo.can(com.projectclub.android.data.PERM_MODERATE_MEMBERS)
+            ) {
+                SheetItem(Icons.Filled.Warning, "Advertir autor", danger = true) { menuFor = null; moderate = m to "warn" }
+                SheetItem(Icons.Filled.VolumeOff, "Silenciar autor", danger = true) { menuFor = null; moderate = m to "timeout" }
             }
             Spacer(Modifier.navigationBarsPadding().padding(bottom = 12.dp))
         } }

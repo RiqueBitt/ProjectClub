@@ -120,6 +120,10 @@ fun HomeTab(repo: Repository, actions: HomeActions, nav: com.projectclub.android
                 }
             }
 
+            // Primeiros passos + tour de boas-vindas (igual ao site)
+            val firstVoice = allChannels.sortedBy { it.position }.firstOrNull { it.isVoice }
+            OnboardingHost(repo, actions, nav, firstVoice?.let { it.id to it.name }, firstChat?.let { Room(channelId = it.id) })
+
             // Atalhos 2x2
             Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                 QuickCard(Icons.Outlined.ChatBubbleOutline, "Conversar", firstChat?.let { "# ${it.name}" } ?: "Canais", Modifier.weight(1f)) {
