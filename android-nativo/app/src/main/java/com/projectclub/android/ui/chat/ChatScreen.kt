@@ -45,6 +45,7 @@ import androidx.compose.material.icons.automirrored.filled.InsertDriveFile
 import androidx.compose.material.icons.automirrored.filled.Reply
 import androidx.compose.material.icons.automirrored.filled.Forward
 import androidx.compose.material.icons.filled.Alarm
+import androidx.compose.material.icons.filled.Forum
 import androidx.compose.material.icons.filled.Timer
 import androidx.compose.material.icons.filled.Translate
 import androidx.compose.material.icons.filled.RecordVoiceOver
@@ -189,6 +190,8 @@ fun ChatScreen(
     var showActivities by remember { mutableStateOf(false) }
     val openUserFromMenu = com.projectclub.android.ui.profile.LocalOpenUser.current
     var tipFor by remember { mutableStateOf<Message?>(null) }
+    var threadOpen by remember { mutableStateOf<Message?>(null) }
+    var threadFrom by remember { mutableStateOf<Message?>(null) }
     var reportFor by remember { mutableStateOf<Message?>(null) }
     var showEphemeral by remember { mutableStateOf(false) }
     var recording by remember { mutableStateOf(false) }
@@ -286,6 +289,7 @@ fun ChatScreen(
                                 },
                                 onReact = { e -> vm.react(m, e) },
                                 onImage = { viewing = it },
+                                onOpenThread = { threadOpen = it },
                             )
                             if (m.id == firstUnreadId) NewMessagesDivider()
                         }
@@ -344,6 +348,8 @@ fun ChatScreen(
     }
     }
 
+    threadOpen?.let { r -> ThreadScreen(repo, r) { threadOpen = null } }
+    threadFrom?.let { m -> CreateThreadDialog(repo, m) { root, msg -> threadFrom = null; msg?.let(::toast); root?.let { threadOpen = it } } }
     tipFor?.let { m -> TipDialog(repo, m) { msg -> tipFor = null; msg?.let(::toast) } }
     reportFor?.let { m -> ReportDialog(repo, m) { msg -> reportFor = null; msg?.let(::toast) } }
     if (showEphemeral && conv != null) EphemeralDialog(repo, conv) { msg -> showEphemeral = false; msg?.let(::toast) }
@@ -413,6 +419,7 @@ fun ChatScreen(
                 SheetItem(Icons.Filled.Favorite, "Agradecer") { menuFor = null; scope.launch { toast(thankMessage(repo, m)) } }
                 SheetItem(Icons.Filled.Paid, "Dar gorjeta") { menuFor = null; tipFor = m }
             }
+            if (m.channelId != null && m.threadId == null && m.title == null) SheetItem(Icons.Filled.Forum, "Criar tópico") { menuFor = null; threadFrom = m }
             SheetItem(Icons.Filled.Tag, "Copiar ID da mensagem") {
                 (ctx.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager).setPrimaryClip(ClipData.newPlainText("id", m.id))
                 menuFor = null
@@ -474,6 +481,7 @@ private fun SheetItem(icon: androidx.compose.ui.graphics.vector.ImageVector, lab
 private fun MessageItem(
     m: Message, repo: Repository, myId: String?, myUsername: String?, header: Boolean, pending: Boolean,
     onLongPress: () -> Unit, onReact: (String) -> Unit, onImage: (String) -> Unit,
+    onOpenThread: (Message) -> Unit = {},
     /** "pendente" (fila offline) / "enviando…" embaixo da mensagem. */
     status: String? = null,
 ) {
@@ -540,6 +548,7 @@ private fun MessageItem(
                 }
             }
             m.poll?.let { ChatPollCard(repo, it, myId) }
+            if (m.title != null && m.channelId != null && m.replyToId != null) ThreadCard(m) { onOpenThread(m) }
             TranslationLine(m.id)
             if (m.edited) Text("(editado)", color = PC.Muted, style = MaterialTheme.typography.labelSmall)
             status?.let { Text(it, color = PC.Yellow, style = MaterialTheme.typography.labelSmall) }

@@ -204,6 +204,14 @@ data class Message(
     val contentFiltered: Boolean = false,
     /** Enquete do chat (POST /api/polls): opções em JSON, votos com quem votou. */
     val poll: ChatPoll? = null,
+    /** Tópicos: a raiz tem title + replyToId; as respostas têm threadId = id da raiz. */
+    val title: String? = null,
+    val threadId: String? = null,
+    val isThread: Boolean = false,
+    val threadReplyCount: Int = 0,
+    val threadArchivedAt: String? = null,
+    val archived: Boolean = false,
+    val threadLastReply: ThreadLastReply? = null,
 ) {
     val roomId: String? get() = channelId ?: conversationId
 }
@@ -314,3 +322,6 @@ data class ChatPoll(
     val votes: List<ChatPollVote> = emptyList(),
     val expiresAt: String? = null,
 )
+
+@Serializable
+data class ThreadLastReply(val id: String = "", val createdAt: String? = null, val author: User? = null, val preview: String? = null)

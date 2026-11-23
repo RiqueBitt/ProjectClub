@@ -172,6 +172,7 @@ class ChatViewModel(private val repo: Repository, val room: Room) : ViewModel() 
             "message:new", "message:update" -> {
                 val m = runCatching { AppJson.decodeFromJsonElement<Message>(data ?: return) }.getOrNull() ?: return
                 if (!mine(m)) return
+                if (m.threadId != null) return // resposta de tópico: aparece só no tópico
                 _state.update { s ->
                     // Uma reação/edição em mensagem que não está carregada não entra na lista.
                     if (name == "message:update" && s.messages.none { it.id == m.id }) s

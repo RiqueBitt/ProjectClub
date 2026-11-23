@@ -698,6 +698,22 @@ class Repository(private val context: Context, val api: Api, private val scope: 
         return AppJson.decodeFromString(MessageResponse.serializer(), text).message
     }
 
+    /** Tópico: cria a raiz (title + replyToId) ou responde nele (threadId). */
+    suspend fun sendThread(channelId: String, content: String?, threadId: String? = null, parentId: String? = null, title: String? = null): Message {
+        val mb = MultipartBody.Builder().setType(MultipartBody.FORM)
+        mb.addFormDataPart("channelId", channelId)
+        threadId?.let { mb.addFormDataPart("threadId", it) }
+        parentId?.let { mb.addFormDataPart("replyToId", it) }
+        title?.let { mb.addFormDataPart("title", it) }
+        if (!content.isNullOrBlank()) mb.addFormDataPart("content", content)
+        mb.addFormDataPart("nonce", UUID.randomUUID().toString())
+        val text = api.postBody("/api/messages?channelId=$channelId", mb.build())
+        return AppJson.decodeFromString(MessageResponse.serializer(), text).message
+    }
+
+    suspend fun threadMessages(channelId: String, threadId: String): List<Message> =
+        api.get<MessagesResponse>("/api/messages?channelId=$channelId&threadId=" + Uri.encode(threadId)).messages
+
     /** Figurinha: vai como mensagem própria (campo stickerUrl, igual ao site). */
     suspend fun sendSticker(room: Room, stickerUrl: String, nonce: String = UUID.randomUUID().toString()): Message {
         val mb = MultipartBody.Builder().setType(MultipartBody.FORM)
