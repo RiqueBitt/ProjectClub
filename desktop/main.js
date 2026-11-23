@@ -120,8 +120,8 @@ const appIconShell = lazy('./appIconShell');
 // Leva o ícone escolhido pra barra de tarefas, área de trabalho e menu (ver appIconShell.js).
 function applySystemIcon(img) {
   try {
-    appIconShell().applySystemIcon({ app, shell, win: mainWindow, appId: APP_USER_MODEL_ID, img, userDataDir: app.getPath('userData'), defaultIconPng: path.join(__dirname, 'build', 'icon.png') });
-  } catch { /* melhor esforço */ }
+    return appIconShell().applySystemIcon({ app, shell, win: mainWindow, appId: APP_USER_MODEL_ID, img, userDataDir: app.getPath('userData'), defaultIconPng: path.join(__dirname, 'build', 'icon.png') });
+  } catch (err) { console.warn('[app-icon]', err?.message || err); return 0; }
 }
 function customIconImage() {
   try {
@@ -1175,24 +1175,32 @@ if (!gotLock) {
         const def = nativeImage.createFromPath(path.join(__dirname, 'build', process.platform === 'win32' ? 'icon.ico' : 'icon.png'));
         if (!def.isEmpty()) mainWindow?.setIcon(def);
         try { tray?.setImage(path.join(__dirname, 'build', process.platform === 'win32' ? 'icon.ico' : 'tray.png')); } catch { /* sem bandeja */ }
-        try { fs.unlinkSync(path.join(app.getPath('userData'), 'app-icon.shell')); } catch { /* ok */ }
-        if (had) applySystemIcon(null); // o site manda isso a cada abertura: só mexe nos atalhos se mudou
+        const marks = ['app-icon.shell', 'app-icon.applied'].map((n) => path.join(app.getPath('userData'), n));
+        const applied = marks.some((m) => fs.existsSync(m));
+        for (const m of marks) { try { fs.unlinkSync(m); } catch { /* ok */ } }
+        if (had || applied) applySystemIcon(null); // o site manda isso a cada abertura: só mexe nos atalhos se mudou
         return true;
       }
       if (typeof dataUrl !== 'string' || !dataUrl.startsWith('data:image/png;base64,') || dataUrl.length > 1400000) return false;
       const img = nativeImage.createFromDataURL(dataUrl);
       if (img.isEmpty()) return false;
       const png = img.toPNG();
+      // Marca "app-icon.applied" = hash do ícone que os atalhos do sistema já
+      // receberam. O site manda o ícone a cada abertura: só mexe nos atalhos
+      // quando ele muda. (A marca antiga "app-icon.shell" era gravada mesmo
+      // quando a troca falhava — por isso o nome novo: quem ficou com ela
+      // recebe o ícone nos atalhos na próxima abertura.)
+      const hash = require('crypto').createHash('sha1').update(png).digest('hex');
+      const mark = path.join(app.getPath('userData'), 'app-icon.applied');
       let same = false;
-      // Marca "app-icon.shell" = atalhos do sistema já receberam este ícone
-      // (quem escolheu o ícone antes desta correção ainda precisa aplicar).
-      const mark = path.join(app.getPath('userData'), 'app-icon.shell');
-      try { same = fs.readFileSync(CUSTOM_ICON_FILE()).equals(png) && fs.existsSync(mark); } catch { /* não tinha */ }
-      if (!same) { try { fs.writeFileSync(mark, String(Date.now())); } catch { /* ok */ } }
+      try { same = fs.readFileSync(mark, 'utf8').trim() === hash; } catch { /* nunca aplicou */ }
       fs.writeFileSync(CUSTOM_ICON_FILE(), png);
       mainWindow?.setIcon(img);
       try { tray?.setImage(img.resize({ width: 32, height: 32 })); } catch { /* sem bandeja */ }
-      if (!same) applySystemIcon(img); // mesmo ícone de antes: atalhos já estão certos
+      if (!same) {
+        applySystemIcon(img);
+        try { fs.writeFileSync(mark, hash); } catch { /* ok */ }
+      }
       return true;
     } catch { return false; }
   });
