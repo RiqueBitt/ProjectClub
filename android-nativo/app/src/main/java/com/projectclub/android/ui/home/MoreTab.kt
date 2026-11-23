@@ -30,6 +30,7 @@ import androidx.compose.material.icons.outlined.AutoAwesome
 import androidx.compose.material.icons.outlined.Extension
 import androidx.compose.material.icons.outlined.Home
 import androidx.compose.material.icons.outlined.MonitorHeart
+import androidx.compose.material.icons.outlined.QrCodeScanner
 import androidx.compose.material.icons.outlined.StickyNote2
 import androidx.compose.material.icons.outlined.Campaign
 import androidx.compose.material.icons.outlined.Bookmark
@@ -115,8 +116,9 @@ fun MoreTab(repo: Repository, actions: HomeActions, nav: com.projectclub.android
         Entry(Icons.Outlined.StickyNote2, "Figurinhas", Color(0xFFF472B6), "/figurinhas"),
         Entry(Icons.Outlined.Home, "Casas", Color(0xFFFBBF24), "/casas"),
         Entry(Icons.Outlined.Extension, "Mods", Color(0xFF4ADE80), "/jogos/mods"),
-        Entry(Icons.Outlined.AutoAwesome, "Retrospectiva", PC.Purple, "/retrospectiva"),
+        Entry(Icons.Outlined.AutoAwesome, "Criadores", PC.Purple, "/loja/criadores"),
         Entry(Icons.Outlined.MonitorHeart, "Status", PC.Green, "/status"),
+        Entry(Icons.Outlined.QrCodeScanner, "Entrar no PC", PC.Brand, "/entrar-qr"),
     )
 
     Column(Modifier.fillMaxSize()) {

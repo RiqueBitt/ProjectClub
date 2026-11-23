@@ -286,6 +286,9 @@ class MainActivity : ComponentActivity() {
         }
         }
 
+        // "Entrar no computador" pelo QR Code.
+        com.projectclub.android.ui.qr.QrLoginHost(app.repo)
+
         // Comunicado do Painel da Staff (igual ao do site/PC).
         com.projectclub.android.ui.announcements.PlatformAnnouncementDialog(app.repo) { appNav.link(it) }
 

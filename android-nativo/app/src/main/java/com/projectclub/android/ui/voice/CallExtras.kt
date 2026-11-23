@@ -43,6 +43,10 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.foundation.gestures.awaitEachGesture
+import androidx.compose.foundation.gestures.awaitFirstDown
+import androidx.compose.foundation.gestures.waitForUpOrCancellation
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.scale
@@ -138,5 +142,79 @@ fun CallPersonSheet(user: User?, userId: String, volume: Int, onVolume: (Int) ->
             Spacer(Modifier.height(10.dp))
             GhostButton("Ver perfil", onProfile, Modifier.fillMaxWidth(), icon = Icons.Outlined.Person)
         }
+    }
+}
+
+/* ---------------- Soundboard e apertar para falar (iguais ao site) ---------------- */
+
+@kotlinx.serialization.Serializable
+data class SoundboardSound(val id: String = "", val name: String = "", val emoji: String? = null, val url: String = "", val durationMs: Int? = null)
+
+@kotlinx.serialization.Serializable
+data class SoundboardList(val sounds: List<SoundboardSound> = emptyList())
+
+@Composable
+fun SoundboardPanel(state: com.projectclub.android.voice.CallState, actions: CallActions) {
+    var sounds by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf<List<SoundboardSound>?>(null) }
+    var msg by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf<String?>(null) }
+    var playing by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf<String?>(null) }
+    androidx.compose.runtime.LaunchedEffect(Unit) { sounds = actions.loadSounds() }
+    Column(
+        Modifier.padding(horizontal = 16.dp, vertical = 4.dp).fillMaxWidth().clip(RoundedCornerShape(20.dp)).background(PC.Surface2)
+            .border(1.dp, PC.Line, RoundedCornerShape(20.dp)).padding(10.dp),
+    ) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Text("Soundboard", color = PC.Header, fontWeight = androidx.compose.ui.text.font.FontWeight.Bold, modifier = Modifier.weight(1f))
+            Text("Apertar para falar", color = PC.Muted, fontSize = 12.sp)
+            Spacer(Modifier.width(6.dp))
+            androidx.compose.material3.Switch(checked = state.pushToTalk, onCheckedChange = actions.setPushToTalk)
+        }
+        val list = sounds
+        when {
+            list == null -> Text("Carregando sons…", color = PC.Muted, fontSize = 12.sp, modifier = Modifier.padding(vertical = 6.dp))
+            list.isEmpty() -> Text("Ainda não tem sons. A staff adiciona pelo PC.", color = PC.Muted, fontSize = 12.sp, modifier = Modifier.padding(vertical = 6.dp))
+            else -> androidx.compose.foundation.lazy.LazyRow(horizontalArrangement = Arrangement.spacedBy(6.dp), modifier = Modifier.padding(top = 6.dp)) {
+                items(list.size) { i ->
+                    val snd = list[i]
+                    Column(
+                        Modifier.width(76.dp).clip(RoundedCornerShape(14.dp)).background(if (playing == snd.id) PC.Brand.copy(alpha = 0.25f) else PC.Surface3)
+                            .clickable(enabled = !state.deafened) {
+                                playing = snd.id; msg = null
+                                actions.playSound(snd.id) { err -> playing = null; msg = err }
+                            }.padding(vertical = 8.dp, horizontal = 4.dp),
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                    ) {
+                        Text(snd.emoji?.takeIf { it.isNotBlank() } ?: "🔊", fontSize = 24.sp)
+                        Text(snd.name, color = PC.Text, fontSize = 11.sp, maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis)
+                    }
+                }
+            }
+        }
+        if (state.deafened) Text("Você está sem som — ligue o áudio pra usar o soundboard.", color = PC.Muted, fontSize = 11.sp)
+        msg?.let { Text(it, color = PC.Red, fontSize = 12.sp, modifier = Modifier.padding(top = 4.dp)) }
+    }
+}
+
+/** Botão grande: segure para falar, solte pra mutar de novo. */
+@Composable
+fun PushToTalkButton(state: com.projectclub.android.voice.CallState, actions: CallActions) {
+    val held = state.pttHeld
+    Box(
+        Modifier.padding(horizontal = 16.dp, vertical = 4.dp).fillMaxWidth().height(56.dp).clip(RoundedCornerShape(18.dp))
+            .background(if (held) PC.Green else PC.Surface2).border(1.dp, if (held) PC.Green else PC.Line, RoundedCornerShape(18.dp))
+            .pointerInput(Unit) {
+                awaitEachGesture {
+                    awaitFirstDown(requireUnconsumed = false)
+                    actions.pushToTalk(true)
+                    waitForUpOrCancellation()
+                    actions.pushToTalk(false)
+                }
+            },
+        contentAlignment = Alignment.Center,
+    ) {
+        Text(
+            when { state.muted || state.deafened -> "Desmute o microfone pra falar"; held -> "Falando…"; else -> "Segure para falar" },
+            color = if (held) Color.Black else PC.Header, fontWeight = androidx.compose.ui.text.font.FontWeight.Bold,
+        )
     }
 }

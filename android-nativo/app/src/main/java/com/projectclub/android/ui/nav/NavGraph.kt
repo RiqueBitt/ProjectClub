@@ -85,6 +85,7 @@ class AppNavigator(
     override fun search() = go("search")
     override fun games(userId: String) = go("games/$userId")
     override fun trades() = go("trades")
+    override fun route(route: String) = go(route)
     override fun site(path: String) = com.projectclub.android.ui.praca.SiteActivity.open(context, path)
 
     // ---- links bonitos (/canal/<nome>, /dm/<@>, /perfil/<@>, /evento/<nome>, /forum/<nome>) ----
@@ -143,7 +144,18 @@ class AppNavigator(
             "dm", "conversations" -> seg.getOrNull(1)?.let { openConversationRef(it) } ?: onHome(2)
             "dms", "amigos" -> onHome(2)
             "notifications" -> onHome(3)
-            "loja" -> if (tab == "trocas") trades() else store(tab)
+            "loja" -> when {
+                seg.getOrNull(1) == "criadores" -> go("creator-shop")
+                seg.getOrNull(1) == "colecao" && seg.getOrNull(2) != null -> store("colecao:" + seg[2])
+                tab == "trocas" -> trades()
+                else -> store(tab)
+            }
+            "wiki" -> go(seg.getOrNull(1)?.let { "wiki/" + enc(it) } ?: "wiki")
+            "status" -> go("status")
+            "figurinhas" -> go("stickers")
+            "carteira" -> seg.getOrNull(1)?.let { go("wallet/" + enc(it)) } ?: economy()
+            "sorteio" -> economy()
+            "retrospectiva" -> onHome(0)
             "economia", "missoes" -> economy()
             "progresso" -> progress(tab)
             "rank" -> progress("ranks")
@@ -159,6 +171,11 @@ class AppNavigator(
             "tickets" -> tickets()
             "atividade" -> activity()
             "search" -> search()
+            "entrar-qr" -> {
+                val code = com.projectclub.android.ui.qr.QrLogin.codeFrom(uri.toString())
+                if (code != null) com.projectclub.android.ui.qr.QrLogin.pending.value = code
+                else com.projectclub.android.ui.qr.QrLogin.scan(context) // sem código: abre o leitor
+            }
             "jogos" -> if (seg.getOrNull(1) == "biblioteca") {
                 val ref = seg.getOrNull(2)
                 if (ref == null) games("me") else openUserRef(ref) { games(it) }
@@ -218,5 +235,11 @@ fun NavGraphBuilder.featureScreens(repo: Repository, nav: AppNav) {
     screen("activity") { com.projectclub.android.ui.activity.ActivityScreen(repo, nav) }
     screen("search") { com.projectclub.android.ui.activity.SearchScreen(repo, nav) }
     screen("trades") { com.projectclub.android.ui.store.TradesScreen(repo, nav) }
+    screen("wiki") { com.projectclub.android.ui.extra.WikiScreen(repo, nav) }
+    screen("wiki/{slug}", listOf("slug")) { com.projectclub.android.ui.extra.WikiPageScreen(repo, nav, it?.getString("slug").orEmpty()) }
+    screen("status") { com.projectclub.android.ui.extra.StatusScreen(repo, nav) }
+    screen("stickers") { com.projectclub.android.ui.extra.StickersScreen(repo, nav) }
+    screen("creator-shop") { com.projectclub.android.ui.extra.CreatorShopScreen(repo, nav) }
+    screen("wallet/{id}", listOf("id")) { com.projectclub.android.ui.extra.WalletCardScreen(repo, nav, it?.getString("id").orEmpty()) }
     screen("games/{id}", listOf("id")) { com.projectclub.android.ui.activity.GamesScreen(repo, nav, it?.getString("id").orEmpty()) }
 }

@@ -110,6 +110,8 @@ dependencies {
     implementation("androidx.navigation:navigation-compose:2.8.5")
     // Abas do Chrome para o que não tem tela nativa (painel da equipe, minijogos, links de fora).
     implementation("androidx.browser:browser:1.8.0")
+    // Leitor de QR Code do Google ("Entrar no PC com o celular"): não pede permissão de câmera.
+    implementation("com.google.android.gms:play-services-code-scanner:16.1.0")
 
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.9.0")
     implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.7.3")

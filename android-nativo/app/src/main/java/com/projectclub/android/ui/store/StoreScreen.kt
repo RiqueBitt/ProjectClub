@@ -136,7 +136,7 @@ fun StoreScreen(repo: Repository, nav: AppNav, initialTab: String?) {
     var error by remember { mutableStateOf<String?>(null) }
     var refreshing by remember { mutableStateOf(false) }
     var tab by rememberSaveable {
-        mutableStateOf(when (initialTab) { "molduras" -> StoreTab.Frames; "efeitos" -> StoreTab.Effects; "fontes" -> StoreTab.Fonts; "estilos" -> StoreTab.Styles; "limitados" -> StoreTab.Limited; "colecoes" -> StoreTab.Collections; "meus" -> StoreTab.Mine; "trocas" -> StoreTab.Trades; else -> StoreTab.All })
+        mutableStateOf(when (if (initialTab?.startsWith("colecao:") == true) "colecoes" else initialTab) { "molduras" -> StoreTab.Frames; "efeitos" -> StoreTab.Effects; "fontes" -> StoreTab.Fonts; "estilos" -> StoreTab.Styles; "limitados" -> StoreTab.Limited; "colecoes" -> StoreTab.Collections; "meus" -> StoreTab.Mine; "trocas" -> StoreTab.Trades; else -> StoreTab.All })
     }
     var query by rememberSaveable { mutableStateOf("") }
     var selected by remember { mutableStateOf<ShopItem?>(null) }
@@ -148,6 +148,12 @@ fun StoreScreen(repo: Repository, nav: AppNav, initialTab: String?) {
         catch (e: Exception) { if (shop == null) error = e.message ?: "Não deu pra abrir a Loja." }
     }
     LaunchedEffect(Unit) { load() }
+    // Link de coleção (/loja/colecao/<nome ou id>): abre a coleção certa, igual ao site.
+    LaunchedEffect(shop) {
+        val ref = initialTab?.takeIf { it.startsWith("colecao:") }?.removePrefix("colecao:") ?: return@LaunchedEffect
+        val list = shop?.collections ?: return@LaunchedEffect
+        list.firstOrNull { it.id == ref || slugify(it.name) == ref.lowercase() }?.let { selectedCollection = it }
+    }
 
     fun toast(t: String) = Toast.makeText(ctx, t, Toast.LENGTH_SHORT).show()
 
@@ -550,3 +556,8 @@ private fun WishlistButton(repo: com.projectclub.android.data.Repository, item: 
         color = if (cur) PC.Pink else PC.Text,
     )
 }
+
+/** Igual ao slugify do site (utils/prettyPaths.js). */
+private fun slugify(input: String): String =
+    java.text.Normalizer.normalize(input, java.text.Normalizer.Form.NFKD).replace(Regex("\\p{Mn}+"), "").lowercase()
+        .replace("ß", "ss").replace("æ", "ae").replace("ø", "o").replace(Regex("[^a-z0-9]+"), "-").trim('-').take(60).trim('-')
