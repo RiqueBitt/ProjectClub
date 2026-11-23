@@ -489,7 +489,7 @@ function MessageBody({ message, showAuthor, onReply, topics = [], onOpenTopic, i
         <span className="message-gutter-time" title={formatEmbedTime(message.createdAt)}>{formatTimeOnly(message.createdAt)}{message.expiresAt && <EphemeralMark expiresAt={message.expiresAt} />}</span>
       )}
       {showAuthor && (
-        <div className="avatar clickable" onClick={(e) => useStore.getState().openMiniProfile(message.authorId, e.currentTarget.getBoundingClientRect())}>
+        <div className="avatar clickable" data-profile-id={message.authorId} onClick={(e) => useStore.getState().openMiniProfile(message.authorId, e.currentTarget.getBoundingClientRect())}>
           <UserAvatar user={message.author} size={40} />
         </div>
       )}

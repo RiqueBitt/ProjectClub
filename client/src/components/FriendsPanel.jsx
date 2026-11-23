@@ -168,7 +168,7 @@ export default function FriendsPanel() {
           {list.map((f, i) => (
             <li key={f.id} style={{ '--i': i }} className={`fx-card${f.status === 'PENDING' && f.isIncoming ? ' is-incoming' : ''}`}>
               <button
-                type="button" className="fx-who"
+                type="button" className="fx-who" data-profile-id={f.user.id}
                 onClick={(e) => useStore.getState().openMiniProfile(f.user.id, e.currentTarget.getBoundingClientRect())}
               >
                 <span className="fx-avatar">

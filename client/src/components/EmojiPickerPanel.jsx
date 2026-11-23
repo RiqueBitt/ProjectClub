@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { forwardRef, memo, useCallback, useEffect, useImperativeHandle, useMemo, useRef, useState } from 'react';
 import { useStore } from '../store/useStore';
 import { useSheetDrag } from '../utils/useSheetDrag';
 import emojiGroups from 'unicode-emoji-json/data-by-group.json';
@@ -16,8 +16,77 @@ import starIcon from '../assets/icons/star.png';
 // junto com as coleções de emoji personalizado no mesmo rail lateral
 // — o padrão sempre por último, depois de qualquer coleção que a
 // comunidade tenha criado.
-const UNICODE_ALL = emojiGroups.flatMap((g) => g.emojis.map((e) => ({ emoji: e.emoji, name: e.name })));
+const UNICODE_ALL = emojiGroups.flatMap((g) => g.emojis.map((e) => ({ emoji: e.emoji, name: e.name, lower: e.name.toLowerCase() })));
 const UNICODE_COLLECTION_KEY = 'unicode-default';
+// Quantos emojis padrão entram no 1º quadro ao abrir (o resto vem logo em
+// seguida, quando o navegador fica livre) — abrir não trava mais.
+const UNICODE_FIRST_BATCH = 240;
+const UNICODE_BATCH = 280;
+
+// Cache da sessão: categorias de GIF (mudam raramente) e "GIFs em alta"
+// (5 min). Antes eram buscadas no servidor (EUA) a CADA abertura.
+let gifCategoriesCache = null;
+let trendingCache = null; // { at, results }
+const TRENDING_TTL_MS = 5 * 60 * 1000;
+
+// Rodapé de prévia com estado PRÓPRIO: passar o mouse num emoji só
+// redesenha este rodapé. Antes o estado ficava no seletor inteiro e cada
+// movimento do mouse redesenhava ~2000 botões.
+const PickerPreview = forwardRef(function PickerPreview(_props, ref) {
+  const [hovered, setHovered] = useState(null); // { img?, emoji?, name }
+  useImperativeHandle(ref, () => ({ show: (h) => setHovered((prev) => (prev && h && prev.name === h.name ? prev : h)) }), []);
+  return (
+    <div className="emoji-picker-preview" aria-hidden="true">
+      {hovered ? (
+        <>
+          {hovered.img ? <img src={hovered.img} alt="" /> : <StyledEmoji emoji={hovered.emoji} size={30} />}
+          <span className="truncate">{hovered.name}</span>
+        </>
+      ) : <span className="emoji-picker-preview-hint">Passe o mouse para ver o nome</span>}
+    </div>
+  );
+});
+
+// Grades memorizadas: só redesenham quando a lista/busca muda (não a cada
+// passada de mouse). A prévia é lida dos atributos data-pv-* do botão.
+const ImageGrid = memo(function ImageGrid({ list, className, onPickItem, nameOf }) {
+  return (
+    <div className={className}>
+      {list.map((e) => (
+        <button key={e.id} title={nameOf(e)} data-pv-img={e.url} data-pv-name={nameOf(e)} onClick={() => onPickItem(e)}>
+          <img src={e.url} alt={e.name} loading="lazy" decoding="async" />
+        </button>
+      ))}
+    </div>
+  );
+});
+
+// Um pedaço fixo da lista (memorizado): lotes novos não redesenham os já
+// mostrados.
+const UnicodeChunk = memo(function UnicodeChunk({ list, onPickEmoji }) {
+  return list.map((e) => (
+    <button key={e.emoji} data-pv-emoji={e.emoji} data-pv-name={e.name} onClick={() => onPickEmoji(e.emoji)} title={e.name}>
+      <StyledEmoji emoji={e.emoji} size={24} />
+    </button>
+  ));
+});
+
+const UNICODE_CHUNKS = (() => {
+  const out = [UNICODE_ALL.slice(0, UNICODE_FIRST_BATCH)];
+  for (let i = UNICODE_FIRST_BATCH; i < UNICODE_ALL.length; i += UNICODE_BATCH) out.push(UNICODE_ALL.slice(i, i + UNICODE_BATCH));
+  return out;
+})();
+
+function UnicodeGrid({ chunks, onPickEmoji }) {
+  return (
+    <div className="emoji-picker-grid">
+      {chunks.map((list, i) => <UnicodeChunk key={i} list={list} onPickEmoji={onPickEmoji} />)}
+    </div>
+  );
+}
+
+const emojiName = (e) => `:${e.name}:`;
+const stickerName = (s) => s.name;
 
 // Google desligou a API do Tenor em 2026-06-30; a busca usa a KLIPY (mesmo
 // formato do Tenor v2). A chave fica SÓ no servidor: o navegador chama
@@ -62,9 +131,33 @@ export default function EmojiPicker({ serverEmojis = [], serverStickers = [], on
   // Emojis (personalizado + padrão + de outros servidores juntos no
   // mesmo rail), Figurinhas, GIFs.
   const [tab, setTab] = useState(initialTab);
-  // Prévia do que está sob o mouse (rodapé): emoji/figurinha grande + nome.
-  const [hovered, setHovered] = useState(null); // { img?, emoji?, name }
+  // Prévia do que está sob o mouse (rodapé) — ver PickerPreview.
+  const previewRef = useRef(null);
+  const setHovered = (h) => previewRef.current?.show(h);
+  const onGridHover = (e) => {
+    const el = e.target.closest?.('[data-pv-name]');
+    if (!el) return;
+    setHovered(el.dataset.pvImg ? { img: el.dataset.pvImg, name: el.dataset.pvName } : { emoji: el.dataset.pvEmoji, name: el.dataset.pvName });
+  };
   const [query, setQuery] = useState('');
+  // Emojis padrão em lotes (ver UNICODE_FIRST_BATCH): cada lote entra
+  // quando o navegador fica livre, sem travar a rolagem nem o mouse.
+  const [unicodeChunks, setUnicodeChunks] = useState(1);
+  const unicodeAll = unicodeChunks >= UNICODE_CHUNKS.length;
+  useEffect(() => {
+    if (unicodeAll) return undefined;
+    const ric = window.requestIdleCallback || ((cb) => setTimeout(cb, 16));
+    const cic = window.cancelIdleCallback || clearTimeout;
+    const id = ric(() => setUnicodeChunks((n) => n + 1), { timeout: 200 });
+    return () => cic(id);
+  }, [unicodeChunks, unicodeAll]);
+  // Callbacks estáveis pras grades memorizadas.
+  const onPickRef = useRef(onPick); onPickRef.current = onPick;
+  const onPickStickerRef = useRef(onPickSticker); onPickStickerRef.current = onPickSticker;
+  const onCloseRef2 = useRef(onClose); onCloseRef2.current = onClose;
+  const pickEmojiItem = useCallback((e) => { onPickRef.current?.(`:${e.name}:`); onCloseRef2.current?.(); }, []);
+  const pickUnicode = useCallback((emoji) => { onPickRef.current?.(emoji); onCloseRef2.current?.(); }, []);
+  const pickStickerItem = useCallback((st) => { onPickStickerRef.current?.(st); onCloseRef2.current?.(); }, []);
   // Avisa quem abriu (barra de mensagem) qual aba ficou por último.
   useEffect(() => { onTabChange?.(tab); }, [tab]); // eslint-disable-line react-hooks/exhaustive-deps
   const emojiScrollRef = useRef(null);
@@ -117,6 +210,8 @@ export default function EmojiPicker({ serverEmojis = [], serverStickers = [], on
   }, [usableStickers, serverStickers]);
 
   const q = query.trim().toLowerCase();
+  const shownChunks = useMemo(() => UNICODE_CHUNKS.slice(0, unicodeChunks), [unicodeChunks]);
+  const unicodeMatches = useMemo(() => (q ? [UNICODE_ALL.filter((e) => e.lower.includes(q))] : null), [q]);
 
   // --- GIFs (movido de GifPicker.jsx pra virar uma aba aqui dentro) ---
   const [gifSubTab, setGifSubTab] = useState('search'); // 'search' | 'favorites'
@@ -137,6 +232,12 @@ export default function EmojiPicker({ serverEmojis = [], serverStickers = [], on
   const gifAbortRef = useRef(null);
   useEffect(() => () => gifAbortRef.current?.abort(), []);
   const searchGifs = async (term) => {
+    // "Em alta" (busca vazia) recente: aparece na hora, sem ir ao servidor.
+    if (!term.trim() && trendingCache && Date.now() - trendingCache.at < TRENDING_TTL_MS) {
+      gifAbortRef.current?.abort();
+      setGifFailed(false); setGifLoading(false); setGifResults(trendingCache.results);
+      return;
+    }
     gifAbortRef.current?.abort();
     const ctrl = new AbortController();
     gifAbortRef.current = ctrl;
@@ -145,7 +246,9 @@ export default function EmojiPicker({ serverEmojis = [], serverStickers = [], on
     try {
       const data = await searchGifsApi(term.trim(), { signal: ctrl.signal });
       if (ctrl.signal.aborted) return;
-      setGifResults((data.results || []).filter((g) => g.full));
+      const results = (data.results || []).filter((g) => g.full);
+      if (!term.trim()) trendingCache = { at: Date.now(), results };
+      setGifResults(results);
     } catch (err) {
       if (ctrl.signal.aborted || err?.code === 'ERR_CANCELED') return;
       setGifFailed(err?.response?.data?.code === 'unconfigured' ? 'unconfigured' : true);
@@ -155,13 +258,16 @@ export default function EmojiPicker({ serverEmojis = [], serverStickers = [], on
     }
   };
 
+  // Categorias: só quando a aba de GIFs é aberta, e uma vez por sessão.
   useEffect(() => {
+    if (tab !== 'gifs' || gifCategories !== null) return undefined;
+    if (gifCategoriesCache) { setGifCategories(gifCategoriesCache); return undefined; }
     let alive = true;
     listGifCategories()
-      .then((data) => { if (alive) setGifCategories((data.tags || []).slice(0, 12)); })
+      .then((data) => { gifCategoriesCache = (data.tags || []).slice(0, 12); if (alive) setGifCategories(gifCategoriesCache); })
       .catch(() => { if (alive) setGifCategories([]); });
     return () => { alive = false; };
-  }, []);
+  }, [tab, gifCategories]);
 
   useEffect(() => { if (tab === 'gifs' && gifSubTab === 'search' && !activeGifCategory) searchGifs(''); }, [tab, gifSubTab]);
 
@@ -246,20 +352,14 @@ export default function EmojiPicker({ serverEmojis = [], serverStickers = [], on
                 </button>
               </div>
             )}
-            <div className="emoji-picker-unicode-scroll" ref={emojiScrollRef}>
+            <div className="emoji-picker-unicode-scroll" ref={emojiScrollRef} onMouseOver={onGridHover}>
               {customGroups.map((g) => {
                 const filtered = q ? g.list.filter((e) => e.name.toLowerCase().includes(q)) : g.list;
                 if (filtered.length === 0) return null;
                 return (
                   <div key={g.key} ref={(el) => { catSectionRefs.current[`server-${g.key}`] = el; }}>
                     <div className="emoji-picker-group-label">{g.iconUrl && <img src={g.iconUrl} alt="" className="asset-collection-label-icon" />} {g.label}</div>
-                    <div className="emoji-picker-grid">
-                      {filtered.map((e) => (
-                        <button key={e.id} title={`:${e.name}:`} onMouseEnter={() => setHovered({ img: e.url, name: `:${e.name}:` })} onClick={() => { onPick(`:${e.name}:`); onClose?.(); }}>
-                          <img src={e.url} alt={e.name} />
-                        </button>
-                      ))}
-                    </div>
+                    <ImageGrid list={filtered} className="emoji-picker-grid" onPickItem={pickEmojiItem} nameOf={emojiName} />
                   </div>
                 );
               })}
@@ -269,13 +369,7 @@ export default function EmojiPicker({ serverEmojis = [], serverStickers = [], on
                 return (
                   <div key={serverName} ref={(el) => { catSectionRefs.current[`ext-${serverName}`] = el; }}>
                     <div className="emoji-picker-group-label">🌐 {serverName}</div>
-                    <div className="emoji-picker-grid">
-                      {filtered.map((e) => (
-                        <button key={e.id} title={`:${e.name}:`} onMouseEnter={() => setHovered({ img: e.url, name: `:${e.name}:` })} onClick={() => { onPick(`:${e.name}:`); onClose?.(); }}>
-                          <img src={e.url} alt={e.name} />
-                        </button>
-                      ))}
-                    </div>
+                    <ImageGrid list={filtered} className="emoji-picker-grid" onPickItem={pickEmojiItem} nameOf={emojiName} />
                   </div>
                 );
               })}
@@ -284,18 +378,12 @@ export default function EmojiPicker({ serverEmojis = [], serverStickers = [], on
                 // names shipped upstream) — search still works fine for the
                 // common case (typing "fire", "heart", etc), just doesn't match
                 // a Portuguese word typed in.
-                const filtered = q ? UNICODE_ALL.filter((e) => e.name.toLowerCase().includes(q)) : UNICODE_ALL;
-                if (filtered.length === 0) return null;
+                const chunks = q ? unicodeMatches : shownChunks;
+                if (!chunks[0]?.length) return null;
                 return (
                   <div ref={(el) => { catSectionRefs.current[UNICODE_COLLECTION_KEY] = el; }}>
                     <div className="emoji-picker-group-label">Emojis padrão</div>
-                    <div className="emoji-picker-grid">
-                      {filtered.map((e) => (
-                        <button key={e.emoji} onMouseEnter={() => setHovered({ emoji: e.emoji, name: e.name })} onClick={() => { onPick(e.emoji); onClose?.(); }} title={e.name}>
-                          <StyledEmoji emoji={e.emoji} size={24} />
-                        </button>
-                      ))}
-                    </div>
+                    <UnicodeGrid chunks={chunks} onPickEmoji={pickUnicode} />
                   </div>
                 );
               })()}
@@ -313,7 +401,7 @@ export default function EmojiPicker({ serverEmojis = [], serverStickers = [], on
                 ))}
               </div>
             )}
-            <div className="emoji-picker-unicode-scroll" ref={stickerScrollRef}>
+            <div className="emoji-picker-unicode-scroll" ref={stickerScrollRef} onMouseOver={onGridHover}>
               {/* Pacote de figurinhas personalizadas (Assinante/Super) — no topo. */}
               <PersonalStickersSection query={query} onPickSticker={onPickSticker} onClose={onClose} />
               {/* Fase 8: figurinhas compradas na Loja dos criadores. */}
@@ -324,13 +412,7 @@ export default function EmojiPicker({ serverEmojis = [], serverStickers = [], on
                 return (
                   <div key={g.key} ref={(el) => { catSectionRefs.current[`sticker-${g.key}`] = el; }}>
                     <div className="emoji-picker-group-label">{g.iconUrl && <img src={g.iconUrl} alt="" className="asset-collection-label-icon" />} {g.label}</div>
-                    <div className="sticker-picker-grid">
-                      {filtered.map((s) => (
-                        <button key={s.id} title={s.name} onMouseEnter={() => setHovered({ img: s.url, name: s.name })} onClick={() => { onPickSticker(s); onClose?.(); }}>
-                          <img src={s.url} alt={s.name} />
-                        </button>
-                      ))}
-                    </div>
+                    <ImageGrid list={filtered} className="sticker-picker-grid" onPickItem={pickStickerItem} nameOf={stickerName} />
                   </div>
                 );
               })}
@@ -340,13 +422,7 @@ export default function EmojiPicker({ serverEmojis = [], serverStickers = [], on
                 return (
                   <div key={serverName}>
                     <div className="emoji-picker-group-label">{serverName}</div>
-                    <div className="sticker-picker-grid">
-                      {filtered.map((s) => (
-                        <button key={s.id} title={s.name} onMouseEnter={() => setHovered({ img: s.url, name: s.name })} onClick={() => { onPickSticker(s); onClose?.(); }}>
-                          <img src={s.url} alt={s.name} />
-                        </button>
-                      ))}
-                    </div>
+                    <ImageGrid list={filtered} className="sticker-picker-grid" onPickItem={pickStickerItem} nameOf={stickerName} />
                   </div>
                 );
               })}
@@ -410,16 +486,7 @@ export default function EmojiPicker({ serverEmojis = [], serverStickers = [], on
           )
         )}
       </div>
-      {(tab === 'emojis' || tab === 'stickers') && (
-        <div className="emoji-picker-preview" aria-hidden="true">
-          {hovered ? (
-            <>
-              {hovered.img ? <img src={hovered.img} alt="" /> : <StyledEmoji emoji={hovered.emoji} size={30} />}
-              <span className="truncate">{hovered.name}</span>
-            </>
-          ) : <span className="emoji-picker-preview-hint">Passe o mouse para ver o nome</span>}
-        </div>
-      )}
+      {(tab === 'emojis' || tab === 'stickers') && <PickerPreview ref={previewRef} />}
     </div>
   );
 }

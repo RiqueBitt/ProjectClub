@@ -1,6 +1,6 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { useStore } from '../store/useStore';
-import { getUserProfile } from '../api/endpoints';
+import { peekProfile, fetchProfile } from '../api/profileCache';
 import { useLiveRefresh, sameData } from '../utils/liveRefresh';
 import { roleChipStyle } from '../utils/roleColor';
 import { profileAccentVars } from '../utils/profileAccent';
@@ -103,18 +103,26 @@ export default function MiniProfileCard() {
     // saída, em vez de piscar pra "Carregando..." bem na hora de
     // sumir. Só limpa (e refaz a busca) quando um usuário NOVO é
     // aberto de verdade.
-    if (!userId) return;
-    setUser(null); setBadges([]); setMutualFriends([]); setFriendsSince(null);
-    getUserProfile(userId)
-      .then((d) => {
-        setUser(d.user); setBadges(d.badges || []); setMutualFriends(d.mutualFriends || []); setFriendsSince(d.friendsSince || null);
-        // Item pedido: "ActivityBadge igual tem no perfil" — mesmo
-        // ajuste que já existia em UserProfileModal.jsx: sem isso, o
-        // badge fica vazio até chegar algum aviso ao vivo pelo socket,
-        // mesmo com a atividade já existindo de verdade no servidor.
-        if (d.activity) useStore.getState().setActivity(userId, d.activity);
-      })
-      .catch(() => { setUser(null); setBadges([]); setMutualFriends([]); });
+    if (!userId) return undefined;
+    let alive = true;
+    const apply = (d) => {
+      setUser(d.user); setBadges(d.badges || []); setMutualFriends(d.mutualFriends || []); setFriendsSince(d.friendsSince || null);
+      // Item pedido: "ActivityBadge igual tem no perfil" — mesmo
+      // ajuste que já existia em UserProfileModal.jsx: sem isso, o
+      // badge fica vazio até chegar algum aviso ao vivo pelo socket,
+      // mesmo com a atividade já existindo de verdade no servidor.
+      if (d.activity) useStore.getState().setActivity(userId, d.activity);
+    };
+    // Já aberto (ou buscado ao passar o mouse): aparece na hora e
+    // atualiza por trás — ver api/profileCache.js. Antes sempre voltava
+    // pra "Carregando..." até a resposta do servidor (EUA) chegar.
+    const cached = peekProfile(userId);
+    if (cached) apply(cached);
+    else { setUser(null); setBadges([]); setMutualFriends([]); setFriendsSince(null); }
+    fetchProfile(userId)
+      .then((d) => { if (alive) apply(d); })
+      .catch(() => { if (alive && !cached) { setUser(null); setBadges([]); setMutualFriends([]); } });
+    return () => { alive = false; };
   }, [userId]);
 
   useEffect(() => {
@@ -311,7 +319,7 @@ export default function MiniProfileCard() {
   // Mantém a mesma referência quando nada mudou (o amigo em comum
   // sorteado não troca à toa).
   useLiveRefresh(async (ctx) => {
-    const d = await getUserProfile(userId);
+    const d = await fetchProfile(userId);
     if (!ctx.ok() || !d?.user) return;
     const keep = (setter, v) => setter((prev) => (sameData(prev, v) ? prev : v));
     keep(setUser, d.user); keep(setBadges, d.badges || []); keep(setMutualFriends, d.mutualFriends || []);

@@ -14,6 +14,7 @@ import { wantsBroadcastNotify } from '../utils/broadcastNotify';
 import { sameData } from '../utils/liveRefresh';
 import { getAccessToken, refreshAccessToken } from '../api/client';
 import { channelPath, conversationPath, userPath } from '../utils/prettyLinks';
+import { patchCachedUser } from '../api/profileCache';
 
 const SocketContext = createContext(null);
 
@@ -500,6 +501,7 @@ export function SocketProvider({ children }) {
     // atualiza os dois lugares de uma vez.
     socket.on('user:update', (updatedUser) => {
       patchUserEverywhere(updatedUser);
+      patchCachedUser(updatedUser);
       if (updatedUser.id === user.id) setUser((prev) => (prev ? { ...prev, ...updatedUser } : prev));
     });
     // Reflete na hora quando a staff liga/desliga um sistema em /admin →
