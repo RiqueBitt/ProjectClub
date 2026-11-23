@@ -12,6 +12,7 @@ import IconGlyph from '../components/IconGlyph.jsx';
 import editIcon from '../assets/icons/nav-edit.png';
 import confirmIcon from '../assets/icons/nav-confirm.png';
 import closeIcon from '../assets/icons/nav-close.png';
+import blockIcon from '../assets/icons/nav-block.png';
 import giftIcon from '../assets/icons/nav-gift.png';
 import { RARITY_LABEL as ACHIEVEMENT_RARITY_LABEL } from '../utils/achievementRarity';
 import Modal from '../components/Modal.jsx';
@@ -36,7 +37,7 @@ import {
   adminListFurnitureCategories, adminCreateFurnitureCategory,
   getSystemToggles, adminUpdateSystemToggles,
   adminListHouseComments, adminDeleteHouseCommentMod,
-  adminListApplications, approveApplication, rejectApplication,
+  adminListApplications, approveApplication, rejectApplication, banApplication,
   adminListAutomodFlags, adminGetFlaggedConversation, adminResolveAutomodFlag,
   adminListReports, adminGetReportedContext, adminResolveReport,
   getCommunitySettings,
@@ -3511,6 +3512,63 @@ function calcAge(birthDateStr) {
   return age;
 }
 
+const APP_STATUS_LABEL = { PENDING: 'Pendentes', APPROVED: 'Aprovadas', REJECTED: 'Rejeitadas', BANNED: 'Banidas' };
+const APP_STATUS_ONE = { PENDING: 'Pendente', APPROVED: 'Aprovada', REJECTED: 'Rejeitada', BANNED: 'Banida' };
+
+// "Belo Horizonte, Minas Gerais, Brasil" — o que tiver.
+function placeLine(geo) {
+  return [geo?.district, geo?.city, geo?.region, geo?.country].filter(Boolean).filter((v, i, a) => a.indexOf(v) === i).join(', ');
+}
+
+function flagEmoji(code) {
+  const c = String(code || '').toUpperCase();
+  return /^[A-Z]{2}$/.test(c) ? String.fromCodePoint(...[...c].map((ch) => 0x1f1a5 + ch.charCodeAt(0))) : '';
+}
+
+// IP da inscrição + de onde ele é (aproximado). Só a staff vê.
+function ApplicationIp({ app }) {
+  const [copied, setCopied] = useState(false);
+  if (!app.ipAddress) return <div className="application-ip is-empty">IP não registrado (inscrição de antes do registro de IP)</div>;
+  const g = app.ipGeo;
+  const copy = () => {
+    navigator.clipboard?.writeText(app.ipAddress).then(() => { setCopied(true); setTimeout(() => setCopied(false), 1200); }).catch(() => {});
+  };
+  const rows = g ? [
+    ['País', [flagEmoji(g.countryCode), g.country, g.countryCode ? `(${g.countryCode})` : ''].filter(Boolean).join(' ')],
+    ['Estado', [g.region, g.regionCode && g.regionCode !== g.region ? `(${g.regionCode})` : ''].filter(Boolean).join(' ')],
+    ['Cidade', g.city],
+    ['Bairro/região', g.district],
+    ['CEP', g.postal],
+    ['Continente', g.continent],
+    ['Fuso', g.timezone],
+    ['Provedor', [g.isp, g.org && g.org !== g.isp ? `· ${g.org}` : '', g.asn ? `· ${g.asn}` : ''].filter(Boolean).join(' ')],
+  ].filter(([, v]) => v) : [];
+  const tags = g ? [
+    g.mobile ? 'Internet móvel' : null,
+    g.proxy ? 'VPN / proxy / hospedagem' : null,
+    app.sameIpCount > 1 ? `${app.sameIpCount} inscrições neste IP` : null,
+    app.ipBlocked ? 'IP bloqueado' : null,
+  ].filter(Boolean) : [app.sameIpCount > 1 ? `${app.sameIpCount} inscrições neste IP` : null, app.ipBlocked ? 'IP bloqueado' : null].filter(Boolean);
+  return (
+    <div className="application-ip">
+      <div className="application-ip-head">
+        <span className="application-ip-addr">{app.ipAddress}</span>
+        <button type="button" className="application-ip-copy" onClick={copy}>{copied ? 'Copiado' : 'Copiar'}</button>
+        {g?.lat != null && g?.lon != null && (
+          <a className="application-ip-map" href={`https://www.openstreetmap.org/?mlat=${g.lat}&mlon=${g.lon}#map=11/${g.lat}/${g.lon}`} target="_blank" rel="noopener noreferrer">Ver no mapa</a>
+        )}
+      </div>
+      {g ? (
+        <dl className="application-ip-grid">
+          {rows.map(([k, v]) => (<div key={k}><dt>{k}</dt><dd>{v}</dd></div>))}
+        </dl>
+      ) : <div className="dim" style={{ fontSize: 12 }}>Localização ainda não encontrada — abra a aba de novo daqui a pouco.</div>}
+      {tags.length > 0 && <div className="application-ip-tags">{tags.map((t) => <span key={t} className={t.startsWith('VPN') || t === 'IP bloqueado' || t.includes('inscrições') ? 'is-warn' : ''}>{t}</span>)}</div>}
+      <div className="application-ip-note">Localização aproximada pelo IP: costuma acertar país e estado; a cidade pode ser a da operadora.</div>
+    </div>
+  );
+}
+
 function ApplicationsTab() {
   const [filter, setFilter] = useState('PENDING');
   const [applications, setApplications] = useState(null);
@@ -3535,14 +3593,31 @@ function ApplicationsTab() {
     finally { setBusyId(null); }
   };
 
+  // Banir: o e-mail/conta externa não pode se inscrever de novo. Por IP:
+  // também bloqueia o IP no site inteiro (quem usa aquele IP vê o site
+  // "fora do ar"). Desbloqueia em Segurança (Honeypot).
+  const ban = async (app, byIp) => {
+    const where = app.ipGeo ? ` (${placeLine(app.ipGeo)})` : '';
+    const msg = byIp
+      ? `Banir @${app.username} e bloquear o IP ${app.ipAddress}${where}?\n\nNinguém nesse IP vai conseguir abrir o site. Cuidado: internet de celular e algumas operadoras dividem o mesmo IP entre muita gente.\n\nVocê pode desbloquear depois em Segurança (Honeypot).`
+      : `Banir @${app.username}? Esse e-mail${app.oauthProvider ? ' e essa conta externa' : ''} não vão poder se inscrever de novo.`;
+    if (!confirm(msg)) return;
+    const reason = prompt('Motivo do banimento (opcional, só a staff vê):');
+    if (reason === null) return;
+    setBusyId(app.id);
+    try { await banApplication(app.id, { reason, byIp }); await refresh(); }
+    catch (err) { alert(err.response?.data?.error || 'Não foi possível banir.'); }
+    finally { setBusyId(null); }
+  };
+
   if (!applications) return <div className="dim">Carregando...</div>;
 
   return (
     <div>
       <div className="theme-options" style={{ marginBottom: 12 }}>
-        {['PENDING', 'APPROVED', 'REJECTED', 'ALL'].map((f) => (
+        {['PENDING', 'APPROVED', 'REJECTED', 'BANNED', 'ALL'].map((f) => (
           <button key={f} className={`theme-swatch ${filter === f ? 'active' : ''}`} onClick={() => setFilter(f)}>
-            {f === 'PENDING' ? 'Pendentes' : f === 'APPROVED' ? 'Aprovadas' : f === 'REJECTED' ? 'Rejeitadas' : 'Todas'}
+            {APP_STATUS_LABEL[f] || 'Todas'}
           </button>
         ))}
       </div>
@@ -3555,10 +3630,12 @@ function ApplicationsTab() {
                 <div style={{ fontWeight: 700 }}>{app.displayName} <span className="dim">@{app.username}</span></div>
                 <div className="dim" style={{ fontSize: 12 }}>{app.email} · {calcAge(app.birthDate) != null ? `${calcAge(app.birthDate)} anos` : 'inscrição antiga'} · {new Date(app.createdAt).toLocaleString('pt-BR')}</div>
               </div>
-              <span className={`ticket-status-chip ${app.status === 'PENDING' ? 'open' : app.status === 'APPROVED' ? 'open' : 'closed'}`}>
-                {app.status === 'PENDING' ? 'Pendente' : app.status === 'APPROVED' ? 'Aprovada' : 'Rejeitada'}
+              <span className={`ticket-status-chip ${app.status === 'PENDING' || app.status === 'APPROVED' ? 'open' : 'closed'}`}>
+                {APP_STATUS_ONE[app.status] || app.status}{app.ipBanned ? ' · IP bloqueado' : ''}
               </span>
             </div>
+            <ApplicationIp app={app} />
+            {app.status === 'BANNED' && app.banReason && <div className="dim" style={{ fontSize: 12, marginTop: 6 }}><b>Motivo do banimento:</b> {app.banReason}</div>}
             <div className="application-answers">
               <div><b>Como descobriu:</b> {app.answers.howFound}{app.answers.howFoundOther ? ` (${app.answers.howFoundOther})` : ''}</div>
               <div><b>Interesses:</b> {app.answers.interests?.join(', ')}</div>
@@ -3568,10 +3645,22 @@ function ApplicationsTab() {
               <div><b>Seria membro ativo:</b> {app.answers.activeMember}</div>
               <div style={{ marginTop: 6, whiteSpace: 'pre-wrap' }}><b>Motivo:</b> {app.answers.joinReason}</div>
             </div>
-            {app.status === 'PENDING' && (
-              <div style={{ display: 'flex', gap: 8, marginTop: 8 }}>
-                <button className="btn-primary" disabled={busyId === app.id} onClick={() => approve(app)}><IconGlyph src={confirmIcon} size={14} /> Aprovar</button>
-                <button className="btn-danger" disabled={busyId === app.id} onClick={() => reject(app)}><IconGlyph src={closeIcon} size={14} /> Rejeitar</button>
+            {(app.status === 'PENDING' || app.status === 'REJECTED' || (app.status === 'BANNED' && !app.ipBanned)) && (
+              <div className="application-actions">
+                {app.status === 'PENDING' && (<>
+                  <button className="btn-primary" disabled={busyId === app.id} onClick={() => approve(app)}><IconGlyph src={confirmIcon} size={14} /> Aprovar</button>
+                  <button className="btn-danger" disabled={busyId === app.id} onClick={() => reject(app)}><IconGlyph src={closeIcon} size={14} /> Rejeitar</button>
+                </>)}
+                <span className="application-ban-row">
+                {app.status !== 'BANNED' && (
+                  <button className="btn-danger is-soft" disabled={busyId === app.id} onClick={() => ban(app, false)}><IconGlyph src={blockIcon} size={14} /> Banir</button>
+                )}
+                <button
+                  className="btn-danger" disabled={busyId === app.id || !app.ipAddress || app.ipBlocked}
+                  title={!app.ipAddress ? 'Inscrição antiga, sem IP guardado' : app.ipBlocked ? 'Esse IP já está bloqueado' : `Bloqueia ${app.ipAddress} no site inteiro`}
+                  onClick={() => ban(app, true)}
+                ><IconGlyph src={blockIcon} size={14} /> Banir por IP</button>
+                </span>
               </div>
             )}
           </div>

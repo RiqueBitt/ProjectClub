@@ -14,5 +14,6 @@ router.use('/admin', requireAuth, requirePlatformAdmin);
 router.get('/admin/all', ctrl.adminListApplications);
 router.post('/admin/:id/approve', ctrl.approveApplication);
 router.post('/admin/:id/reject', ctrl.rejectApplication);
+router.post('/admin/:id/ban', ctrl.banApplication);
 
 module.exports = router;

@@ -7,6 +7,7 @@ export const submitApplication = (payload) => api.post('/applications', payload)
 export const adminListApplications = (status) => api.get('/applications/admin/all', { params: status ? { status } : {} }).then((r) => r.data);
 export const approveApplication = (id) => api.post(`/applications/admin/${id}/approve`).then((r) => r.data);
 export const rejectApplication = (id, reason) => api.post(`/applications/admin/${id}/reject`, { reason }).then((r) => r.data);
+export const banApplication = (id, { reason, byIp }) => api.post(`/applications/admin/${id}/ban`, { reason, byIp: !!byIp }).then((r) => r.data);
 export const logoutUser = () => api.post('/auth/logout').then((r) => r.data);
 export const fetchMe = () => api.get('/auth/me').then((r) => r.data);
 export const sendVerificationCode = () => api.post('/auth/verify-email/send').then((r) => r.data);

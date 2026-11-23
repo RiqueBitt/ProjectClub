@@ -2039,13 +2039,21 @@ model MembershipApplication {
   // — mais flexível que uma coluna por pergunta, já que a staff pode
   // querer mudar as perguntas no futuro sem precisar de outra migração.
   answers      String?   @db.Text
-  status       String    @default("PENDING") // PENDING | APPROVED | REJECTED
+  status       String    @default("PENDING") // PENDING | APPROVED | REJECTED | BANNED
   // Inscrição feita com "Inscrever-se com Google/Discord/GitHub": a
   // identidade do provedor fica guardada aqui e só vira OAuthAccount
   // quando a staff aprovar (approveApplication).
   oauthProvider       String?
   oauthProviderUserId String?
   oauthEmail          String?
+  // IP de onde a inscrição foi enviada e a localização aproximada dele
+  // (JSON de services/ipGeo.js) — só a staff vê, no Painel → Inscrições.
+  ipAddress    String?   @db.VarChar(64)
+  ipGeo        String?   @db.Text
+  // status BANNED: a staff baniu (e-mail/conta externa não podem se
+  // inscrever de novo). ipBanned: o IP também foi pro BlockedIp.
+  ipBanned     Boolean   @default(false)
+  banReason    String?   @db.VarChar(190)
   reviewedById String?
   reviewedAt   DateTime?
   createdAt    DateTime  @default(now())
