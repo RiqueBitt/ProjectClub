@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
+import { useAuth } from '../../context/AuthContext.jsx';
 import logo from '../../assets/icons/logo-project-club.png';
 
 // Topo e rodapé das páginas públicas (início, blog e termos). Tudo vive
@@ -40,9 +41,9 @@ export function usePublicScrollChrome() {
   }, []);
 }
 
-function SectionLink({ id, label, onLanding, onClick }) {
+function SectionLink({ id, label, onLanding, onClick, home = '/' }) {
   if (onLanding) return <a href={`#${id}`} onClick={onClick}>{label}</a>;
-  return <Link to={`/#${id}`} onClick={onClick}>{label}</Link>;
+  return <Link to={`${home}#${id}`} onClick={onClick}>{label}</Link>;
 }
 
 // page: 'inicio' | 'blog' | 'termos' (marca o item atual)
@@ -50,6 +51,10 @@ function SectionLink({ id, label, onLanding, onClick }) {
 export function PublicHeader({ page = 'inicio', onSearch, searchLabel = 'Buscar' }) {
   const navigate = useNavigate();
   const onLanding = page === 'inicio';
+  // Logado: a página inicial pública fica em /site (o "/" abre o app) e
+  // "Entrar/Criar conta" viram "Voltar pro app".
+  const { user } = useAuth() || {};
+  const home = user ? '/site' : '/';
   const [open, setOpen] = useState(false);
 
   useEffect(() => {
@@ -68,11 +73,11 @@ export function PublicHeader({ page = 'inicio', onSearch, searchLabel = 'Buscar'
 
   return (
     <header className={`lp-top ${open ? 'is-menu-open' : ''}`}>
-      <Link className="lp-logo" to="/" onClick={toTop} aria-label="Project Club, início">
+      <Link className="lp-logo" to={home} onClick={toTop} aria-label="Project Club, início">
         <img src={logo} alt="" width="34" height="34" />
       </Link>
       <nav className="lp-menu" aria-label="Seções">
-        {SECTIONS.map((s) => <SectionLink key={s.id} {...s} onLanding={onLanding} />)}
+        {SECTIONS.map((s) => <SectionLink key={s.id} {...s} onLanding={onLanding} home={home} />)}
         {PAGES.map((p) => (
           <Link key={p.key} to={p.to} aria-current={page === p.key ? 'page' : undefined} className={page === p.key ? 'is-current' : ''}>{p.label}</Link>
         ))}
@@ -84,8 +89,14 @@ export function PublicHeader({ page = 'inicio', onSearch, searchLabel = 'Buscar'
             <span>{searchLabel}</span><kbd>Ctrl K</kbd>
           </button>
         )}
-        <button type="button" className="lp-link" onClick={() => navigate('/login')}>Entrar</button>
-        <button type="button" className="lp-btn is-accent is-sm" onClick={() => navigate('/register')}>Criar conta</button>
+        {user ? (
+          <button type="button" className="lp-btn is-accent is-sm" onClick={() => navigate('/inicio')}>Voltar pro app</button>
+        ) : (
+          <>
+            <button type="button" className="lp-link" onClick={() => navigate('/login')}>Entrar</button>
+            <button type="button" className="lp-btn is-accent is-sm" onClick={() => navigate('/register')}>Criar conta</button>
+          </>
+        )}
         <button
           type="button" className="lp-burger" aria-expanded={open} aria-controls="lp-sheet"
           aria-label={open ? 'Fechar menu' : 'Abrir menu'} onClick={() => setOpen((o) => !o)}
@@ -95,11 +106,13 @@ export function PublicHeader({ page = 'inicio', onSearch, searchLabel = 'Buscar'
       </div>
       {open && (
         <nav id="lp-sheet" className="lp-sheet" aria-label="Menu">
-          {SECTIONS.map((s) => <SectionLink key={s.id} {...s} onLanding={onLanding} onClick={close} />)}
+          {SECTIONS.map((s) => <SectionLink key={s.id} {...s} onLanding={onLanding} onClick={close} home={home} />)}
           {PAGES.map((p) => (
             <Link key={p.key} to={p.to} onClick={close} aria-current={page === p.key ? 'page' : undefined}>{p.label}</Link>
           ))}
-          <Link to="/login" onClick={close} className="lp-sheet-login">Entrar</Link>
+          {user
+            ? <Link to="/inicio" onClick={close} className="lp-sheet-login">Voltar pro app</Link>
+            : <Link to="/login" onClick={close} className="lp-sheet-login">Entrar</Link>}
         </nav>
       )}
     </header>
@@ -108,6 +121,8 @@ export function PublicHeader({ page = 'inicio', onSearch, searchLabel = 'Buscar'
 
 export function PublicFooter({ page = 'inicio' }) {
   const onLanding = page === 'inicio';
+  const { user } = useAuth() || {};
+  const home = user ? '/site' : '/';
   const year = new Date().getFullYear();
   const toTop = (e) => { e.preventDefault(); document.querySelector('.lp')?.scrollTo({ top: 0, behavior: 'smooth' }); };
   return (
@@ -118,7 +133,7 @@ export function PublicFooter({ page = 'inicio' }) {
         <small>Comunidade e apps de criação, feitos pela comunidade.</small>
       </div>
       <nav className="lp-foot-nav" aria-label="Rodapé">
-        {SECTIONS.map((s) => <SectionLink key={s.id} {...s} onLanding={onLanding} />)}
+        {SECTIONS.map((s) => <SectionLink key={s.id} {...s} onLanding={onLanding} home={home} />)}
         <Link to="/blog">Blog</Link>
         <Link to="/termos">Termos de privacidade</Link>
         <a href="https://github.com/RiqueBitt/ProjectClub" target="_blank" rel="noreferrer">GitHub</a>

@@ -350,6 +350,9 @@ export default function App() {
           <Route path="/privacidade" element={<PrivacyPage />} />
           <Route path="/termos" element={<PrivacyPage />} />
           <Route path="/blog" element={<BlogPage />} />
+          {/* Página inicial (vitrine + downloads) mesmo logado: o "/" de quem tem
+              sessão entra direto no app, então ela ganha este endereço próprio. */}
+          <Route path="/site" element={<LandingPage />} />
           <Route path="/status" element={<StatusPage />} />
           {/* Club Penguin removido (nov/2026): o app Android antigo abria /praca/app. */}
           <Route path="/praca/app" element={<Navigate to="/" replace />} />
