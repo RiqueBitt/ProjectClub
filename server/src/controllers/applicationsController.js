@@ -116,6 +116,7 @@ async function createAccountFromApplicationData({ email, username, displayName, 
 // alguém que se inscreva com o e-mail do dono antes dele não ganha nada.
 
 const { validateUsername } = require('../utils/usernameRules');
+const ipGeo = require('../services/ipGeo');
 
 // "Inscrever-se com Google/Discord/GitHub": conecta a identidade do
 // provedor guardada na inscrição à conta recém-criada. Se, nesse meio
@@ -172,6 +173,24 @@ async function submitApplication(req, res, next) {
     // Identidade de um provedor (cookie assinado da etapa "Inscrever-se
     // com…") — fica guardada na inscrição e só é conectada na aprovação.
     const oauthIdentity = oauthSignup().readSignupIdentity(req);
+
+    // Banido pela staff (Painel → Inscrições → Banir): o mesmo e-mail ou a
+    // mesma conta externa não entram de novo na fila.
+    const banned = await prisma.membershipApplication.findFirst({
+      where: {
+        status: 'BANNED',
+        OR: [
+          { email: normalizedEmail },
+          ...(oauthIdentity ? [{ oauthProvider: oauthIdentity.p, oauthProviderUserId: oauthIdentity.id }] : []),
+        ],
+      },
+      select: { id: true },
+    });
+    if (banned) {
+      if (oauthIdentity) oauthSignup().clearSignupCookie(res);
+      return res.status(403).json({ error: 'Não é possível se inscrever no Project Club com este e-mail ou conta.' });
+    }
+    const ipAddress = ipGeo.normalizeIp(req.ip);
     if (oauthIdentity) {
       const taken = await prisma.oAuthAccount.findUnique({
         where: { provider_providerUserId: { provider: oauthIdentity.p, providerUserId: oauthIdentity.id } },
@@ -213,6 +232,7 @@ async function submitApplication(req, res, next) {
         email: normalizedEmail, username, displayName: displayName || username,
         passwordHash, birthDate: parsedBirthDate,
         ...oauthFields,
+        ipAddress,
         answers: JSON.stringify({
           howFound: answers.howFound,
           howFoundOther: answers.howFound === 'Outros' ? String(answers.howFoundOther).trim().slice(0, 200) : undefined,
@@ -228,23 +248,105 @@ async function submitApplication(req, res, next) {
 
     if (oauthIdentity) oauthSignup().clearSignupCookie(res);
     res.status(201).json({ applicationId: application.id, oauthProvider: oauthFields.oauthProvider || undefined });
+    // Localização do IP em segundo plano (a resposta não espera por ela).
+    saveGeo(application.id, ipAddress).catch(() => {});
   } catch (err) { next(err); }
 }
 
+async function saveGeo(id, ip) {
+  if (!ip) return null;
+  const geo = await ipGeo.lookupIp(ip);
+  if (geo) await prisma.membershipApplication.update({ where: { id }, data: { ipGeo: JSON.stringify(geo) } });
+  return geo;
+}
+
+const parseJson = (s, fallback) => { try { return s ? JSON.parse(s) : fallback; } catch { return fallback; } };
+
 async function adminListApplications(req, res, next) {
   try {
-    const { status } = req.query;
+    const status = ['PENDING', 'APPROVED', 'REJECTED', 'BANNED'].includes(req.query.status) ? req.query.status : null;
     const applications = await prisma.membershipApplication.findMany({
       where: status ? { status } : undefined,
       orderBy: { createdAt: 'desc' },
       select: {
         id: true, email: true, username: true, displayName: true, birthDate: true, answers: true,
         status: true, reviewedById: true, reviewedAt: true, createdAt: true, oauthProvider: true,
+        ipAddress: true, ipGeo: true, ipBanned: true, banReason: true,
       },
     });
+    // Inscrição com IP mas sem localização (o serviço estava fora quando
+    // ela chegou): tenta de novo agora, poucas por vez pra não travar a tela.
+    const missing = applications.filter((a) => a.ipAddress && !a.ipGeo).slice(0, 8);
+    await Promise.all(missing.map(async (a) => {
+      const geo = await saveGeo(a.id, a.ipAddress).catch(() => null);
+      if (geo) a.ipGeo = JSON.stringify(geo);
+    }));
+    // Quantas inscrições (de qualquer status) saíram do mesmo IP — ajuda a
+    // ver conta repetida/fake.
+    const ips = [...new Set(applications.map((a) => a.ipAddress).filter(Boolean))];
+    const counts = ips.length
+      ? await prisma.membershipApplication.groupBy({ by: ['ipAddress'], where: { ipAddress: { in: ips } }, _count: { _all: true } })
+      : [];
+    const sameIp = new Map(counts.map((c) => [c.ipAddress, c._count._all]));
+    const blocked = ips.length ? await prisma.blockedIp.findMany({ where: { ip: { in: ips } }, select: { ip: true } }) : [];
+    const blockedSet = new Set(blocked.map((b) => b.ip));
     // Inscrições antigas (de antes do questionário de 8 perguntas) não têm
     // answers preenchido — cai num objeto vazio em vez de quebrar a tela.
-    res.json({ applications: applications.map((a) => ({ ...a, answers: a.answers ? JSON.parse(a.answers) : {} })) });
+    res.json({
+      applications: applications.map((a) => ({
+        ...a,
+        answers: parseJson(a.answers, {}),
+        ipGeo: parseJson(a.ipGeo, null),
+        sameIpCount: a.ipAddress ? sameIp.get(a.ipAddress) || 1 : 0,
+        ipBlocked: !!a.ipAddress && blockedSet.has(a.ipAddress),
+      })),
+    });
+  } catch (err) { next(err); }
+}
+
+// Banir (status BANNED: o e-mail/conta externa não pode se inscrever de
+// novo) e, com byIp, também bloquear o IP no site inteiro (BlockedIp, sem
+// prazo — a staff desbloqueia no Painel → Segurança/Isca). Vale pra
+// inscrição pendente ou rejeitada; aprovada já virou conta (banir pela
+// moderação normal).
+async function banApplication(req, res, next) {
+  try {
+    const { id } = req.params;
+    const byIp = req.body?.byIp === true;
+    const reason = typeof req.body?.reason === 'string' ? req.body.reason.trim().slice(0, 190) : '';
+    const application = await prisma.membershipApplication.findUnique({ where: { id } });
+    if (!application) return res.status(404).json({ error: 'Inscrição não encontrada.' });
+    if (application.status === 'APPROVED') {
+      return res.status(400).json({ error: 'Essa inscrição já foi aprovada e virou conta. Bana pela moderação de membros.' });
+    }
+
+    let ipBanned = application.ipBanned;
+    if (byIp) {
+      const ip = ipGeo.normalizeIp(application.ipAddress);
+      if (!ip) return res.status(400).json({ error: 'Essa inscrição não tem IP guardado (é de antes do registro de IP). Use só "Banir".' });
+      if (ipGeo.isPrivateIp(ip)) return res.status(400).json({ error: 'Esse IP é de rede interna e não pode ser bloqueado.' });
+      if (ip === ipGeo.normalizeIp(req.ip)) {
+        return res.status(400).json({ error: 'Esse é o mesmo IP que você está usando agora — bloquear tiraria você do site.' });
+      }
+      const why = `Inscrição banida: @${application.username}${reason ? ` — ${reason}` : ''}`.slice(0, 190);
+      await prisma.blockedIp.upsert({
+        where: { ip },
+        update: { reason: why, expiresAt: null },
+        create: { ip, reason: why, hitCount: 0, expiresAt: null },
+      });
+      require('../middleware/honeypot').invalidateBlockedIpCache(ip);
+      ipBanned = true;
+    }
+
+    await prisma.membershipApplication.update({
+      where: { id },
+      data: { status: 'BANNED', ipBanned, banReason: reason || null, reviewedById: req.user.id, reviewedAt: new Date() },
+    });
+    await logPlatformAction(req, {
+      action: byIp ? 'APPLICATION_BAN_IP' : 'APPLICATION_BAN', targetType: 'APPLICATION', targetId: id, reason: reason || null,
+      metadata: { email: application.email, username: application.username, ...(byIp ? { ip: application.ipAddress } : {}) },
+    });
+    res.json({ ok: true, ipBanned });
   } catch (err) { next(err); }
 }
 
@@ -309,4 +411,4 @@ async function rejectApplication(req, res, next) {
   } catch (err) { next(err); }
 }
 
-module.exports = { submitApplication, adminListApplications, approveApplication, rejectApplication };
+module.exports = { submitApplication, adminListApplications, approveApplication, rejectApplication, banApplication };

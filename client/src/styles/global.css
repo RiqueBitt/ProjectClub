@@ -4839,6 +4839,27 @@ a.embed-card-title:hover { text-decoration: underline; }
 .support-empty-state p { margin: 0; }
 
 .application-answers { margin-top: 10px; padding-top: 10px; border-top: 1px solid var(--border); display: flex; flex-direction: column; gap: 4px; font-size: 13px; }
+/* Painel → Inscrições: IP + localização e os botões de banir */
+.application-ip { margin-top: 10px; padding: 10px 12px; border-radius: 10px; background: color-mix(in srgb, var(--text, #fff) 4%, transparent); border: 1px solid var(--border); font-size: 13px; }
+.application-ip.is-empty { color: var(--text-muted, #999); font-size: 12px; padding: 8px 12px; }
+.application-ip-head { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-bottom: 6px; }
+.application-ip-addr { font-family: ui-monospace, 'Cascadia Mono', Consolas, monospace; font-weight: 700; font-size: 14px; letter-spacing: .01em; user-select: all; }
+.application-ip-copy, .application-ip-map { font: inherit; font-size: 12px; padding: 2px 8px; border-radius: 6px; border: 1px solid var(--border); background: transparent; color: var(--text-muted, #aaa); cursor: pointer; text-decoration: none; }
+.application-ip-copy:hover, .application-ip-map:hover { color: var(--text, #fff); border-color: color-mix(in srgb, var(--text, #fff) 30%, transparent); }
+.application-ip-copy:focus-visible, .application-ip-map:focus-visible { outline: 2px solid var(--accent, #5865f2); outline-offset: 2px; }
+.application-ip-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(170px, 1fr)); gap: 6px 14px; margin: 0; }
+.application-ip-grid > div { min-width: 0; }
+.application-ip-grid dt { font-size: 11px; color: var(--text-muted, #999); }
+.application-ip-grid dd { margin: 0; overflow-wrap: anywhere; }
+.application-ip-tags { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+.application-ip-tags span { font-size: 11px; padding: 2px 8px; border-radius: 999px; background: color-mix(in srgb, var(--text, #fff) 8%, transparent); }
+.application-ip-tags span.is-warn { background: color-mix(in srgb, #f0b232 22%, transparent); color: #f5c560; }
+.application-ip-note { margin-top: 8px; font-size: 11px; color: var(--text-muted, #999); }
+.application-actions { display: flex; gap: 8px; margin-top: 10px; flex-wrap: wrap; align-items: center; }
+.application-ban-row { display: flex; gap: 8px; flex-wrap: wrap; margin-left: auto; }
+.application-ban-row .btn-danger.is-soft { background: transparent; color: var(--danger, #f23f43); border: 1px solid color-mix(in srgb, var(--danger, #f23f43) 55%, transparent); }
+.application-ban-row .btn-danger.is-soft:hover:not(:disabled) { background: color-mix(in srgb, var(--danger, #f23f43) 14%, transparent); }
+.application-ban-row button:disabled { opacity: .5; cursor: not-allowed; }
 .automod-conversation-view { max-height: 400px; overflow-y: auto; display: flex; flex-direction: column; gap: 6px; padding: 8px; background: var(--bg-deepest); border-radius: 6px; font-size: 13px; }
 .automod-conversation-msg { padding: 4px 0; border-bottom: 1px solid var(--border); }
 .ticket-list { display: flex; flex-direction: column; gap: 8px; }

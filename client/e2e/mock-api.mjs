@@ -219,7 +219,19 @@ export function handler(route) {
   ] });
   if (p === '/admin/users') return json({ users: users.map((u) => ({ ...u, createdAt: new Date(now - 86400000 * 20).toISOString(), level: 3, xp: 120, coins: 500 })) });
   if (p === '/admin/badges') return json({ badges: [] });
-  if (p === '/applications/admin/all') return json({ applications: [] });
+  if (p === '/applications/admin/all') {
+    const ans = { howFound: 'Amigo', interests: ['Jogos', 'Música'], roles: ['Jogador'], techLevel: 'Médio', altSocials: ['Discord'], activeMember: 'Sim', joinReason: 'Quero jogar com a galera.' };
+    return json({ applications: [
+      { id: 'ap1', email: 'pinguim@exemplo.com', username: 'pinguim_azul', displayName: 'Pinguim Azul', birthDate: '2004-05-10', answers: ans, status: 'PENDING', createdAt: new Date(now - 3600e3).toISOString(), oauthProvider: null,
+        ipAddress: '203.0.113.45', ipBanned: false, banReason: null, sameIpCount: 3, ipBlocked: false,
+        ipGeo: { country: 'Brasil', countryCode: 'BR', region: 'Minas Gerais', regionCode: 'MG', city: 'Belo Horizonte', district: 'Savassi', postal: '30140-000', continent: 'América do Sul', lat: -19.93, lon: -43.94, timezone: 'America/Sao_Paulo', isp: 'Claro S.A.', org: 'Claro', asn: 'AS28573', proxy: false, mobile: true } },
+      { id: 'ap2', email: 'vpn@exemplo.com', username: 'conta_fake', displayName: 'Conta Fake', birthDate: '1999-01-02', answers: ans, status: 'PENDING', createdAt: new Date(now - 7200e3).toISOString(), oauthProvider: 'discord',
+        ipAddress: '198.51.100.7', ipBanned: false, banReason: null, sameIpCount: 1, ipBlocked: false,
+        ipGeo: { country: 'Estados Unidos', countryCode: 'US', region: 'Virgínia', regionCode: 'VA', city: 'Ashburn', continent: 'América do Norte', lat: 39.04, lon: -77.49, timezone: 'America/New_York', isp: 'Amazon.com', asn: 'AS14618', proxy: true, mobile: false } },
+      { id: 'ap3', email: 'antigo@exemplo.com', username: 'antigao', displayName: 'Antigão', birthDate: null, answers: {}, status: 'PENDING', createdAt: new Date(now - 86400e3 * 9).toISOString(), oauthProvider: null,
+        ipAddress: null, ipGeo: null, ipBanned: false, banReason: null, sameIpCount: 0, ipBlocked: false },
+    ] });
+  }
   const E = []; return json({ polls: E, photos: E, posts: E, items: E, users: E, comments: E, visitors: E, visits: E, totalVisits: 0, today: E, upcoming: E, birthdays: E, albums: E, media: E, badges: E, pendants: E });
 }
 export const ME = me;
