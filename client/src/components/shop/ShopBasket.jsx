@@ -65,6 +65,7 @@ export function useDragToBasket(onDrop) {
   const finish = (s) => {
     s.layer?.remove();
     s.el.classList.remove('is-lifted');
+    s.el.querySelector('.room-pack')?.__pack3d?.lift?.(false);
     if (state.current === s) state.current = null;
     setDragging(false);
   };
@@ -103,10 +104,15 @@ export function useDragToBasket(onDrop) {
     const rect = { left: box.left + box.width / 2 - w / 2, top: box.top + box.height / 2 - h / 2, width: w, height: h };
     const ghost = src.cloneNode(true);
     ghost.classList.add('shop-drag-ghost');
-    // O modelo 3D é desenhado num <canvas>: o clone vem em branco, copia o quadro.
+    // O modelo 3D é desenhado num <canvas> (gancho + caixinha): o clone vem
+    // em branco. Pede ao motor 3D uma "foto" SÓ da caixinha (sem o gancho nem
+    // a sombra na cartela); sem 3D pronto, copia o quadro como está.
     const from = src.querySelectorAll('canvas');
     ghost.querySelectorAll('canvas').forEach((c, i) => {
-      try { c.width = from[i].width; c.height = from[i].height; c.getContext('2d')?.drawImage(from[i], 0, 0); } catch { /* sem 2D */ }
+      try {
+        if (i === 0 && src.__pack3d?.snapshot?.(c)) return;
+        c.width = from[i].width; c.height = from[i].height; c.getContext('2d')?.drawImage(from[i], 0, 0);
+      } catch { /* sem 2D */ }
     });
     // As medidas da caixinha vêm de variáveis da cartela (--sw, --k, cores).
     const cs = getComputedStyle(s.el);
@@ -128,6 +134,8 @@ export function useDragToBasket(onDrop) {
     s.layer = layer; s.card = ghost; s.active = true;
     s.px = s.x0; s.py = s.y0; s.lastX = s.x0; s.angle = 0; s.vel = 0;
     s.el.classList.add('is-lifted'); // o gancho fica vazio
+    // (o 3D desenha gancho e caixinha juntos: agora só o gancho fica na parede)
+    s.el.querySelector('.room-pack')?.__pack3d?.lift?.(true);
     basketEl()?.classList.add('is-target');
     setDragging(true);
     try { navigator.vibrate?.(12); } catch { /* sem vibração */ }

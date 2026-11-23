@@ -940,6 +940,32 @@ export function VoiceProvider({ children }) {
     try { engineRef.current?.setVideoViewport?.(String(uid), kind, view, viewId); } catch { /* engine sem isso */ }
   }, []);
 
+  // Lives (transmissões de tela) que EU fechei: some da minha tela, o vídeo
+  // fica pausado no servidor (não baixa nada) e o som da tela para. Só pra
+  // mim — quem transmite e os outros não percebem. Reabre quando quiser; se
+  // a pessoa parar e começar outra live, ela volta aberta.
+  const [closedScreens, setClosedScreens] = useState({});
+  const setScreenClosed = useCallback((uid, closed) => {
+    const k = String(uid);
+    setClosedScreens((s) => (closed ? (s[k] ? s : { ...s, [k]: true }) : (s[k] ? dropKey(s, k) : s)));
+    // Bloco "fechado" (invisível): sem nenhum outro bloco mostrando, o engine pausa.
+    reportVideoViewport(k, 'screen', 'closed-by-me', closed ? { visible: false } : { remove: true });
+  }, [reportVideoViewport]);
+  useEffect(() => {
+    setClosedScreens((s) => {
+      const gone = Object.keys(s).filter((k) => !remoteScreenStreams[k]);
+      if (!gone.length) return s;
+      gone.forEach((k) => reportVideoViewport(k, 'screen', 'closed-by-me', { remove: true }));
+      const next = { ...s }; gone.forEach((k) => { delete next[k]; });
+      return next;
+    });
+  }, [remoteScreenStreams, reportVideoViewport]);
+  useEffect(() => { if (!call?.channelId) setClosedScreens({}); }, [call?.channelId]);
+  // Idempotente: reavisa a cada mudança (o engine pode ter sido recriado numa reconexão).
+  useEffect(() => {
+    Object.keys(closedScreens).forEach((k) => { if (remoteScreenStreams[k]) reportVideoViewport(k, 'screen', 'closed-by-me', { visible: false }); });
+  }, [closedScreens, remoteScreenStreams, reportVideoViewport]);
+
   const raiseHand = useCallback((raised = true) => {
     if (!socket || !callRef.current) return;
     socket.emit('voice:raise-hand', { channelId: callRef.current.channelId, raised });
@@ -1731,6 +1757,7 @@ export function VoiceProvider({ children }) {
       // Som da tela separado da voz + volume próprio por pessoa.
       remoteScreenAudioStreams, streamVolumes, setStreamVolume,
       reportVideoViewport, connectionInfo,
+      closedScreens, setScreenClosed,
       // Auto-retrato local (MediaStream devolvido pelo engine).
       localCameraStream: engineLocalCameraStream,
       localScreenStream: engineLocalScreenStream,

@@ -32,6 +32,8 @@ import { RadioChip, RadioSettings } from './voice/RadioSettings.jsx';
 // ============================================================
 
 const ICONS = {
+  close: 'M6 6l12 12M18 6 6 18',
+  play: 'M8 5.5v13l10.5-6.5L8 5.5Z',
   mic: 'M12 3a3 3 0 0 0-3 3v6a3 3 0 0 0 6 0V6a3 3 0 0 0-3-3ZM5 11a7 7 0 0 0 14 0M12 18v3',
   micOff: 'M15 9.3V6a3 3 0 0 0-5.7-1.3M9 9v3a3 3 0 0 0 4.9 2.3M19 11a7 7 0 0 1-1.1 3.8M5 11a7 7 0 0 0 11 5.7M12 18v3M3 3l18 18',
   headphones: 'M4 15v-3a8 8 0 0 1 16 0v3M4 15a2 2 0 0 1 2-2h1v7H6a2 2 0 0 1-2-2v-3Zm16 0a2 2 0 0 0-2-2h-1v7h1a2 2 0 0 0 2-2v-3Z',
@@ -191,8 +193,11 @@ export default function VoiceChannelView({ channel }) {
   const modItemsFor = (uid, st) => buildVoiceModerationItems({ voice, channelId: channel.id, target: { userId: uid, ...(st || {}) }, myPerms: modPerms, myUserId: user.id });
   const allUserIds = [...new Set([user.id, ...Object.keys(participants)])];
 
+  // Lives dos outros que eu fechei: não aparecem (e nem baixam — ver setScreenClosed).
+  const closedScreens = voice.closedScreens || {};
+  const closedLives = Object.keys(remoteScreenStreams).filter((uid) => closedScreens[uid]);
   const screens = [
-    ...Object.entries(remoteScreenStreams).map(([uid, stream]) => ({ key: `screen-${uid}`, uid, stream, mine: false })),
+    ...Object.entries(remoteScreenStreams).filter(([uid]) => !closedScreens[uid]).map(([uid, stream]) => ({ key: `screen-${uid}`, uid, stream, mine: false })),
     ...(screenOn && voice.localScreenStream ? [{ key: 'screen-me', uid: user.id, stream: voice.localScreenStream, mine: true }] : []),
   ];
   // Item pedido H: alternar entre "grade" e "focar em quem apresenta".
@@ -227,6 +232,20 @@ export default function VoiceChannelView({ channel }) {
         {hasPresenter && <ViewModeToggle mode={viewMode} onChange={changeViewMode} />}
       </CallHeader>
       <RecordingBanner voice={voice} meId={user.id} />
+      {closedLives.length > 0 && (
+        <div className="vc-closed-lives" role="group" aria-label="Lives fechadas">
+          {closedLives.map((uid) => {
+            const name = memberFor(uid)?.displayName || 'Alguém';
+            return (
+              <button key={uid} type="button" className="vc-closed-live" onClick={() => voice.setScreenClosed(uid, false)} title="Abrir a live de novo">
+                <span className="vc-closed-live-dot" aria-hidden="true" />
+                <span>{name} está ao vivo</span>
+                <b><Icon name="play" size={13} /> Assistir</b>
+              </button>
+            );
+          })}
+        </div>
+      )}
       <ReconnectBanner voice={voice} />
       <div className={`vc-stage${spotlight ? ' is-spotlight' : ''}`}>
         {spotlight ? (
@@ -258,6 +277,14 @@ export default function VoiceChannelView({ channel }) {
                     />
                     <span className="vc-label"><Icon name="screen" size={14} /> {s.mine ? 'Sua tela' : streamName}</span>
                     {volumeCtl}
+                    {!s.mine && voice.setScreenClosed && (
+                      <button
+                        type="button" className="vc-screen-close" onClick={() => voice.setScreenClosed(s.uid, true)}
+                        title="Fechar live (para de baixar o vídeo e o som dela)" aria-label={`Fechar a live de ${streamName}`}
+                      >
+                        <Icon name="close" size={16} />
+                      </button>
+                    )}
                   </div>
                 );
               })}

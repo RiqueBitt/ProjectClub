@@ -407,3 +407,23 @@
 .vc-reconnect-note { color: #d0d4ff; background: rgba(88, 101, 242, 0.14); border-color: rgba(88, 101, 242, 0.4); }
 .vc-reconnect-note .vc-backup-dot { background: #7c87ff; box-shadow: 0 0 0 3px rgba(88, 101, 242, 0.25); animation-duration: 1.2s; }
 @keyframes vc-backup-pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.45; } }
+
+/* Fechar a live de outra pessoa (só pra mim: o vídeo para de baixar). */
+.vc-screen-close {
+  position: absolute; top: 10px; right: 52px; z-index: 4; display: grid; place-items: center;
+  width: 34px; height: 34px; border-radius: 10px; border: 1px solid rgba(255, 255, 255, .18);
+  background: rgba(0, 0, 0, .62); color: #fff; cursor: pointer; opacity: 0; transition: opacity .15s, background .15s;
+}
+.vc-screen:hover .vc-screen-close, .vc-screen-close:focus-visible { opacity: 1; }
+.vc-screen-close:hover { background: var(--red, #ed4245); }
+@media (hover: none) { .vc-screen-close { opacity: .9; } }
+/* Lives fechadas: faixa pra abrir de novo. */
+.vc-closed-lives { display: flex; flex-wrap: wrap; gap: 8px; padding: 0 16px 8px; }
+.vc-closed-live {
+  display: inline-flex; align-items: center; gap: 8px; padding: 6px 8px 6px 12px; border-radius: 999px;
+  border: 1px solid var(--border); background: var(--bg-secondary, rgba(255, 255, 255, .04)); color: var(--text, #fff);
+  font: inherit; font-size: 13px; cursor: pointer;
+}
+.vc-closed-live:hover { border-color: var(--accent, #5865f2); }
+.vc-closed-live-dot { width: 8px; height: 8px; border-radius: 50%; background: #ed4245; box-shadow: 0 0 0 3px rgba(237, 66, 69, .25); }
+.vc-closed-live b { display: inline-flex; align-items: center; gap: 4px; padding: 3px 10px; border-radius: 999px; background: var(--accent, #5865f2); color: #fff; font-size: 12px; }

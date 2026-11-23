@@ -104,8 +104,11 @@
 /* Sem faixa do nome na caixinha (o nome fica só embaixo, na cartela): o item centra no fundo todo. */
 .room-pack-window > .room-art-deco { zoom: calc(var(--k) * 1.22); }
 .room-pack-window > .room-art-font { height: 100%; padding: 10px; box-sizing: border-box; }
-.room-pack-window > .room-art-font span { font-size: 23px; color: #fff; }
-.room-pack-window > .room-art-font small { color: rgba(255, 255, 255, .72) !important; }
+.room-pack-window > .room-art-font span { font-size: 28px; color: #fff; }
+.room-pack-window > .room-art-font small { font-size: 16px; color: rgba(255, 255, 255, .78) !important; }
+/* Textos dentro das caixinhas um pouco maiores (nome e @ no perfil de amostra). */
+.room-pack-window > .shop-mock .shop-mock-body strong, .room-owned-art > .shop-mock .shop-mock-body strong { font-size: 14.5px; }
+.room-pack-window > .shop-mock .shop-mock-body small, .room-owned-art > .shop-mock .shop-mock-body small { font-size: 12px; }
 .room-pack-window > .shop-mock { width: 100%; height: 100%; border-radius: 0; box-shadow: none; }
 .room-pack-window > .shop-mock .shop-mock-lines { display: none; }
 /* o plástico (render cinza) tingido com a cor do item */
@@ -210,8 +213,10 @@
   filter: drop-shadow(0 22px 26px rgba(0, 0, 0, .55));
 }
 .shop-drag-ghost.room-pack { scale: 1.04; }
-/* A caixinha saiu do gancho: a cartela continua, o gancho balança vazio. */
-.shop-room .room-grid .room-card.is-lifted .room-pack { visibility: hidden; }
+/* A caixinha saiu do gancho: a cartela continua e o gancho fica. Com o 3D,
+   o <canvas> passa a desenhar só o gancho (pack3d.lift); some o resto. */
+.shop-room .room-grid .room-card.is-lifted .room-pack > :not(canvas) { visibility: hidden; }
+.shop-room .room-grid .room-card.is-lifted .room-pack::before { display: none; }
 .shop-room .room-grid .room-card.is-lifted .room-card-flags { visibility: hidden; }
 .shop-room .room-grid .room-card.is-lifted .room-hook { transform-origin: 45% 7%; animation: shop-hook-wobble .6s ease-out; }
 @keyframes shop-hook-wobble { 0% { transform: rotate(0); } 30% { transform: rotate(9deg); } 60% { transform: rotate(-5deg); } 100% { transform: rotate(0); } }
@@ -581,35 +586,40 @@
 
 /* ---------- Item já comprado: sem caixinha, só o item + carimbo ---------- */
 .shop-room .room-card.is-owned .room-card-art { cursor: pointer; }
+/* O item em cima e o carimbo embaixo dele, em pé (horizontal), sem passar
+   por cima do item nem de texto e sem sair da área da cartela. */
 .room-owned {
-  position: absolute; inset: 0; display: grid; place-items: center; overflow: hidden;
-  border-radius: inherit; isolation: isolate;
+  position: absolute; inset: 0; box-sizing: border-box; padding: calc(var(--sw) * .07) calc(var(--sw) * .06) calc(var(--sw) * .06);
+  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: calc(var(--sw) * .05);
+  overflow: hidden; border-radius: inherit;
 }
 .room-owned-art {
-  display: grid; place-items: center; width: calc(var(--sw) * .78); height: calc(var(--sw) * .9);
+  flex: 0 1 auto; min-height: 0; display: grid; place-items: center;
+  width: calc(var(--sw) * .78); height: calc(var(--sw) * .74); max-height: 100%;
   filter: drop-shadow(0 10px 16px rgba(0, 0, 0, .45));
 }
 .room-owned-art > * { max-width: 100%; zoom: var(--k); }
 .room-owned-art > .room-art-deco { zoom: calc(var(--k) * 1.22); }
-.room-owned-art > .room-art-font span { font-size: 23px; color: #fff; }
+.room-owned-art > .room-art-font span { font-size: 28px; color: #fff; }
+.room-owned-art > .room-art-font small { font-size: 16px; color: rgba(255, 255, 255, .78) !important; }
 .room-owned-art > .shop-mock { width: 100%; height: 100%; border-radius: 12px; }
 .room-owned-art > .shop-mock .shop-mock-lines { display: none; }
-/* Carimbo de tinta, torto, por cima do item. */
+/* Carimbo de tinta, reto, embaixo do item. */
 .room-stamp {
-  position: absolute; left: 50%; top: 52%; z-index: 5; pointer-events: none;
-  transform: translate(-50%, -50%) rotate(-14deg);
-  padding: calc(var(--sw) * .02) calc(var(--sw) * .07);
+  flex: none; max-width: 100%; box-sizing: border-box; pointer-events: none;
+  padding: calc(var(--sw) * .014) calc(var(--sw) * .055);
   font-family: 'Barlow Condensed', 'Oswald', Impact, 'Arial Narrow', system-ui, sans-serif;
-  font-size: calc(var(--sw) * .17); font-weight: 900; line-height: 1; letter-spacing: .06em; text-transform: uppercase;
-  color: #ff4d4d; border: calc(var(--sw) * .016) solid currentColor; border-radius: calc(var(--sw) * .03);
-  box-shadow: inset 0 0 0 calc(var(--sw) * .008) rgba(10, 30, 18, .9), inset 0 0 0 calc(var(--sw) * .02) currentColor;
-  text-shadow: 0 0 1px currentColor;
-  opacity: .9; mix-blend-mode: screen;
+  font-size: calc(var(--sw) * .095); font-weight: 900; line-height: 1.05; letter-spacing: .08em; text-transform: uppercase; white-space: nowrap;
+  color: #ff5a5a; border: calc(var(--sw) * .011) solid currentColor; border-radius: calc(var(--sw) * .025);
+  box-shadow: inset 0 0 0 calc(var(--sw) * .007) rgba(10, 30, 18, .9), inset 0 0 0 calc(var(--sw) * .014) currentColor;
+  opacity: .92;
   /* falhas da tinta: um ruído recortando o carimbo */
   -webkit-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='120' height='60'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='2'/%3E%3CfeComponentTransfer%3E%3CfeFuncA type='discrete' tableValues='0 1 1 1 1 1 1 1'/%3E%3C/feComponentTransfer%3E%3C/filter%3E%3Crect width='120' height='60' filter='url(%23n)'/%3E%3C/svg%3E");
   mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='120' height='60'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='2'/%3E%3CfeComponentTransfer%3E%3CfeFuncA type='discrete' tableValues='0 1 1 1 1 1 1 1'/%3E%3C/feComponentTransfer%3E%3C/filter%3E%3Crect width='120' height='60' filter='url(%23n)'/%3E%3C/svg%3E");
   animation: room-stamp-in .35s cubic-bezier(.2, 1.4, .4, 1) both;
 }
 .shop-room .room-card.is-on .room-stamp { color: #4dff8a; }
-@keyframes room-stamp-in { from { transform: translate(-50%, -50%) rotate(-14deg) scale(1.8); opacity: 0; } to { transform: translate(-50%, -50%) rotate(-14deg) scale(1); opacity: .9; } }
+@keyframes room-stamp-in { from { transform: scale(1.6); opacity: 0; } to { transform: scale(1); opacity: .92; } }
 @media (prefers-reduced-motion: reduce) { .room-stamp { animation: none; } }
+/* O "Pré-visualizar" do hover ficaria em cima do carimbo: no item comprado o clique já abre. */
+.shop-room .room-card.is-owned .room-card-peek { display: none; }

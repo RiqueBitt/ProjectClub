@@ -295,7 +295,11 @@ async function createEngine() {
     key.target.position.set(0, 1, 0);
     key.target.updateMatrixWorld();
     pose(s);
-    wallShadow.visible = !s.orbit;
+    // "Foto" pro arraste (snapshot): só a caixinha, sem o gancho e sem a sombra na cartela.
+    hook.visible = !s.noHook;
+    // Caixinha fora do gancho (sendo arrastada pra cestinha): fica só o gancho.
+    box.visible = !s.onlyHook;
+    wallShadow.visible = !s.orbit && !s.noHook && !s.onlyHook;
     const quad = (r, z) => [
       project(new Vector3(-r.x, r.y, z), w, h), project(new Vector3(r.x, r.y, z), w, h),
       project(new Vector3(r.x, -r.y, z), w, h), project(new Vector3(-r.x, -r.y, z), w, h),
@@ -477,6 +481,22 @@ export function mountPack(el, opts = {}) {
       if (o.color !== undefined && o.color !== s.color) { s.color = o.color; dirty = true; }
       if (o.tilt !== undefined && o.tilt !== s.tilt) { s.tilt = o.tilt; dirty = true; }
       wake();
+    },
+    /** Desenha só a caixinha (sem gancho nem sombra na parede) num <canvas>
+     *  — é a "caixinha" que vai voando pra cestinha. false se o 3D não está pronto. */
+    /** Caixinha saiu do gancho (arraste): a parede desenha só o gancho. */
+    lift(on) { s.onlyHook = !!on; dirty = true; wake(); },
+    snapshot(target) {
+      if (!engine || !size || !target) return false;
+      target.width = Math.round(size.w * size.dpr);
+      target.height = Math.round(size.h * size.dpr);
+      const tctx = target.getContext('2d');
+      if (!tctx) return false;
+      s.noHook = true;
+      try { engine.render(s, { w: size.w, h: size.h, dpr: size.dpr, canvas: target, ctx: tctx }); } finally { s.noHook = false; }
+      dirty = true;
+      wake();
+      return true;
     },
     destroy() {
       destroyed = true;
