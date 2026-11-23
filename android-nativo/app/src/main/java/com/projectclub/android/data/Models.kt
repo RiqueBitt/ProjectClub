@@ -139,6 +139,8 @@ data class Conversation(
     val lastReadAt: String? = null,
     /** Link bonito do grupo (/dm/grupo-<nome>); DM 1:1 usa o @ da pessoa. */
     val slug: String? = null,
+    /** Mensagens temporárias: null = desligado, 86400 = 24 h, 604800 = 7 dias. */
+    val ephemeralSeconds: Int? = null,
 )
 
 /** GET /api/links/resolve?path=/canal/chat-geral (links bonitos → id). */
@@ -170,6 +172,7 @@ data class Attachment(
 ) {
     val isImage: Boolean get() = mimeType?.startsWith("image/") == true
     val isVideo: Boolean get() = mimeType?.startsWith("video/") == true
+    val isAudio: Boolean get() = mimeType?.startsWith("audio/") == true
 }
 
 @Serializable
@@ -199,6 +202,16 @@ data class Message(
     val embed: String? = null,
     val nonce: String? = null,
     val contentFiltered: Boolean = false,
+    /** Enquete do chat (POST /api/polls): opções em JSON, votos com quem votou. */
+    val poll: ChatPoll? = null,
+    /** Tópicos: a raiz tem title + replyToId; as respostas têm threadId = id da raiz. */
+    val title: String? = null,
+    val threadId: String? = null,
+    val isThread: Boolean = false,
+    val threadReplyCount: Int = 0,
+    val threadArchivedAt: String? = null,
+    val archived: Boolean = false,
+    val threadLastReply: ThreadLastReply? = null,
 ) {
     val roomId: String? get() = channelId ?: conversationId
 }
@@ -296,3 +309,19 @@ data class FavoriteGif(val id: String = "", val gifId: String = "", val url: Str
 
 @Serializable
 data class FavoriteGifsResponse(val gifs: List<FavoriteGif> = emptyList())
+
+@Serializable
+data class ChatPollVote(val userId: String = "", val optionIndex: Int = 0, val user: User? = null)
+
+@Serializable
+data class ChatPoll(
+    val id: String = "",
+    val question: String = "",
+    /** JSON: ["Sim","Não"]. */
+    val options: String = "[]",
+    val votes: List<ChatPollVote> = emptyList(),
+    val expiresAt: String? = null,
+)
+
+@Serializable
+data class ThreadLastReply(val id: String = "", val createdAt: String? = null, val author: User? = null, val preview: String? = null)

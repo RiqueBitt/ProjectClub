@@ -31,6 +31,7 @@ import androidx.compose.material.icons.outlined.Add
 import androidx.compose.material.icons.outlined.Casino
 import androidx.compose.material.icons.outlined.CreditCard
 import androidx.compose.material.icons.outlined.MusicNote
+import androidx.compose.material.icons.outlined.Poll
 import androidx.compose.material.icons.outlined.Remove
 import androidx.compose.material.icons.outlined.Search
 import androidx.compose.material.icons.outlined.SmartDisplay
@@ -117,11 +118,11 @@ private fun videoIdFrom(text: String): String? {
     return id?.takeIf { YT_ID.matches(it) }
 }
 
-private enum class ActMode { MENU, DICE, VIDEO, MUSIC }
+private enum class ActMode { MENU, DICE, VIDEO, MUSIC, POLL }
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun ActivitiesSheet(repo: Repository, onDismiss: () -> Unit, onSendText: (String) -> Unit) {
+fun ActivitiesSheet(repo: Repository, onDismiss: () -> Unit, channelId: String? = null, conversationId: String? = null, onSendText: (String) -> Unit) {
     val sheet = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     var mode by remember { mutableStateOf(ActMode.MENU) }
     var busy by remember { mutableStateOf(false) }
@@ -143,7 +144,7 @@ fun ActivitiesSheet(repo: Repository, onDismiss: () -> Unit, onSendText: (String
                     Icon(Icons.AutoMirrored.Filled.ArrowBack, "Voltar", tint = PC.Muted)
                 } else Spacer(Modifier.width(12.dp))
                 Text(
-                    when (mode) { ActMode.MENU -> "Atividades"; ActMode.DICE -> "Rolar dados"; ActMode.VIDEO -> "YouTube"; ActMode.MUSIC -> "Música" },
+                    when (mode) { ActMode.MENU -> "Atividades"; ActMode.DICE -> "Rolar dados"; ActMode.VIDEO -> "YouTube"; ActMode.MUSIC -> "Música"; ActMode.POLL -> "Enquete" },
                     color = PC.Header, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold,
                 )
             }
@@ -153,6 +154,7 @@ fun ActivitiesSheet(repo: Repository, onDismiss: () -> Unit, onSendText: (String
                     ActionRow(Icons.Outlined.Casino, Color(0xFFFF8A2A), "Rolar dados", "Do D2 ao D100, quantos quiser") { mode = ActMode.DICE }
                     ActionRow(Icons.Outlined.SmartDisplay, Color(0xFFFF2D2D), "YouTube", "Manda um vídeo pra assistir") { mode = ActMode.VIDEO }
                     ActionRow(Icons.Outlined.MusicNote, Color(0xFFA855F7), "Música", "Manda uma música do YouTube Music") { mode = ActMode.MUSIC }
+                    ActionRow(Icons.Outlined.Poll, Color(0xFF22C55E), "Enquete", "Pergunta com até 7 opções") { mode = ActMode.POLL }
                     ActionRow(Icons.Outlined.CreditCard, PC.Brand, if (busy) "Mostrando…" else "Mostrar cartão", "Manda o seu cartão da carteira no chat") {
                         if (busy) return@ActionRow
                         busy = true; error = null
@@ -175,6 +177,22 @@ fun ActivitiesSheet(repo: Repository, onDismiss: () -> Unit, onSendText: (String
                         runCatching { repo.api.post<IdResponse>("/api/activities/dice", body) }
                             .onSuccess { onSendText("$base/atividade/dados/${it.id}"); onDismiss() }
                             .onFailure { fail(it, "Não deu pra rolar os dados.") }
+                        busy = false
+                    }
+                }
+                ActMode.POLL -> PollComposer(busy) { question, options, duration ->
+                    busy = true; error = null
+                    scope.launch {
+                        val body = buildJsonObject {
+                            channelId?.let { put("channelId", it) }
+                            conversationId?.let { put("conversationId", it) }
+                            put("question", question)
+                            put("options", JsonArray(options.map { JsonPrimitive(it) }))
+                            put("duration", duration)
+                        }
+                        runCatching { repo.api.postIgnore("/api/polls", body) }
+                            .onSuccess { onDismiss() }
+                            .onFailure { fail(it, "Não deu pra criar a enquete.") }
                         busy = false
                     }
                 }
