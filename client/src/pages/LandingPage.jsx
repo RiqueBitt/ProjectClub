@@ -234,6 +234,114 @@ function Orbit() {
   );
 }
 
+// ---------- Brasas ----------
+// Faíscas subindo devagar atrás do título (canvas leve, pausa fora da tela).
+function Embers({ count = 70 }) {
+  const ref = useRef(null);
+  useEffect(() => {
+    const cv = ref.current;
+    if (!cv || reducedMotion()) return undefined;
+    const ctx = cv.getContext('2d');
+    let w = 0; let h = 0; let raf = 0; let on = true;
+    const dpr = Math.min(window.devicePixelRatio || 1, 2);
+    const size = () => { w = cv.clientWidth; h = cv.clientHeight; cv.width = w * dpr; cv.height = h * dpr; ctx.setTransform(dpr, 0, 0, dpr, 0, 0); };
+    size();
+    const spawn = (p = {}) => Object.assign(p, {
+      x: Math.random() * w, y: h + Math.random() * h * 0.6, r: 0.6 + Math.random() * 2.2,
+      vy: 0.25 + Math.random() * 0.9, vx: (Math.random() - 0.5) * 0.3, t: Math.random() * 6.28,
+      hue: Math.random() < 0.72 ? 8 + Math.random() * 26 : 205 + Math.random() * 20, life: 0.4 + Math.random() * 0.6,
+    });
+    const ps = Array.from({ length: count }, () => { const p = spawn(); p.y = Math.random() * h; return p; });
+    const tick = () => {
+      if (!on) return;
+      ctx.clearRect(0, 0, w, h);
+      ctx.globalCompositeOperation = 'lighter';
+      for (const p of ps) {
+        p.t += 0.02; p.y -= p.vy; p.x += p.vx + Math.sin(p.t) * 0.35;
+        if (p.y < -10) spawn(p);
+        const a = Math.max(0, Math.min(1, (p.y / h) * 1.6)) * p.life;
+        const g = ctx.createRadialGradient(p.x, p.y, 0, p.x, p.y, p.r * 4);
+        g.addColorStop(0, `hsla(${p.hue}, 100%, 70%, ${a})`);
+        g.addColorStop(1, `hsla(${p.hue}, 100%, 50%, 0)`);
+        ctx.fillStyle = g; ctx.beginPath(); ctx.arc(p.x, p.y, p.r * 4, 0, 6.283); ctx.fill();
+      }
+      raf = requestAnimationFrame(tick);
+    };
+    const io = new IntersectionObserver(([e]) => { on = e.isIntersecting; cancelAnimationFrame(raf); if (on) raf = requestAnimationFrame(tick); });
+    io.observe(cv);
+    window.addEventListener('resize', size);
+    return () => { on = false; cancelAnimationFrame(raf); io.disconnect(); window.removeEventListener('resize', size); };
+  }, [count]);
+  return <canvas ref={ref} className="lp-embers" aria-hidden="true" />;
+}
+
+// Personagens do BLACKOUT (arte do compêndio) dos dois lados da abertura.
+// Seguem o mouse com profundidade diferente (--mx/--my vêm da página).
+function HeroCast() {
+  return (
+    <div className="lp-cast" aria-hidden="true">
+      <img className="lp-cast-l" src="/site/personagens/bruxo.webp" alt="" width="656" height="900" />
+      <img className="lp-cast-r" src="/site/personagens/sacerdotisa.webp" alt="" width="575" height="900" />
+    </div>
+  );
+}
+
+// Faixa que corre entre as seções.
+function Marquee({ words }) {
+  const row = words.map((w, i) => <span key={i}>{w}<i aria-hidden="true">✦</i></span>);
+  return (
+    <div className="lp-marquee" aria-hidden="true">
+      <div className="lp-marquee-track">{row}{row}</div>
+    </div>
+  );
+}
+
+// ---------- Mesa do BLACKOUT ----------
+// Os dois personagens grandes e um d20 que rola de verdade (clique).
+function BlackoutTable() {
+  const [roll, setRoll] = useState(20);
+  const [spin, setSpin] = useState(0);
+  const timer = useRef(0);
+  useEffect(() => () => clearInterval(timer.current), []);
+  const doRoll = () => {
+    clearInterval(timer.current);
+    if (reducedMotion()) { setRoll(1 + Math.floor(Math.random() * 20)); return; }
+    let n = 0;
+    setSpin((x) => x + 1);
+    timer.current = setInterval(() => {
+      n += 1;
+      setRoll(1 + Math.floor(Math.random() * 20));
+      if (n > 12) clearInterval(timer.current);
+    }, 55);
+  };
+  const crit = roll === 20 ? ' is-crit' : roll === 1 ? ' is-fail' : '';
+  return (
+    <section id="blackout" className="lp-bo" aria-labelledby="bo-titulo">
+      <div className="lp-bo-bg" aria-hidden="true" />
+      <img className="lp-bo-char is-l" src="/site/personagens/bruxo.webp" alt="" loading="lazy" />
+      <img className="lp-bo-char is-r" src="/site/personagens/sacerdotisa.webp" alt="" loading="lazy" />
+      <div className="lp-bo-center lp-reveal">
+        <p className="lp-bo-kicker">RPG de mesa dentro do clube</p>
+        <h2 id="bo-titulo" className="lp-bo-title" data-text="BLACKOUT">BLACKOUT</h2>
+        <p className="lp-copy">História, espécies, classes, itens e criação de personagem num compêndio só. A ficha fica salva, sai em PDF e as rolagens acontecem ali mesmo.</p>
+        <ul className="lp-bo-feats">
+          <li><b>Ficha</b><span>Monta o personagem passo a passo</span></li>
+          <li><b>Trilha</b><span>A classe evolui com o personagem</span></li>
+          <li><b>Rolagens</b><span>Dados na hora, sem sair da mesa</span></li>
+        </ul>
+        <button type="button" className={`lp-d20${crit}`} onClick={doRoll} aria-label={`Rolar um d20. Último resultado: ${roll}`}>
+          <svg key={spin} viewBox="0 0 100 100" aria-hidden="true">
+            <path d="M50 4 92 28v44L50 96 8 72V28z" />
+            <path d="M50 4 30 40h40zM8 28l22 12M92 28 70 40M30 40 50 76 70 40M8 72l42 4 42-4M50 76v20M30 40 8 72M70 40l22 32" />
+          </svg>
+          <b aria-live="polite">{roll}</b>
+          <small>{roll === 20 ? 'Crítico!' : roll === 1 ? 'Falha crítica' : 'Clique pra rolar'}</small>
+        </button>
+      </div>
+    </section>
+  );
+}
+
 // Captura do app ou, sem captura (art: 'type'), o nome em letras grandes.
 function AppArt({ a, className = '', eager = false, alt = '' }) {
   if (a.art === 'type') {
@@ -386,6 +494,32 @@ export default function LandingPage() {
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
   }, []);
+  // Mouse: --mx/--my (-1..1) na página inteira (paralaxe dos personagens) e
+  // --sx/--sy (px) dentro de cada cartão com [data-spot] (luz que segue).
+  useEffect(() => {
+    const root = document.querySelector('.lp');
+    if (!root || reducedMotion()) return undefined;
+    let raf = 0; let ev = null;
+    const apply = () => {
+      raf = 0;
+      const e = ev;
+      root.style.setProperty('--mx', ((e.clientX / window.innerWidth) * 2 - 1).toFixed(3));
+      root.style.setProperty('--my', ((e.clientY / window.innerHeight) * 2 - 1).toFixed(3));
+      const card = e.target?.closest?.('[data-spot]');
+      if (card) {
+        const r = card.getBoundingClientRect();
+        card.style.setProperty('--sx', `${e.clientX - r.left}px`);
+        card.style.setProperty('--sy', `${e.clientY - r.top}px`);
+        card.style.setProperty('--tx', `${(((e.clientY - r.top) / r.height) - 0.5) * -8}deg`);
+        card.style.setProperty('--ty', `${(((e.clientX - r.left) / r.width) - 0.5) * 10}deg`);
+      }
+    };
+    const onMove = (e) => { ev = e; if (!raf) raf = requestAnimationFrame(apply); };
+    const onLeave = (e) => { const c = e.target?.closest?.('[data-spot]'); if (c && !c.contains(e.relatedTarget)) { c.style.setProperty('--tx', '0deg'); c.style.setProperty('--ty', '0deg'); } };
+    root.addEventListener('pointermove', onMove, { passive: true });
+    root.addEventListener('pointerout', onLeave, { passive: true });
+    return () => { root.removeEventListener('pointermove', onMove); root.removeEventListener('pointerout', onLeave); cancelAnimationFrame(raf); };
+  }, []);
   const jump = (id) => document.getElementById(id)?.scrollIntoView({ behavior: reducedMotion() ? 'auto' : 'smooth' });
   // Vindo de outra página pública com "/#secao": rola até a seção.
   useEffect(() => {
@@ -401,6 +535,7 @@ export default function LandingPage() {
     { key: 'go-dl', label: 'Baixar o Project Club', hint: 'Windows, Linux e Android', glyph: '↓', run: () => jump('download') },
     { key: 'go-login', label: user ? 'Voltar pro app' : 'Entrar', hint: user ? 'Você já está logado' : 'Já tenho conta', glyph: '→', run: () => navigate(user ? '/inicio' : '/login') },
     ...(user ? [] : [{ key: 'go-reg', label: 'Criar conta', hint: 'Grátis, leva um minuto', glyph: '+', run: () => navigate('/register') }]),
+    { key: 'go-bo', label: 'RPG Blackout', hint: 'Fichas, classes e rolagens', glyph: '◆', run: () => jump('blackout') },
     { key: 'go-com', label: 'Comunidade', hint: 'Chat, voz, fórum e conquistas', glyph: '#', run: () => jump('comunidade') },
     { key: 'go-faq', label: 'Perguntas', hint: 'Preço, requisitos e atualizações', glyph: '?', run: () => jump('perguntas') },
     { key: 'go-blog', label: 'Blog', hint: 'O guia completo do Project Club', glyph: '¶', run: () => navigate('/blog') },
@@ -423,6 +558,9 @@ export default function LandingPage() {
 
       <main id="conteudo">
         <section className="lp-hero" aria-labelledby="titulo">
+          <div className="lp-hero-glow" aria-hidden="true" />
+          <Embers />
+          <HeroCast />
           <div className="lp-hero-stage">
             <Orbit />
             <h1 id="titulo" className="lp-display" aria-label="Project Club"><Letters text="Project" /> <Letters text="Club" start={420} /></h1>
@@ -446,7 +584,11 @@ export default function LandingPage() {
           <a className="lp-scroll-hint" href="#apps" aria-label="Ver os apps"><span /></a>
         </section>
 
+        <Marquee words={['Comunidade', 'Chat de voz', 'Mod Manager', 'Fórum', 'RPG Blackout', 'Loja', 'Conquistas', 'Amigos', 'Modpacks']} />
+
         <AppStage ref={stageRef} versions={versions} />
+
+        <BlackoutTable />
 
         <section id="comunidade" className="lp-band" aria-labelledby="com-titulo">
           <div className="lp-split">
@@ -471,25 +613,25 @@ export default function LandingPage() {
             <p className="lp-copy">No computador vem também o Mod Manager. No celular e no navegador você usa a comunidade.</p>
           </div>
           <div className="lp-dl lp-reveal">
-            <a className={`lp-dl-card ${platform === 'windows' ? 'is-you' : ''}`} href={DOWNLOADS.windows} download>
+            <a data-spot className={`lp-dl-card ${platform === 'windows' ? 'is-you' : ''}`} href={DOWNLOADS.windows} download>
               <Mark name="windows" size={28} />
               <strong>Windows</strong>
               <span>Instalador .exe para Windows 10 e 11</span>
               <em>Baixar <Ico name="download" size={15} /></em>
             </a>
-            <a className={`lp-dl-card ${platform === 'linux' ? 'is-you' : ''}`} href={DOWNLOADS.linux} download>
+            <a data-spot className={`lp-dl-card ${platform === 'linux' ? 'is-you' : ''}`} href={DOWNLOADS.linux} download>
               <Mark name="linux" size={28} />
               <strong>Linux</strong>
               <span>AppImage para x86_64</span>
               <em>Baixar <Ico name="download" size={15} /></em>
             </a>
-            <a className={`lp-dl-card ${platform === 'android' ? 'is-you' : ''}`} href={DOWNLOADS.android} download>
+            <a data-spot className={`lp-dl-card ${platform === 'android' ? 'is-you' : ''}`} href={DOWNLOADS.android} download>
               <Mark name="android" size={28} />
               <strong>Android</strong>
               <span>Arquivo .apk, instalação manual</span>
               <em>Baixar <Ico name="download" size={15} /></em>
             </a>
-            <button type="button" className="lp-dl-card" onClick={goLogin}>
+            <button type="button" data-spot className="lp-dl-card" onClick={goLogin}>
               <Mark name="browser" size={28} />
               <strong>Navegador</strong>
               <span>Sem instalar nada, em qualquer aparelho</span>
