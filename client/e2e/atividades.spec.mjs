@@ -94,6 +94,29 @@ test('Atividades → Rolar dados escolhe os dados e manda o cartão', async ({ p
   expect(page.sent[0]).toMatch(/\/atividade\/dados\/99999999-2222-3333-4444-555555555555$/);
 });
 
+test('Rolar dados: atalhos rápidos, bônus com − e +, e a mão de dados', async ({ page }, info) => {
+  test.skip(info.project.name !== 'pc', 'barra de digitação do PC');
+  await page.goto('/channels/ch2');
+  await page.getByRole('button', { name: 'Atividades' }).last().click();
+  await page.getByRole('button', { name: /Rolar dados/ }).click();
+  const picker = page.getByRole('dialog', { name: 'Rolar dados' });
+  await picker.getByRole('button', { name: /^4d6/ }).click();
+  await expect(picker.locator('.dice-notation')).toHaveText('4d6');
+  await expect(picker.locator('.dice-hand-die')).toHaveCount(4);
+  await picker.getByRole('button', { name: 'Aumentar o bônus' }).click();
+  await picker.getByRole('button', { name: 'Aumentar o bônus' }).click();
+  await expect(picker.locator('.dice-notation')).toHaveText('4d6 + 2');
+  // Tocar num dado da mão tira ele.
+  await picker.locator('.dice-hand-die').first().click();
+  await expect(picker.locator('.dice-notation')).toHaveText('3d6 + 2');
+  await picker.getByRole('button', { name: 'Rolar', exact: true }).click();
+  await expect(picker).toBeHidden();
+  // A última rolagem fica pra repetir.
+  await page.getByRole('button', { name: 'Atividades' }).last().click();
+  await page.getByRole('button', { name: /Rolar dados/ }).click();
+  await expect(page.getByRole('dialog', { name: 'Rolar dados' }).locator('.dice-preset.is-last')).toContainText('3d6 + 2');
+});
+
 test('Atividades → Música mostra os serviços (Spotify sem chave avisa)', async ({ page }, info) => {
   test.skip(info.project.name !== 'pc', 'barra de digitação do PC');
   await page.goto('/channels/ch2');
