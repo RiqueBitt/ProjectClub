@@ -315,7 +315,7 @@ internal fun DieFace(sides: Int, value: Int, size: Dp = 44.dp) {
                     6 -> Path().apply { addRoundRect(androidx.compose.ui.geometry.RoundRect(w * 0.06f, h * 0.06f, w * 0.94f, h * 0.94f, w * 0.18f, w * 0.18f)) }
                     8 -> poly(4, -PI / 2)
                     10 -> Path().apply {
-                        moveTo(c.x, h * 0.02f); lineTo(w * 0.96f, h * 0.45f); lineTo(c.x, h * 0.98f); lineTo(w * 0.04f, h * 0.45f); close()
+                        moveTo(c.x, h * 0.02f); lineTo(w * 0.94f, h * 0.64f); lineTo(c.x, h * 0.96f); lineTo(w * 0.06f, h * 0.64f); close()
                     }
                     12 -> poly(5, -PI / 2)
                     else -> poly(6, -PI / 2)
