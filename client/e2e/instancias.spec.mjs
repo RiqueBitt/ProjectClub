@@ -155,6 +155,6 @@ test('BLACKOUT: botão só nos destaques da instância BLACKOUT e abre o compên
   await expect(bo).toBeVisible();
   await bo.click();
   await expect(page).toHaveURL(/\/compendio-blackout$/);
-  expect(sessions).toBe(1);
+  await expect.poll(() => sessions).toBe(1);
   await expect(page.frameLocator('iframe.blackout-frame').locator('#bo')).toHaveText('Compêndio BLACKOUT');
 });
