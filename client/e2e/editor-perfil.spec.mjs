@@ -22,7 +22,7 @@ test('abre pela foto lá embaixo, mostra a prévia ao vivo e fecha com Esc', asy
   await page.locator('.top-more-menu').getByRole('menuitem', { name: 'Configurações' }).click();
   await expect(page.locator('.settings-modal-layout')).toBeVisible();
   await expect(page.locator('.settings-modal-sidebar-item', { hasText: 'Perfil Geral' })).toHaveCount(0);
-  await page.keyboard.press('Escape');
+  await page.locator('.settings-modal-box').getByRole('button', { name: 'Fechar' }).first().click();
   await expect(page.locator('.settings-modal-layout')).toHaveCount(0);
 
   await page.locator('.usb-identity').click();
