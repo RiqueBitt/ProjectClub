@@ -186,8 +186,11 @@ function ReportProfileDialog({ user, onClose }) {
   );
 }
 
-export default function UserProfileModal() {
-  const userId = useStore((s) => s.viewingProfileUserId);
+// `embedded` + `previewUser`: desenha o próprio perfil dentro do Editor de
+// perfil (ProfileEditorFrame), com as mudanças ainda não salvas por cima.
+export default function UserProfileModal({ embedded = false, previewUser = null } = {}) {
+  const storeProfileUserId = useStore((s) => s.viewingProfileUserId);
+  const userId = embedded ? previewUser?.id : storeProfileUserId;
   const profileAutoOpenRoleMenu = useStore((s) => s.profileAutoOpenRoleMenu);
   const clearProfileAutoOpenRoleMenu = useStore((s) => s.clearProfileAutoOpenRoleMenu);
   const closeProfile = useStore((s) => s.closeProfile);
@@ -584,7 +587,7 @@ export default function UserProfileModal() {
     listPhotosByOwner(userId).then((d) => { setPhotoPreview(d.photos.slice(0, 3)); setPhotoTotal(d.total); }).catch(() => {}).finally(() => markLazyDone(userId, 'album'));
   }, [userId, lazyOn.album]);
 
-  const user = data?.user;
+  const user = embedded && data?.user && previewUser ? { ...data.user, ...previewUser } : data?.user;
   const liveUps = liveUpsOverride ?? data?.totalUps ?? 0;
   const status = presence?.status || user?.status || 'ONLINE';
 
@@ -1261,7 +1264,7 @@ export default function UserProfileModal() {
   const levelPct = Math.max(0, Math.min(100, Number(data?.levelProgress ?? 0)));
 
   return (
-    <div className="modal-overlay profile-fullscreen-overlay" onMouseDown={(e) => { if (e.target === e.currentTarget) closeProfile(); }}>
+    <div className={`modal-overlay profile-fullscreen-overlay${embedded ? ' pf-embedded' : ''}`} onMouseDown={(e) => { if (!embedded && e.target === e.currentTarget) closeProfile(); }}>
       <div
         className={`modal-box profile-modal-box profile-modal-fullscreen pfl ${user ? 'profile-modal-accented' : ''}${profileStyleClass(user)}`}
         style={user ? {
@@ -1271,7 +1274,13 @@ export default function UserProfileModal() {
           '--profile-section-opacity': user.profileSectionOpacity != null ? user.profileSectionOpacity / 100 : undefined,
         } : undefined}
       >
-        <button className="icon-btn profile-modal-close" onClick={closeProfile} aria-label="Fechar perfil" title="Fechar"><img className="ui-icon" src={cancelIcon} alt="" /></button>
+        {!embedded && <button className="icon-btn profile-modal-close" onClick={closeProfile} aria-label="Fechar perfil" title="Fechar"><img className="ui-icon" src={cancelIcon} alt="" /></button>}
+        {/* Seu próprio perfil: atalho discreto pro Editor de perfil. */}
+        {!embedded && isMe && user && (
+          <button type="button" className="pf-edit-corner" onClick={() => { closeProfile(); useStore.getState().openProfileEditor(); }} title="Editar perfil">
+            <PfIcon name="pencil" size={13} /> <span>Editar perfil</span>
+          </button>
+        )}
         {loading && (
           <div className="pf-skeleton" aria-label="Carregando perfil">
             <div className="pf-sk pf-sk-banner" />
@@ -1449,7 +1458,7 @@ export default function UserProfileModal() {
                     </div>
                   ) : (
                     <div className="pfl-actions">
-                      <button type="button" className="btn-primary" onClick={() => useStore.getState().openSettings()}>Editar perfil</button>
+                      {!embedded && <button type="button" className="btn-primary" onClick={() => { closeProfile(); useStore.getState().openProfileEditor(); }}>Editar perfil</button>}
                       <button type="button" className="btn-secondary" onClick={() => setShowcaseOpen(true)}>Editar vitrine</button>
                     </div>
                   )}

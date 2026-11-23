@@ -1,5 +1,6 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { useStore } from '../store/useStore';
+import { useAuth } from '../context/AuthContext';
 import { peekProfile, fetchProfile } from '../api/profileCache';
 import { useLiveRefresh, sameData } from '../utils/liveRefresh';
 import { roleChipStyle } from '../utils/roleColor';
@@ -31,8 +32,11 @@ import { PINGU_USERNAME } from '../utils/pinguMessage';
 // tudo, aqui é só uma prévia.
 const ROLES_PREVIEW_COUNT = 2;
 
-export default function MiniProfileCard() {
-  const userId = useStore((s) => s.miniProfileUserId);
+// `preview`: o usuário (com as mudanças ainda não salvas) desenhado parado,
+// sem âncora nem fechar — é a prévia do Editor de perfil (ProfileEditorFrame).
+export default function MiniProfileCard({ preview = null } = {}) {
+  const storeMiniUserId = useStore((s) => s.miniProfileUserId);
+  const userId = preview ? preview.id : storeMiniUserId;
   const anchorRect = useStore((s) => s.miniProfileAnchorRect);
   const side = useStore((s) => s.miniProfileSide);
   const closeMiniProfile = useStore((s) => s.closeMiniProfile);
@@ -49,7 +53,10 @@ export default function MiniProfileCard() {
   // completo), então usa só o set de emojis próprios do usuário — sem
   // @menções aqui, não tem lista de canal/membros pra mencionar contra.
   const bioEmojiMap = Object.fromEntries(usableEmojis.map((e) => [e.name, e.url]));
-  const [user, setUser] = useState(null);
+  const [fetchedUser, setUser] = useState(null);
+  const user = preview ? (fetchedUser ? { ...fetchedUser, ...preview } : preview) : fetchedUser;
+  const myId = useAuth()?.user?.id;
+  const isMine = !!userId && userId === myId;
   const [badges, setBadges] = useState([]);
   const [mutualFriends, setMutualFriends] = useState([]);
   // "Amigos desde ..." — o servidor só manda quando quem vê é amigo.
@@ -126,7 +133,7 @@ export default function MiniProfileCard() {
   }, [userId]);
 
   useEffect(() => {
-    if (!userId) return;
+    if (!userId || preview) return;
     const onDocDown = (e) => { if (!cardRef.current?.contains(e.target)) closeMiniProfile('outside'); };
     const onKey = (e) => { if (e.key === 'Escape') closeMiniProfile(); };
     document.addEventListener('mousedown', onDocDown);
@@ -192,6 +199,7 @@ export default function MiniProfileCard() {
   };
 
   const reposition = () => {
+    if (preview) return;
     const el = cardRef.current;
     // Item pedido: animação de fechar — enquanto fechando, NÃO
     // recalcula a posição (ela ficaria "grudada" no centro da tela por
@@ -294,7 +302,7 @@ export default function MiniProfileCard() {
   }, [renderedUserId, closing, anchorRect, side, user, badges, member]);
 
   useEffect(() => {
-    if (!renderedUserId || closing) return undefined;
+    if (!renderedUserId || closing || preview) return undefined;
     const el = cardRef.current;
     if (!el || typeof ResizeObserver === 'undefined') return undefined;
     const ro = new ResizeObserver(() => reposition());
@@ -332,11 +340,13 @@ export default function MiniProfileCard() {
   return (
     <div
       ref={cardRef}
-      className={`mini-profile-card ${user ? 'mini-profile-accented' : ''} ${closing ? 'mini-profile-closing' : ''}${profileStyleClass(user)}`}
+      className={`mini-profile-card ${user ? 'mini-profile-accented' : ''} ${closing ? 'mini-profile-closing' : ''}${preview ? ' mini-profile-preview' : ''}${profileStyleClass(user)}`}
       style={{
-        position: 'fixed', top: pos?.top ?? -9999, left: pos?.left ?? -9999,
-        visibility: pos ? 'visible' : 'hidden',
-        ...(pos?.maxHeight ? { maxHeight: pos.maxHeight } : {}),
+        ...(preview ? { position: 'relative' } : {
+          position: 'fixed', top: pos?.top ?? -9999, left: pos?.left ?? -9999,
+          visibility: pos ? 'visible' : 'hidden',
+          ...(pos?.maxHeight ? { maxHeight: pos.maxHeight } : {}),
+        }),
         // Mesmo degradê de cima a baixo da cor de perfil usado no perfil
         // completo (ver .profile-modal-box.profile-modal-accented), incluindo
         // a cor de texto legível calculada (--profile-accent-text) — só
@@ -351,6 +361,13 @@ export default function MiniProfileCard() {
     >
       {!user && <p className="dim" style={{ padding: 16 }}>Carregando...</p>}
       {user?.profileEffect && <ProfileEffectOverlay effect={user.profileEffect} variant="mini" />}
+      {/* Seu próprio miniperfil: atalho discreto pro Editor de perfil. */}
+      {user && !preview && isMine && (
+        <button type="button" className="mini-profile-edit-corner" onClick={() => { closeMiniProfile(); useStore.getState().openProfileEditor(); }} title="Editar perfil">
+          <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M12 20h9M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z" /></svg>
+          Editar perfil
+        </button>
+      )}
       {user && (
         <>
           {/* Item pedido: "quando o user tiver colocado um banner no
@@ -503,7 +520,7 @@ export default function MiniProfileCard() {
                 // .btn-primary em global.css).
                 ...(user.miniProfileButtonColor ? { background: user.miniProfileButtonColor, '--btn-shadow-color': user.miniProfileButtonColor } : {}),
               }}
-              onClick={() => { openProfile(renderedUserId); closeMiniProfile(); }}
+              onClick={() => { if (preview) return; openProfile(renderedUserId); closeMiniProfile(); }}
             >
               Ver perfil completo
             </button>

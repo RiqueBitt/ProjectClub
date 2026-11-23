@@ -601,6 +601,12 @@ export const useStore = create((set, get) => ({
   closeProfile: () => set({ viewingProfileUserId: null, profileAutoOpenRoleMenu: false }),
   openSettings: () => { closeAllPopovers(); set({ settingsModalOpen: true, miniProfileUserId: null, miniProfileAnchorRect: null }); },
   closeSettings: () => set({ settingsModalOpen: false }),
+  // Editor de perfil (estilo Discord): controles à esquerda + prévia ao vivo
+  // do perfil completo e do miniperfil. section: 'PROFILE' | 'PROFILE_CONTENT' | 'COLUMNS'.
+  profileEditorOpen: false,
+  profileEditorSection: 'PROFILE',
+  openProfileEditor: (section = 'PROFILE') => { closeAllPopovers(); set({ profileEditorOpen: true, profileEditorSection: section, settingsModalOpen: false, viewingProfileUserId: null, miniProfileUserId: null, miniProfileAnchorRect: null }); },
+  closeProfileEditor: () => set({ profileEditorOpen: false }),
   // App desktop com navegador: o link abre numa aba do navegador do Project
   // Club (ao lado do chat), sem sair do app. Senão, confirmação como antes.
   openLinkConfirm: (url) => {

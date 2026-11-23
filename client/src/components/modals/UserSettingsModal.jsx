@@ -104,6 +104,7 @@ import {
   uploadMyCustomPendant, removeMyCustomPendant,
 } from '../../api/endpoints';
 // Clipes (Fase 7): só baixa no app de PC com suporte, quando a aba abre.
+import ProfileEditorFrame from '../profileEditor/ProfileEditorFrame.jsx';
 const ClipsSettings = lazy(() => import('../settings/ClipsSettings.jsx'));
 
 // Item pedido: separar "Edição do Perfil" das "Configurações gerais" da
@@ -124,9 +125,13 @@ const ClipsSettings = lazy(() => import('../settings/ClipsSettings.jsx'));
 // "Meu perfil" é uma categoria própria do Project Club sem
 // equivalente direto no documento (edição de bio/conquistas
 // exibidas/colunas do perfil) — mantida como já estava, sem mexer.
+// Seções do Editor de perfil (o seletor no topo do painel esquerdo).
+export const PROFILE_EDITOR_TABS = ['PROFILE', 'PROFILE_CONTENT', 'COLUMNS'];
+
 const TAB_GROUPS = [
-  // Miniperfil virou uma seção dentro de Perfil (não é mais aba própria).
-  { label: 'Perfil', tabs: ['PROFILE', 'PROFILE_CONTENT', 'COLUMNS'] },
+  // Perfil saiu daqui (nov/2026): agora é o Editor de perfil, aberto pelo
+  // próprio perfil ou pela sua foto no canto inferior esquerdo — o MESMO
+  // componente em mode="profile" (ver ProfileEditorFrame).
   { label: 'Conta', tabs: ['ACCOUNT', 'SECURITY', 'ACCOUNT_STATUS'] },
   { label: 'Dados e privacidade', tabs: ['PRIVACY'] },
   { label: 'Notificações', tabs: ['NOTIFICATIONS'] },
@@ -211,7 +216,8 @@ function formatClockSample(fmt, lang) {
 }
 const normalizeSearch = (v) => String(v || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim();
 
-export default function UserSettingsModal({ onClose }) {
+export default function UserSettingsModal({ onClose, mode = 'settings', initialTab = 'PROFILE' }) {
+  const isProfileEditor = mode === 'profile';
   const { t: translate } = useTranslation();
   const { user, setUser, logout } = useAuth();
   const navigate = useNavigate();
@@ -231,12 +237,13 @@ export default function UserSettingsModal({ onClose }) {
   const profileColorEditEnabled = !disabledSystems.includes('cores_perfil');
   // Volta de "Conectar conta" (OAuthReturnPage) abre direto em Segurança.
   const [tab, setTab] = useState(() => {
+    if (isProfileEditor) return PROFILE_EDITOR_TABS.includes(initialTab) ? initialTab : 'PROFILE';
     try {
       const saved = JSON.parse(sessionStorage.getItem('pc-settings-open-tab') || 'null');
-      if (saved?.tab && Date.now() - saved.at < 60 * 1000) return saved.tab;
+      if (saved?.tab && !PROFILE_EDITOR_TABS.includes(saved.tab) && Date.now() - saved.at < 60 * 1000) return saved.tab;
       sessionStorage.removeItem('pc-settings-open-tab');
     } catch { /* sem sessionStorage */ }
-    return 'PROFILE';
+    return 'ACCOUNT';
   });
   useEffect(() => {
     if (tab !== 'SECURITY') { try { sessionStorage.removeItem('pc-settings-open-tab'); } catch { /* sem storage */ } }
@@ -995,88 +1002,8 @@ export default function UserSettingsModal({ onClose }) {
     }
   };
 
-  return (
-    <>
-    <Modal title={<span className="settings-title-row">Configurações do usuário <SaveStatusPill /></span>} onClose={onClose} width="1240px" className="settings-modal-box settings-modal-wide">
-      <div className="settings-modal-layout">
-        <div className="settings-modal-sidebar">
-          {/* Item pedido: "reformule a interface das Configurações...
-              use a imagem como referência visual... padrão de fonte,
-              cores, espaçamentos, organização" — cabeçalho com
-              avatar + nome no topo da barra lateral, igual a
-              referência enviada, clicável pra ir direto no Perfil
-              (a aba que já tem essa edição). */}
-          <button type="button" className="settings-modal-sidebar-header" onClick={() => setTab('PROFILE')}>
-            <UserAvatar user={user} size={40} />
-            <div className="settings-modal-sidebar-header-text">
-              <div className="settings-modal-sidebar-header-name">{user.displayName}</div>
-              <div className="settings-modal-sidebar-header-edit">Editar perfil</div>
-            </div>
-          </button>
-          {(() => {
-            // Busca: cada palavra digitada precisa aparecer no nome da aba,
-            // no nome do grupo ou nas palavras-chave dela.
-            const words = normalizeSearch(settingsQuery).split(/\s+/).filter(Boolean);
-            const matches = (group, t) => !words.length || words.every((w) => normalizeSearch(`${labelFor(t, translate)} ${group.label} ${TAB_KEYWORDS[t] || ''}`).includes(w));
-            const groups = TAB_GROUPS.map((g) => ({ ...g, shown: g.tabs.filter((t) => matches(g, t)) })).filter((g) => g.shown.length > 0);
-            const first = groups[0]?.shown[0];
-            return (
-              <>
-                <div className="settings-search" role="search">
-                  <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><circle cx="11" cy="11" r="7" /><path d="m20 20-3.5-3.5" /></svg>
-                  <input
-                    type="search" value={settingsQuery} placeholder="Buscar configuração"
-                    aria-label="Buscar configuração"
-                    onChange={(e) => setSettingsQuery(e.target.value)}
-                    onKeyDown={(e) => {
-                      if (e.key === 'Enter' && first) { setTab(first); }
-                      if (e.key === 'Escape' && settingsQuery) { e.stopPropagation(); setSettingsQuery(''); }
-                    }}
-                  />
-                  {settingsQuery && (
-                    <button type="button" className="settings-search-clear" aria-label="Limpar busca" onClick={() => setSettingsQuery('')}>
-                      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.6" strokeLinecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18" /></svg>
-                    </button>
-                  )}
-                </div>
-                {groups.length === 0 && <div className="settings-search-empty">Nenhuma configuração encontrada.</div>}
-                {groups.map((group) => (
-                  <div key={group.label} className="settings-modal-sidebar-group">
-                    <div className="settings-modal-sidebar-group-label">{group.label}</div>
-                    {group.shown.map((t) => (
-                      <button key={t} className={`settings-modal-sidebar-item ${tab === t ? 'active' : ''}`} onClick={() => setTab(t)}>
-                        <span className="settings-modal-sidebar-icon">{iconFor(t)}</span>
-                        {labelFor(t, translate)}
-                      </button>
-                    ))}
-                  </div>
-                ))}
-              </>
-            );
-          })()}
-          <div className="settings-modal-sidebar-divider" />
-          {/* Página inicial pública (vitrine + downloads) sem precisar sair da conta. */}
-          <button type="button" className="settings-modal-sidebar-item" onClick={() => { onClose(); navigate('/site'); }}>
-            <span className="settings-modal-sidebar-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M12 3v12m0 0-4-4m4 4 4-4M5 21h14" /></svg></span>
-            Página inicial e downloads
-          </button>
-          <a className="settings-modal-sidebar-item" href="https://livepix.gg/projectclubr" target="_blank" rel="noreferrer" style={{ color: '#ff4d6d', textDecoration: 'none' }}>
-            <span className="settings-modal-sidebar-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 20.5s-7.5-4.6-7.5-10.2A4.3 4.3 0 0 1 12 7.6a4.3 4.3 0 0 1 7.5 2.7c0 5.6-7.5 10.2-7.5 10.2z" /></svg></span>
-            Apoiar o Project Club
-          </a>
-          <button className="settings-modal-sidebar-item settings-modal-logout" onClick={doLogout}>
-            {/* Item pedido: "troque o emoji/ícone de porta... mantenha
-                o ícone na cor vermelha, exatamente igual à cor do
-                texto" — mesmo padrão IconGlyph (mask-image +
-                currentColor) das outras abas: como este botão já
-                herda color: var(--red) (.settings-modal-logout, ver
-                CSS), o ícone já sai na mesma cor automaticamente, sem
-                precisar fixar um valor de cor separado que poderia
-                sair dessincronizado do texto no futuro. */}
-            <span className="settings-modal-sidebar-icon"><IconGlyph src={logoutIcon} size={16} /></span>
-            Sair da conta
-          </button>
-        </div>
+  // O conteúdo da aba (o mesmo nas Configurações e no Editor de perfil).
+  const content = (
         <div className="settings-modal-content" key={tab}>
       {DialogElement}
       {/* Cabeçalho da página atual (ícone + nome + uma linha de ajuda) */}
@@ -2422,8 +2349,97 @@ export default function UserSettingsModal({ onClose }) {
       )}
 
         </div>
+  );
+
+  return (
+    <>
+    {isProfileEditor ? (
+      <ProfileEditorFrame user={user} form={form} tab={tab} setTab={setTab} onClose={onClose} savePill={<SaveStatusPill />}>{content}</ProfileEditorFrame>
+    ) : (
+    <Modal title={<span className="settings-title-row">Configurações do usuário <SaveStatusPill /></span>} onClose={onClose} width="1240px" className="settings-modal-box settings-modal-wide">
+      <div className="settings-modal-layout">
+        <div className="settings-modal-sidebar">
+          {/* Item pedido: "reformule a interface das Configurações...
+              use a imagem como referência visual... padrão de fonte,
+              cores, espaçamentos, organização" — cabeçalho com
+              avatar + nome no topo da barra lateral, igual a
+              referência enviada, clicável pra ir direto no Perfil
+              (a aba que já tem essa edição). */}
+          <button type="button" className="settings-modal-sidebar-header" onClick={() => useStore.getState().openProfileEditor()}>
+            <UserAvatar user={user} size={40} />
+            <div className="settings-modal-sidebar-header-text">
+              <div className="settings-modal-sidebar-header-name">{user.displayName}</div>
+              <div className="settings-modal-sidebar-header-edit">Editar perfil</div>
+            </div>
+          </button>
+          {(() => {
+            // Busca: cada palavra digitada precisa aparecer no nome da aba,
+            // no nome do grupo ou nas palavras-chave dela.
+            const words = normalizeSearch(settingsQuery).split(/\s+/).filter(Boolean);
+            const matches = (group, t) => !words.length || words.every((w) => normalizeSearch(`${labelFor(t, translate)} ${group.label} ${TAB_KEYWORDS[t] || ''}`).includes(w));
+            const groups = TAB_GROUPS.map((g) => ({ ...g, shown: g.tabs.filter((t) => matches(g, t)) })).filter((g) => g.shown.length > 0);
+            const first = groups[0]?.shown[0];
+            return (
+              <>
+                <div className="settings-search" role="search">
+                  <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><circle cx="11" cy="11" r="7" /><path d="m20 20-3.5-3.5" /></svg>
+                  <input
+                    type="search" value={settingsQuery} placeholder="Buscar configuração"
+                    aria-label="Buscar configuração"
+                    onChange={(e) => setSettingsQuery(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter' && first) { setTab(first); }
+                      if (e.key === 'Escape' && settingsQuery) { e.stopPropagation(); setSettingsQuery(''); }
+                    }}
+                  />
+                  {settingsQuery && (
+                    <button type="button" className="settings-search-clear" aria-label="Limpar busca" onClick={() => setSettingsQuery('')}>
+                      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.6" strokeLinecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18" /></svg>
+                    </button>
+                  )}
+                </div>
+                {groups.length === 0 && <div className="settings-search-empty">Nenhuma configuração encontrada.</div>}
+                {groups.map((group) => (
+                  <div key={group.label} className="settings-modal-sidebar-group">
+                    <div className="settings-modal-sidebar-group-label">{group.label}</div>
+                    {group.shown.map((t) => (
+                      <button key={t} className={`settings-modal-sidebar-item ${tab === t ? 'active' : ''}`} onClick={() => setTab(t)}>
+                        <span className="settings-modal-sidebar-icon">{iconFor(t)}</span>
+                        {labelFor(t, translate)}
+                      </button>
+                    ))}
+                  </div>
+                ))}
+              </>
+            );
+          })()}
+          <div className="settings-modal-sidebar-divider" />
+          {/* Página inicial pública (vitrine + downloads) sem precisar sair da conta. */}
+          <button type="button" className="settings-modal-sidebar-item" onClick={() => { onClose(); navigate('/site'); }}>
+            <span className="settings-modal-sidebar-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M12 3v12m0 0-4-4m4 4 4-4M5 21h14" /></svg></span>
+            Página inicial e downloads
+          </button>
+          <a className="settings-modal-sidebar-item" href="https://livepix.gg/projectclubr" target="_blank" rel="noreferrer" style={{ color: '#ff4d6d', textDecoration: 'none' }}>
+            <span className="settings-modal-sidebar-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 20.5s-7.5-4.6-7.5-10.2A4.3 4.3 0 0 1 12 7.6a4.3 4.3 0 0 1 7.5 2.7c0 5.6-7.5 10.2-7.5 10.2z" /></svg></span>
+            Apoiar o Project Club
+          </a>
+          <button className="settings-modal-sidebar-item settings-modal-logout" onClick={doLogout}>
+            {/* Item pedido: "troque o emoji/ícone de porta... mantenha
+                o ícone na cor vermelha, exatamente igual à cor do
+                texto" — mesmo padrão IconGlyph (mask-image +
+                currentColor) das outras abas: como este botão já
+                herda color: var(--red) (.settings-modal-logout, ver
+                CSS), o ícone já sai na mesma cor automaticamente, sem
+                precisar fixar um valor de cor separado que poderia
+                sair dessincronizado do texto no futuro. */}
+            <span className="settings-modal-sidebar-icon"><IconGlyph src={logoutIcon} size={16} /></span>
+            Sair da conta
+          </button>
+        </div>
+        {content}
       </div>
     </Modal>
+    )}
     {cropperState && (
       <ImageCropperModal
         file={cropperState.file}

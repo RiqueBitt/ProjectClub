@@ -30,11 +30,10 @@ async function openSettingsProfile(page) {
   await page.locator('.top-more-btn').click();
   await page.locator('.top-more-menu').getByRole('menuitem', { name: 'Configurações' }).click();
   await expect(page.locator('.settings-modal-layout')).toBeVisible();
-  // Garante que estamos na aba Perfil (onde fica a placa).
-  const placaHead = page.getByRole('heading', { name: 'Placa de identificação' });
-  if (!(await placaHead.isVisible().catch(() => false))) {
-    await page.getByText(/^Perfil$/).first().click();
-  }
+  // Perfil saiu das Configurações: "Editar perfil" (topo da barra) abre o editor.
+  await page.locator('.settings-modal-sidebar-header').click();
+  await expect(page.locator('.pe-box')).toBeVisible();
+  const placaHead = page.locator('.pe-side').getByRole('heading', { name: 'Placa de identificação' });
   await expect(placaHead).toBeVisible();
 }
 

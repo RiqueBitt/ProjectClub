@@ -178,6 +178,9 @@ export default function MainApp() {
   const closeMobileSidebar = useStore((s) => s.closeMobileSidebar);
   const settingsModalOpen = useStore((s) => s.settingsModalOpen);
   const closeSettings = useStore((s) => s.closeSettings);
+  const profileEditorOpen = useStore((s) => s.profileEditorOpen);
+  const profileEditorSection = useStore((s) => s.profileEditorSection);
+  const closeProfileEditor = useStore((s) => s.closeProfileEditor);
   const openMobileMembers = useStore((s) => s.openMobileMembers);
   const closeMobileMembers = useStore((s) => s.closeMobileMembers);
   const uiLayout = useStore((s) => s.uiLayout);
@@ -636,6 +639,7 @@ export default function MainApp() {
       <LinkConfirmModal />
       <ImageLightbox />
       {settingsModalOpen && <Suspense fallback={null}><UserSettingsModal onClose={closeSettings} /></Suspense>}
+      {profileEditorOpen && <Suspense fallback={null}><UserSettingsModal mode="profile" initialTab={profileEditorSection} onClose={closeProfileEditor} /></Suspense>}
       <AnnouncementOverlay />
       <QuickSwitcher />
       <ConfortoLayer />
