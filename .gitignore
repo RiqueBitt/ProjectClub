@@ -65,3 +65,5 @@ server/reports/
 
 # OpenVPN embutido no app de Windows (baixado e conferido pelo CI)
 desktop/vendor/openvpn/*.msi
+# Compêndio BLACKOUT baixado do repo privado (services/blackoutSync.js)
+server/data/blackout-site/

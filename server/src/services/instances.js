@@ -15,6 +15,8 @@ const PUBLIC_INSTANCE = { id: PUBLIC_ID, name: 'Pública', icon: '🌎', positio
 const DEFAULT_INSTANCES = [
   { id: 'amigos', name: 'Amigos', icon: '🤝', position: 1 },
   { id: 'empresarial', name: 'Empresarial', icon: '💼', position: 2 },
+  // BLACKOUT: além dos canais próprios, abre o compêndio do RPG (routes/blackoutSite.js).
+  { id: 'blackout', name: 'BLACKOUT', icon: '🎲', position: 3 },
 ];
 
 // Membros de todas as instâncias numa tacada só, em memória por alguns

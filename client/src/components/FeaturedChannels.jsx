@@ -48,6 +48,8 @@ const PATHS = {
   trophy: 'M8 21h8M12 17v4M7 4h10v5a5 5 0 0 1-10 0V4zM7 6H4v1a3 3 0 0 0 3 3M17 6h3v1a3 3 0 0 1-3 3',
   // Suporte: boia
   support: 'M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18zM12 16a4 4 0 1 0 0-8 4 4 0 0 0 0 8zM5.6 5.6l3.6 3.6M14.8 14.8l3.6 3.6M18.4 5.6l-3.6 3.6M9.2 14.8l-3.6 3.6',
+  // BLACKOUT: dado de 6 faces
+  dice: 'M5 3h14a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2zM8.5 8.5h.01M15.5 8.5h.01M8.5 15.5h.01M15.5 15.5h.01M12 12h.01',
   cards: 'M8 4h9a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2zM4 7.5 6 7M4 7.5v10.2a2 2 0 0 0 1.6 2L6 20M12.5 9l1.3 2.6 2.7.4-2 1.9.5 2.7-2.5-1.3-2.5 1.3.5-2.7-2-1.9 2.7-.4z',
 };
 
@@ -68,6 +70,13 @@ export const FEATURED = [
     key: 'arena', label: 'Guerra das Cartas', icon: 'cards', to: '/cartas',
     hint: 'Jogo de cartas: colecione, monte seu baralho e batalhe', match: (p) => p.startsWith('/cartas'),
     feature: 'cardsWar', game: true, // interruptor em utils/features.js
+  },
+  // BLACKOUT: só aparece na instância BLACKOUT (o site em si é protegido no
+  // servidor — routes/blackoutSite.js). Não dá pra esconder.
+  {
+    key: 'blackout', label: 'BLACKOUT', icon: 'dice', to: '/compendio-blackout',
+    hint: 'Compêndio do RPG BLACKOUT', match: (p) => p.startsWith('/compendio-blackout'),
+    instance: 'blackout', game: true, fixed: true,
   },
   // Central (nov/2026): o antigo Início + Novidades (Anúncios e Eventos),
   // com abas (pages/AnunciosEventosPage.jsx). A bolinha soma as novidades
@@ -123,7 +132,8 @@ export default function FeaturedChannels({ canManage }) {
   const isNormal2 = useStore((st) => st.layoutStyle) === 'normal2';
   const { user } = useAuth();
   const countFor = useBadges(user);
-  const items = FEATURED.filter((f) => (!f.n2Only || isNormal2) && isVisible(f.key) && !(f.key === 'arena' && disabledSystems.includes('cartas') && !canManage));
+  const instanceId = useStore((st) => st.community?.instance) || 'publica';
+  const items = FEATURED.filter((f) => (!f.instance || f.instance === instanceId) && (!f.n2Only || isNormal2) && isVisible(f.key) && !(f.key === 'arena' && disabledSystems.includes('cartas') && !canManage));
   if (items.length === 0) return null;
 
   const live = (events || []).filter((e) => e.status === 'ACTIVE').length;
