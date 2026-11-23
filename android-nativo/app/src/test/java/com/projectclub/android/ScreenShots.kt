@@ -6,6 +6,8 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
+import androidx.compose.foundation.layout.padding
+import androidx.compose.ui.unit.dp
 import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.github.takahirom.roborazzi.captureRoboImage
@@ -44,6 +46,7 @@ import java.time.Instant
 @RunWith(AndroidJUnit4::class)
 @GraphicsMode(GraphicsMode.Mode.NATIVE)
 @Config(sdk = [34], qualifiers = "w412dp-h900dp-xxhdpi", application = Application::class)
+@OptIn(androidx.compose.foundation.layout.ExperimentalLayoutApi::class)
 class ScreenShots {
     private val ctx: Application get() = ApplicationProvider.getApplicationContext()
     private val actions = HomeActions({}, {}, { _, _ -> }, {})
@@ -135,6 +138,11 @@ class ScreenShots {
             call(status = com.projectclub.android.voice.CallStatus.Connecting, error = "O serviço de voz demorou pra responder. Tentando de novo…"), me,
             listOf(VoiceParticipant("u1"), VoiceParticipant("u2")), { users[it] }, noop, fakeScreen,
         )
+    }
+    @Test fun dados() = shot("12-dados") {
+        androidx.compose.foundation.layout.FlowRow(
+            Modifier.fillMaxSize().background(PC.Bg).padding(16.dp),
+        ) { listOf(2, 4, 6, 8, 10, 12, 20, 100).forEach { s -> com.projectclub.android.ui.chat.DieFace(s, if (s == 20) 20 else s / 2, 64.dp) } }
     }
     @Test fun voce() { val r = repo(); shot("07-voce") { com.projectclub.android.ui.home.MoreTab(r, actions, nav) } }
 
