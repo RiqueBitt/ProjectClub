@@ -1,0 +1,93 @@
+/* Editor de perfil (components/profileEditor/ProfileEditorFrame.jsx) —
+   estilo do editor do Discord: opções à esquerda, prévia ao vivo à direita. */
+.pe-overlay {
+  position: fixed; inset: 0; z-index: 300; display: grid; place-items: center;
+  padding: max(16px, env(safe-area-inset-top, 0px)) 16px 16px;
+  background: rgba(0, 0, 0, .72); animation: modal-overlay-in .12s ease-out;
+}
+.pe-box {
+  position: relative; display: grid; grid-template-columns: minmax(320px, 420px) 1fr;
+  width: min(1280px, 100%); height: min(860px, 100%);
+  border-radius: 16px; overflow: hidden; border: 1px solid var(--border);
+  background: var(--bg-primary); box-shadow: 0 30px 80px rgba(0, 0, 0, .55);
+}
+.pe-box.is-side-hidden { grid-template-columns: 1fr; }
+.pe-box.is-side-hidden .pe-side { display: none; }
+
+/* ---- lado esquerdo: opções ---- */
+.pe-side { display: flex; flex-direction: column; min-height: 0; background: var(--bg-secondary); border-right: 1px solid var(--border); }
+.pe-side-head { display: flex; align-items: center; gap: 8px; padding: 14px 14px 12px 16px; border-bottom: 1px solid var(--border); }
+.pe-section-pick { position: relative; min-width: 0; flex: 1; }
+.pe-section-btn {
+  display: inline-flex; align-items: center; gap: 6px; max-width: 100%; padding: 6px 8px; margin-left: -8px; border-radius: 8px;
+  background: none; border: 0; color: var(--header-primary, var(--text-normal)); font: inherit; font-size: 16px; font-weight: 700; cursor: pointer;
+}
+.pe-section-btn span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.pe-section-btn:hover, .pe-section-btn[aria-expanded="true"] { background: var(--bg-modifier-hover); }
+.pe-section-menu {
+  position: absolute; top: calc(100% + 6px); left: -8px; z-index: 5; width: 300px; padding: 6px; border-radius: 12px;
+  background: var(--bg-floating, var(--bg-tertiary)); border: 1px solid var(--border); box-shadow: 0 14px 36px rgba(0, 0, 0, .45);
+}
+.pe-section-item {
+  display: flex; flex-direction: column; gap: 2px; width: 100%; padding: 9px 10px; border: 0; border-radius: 8px; text-align: left;
+  background: none; color: var(--text-normal); font: inherit; cursor: pointer;
+}
+.pe-section-item small { color: var(--text-muted); font-size: 12px; }
+.pe-section-item:hover { background: var(--bg-modifier-hover); }
+.pe-section-item.is-current { background: color-mix(in srgb, var(--brand) 18%, transparent); }
+.pe-save { flex: none; }
+.pe-icon-btn {
+  flex: none; display: grid; place-items: center; width: 30px; height: 30px; border-radius: 8px; border: 0;
+  background: none; color: var(--text-muted); cursor: pointer;
+}
+.pe-icon-btn:hover { background: var(--bg-modifier-hover); color: var(--text-normal); }
+.pe-side-body { flex: 1; min-height: 0; overflow-y: auto; overscroll-behavior: contain; padding: 4px 16px 32px; }
+/* O conteúdo vem das Configurações: aqui fica numa coluna só, mais compacto. */
+.pe-side-body .settings-modal-content { padding: 0 !important; max-width: none !important; }
+.pe-side-body .settings-page-head { display: none; }
+.pe-side-body .settings-grid { display: flex !important; flex-direction: column; gap: 12px; }
+.pe-side-body .settings-block { margin: 0; padding: 14px; border-radius: 12px; }
+.pe-side-body .settings-block h4 { font-size: 13px; text-transform: none; letter-spacing: 0; }
+.pe-side-body .settings-section-title { margin-top: 10px; }
+
+/* ---- lado direito: prévia ---- */
+.pe-preview { position: relative; display: flex; flex-direction: column; min-width: 0; min-height: 0; background: var(--bg-tertiary, #0b0d12); }
+.pe-preview-bar { display: flex; align-items: center; gap: 12px; padding: 12px 64px 12px 16px; border-bottom: 1px solid var(--border); }
+.pe-view-toggle { display: inline-flex; padding: 3px; border-radius: 10px; background: var(--bg-secondary); border: 1px solid var(--border); }
+.pe-view-toggle button {
+  padding: 6px 14px; border-radius: 8px; border: 0; background: none; color: var(--text-muted);
+  font: inherit; font-size: 13px; font-weight: 600; cursor: pointer;
+}
+.pe-view-toggle button.is-on { background: var(--bg-primary); color: var(--text-normal); box-shadow: 0 1px 3px rgba(0, 0, 0, .3); }
+.pe-preview-note { margin-left: auto; font-size: 12px; color: var(--text-muted); white-space: nowrap; }
+.pe-stage { position: relative; flex: 1; min-height: 0; overflow: hidden; }
+.pe-full { position: absolute; inset: 0; }
+/* O perfil completo de verdade, encaixado na área da prévia. */
+.pe-full .modal-overlay.profile-fullscreen-overlay.pf-embedded {
+  position: absolute !important; inset: 0 !important; z-index: auto; padding: 0; background: none; animation: none; display: block;
+}
+.pe-full .pf-embedded > .modal-box.profile-modal-fullscreen {
+  width: 100%; height: 100%; max-width: none; max-height: none; margin: 0; border-radius: 0; overflow-y: auto; zoom: .84;
+}
+.pe-mini { position: absolute; inset: 0; overflow-y: auto; display: flex; justify-content: center; align-items: flex-start; padding: 40px 16px; }
+.pe-mini .mini-profile-card.mini-profile-preview { position: relative; animation: none; box-shadow: 0 24px 60px rgba(0, 0, 0, .5); }
+
+.pe-close {
+  position: absolute; top: 10px; right: 12px; z-index: 6; display: grid; place-items: center; width: 36px; height: 36px; border-radius: 10px;
+  border: 1px solid var(--border); background: var(--bg-secondary); color: var(--text-normal); cursor: pointer;
+}
+.pe-close:hover { background: var(--bg-modifier-hover); }
+
+/* Celular / janela estreita: opções em cima, prévia embaixo (rola tudo junto). */
+@media (max-width: 900px) {
+  .pe-overlay { padding: 0; }
+  .pe-box { display: flex; flex-direction: column; width: 100%; height: 100%; border-radius: 0; border: 0; overflow-y: auto; }
+  .pe-side { border-right: 0; border-bottom: 1px solid var(--border); }
+  .pe-side-body { overflow: visible; }
+  .pe-side-head { position: sticky; top: 0; z-index: 4; background: var(--bg-secondary); padding-right: 60px; }
+  .pe-preview { min-height: 640px; }
+  .pe-preview-note { display: none; }
+  .pe-full .pf-embedded > .modal-box.profile-modal-fullscreen { zoom: 1; }
+  .pe-close { position: fixed; top: max(10px, env(safe-area-inset-top, 0px)); }
+}
+

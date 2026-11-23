@@ -121,6 +121,11 @@ export default function UserStatusBar() {
               {user.username && <span className="truncate">@{user.username}</span>}
             </div>
           </div>
+          {/* Editor de perfil (miniperfil + perfil completo, com prévia ao vivo). */}
+          <button type="button" role="menuitem" className="usb-menu-item usb-menu-edit-profile" onClick={() => { setMenuOpen(false); useStore.getState().openProfileEditor(); }}>
+            <NavIcon name="pencil" size={16} /> <span>Editar perfil</span>
+          </button>
+          <div className="usb-menu-sep" />
           {Object.keys(STATUS_LABEL).filter((s) => s !== 'OFFLINE').map((s) => (
             <button key={s} type="button" role="menuitemradio" aria-checked={status === s} className={`usb-menu-item${status === s ? ' active' : ''}`} onClick={() => changeStatus(s)}>
               <PresenceDot status={s} /> <span>{STATUS_LABEL[s]}</span>

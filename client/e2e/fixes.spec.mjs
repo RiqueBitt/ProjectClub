@@ -158,10 +158,10 @@ test.describe('foto de perfil em GIF', () => {
     await page.locator('.top-more-btn').click();
     await page.locator('.top-more-menu').getByRole('menuitem', { name: 'Configurações' }).click();
     await expect(page.locator('.settings-modal-layout')).toBeVisible();
-    const change = page.getByRole('button', { name: 'Alterar avatar' });
-    if (!(await change.isVisible().catch(() => false))) {
-      await page.getByText(/^Perfil$/).first().click();
-    }
+    // Perfil saiu das Configurações: "Editar perfil" (topo da barra) abre o editor.
+    await page.locator('.settings-modal-sidebar-header').click();
+    await expect(page.locator('.pe-box')).toBeVisible();
+    const change = page.locator('.pe-side').getByRole('button', { name: 'Alterar avatar' });
     await expect(change).toBeVisible();
     // Com a máquina do CI carregada, o primeiro clique às vezes cai antes
     // do modal terminar de abrir e o menu não aparece: tenta de novo.

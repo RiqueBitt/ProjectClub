@@ -222,6 +222,12 @@ export function useQuickSearch(query, { active = true, onDone } = {}) {
     });
     SETTINGS_TABS.forEach(([id, kw]) => {
       const label = t(`settings.tabs.${id}`);
+      // Perfil, Miniperfil, Conteúdo e Colunas: agora no Editor de perfil.
+      const editorTab = { PROFILE: 'PROFILE', MINI_PROFILE: 'PROFILE', PROFILE_CONTENT: 'PROFILE_CONTENT', COLUMNS: 'COLUMNS' }[id];
+      if (editorTab) {
+        items.push({ key: `settings:${id}`, kind: 'settings', label, sub: 'Editar perfil', keywords: `editar perfil ${kw}`, icon: <NavIcon name="pencil" size={17} />, go: () => useStore.getState().openProfileEditor(editorTab) });
+        return;
+      }
       items.push({ key: `settings:${id}`, kind: 'settings', label, sub: 'Configurações', keywords: `configurações ajustes ${kw}`, icon: <NavIcon name="gear" size={17} />, go: () => openSettingsAt(label) });
     });
     return items;

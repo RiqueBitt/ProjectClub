@@ -114,7 +114,7 @@ export default function FirstStepsWidget({ data, setData, hidden }) {
     switch (step.action) {
       case 'profile':
       case 'profileTheme':
-        s.openSettings();
+        s.openProfileEditor();
         break;
       case 'chat': {
         navigate('/');
