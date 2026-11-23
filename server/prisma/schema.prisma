@@ -3012,6 +3012,7 @@ model AvatarDecoration {
   tags             String?  @db.VarChar(200)
   color            String?  @db.VarChar(16)
   variantGroup     String?  @db.VarChar(64)
+  rarity           String?  @db.VarChar(16) // COMUM | INCOMUM | RARA | EPICA | LENDARIA | MITICA (vazio = pelo preço)
   owners     UserAvatarDecoration[]
   // Coleção da loja (opcional).
   collectionId String?
@@ -3096,6 +3097,7 @@ model ProfileEffect {
   tags             String?  @db.VarChar(200)
   color            String?  @db.VarChar(16)
   variantGroup     String?  @db.VarChar(64)
+  rarity           String?  @db.VarChar(16) // COMUM | INCOMUM | RARA | EPICA | LENDARIA | MITICA (vazio = pelo preço)
   collectionId String?
   collection   ShopCollection? @relation(fields: [collectionId], references: [id], onDelete: SetNull)
   owners       UserProfileEffect[]
@@ -3142,6 +3144,7 @@ model ShopItem {
   tags             String?  @db.VarChar(200)
   color            String?  @db.VarChar(16)
   variantGroup     String?  @db.VarChar(64)
+  rarity           String?  @db.VarChar(16) // COMUM | INCOMUM | RARA | EPICA | LENDARIA | MITICA (vazio = pelo preço)
   collectionId     String?
   collection       ShopCollection? @relation(fields: [collectionId], references: [id], onDelete: SetNull)
   owners           UserShopItem[]

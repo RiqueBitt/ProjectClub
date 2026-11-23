@@ -506,6 +506,10 @@ export function mountPack(el, opts = {}) {
       if (!engine || !size || !target) return false;
       target.width = Math.round(size.w * size.dpr);
       target.height = Math.round(size.h * size.dpr);
+      // O canvas da parede tem margem em volta (left/top negativos e maior que a
+      // caixinha): o clone herda isso. A foto é sem margem, então volta pro tamanho
+      // exato da caixinha — senão ela aparecia esticada e fora do lugar no arraste.
+      Object.assign(target.style, { inset: '0', left: '0', top: '0', width: '100%', height: '100%' });
       const tctx = target.getContext('2d');
       if (!tctx) return false;
       s.noHook = true;

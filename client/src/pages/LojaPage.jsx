@@ -64,6 +64,24 @@ const KIND = {
 };
 const TIER_LABEL = { SUBSCRIBER: 'Assinante', SUPER: 'Super Assinante' };
 const RARITY_LABEL = { COMUM: 'Comum', INCOMUM: 'Incomum', RARA: 'Rara', EPICA: 'Épica', LENDARIA: 'Lendária', MITICA: 'Mítica' };
+// Raridade do item: a que a staff escolheu ou, sem escolha, pelo preço
+// (exclusivo do Super e limitado sobem de nível).
+function rarityOf(item) {
+  if (item.rarity && RARITY_LABEL[item.rarity]) return item.rarity;
+  if (item.exclusiveTier === 'SUPER') return 'MITICA';
+  const coins = item.pricing?.coins?.base ?? item.priceCoins ?? null;
+  const gems = item.pricing?.gems?.base ?? item.priceGems ?? null;
+  const v = coins ?? (gems != null ? gems * 100 : 0);
+  let r = v >= 6000 ? 'LENDARIA' : v >= 2500 ? 'EPICA' : v >= 1000 ? 'RARA' : v >= 400 ? 'INCOMUM' : 'COMUM';
+  if (item.limited && ['COMUM', 'INCOMUM', 'RARA'].includes(r)) r = 'EPICA';
+  if (item.exclusiveTier === 'SUBSCRIBER' && ['COMUM', 'INCOMUM'].includes(r)) r = 'RARA';
+  return r;
+}
+// Faixa cromada no topo da caixinha, na cor da raridade (a Mítica tem borda arco-íris).
+function RarityBand({ item }) {
+  const r = rarityOf(item);
+  return <span className={`room-rarity r-${r.toLowerCase()}`}><span>{RARITY_LABEL[r]}</span></span>;
+}
 const SORTS = [
   { id: 'foryou', label: 'Para você' },
   { id: 'recent', label: 'Novidades' },
@@ -1115,6 +1133,7 @@ function ItemCard({ item: base, ctx }) {
           </span>
           <span className="room-pack-plastic" aria-hidden="true" />
           <span className="room-pack-front">
+          <RarityBand item={item} />
           <span className="room-card-flags">
             {item.exclusiveTier && <span className={`room-flag excl t-${item.exclusiveTier.toLowerCase()}`}><Ico name="crown" size={11} strokeWidth={2.2} /> {TIER_LABEL[item.exclusiveTier]}</span>}
             {!item.exclusiveTier && !item.owned && isNew(item, now) && <span className="room-flag new">Novo</span>}
@@ -1136,7 +1155,7 @@ function ItemCard({ item: base, ctx }) {
         ><Ico name="heart" size={15} strokeWidth={2.2} /></button>
       )}
       <div className="room-card-body">
-        <small>{KIND[item.kind].label}{item.rarity && RARITY_LABEL[item.rarity] ? ` · ${RARITY_LABEL[item.rarity]}` : ''}</small>
+        <small>{KIND[item.kind].label} · {RARITY_LABEL[rarityOf(item)]}</small>
         <h3 title={item.name}>{item.name}</h3>
         {variants.length > 1 && (
           <span className="room-variants" aria-label="Outras cores">
@@ -1223,7 +1242,7 @@ function Pack360({ item, user }) {
         <span className="room-pack-back">
           <span className="room-pack-window"><Preview item={item} user={user} /></span>
         </span>
-        <span className="room-pack-front" />
+        <span className="room-pack-front"><RarityBand item={item} /></span>
       </span>
       <small className="room-360-hint"><Ico name="swap" size={13} /> Arraste pra girar</small>
     </div>
@@ -1260,7 +1279,7 @@ function ItemDetail({ initial, items, collections, onClose, openCollection, ctx 
           {!item.owned && <small className="room-muted center">Só uma prévia — nada muda no seu perfil até você comprar e usar.</small>}
         </div>
         <div className="room-detail-info">
-          <span className="room-kicker">{KIND[item.kind].label}{item.rarity && RARITY_LABEL[item.rarity] ? ` · ${RARITY_LABEL[item.rarity]}` : ''}</span>
+          <span className="room-kicker">{KIND[item.kind].label} · {RARITY_LABEL[rarityOf(item)]}</span>
           <h2>{item.name}</h2>
           <div className="room-detail-badges">
             <StateBadge item={item} on={on} />

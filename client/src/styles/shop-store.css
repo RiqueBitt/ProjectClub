@@ -139,7 +139,7 @@
 .shop-room .room-card.is-locked .room-card-art > .room-pack { filter: saturate(.72); }
 
 /* Etiquetas coladas na frente da caixinha (Novo, desconto, limitado, exclusivo). */
-.shop-room .room-card .room-card-flags { top: 3.5%; left: -5.4%; z-index: 4; flex-direction: column; align-items: flex-start; gap: 5px; max-width: 107%; }
+.shop-room .room-card .room-card-flags { top: 13.5%; left: -5.4%; z-index: 4; flex-direction: column; align-items: flex-start; gap: 5px; max-width: 107%; }
 .shop-room .room-card .room-flag {
   height: max(19px, calc(25px * var(--k))); padding: 0 calc(10px * var(--k)); border: 0; border-radius: 4px 5px 5px 0;
   font-size: max(10px, calc(12px * var(--k))); font-weight: 800; color: #fff;
@@ -217,7 +217,7 @@
    o <canvas> passa a desenhar só o gancho (pack3d.lift); some o resto. */
 .shop-room .room-grid .room-card.is-lifted .room-pack > :not(canvas) { visibility: hidden; }
 .shop-room .room-grid .room-card.is-lifted .room-pack::before { display: none; }
-.shop-room .room-grid .room-card.is-lifted .room-card-flags { visibility: hidden; }
+.shop-room .room-grid .room-card.is-lifted :is(.room-card-flags, .room-rarity) { visibility: hidden; }
 .shop-room .room-grid .room-card.is-lifted .room-hook { transform-origin: 45% 7%; animation: shop-hook-wobble .6s ease-out; }
 @keyframes shop-hook-wobble { 0% { transform: rotate(0); } 30% { transform: rotate(9deg); } 60% { transform: rotate(-5deg); } 100% { transform: rotate(0); } }
 
@@ -661,3 +661,68 @@
 .shop-room .room-card.is-on .room-pack-stamp { color: #4dff8a; }
 /* O "Pré-visualizar" do hover ficaria em cima do carimbo: no item comprado o clique já abre. */
 .shop-room .room-card.is-owned .room-card-peek { display: none; }
+
+/* ---------- Raridade: faixa cromada no topo da caixinha ----------
+   Fica no plano da FRENTE (gira junto com o 3D). Cor da raridade com brilho
+   de metal; a Mítica é cromada, com borda arco-íris e as cores passando. */
+.room-rarity {
+  --r1: #c9ced6; --r2: #8a929e; --r3: #5d6570;
+  position: absolute; left: 3%; right: 3%; top: 1.6%; z-index: 6; height: calc(var(--sw) * .078);
+  display: grid; place-items: center; overflow: hidden; pointer-events: none;
+  border-radius: calc(var(--sw) * .022);
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, .55) 0%, rgba(255, 255, 255, .08) 46%, rgba(0, 0, 0, .16) 54%, rgba(255, 255, 255, .14) 100%),
+    linear-gradient(180deg, var(--r1), var(--r2) 50%, var(--r3));
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, .7), inset 0 -1px 0 rgba(0, 0, 0, .35), 0 2px 6px rgba(0, 0, 0, .35);
+}
+.room-rarity > span {
+  position: relative; z-index: 2;
+  font-family: 'Barlow Condensed', 'Arial Narrow', system-ui, sans-serif; font-weight: 800; text-transform: uppercase;
+  font-size: calc(var(--sw) * .046); letter-spacing: .14em; line-height: 1; color: #fff;
+  text-shadow: 0 1px 0 rgba(0, 0, 0, .55), 0 0 6px rgba(0, 0, 0, .35);
+}
+/* reflexo que passa de vez em quando (todas) */
+.room-rarity::after {
+  content: ''; position: absolute; inset: -40% auto -40% -40%; width: 30%; z-index: 1;
+  background: linear-gradient(100deg, transparent, rgba(255, 255, 255, .75), transparent);
+  transform: skewX(-20deg) translateX(-120%);
+  animation: room-rarity-glint 4.8s ease-in-out infinite;
+}
+@keyframes room-rarity-glint { 0%, 70% { transform: skewX(-20deg) translateX(-120%); } 100% { transform: skewX(-20deg) translateX(560%); } }
+.room-rarity.r-comum { --r1: #d5dae2; --r2: #8f98a5; --r3: #5d6570; }
+.room-rarity.r-incomum { --r1: #8ff0a8; --r2: #26b155; --r3: #146b33; }
+.room-rarity.r-rara { --r1: #9cd0ff; --r2: #2f7fe6; --r3: #164a99; }
+.room-rarity.r-epica { --r1: #e2b3ff; --r2: #9b40ec; --r3: #5c1c9e; }
+.room-rarity.r-lendaria { --r1: #ffe9a3; --r2: #f0a91c; --r3: #a8620a; }
+.room-rarity.r-lendaria > span { color: #fff8e1; }
+/* Mítica: cromo de verdade, borda arco-íris girando e as cores correndo pela faixa */
+.room-rarity.r-mitica {
+  --b: calc(var(--sw) * .009);
+  overflow: visible; isolation: isolate;
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, .85) 0%, rgba(255, 255, 255, .15) 45%, rgba(0, 0, 0, .25) 52%, rgba(255, 255, 255, .35) 100%) padding-box,
+    linear-gradient(90deg, #ff3b6b, #ff9b2e, #ffe14a, #4ade80, #38bdf8, #8b5cf6, #ff3b6b) 0 0 / 200% 100% padding-box,
+    linear-gradient(180deg, #f5f7fa, #9aa3ae 48%, #e9edf2 52%, #6b7480) padding-box;
+  background-blend-mode: normal, color, normal;
+  border: var(--b) solid transparent;
+  box-shadow: 0 0 calc(var(--sw) * .03) rgba(180, 140, 255, .55), 0 2px 6px rgba(0, 0, 0, .4);
+  animation: room-rarity-flow 3s linear infinite;
+}
+.room-rarity.r-mitica::before {
+  content: ''; position: absolute; inset: calc(var(--b) * -1); z-index: -1; border-radius: inherit; padding: var(--b);
+  background: conic-gradient(from var(--rr, 0deg), #ff3b6b, #ff9b2e, #ffe14a, #4ade80, #38bdf8, #8b5cf6, #ff3b6b);
+  -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0); -webkit-mask-composite: xor;
+  mask: linear-gradient(#000 0 0) content-box exclude, linear-gradient(#000 0 0);
+  animation: room-rarity-spin 2.6s linear infinite;
+}
+.room-rarity.r-mitica::after { animation-duration: 2.6s; }
+.room-rarity.r-mitica > span {
+  background: linear-gradient(90deg, #fff, #ffe7fb, #e3f6ff, #fff) 0 0 / 200% 100%; -webkit-background-clip: text; background-clip: text;
+  color: transparent; text-shadow: none; filter: drop-shadow(0 1px 0 rgba(0, 0, 0, .6)) drop-shadow(0 0 4px rgba(120, 80, 200, .6));
+}
+@property --rr { syntax: '<angle>'; inherits: false; initial-value: 0deg; }
+@keyframes room-rarity-spin { to { --rr: 360deg; } }
+@keyframes room-rarity-flow { to { background-position: 0 0, -200% 0, 0 0; } }
+@media (prefers-reduced-motion: reduce) {
+  .room-rarity, .room-rarity::before, .room-rarity::after { animation: none !important; }
+}
