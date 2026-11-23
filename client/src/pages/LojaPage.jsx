@@ -1054,7 +1054,6 @@ function packColors(item) {
 function usePack3D(cardRef, tint, tilt, enabled = true) {
   const ctrl = useRef(null);
   useEffect(() => {
-    // Item já comprado não tem caixinha (fica só o item com o carimbo).
     const el = enabled ? cardRef.current?.querySelector('.room-pack') : null;
     if (!el) return undefined;
     let gone = false;
@@ -1080,7 +1079,7 @@ function ItemCard({ item: base, ctx }) {
   // Quando a cartela aparece na tela, a caixinha dá uma balançadinha no gancho.
   const cardRef = useRef(null);
   const colors = packColors(item);
-  const pack = usePack3D(cardRef, colors.tint, colors.tilt, !item.owned);
+  const pack = usePack3D(cardRef, colors.tint, colors.tilt);
   useEffect(() => {
     const el = cardRef.current;
     if (!el || typeof IntersectionObserver === 'undefined') return undefined;
@@ -1108,15 +1107,8 @@ function ItemCard({ item: base, ctx }) {
           (tools/loja-3d) desenhado ao vivo (components/shop/pack3d.js): gira e
           balança de verdade. O item e a etiqueta ficam no FUNDO da caixinha e
           os selos na FRENTE — cada plano recebe a matriz da pose do modelo. */}
-      {!item.owned && <span className="room-hook" aria-hidden="true" />}
+      <span className="room-hook" aria-hidden="true" />
       <button type="button" className="room-card-art" onClick={() => open(item)} aria-label={`Ver detalhes de ${item.name}`}>
-        {item.owned ? (
-          // Já é seu: a caixinha some e o item fica na cartela com o carimbo "Comprado".
-          <span className="room-owned">
-            <span className="room-owned-art"><Preview item={item} user={user} /></span>
-            <span className="room-stamp" aria-hidden="true">{item.ownedVia === 'SUPPORTER' ? 'Liberado' : 'Comprado'}</span>
-          </span>
-        ) : (
         <span className="room-pack">
           <span className="room-pack-back">
             <span className="room-pack-window"><Preview item={item} user={user} /></span>
@@ -1125,13 +1117,14 @@ function ItemCard({ item: base, ctx }) {
           <span className="room-pack-front">
           <span className="room-card-flags">
             {item.exclusiveTier && <span className={`room-flag excl t-${item.exclusiveTier.toLowerCase()}`}><Ico name="crown" size={11} strokeWidth={2.2} /> {TIER_LABEL[item.exclusiveTier]}</span>}
-            {!item.exclusiveTier && isNew(item, now) && <span className="room-flag new">Novo</span>}
+            {!item.exclusiveTier && !item.owned && isNew(item, now) && <span className="room-flag new">Novo</span>}
             {discount > 0 && !item.owned && <span className="room-flag off">-{discount}%</span>}
             {item.limited && <LimitedFlag item={item} />}
           </span>
+          {/* Já é seu: a caixinha continua no gancho, com o carimbo colado no plástico da frente. */}
+          {item.owned && <span className="room-stamp room-pack-stamp" aria-hidden="true">{item.ownedVia === 'SUPPORTER' ? 'Liberado' : 'Comprado'}</span>}
           </span>
         </span>
-        )}
         <span className="room-card-state"><StateBadge item={item} on={on} inCard /></span>
         <span className="room-card-peek"><Ico name="eye" size={14} /> Pré-visualizar</span>
       </button>
@@ -1209,7 +1202,7 @@ function Pack360({ item, user }) {
     let gone = false;
     import('../components/shop/pack3d.js').then((m) => {
       if (gone) return;
-      ctrl.current = m.mountPack(el, { color: tint, orbit: true });
+      ctrl.current = m.mountPack(el, { color: tint, orbit: true, hideHook: true });
     }).catch(() => setOff(true));
     const watch = new MutationObserver(() => { if (el.classList.contains('p3d-off')) setOff(true); });
     watch.observe(el, { attributes: true, attributeFilter: ['class'] });
@@ -1217,7 +1210,8 @@ function Pack360({ item, user }) {
   }, [item.kind, item.id]); // eslint-disable-line react-hooks/exhaustive-deps
   if (off) return <Preview item={item} user={user} mode="big" />;
   return (
-    <div className="room-360">
+    <div className="room-360" style={{ '--pack': tint }}>
+      <span className="room-360-floor" aria-hidden="true" />
       <span
         className="room-pack room-pack-orbit" ref={ref}
         style={{ '--pack': tint, '--pack-tag': packColors(item)['--pack-tag'] }}

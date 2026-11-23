@@ -42,6 +42,10 @@ const QX1 = 7.2;
 const QY0 = -7.1;
 const QY1 = 10.78;
 const CAM = new Vector3(40, 34, Z_BACK + 160);   // de longe, acima e à direita: aparecem a tampa e a lateral
+// Margem (em unidades) que o canvas tem a mais em cada lado do quadro. Sem ela,
+// quando a caixinha gira (hover) a ponta e a sombra saíam do quadro e ficavam cortadas.
+export const PAD = 3.2;
+const UNIT_W = QX1 - QX0;   // 13,2 unidades = largura do quadro do CSS
 
 // Retângulos que recebem o HTML (no espaço da caixinha).
 const INSERT = { x: W / 2, y: H / 2, z: Z_BACK + 0.08 };
@@ -168,7 +172,9 @@ async function createEngine() {
   const tabMat = plasticMaterial({ alphaMin: 0.32, alphaMax: 0.7, power: 1.8, rough: 0.1 });
   const chrome = chromeMaterial();
 
-  const backMat = plasticMaterial({ alphaMin: 0.55, alphaMax: 0.8, power: 1.5, rough: 0.2 });
+  // Fundo: cartela de papelão impressa, opaca e dos dois lados. Antes era plástico
+  // transparente só de um lado: de costas a caixinha ficava vazada e piscando.
+  const backMat = new MeshStandardMaterial({ color: 0xdfe6ee, roughness: 0.85, metalness: 0, side: DoubleSide, envMapIntensity: 0.35 });
   let backPlate = null;
   const assembly = new Group(); // no 360° gira tudo junto (gancho e caixinha)
   const box = new Group();      // tudo que gira: caixinha + aba
@@ -183,7 +189,7 @@ async function createEngine() {
     if (name.includes('cromado')) { mesh.material = chrome; mesh.castShadow = true; hook.add(mesh); return; }
     // a placa de trás: na parede quem faz o papel dela é o HTML do item; só
     // aparece no visualizador 360° quando a caixinha está de costas
-    if (name.includes('fundo')) { mesh.material = backMat; mesh.visible = false; mesh.renderOrder = 0; backPlate = mesh; box.add(mesh); return; }
+    if (name.includes('fundo')) { mesh.material = backMat; mesh.visible = false; mesh.renderOrder = -3; backPlate = mesh; box.add(mesh); return; }
     if (name.includes('frente')) { mesh.material = film; mesh.renderOrder = 3; box.add(mesh); return; }
     const isTab = (o.parent?.name || o.name || '').toLowerCase().includes('aba') || name.endsWith('.001');
     mesh.material = isTab ? tabMat : walls;
@@ -210,11 +216,11 @@ async function createEngine() {
 
   const key = new DirectionalLight(0xfff4e6, 2.1);
   key.castShadow = true;
-  key.shadow.mapSize.set(512, 512);
+  key.shadow.mapSize.set(1024, 1024);   // sombra sem serrilhado nas bordas
   key.shadow.bias = -0.0006;
   key.shadow.normalBias = 0.02;
   const sc = key.shadow.camera;
-  sc.left = -11; sc.right = 11; sc.top = 13; sc.bottom = -11; sc.near = 1; sc.far = 80;
+  sc.left = -14; sc.right = 14; sc.top = 15; sc.bottom = -14; sc.near = 1; sc.far = 90;
   scene.add(key);
   scene.add(key.target);
   scene.add(new HemisphereLight(0xdfe8ff, 0x1a1408, 0.55));
@@ -226,11 +232,17 @@ async function createEngine() {
   const near = 120;
   const far = 220;
   const d = CAM.z - Z_BACK;
-  camera.projectionMatrix.makePerspective(
-    ((QX0 - CAM.x) * near) / d, ((QX1 - CAM.x) * near) / d,
-    ((QY1 - CAM.y) * near) / d, ((QY0 - CAM.y) * near) / d, near, far,
-  );
-  camera.projectionMatrixInverse.copy(camera.projectionMatrix).invert();
+  let framePad = -1;
+  function setFrame(pad) {
+    if (pad === framePad) return;
+    framePad = pad;
+    camera.projectionMatrix.makePerspective(
+      ((QX0 - pad - CAM.x) * near) / d, ((QX1 + pad - CAM.x) * near) / d,
+      ((QY1 + pad - CAM.y) * near) / d, ((QY0 - pad - CAM.y) * near) / d, near, far,
+    );
+    camera.projectionMatrixInverse.copy(camera.projectionMatrix).invert();
+  }
+  setFrame(0);
 
   const tmpQ = new Quaternion();
   const tmpE = new Euler();
@@ -274,21 +286,25 @@ async function createEngine() {
     box.updateMatrixWorld(true);
   }
 
-  function project(p, w, h) {
+  // Ponto do modelo → px no elemento da caixinha (o canvas tem a margem a mais).
+  function project(p, w, h, padPx) {
     const v = p.clone().applyMatrix4(box.matrixWorld).project(camera);
-    return [((v.x + 1) / 2) * w, ((1 - v.y) / 2) * h];
+    return [((v.x + 1) / 2) * (w + 2 * padPx) - padPx, ((1 - v.y) / 2) * (h + 2 * padPx) - padPx];
   }
 
   function render(s, target) {
     const { w, h, dpr } = target;
-    const pw = Math.max(2, Math.round(w * dpr));
-    const ph = Math.max(2, Math.round(h * dpr));
+    const pad = target.pad || 0;
+    const padPx = (pad * w) / UNIT_W;
+    setFrame(pad);
+    const pw = Math.max(2, Math.round((w + 2 * padPx) * dpr));
+    const ph = Math.max(2, Math.round((h + 2 * padPx) * dpr));
     if (canvas.width !== pw || canvas.height !== ph) renderer.setSize(pw, ph, false);
     // cor do plástico: um fundinho da cor do item, o resto é o reflexo
     tint.set(s.color || '#35d05a').lerp(white, 0.58);
     walls.color.copy(tint);
     tabMat.color.copy(tint);
-    backMat.color.copy(tint);
+    backMat.color.copy(tint).multiplyScalar(0.62);   // cartela de costas: a cor do plástico, mais fosca
     film.color.copy(white);
     // a luz principal acompanha um pouco o mouse (o brilho anda no plástico)
     key.position.set(-9 + s.lx * 8, 15 - s.ly * 4, 40);
@@ -296,13 +312,13 @@ async function createEngine() {
     key.target.updateMatrixWorld();
     pose(s);
     // "Foto" pro arraste (snapshot): só a caixinha, sem o gancho e sem a sombra na cartela.
-    hook.visible = !s.noHook;
+    hook.visible = !s.noHook && !s.hideHook;   // hideHook: o 360° mostra a caixinha sem o gancho
     // Caixinha fora do gancho (sendo arrastada pra cestinha): fica só o gancho.
     box.visible = !s.onlyHook;
     wallShadow.visible = !s.orbit && !s.noHook && !s.onlyHook;
     const quad = (r, z) => [
-      project(new Vector3(-r.x, r.y, z), w, h), project(new Vector3(r.x, r.y, z), w, h),
-      project(new Vector3(r.x, -r.y, z), w, h), project(new Vector3(-r.x, -r.y, z), w, h),
+      project(new Vector3(-r.x, r.y, z), w, h, padPx), project(new Vector3(r.x, r.y, z), w, h, padPx),
+      project(new Vector3(r.x, -r.y, z), w, h, padPx), project(new Vector3(-r.x, -r.y, z), w, h, padPx),
     ];
     const qInsert = quad(INSERT, INSERT.z);
     if (backPlate) backPlate.visible = !!s.orbit && !facesViewer(qInsert);
@@ -394,7 +410,7 @@ export function mountPack(el, opts = {}) {
   const insertEl = el.querySelector('.room-pack-back');
   const frontEl = el.querySelector('.room-pack-front');
   const s = {
-    color: opts.color, tilt: opts.tilt || 0, orbit: !!opts.orbit, drag: null,
+    color: opts.color, tilt: opts.tilt || 0, orbit: !!opts.orbit, hideHook: !!opts.hideHook, drag: null,
     yaw: 0, yawV: 0, yawT: 0, pitch: 0, pitchV: 0, pitchT: 0, swing: 0, swingV: 0,
     lx: 0, ly: 0, lxT: 0, lyT: 0,
   };
@@ -493,7 +509,7 @@ export function mountPack(el, opts = {}) {
       const tctx = target.getContext('2d');
       if (!tctx) return false;
       s.noHook = true;
-      try { engine.render(s, { w: size.w, h: size.h, dpr: size.dpr, canvas: target, ctx: tctx }); } finally { s.noHook = false; }
+      try { engine.render(s, { w: size.w, h: size.h, dpr: size.dpr, pad: 0, canvas: target, ctx: tctx }); } finally { s.noHook = false; }
       dirty = true;
       wake();
       return true;
@@ -507,6 +523,7 @@ export function mountPack(el, opts = {}) {
       canvas.remove();
       el.classList.remove('p3d');
       for (const n of [insertEl, frontEl]) if (n) { n.style.transform = ''; n.style.visibility = ''; }
+      el.classList.remove('p3d-back');
     },
   };
 
@@ -516,12 +533,18 @@ export function mountPack(el, opts = {}) {
       const h = el.clientHeight;
       if (!w || !h) return;
       size = { w, h, dpr: Math.min(window.devicePixelRatio || 1, 1.75) };
+      // o canvas passa da caixinha a margem em cada lado (a ponta e a sombra não cortam)
+      const padPx = (PAD * w) / UNIT_W;
+      Object.assign(canvas.style, { inset: 'auto', left: `${-padPx}px`, top: `${-padPx}px`, width: `${w + 2 * padPx}px`, height: `${h + 2 * padPx}px` });
+      size.padPx = padPx;
     }
-    const pw = Math.round(size.w * size.dpr);
-    const ph = Math.round(size.h * size.dpr);
+    const pw = Math.round((size.w + 2 * size.padPx) * size.dpr);
+    const ph = Math.round((size.h + 2 * size.padPx) * size.dpr);
     if (canvas.width !== pw || canvas.height !== ph) { canvas.width = pw; canvas.height = ph; ctx = null; }
     if (!ctx) ctx = canvas.getContext('2d');
-    const q = engine.render(s, { w: size.w, h: size.h, dpr: size.dpr, canvas, ctx });
+    const q = engine.render(s, { w: size.w, h: size.h, dpr: size.dpr, pad: PAD, canvas, ctx });
+    // de costas: o CSS pode trocar o que aparece (ex.: some o carimbo da frente)
+    el.classList.toggle('p3d-back', !facesViewer(q.front));
     if (insertEl) {
       const show = facesViewer(q.insert);
       insertEl.style.visibility = show ? '' : 'hidden';

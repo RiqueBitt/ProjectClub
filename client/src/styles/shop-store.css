@@ -408,7 +408,38 @@
 .room-pack.p3d .room-pack-plastic { display: none; }
 
 /* ---------- Visualizador 360° da caixinha (detalhe do item) ---------- */
-.room-360 { display: flex; flex-direction: column; align-items: center; gap: 6px; width: 100%; }
+/* Fundo do 360°: um estúdio — luz de cima na cor da caixinha, parede que escurece
+   pras bordas, um chão com reflexo e a sombra macia embaixo da caixinha. */
+.room-360 {
+  --pk: var(--pack, #35d05a);
+  position: relative; isolation: isolate; overflow: hidden;
+  display: flex; flex-direction: column; align-items: center; gap: 6px; width: 100%; box-sizing: border-box;
+  padding: 34px 0 14px; border-radius: 18px;
+  background:
+    radial-gradient(60% 46% at 50% 30%, color-mix(in srgb, var(--pk) 34%, transparent), transparent 72%),
+    radial-gradient(120% 80% at 50% 0%, color-mix(in srgb, var(--pk) 10%, #1b2027) 0%, #0d1014 70%);
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, .06), inset 0 -40px 60px -30px rgba(0, 0, 0, .6);
+}
+/* raios de luz bem fracos vindo de cima */
+.room-360::before {
+  content: ''; position: absolute; inset: 0; z-index: -1; pointer-events: none; opacity: .5;
+  background: repeating-conic-gradient(from 180deg at 50% -10%, rgba(255, 255, 255, .05) 0deg 4deg, transparent 4deg 11deg);
+  -webkit-mask: radial-gradient(70% 70% at 50% 0%, #000, transparent 75%);
+  mask: radial-gradient(70% 70% at 50% 0%, #000, transparent 75%);
+}
+.room-360-floor {
+  position: absolute; left: 0; right: 0; bottom: 0; height: 26%; z-index: -1; pointer-events: none;
+  background:
+    radial-gradient(34% 26% at 50% 38%, rgba(0, 0, 0, .55), transparent 75%),
+    radial-gradient(70% 60% at 50% 30%, color-mix(in srgb, var(--pk) 16%, transparent), transparent 70%),
+    linear-gradient(180deg, rgba(255, 255, 255, .045), rgba(255, 255, 255, 0) 40%);
+  border-top: 1px solid rgba(255, 255, 255, .06);
+}
+.room-360 .room-360-hint { position: relative; color: rgba(235, 242, 250, .62); }
+@media (prefers-reduced-motion: no-preference) {
+  .room-360::before { animation: room-360-rays 18s linear infinite; }
+}
+@keyframes room-360-rays { to { transform: rotate(2deg) scale(1.02); } }
 .room-pack.room-pack-orbit {
   --sw: min(264px, 70vw); --k: tan(atan2(var(--sw), 264px));
   position: relative; left: auto; top: auto; margin: -24px auto -6px; touch-action: none; cursor: grab; transform: none;
@@ -621,5 +652,12 @@
 .shop-room .room-card.is-on .room-stamp { color: #4dff8a; }
 @keyframes room-stamp-in { from { transform: scale(1.6); opacity: 0; } to { transform: scale(1); opacity: .92; } }
 @media (prefers-reduced-motion: reduce) { .room-stamp { animation: none; } }
+/* Carimbo colado no plástico da frente da caixinha (item já comprado). */
+.room-pack-front > .room-pack-stamp {
+  position: absolute; left: 50%; top: 56%; z-index: 5; translate: -50% -50%; rotate: -9deg;
+  font-size: calc(var(--sw) * .082); background: rgba(10, 22, 16, .38);
+  box-shadow: inset 0 0 0 calc(var(--sw) * .007) rgba(10, 30, 18, .9), inset 0 0 0 calc(var(--sw) * .014) currentColor, 0 2px 6px rgba(0, 0, 0, .25);
+}
+.shop-room .room-card.is-on .room-pack-stamp { color: #4dff8a; }
 /* O "Pré-visualizar" do hover ficaria em cima do carimbo: no item comprado o clique já abre. */
 .shop-room .room-card.is-owned .room-card-peek { display: none; }

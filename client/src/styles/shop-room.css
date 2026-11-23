@@ -721,3 +721,32 @@ button.room-supporter.is-none:hover { filter: brightness(1.05); }
   .room-nav-pill, .room-nav-item, .room-nav-item svg { transition: none; }
   .room-btn, .room-btn:hover:not(:disabled), .room-btn:active:not(:disabled) { transition: none; transform: none; }
 }
+
+/* ---------- Menu das categorias: enxuto e do lado direito (PC) ----------
+   Só o ícone e o nome: sem contadores, sem o cartão da assinatura no pé e
+   com os títulos dos grupos bem discretos. Fica à direita do conteúdo. */
+@media (min-width: 981px) {
+  .room-layout { grid-template-columns: minmax(0, 1fr) 212px; }
+  .room-layout > .room-nav { order: 2; border-right: 0; border-left: 1px solid var(--room-line); padding: 18px 10px 14px; gap: 12px;
+    background: color-mix(in srgb, var(--room-surface) 55%, transparent); }
+  .room-layout > .room-main { order: 1; }
+  .room-nav .room-brand small, .room-nav .room-supporter, .room-nav-item em { display: none; }
+  .room-nav .room-brand strong { font-size: 21px; }
+  .room-nav-scroll { gap: 12px; scrollbar-width: none; }
+  .room-nav-scroll::-webkit-scrollbar { display: none; }
+  .room-nav-label { padding: 0 10px 3px; font-size: 10.5px; font-weight: 600; letter-spacing: .02em; opacity: .7; }
+  .room-nav-item { height: 34px; gap: 10px; padding: 0 10px; font-size: 13.5px; font-weight: 500; }
+  .room-nav-item svg { width: 16px; height: 16px; opacity: .8; }
+  .room-nav-item.active svg { opacity: 1; }
+  .room-nav-item:hover svg { transform: none; }
+  /* a pílula marca pelo lado de dentro (à esquerda, virado pro conteúdo) */
+  .room-nav-pill { box-shadow: inset 2px 0 0 var(--room-accent); border-radius: 9px; }
+  /* Assinatura: só um contorno dourado, sem o bloco amarelo */
+  .room-nav-sub { height: 34px; padding: 0 10px; border-radius: 9px; font-size: 13.5px; font-weight: 700; color: var(--room-super, #f5b400);
+    background: transparent; box-shadow: none; border: 1px solid color-mix(in srgb, var(--room-super, #f5b400) 42%, transparent); }
+  .room-nav-sub em { background: color-mix(in srgb, var(--room-super, #f5b400) 20%, transparent); color: inherit; }
+  .room-nav-sub:hover { background: color-mix(in srgb, var(--room-super, #f5b400) 10%, transparent); filter: none; }
+  .room-nav-sub.active { background: color-mix(in srgb, var(--room-super, #f5b400) 16%, transparent); box-shadow: none; }
+}
+/* com o menu à direita, a cestinha fica no canto do conteúdo (não em cima do menu) */
+@media (min-width: 981px) { :root:has(.shop-room .room-layout) .shop-basket-fab { right: 234px; } }
