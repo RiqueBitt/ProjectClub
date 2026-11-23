@@ -24,7 +24,13 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.outlined.Article
 import androidx.compose.material.icons.automirrored.outlined.KeyboardArrowRight
 import androidx.compose.material.icons.automirrored.outlined.Logout
+import androidx.compose.material.icons.automirrored.outlined.MenuBook
 import androidx.compose.material.icons.outlined.AdminPanelSettings
+import androidx.compose.material.icons.outlined.AutoAwesome
+import androidx.compose.material.icons.outlined.Extension
+import androidx.compose.material.icons.outlined.Home
+import androidx.compose.material.icons.outlined.MonitorHeart
+import androidx.compose.material.icons.outlined.StickyNote2
 import androidx.compose.material.icons.outlined.Campaign
 import androidx.compose.material.icons.outlined.Bookmark
 import androidx.compose.material.icons.outlined.Inbox
@@ -104,6 +110,13 @@ fun MoreTab(repo: Repository, actions: HomeActions, nav: com.projectclub.android
         Entry(Icons.Outlined.Search, "Buscar", PC.Brand, "/search"),
         Entry(Icons.Outlined.VideogameAsset, "Meus jogos", Color(0xFFA78BFA), "/jogos/biblioteca"),
         Entry(Icons.Outlined.SupportAgent, "Suporte", Color(0xFF34D399), "/tickets"),
+        // Também no site (abrem dentro do app, já logado).
+        Entry(Icons.AutoMirrored.Outlined.MenuBook, "Wiki", Color(0xFF60A5FA), "/wiki"),
+        Entry(Icons.Outlined.StickyNote2, "Figurinhas", Color(0xFFF472B6), "/figurinhas"),
+        Entry(Icons.Outlined.Home, "Casas", Color(0xFFFBBF24), "/casas"),
+        Entry(Icons.Outlined.Extension, "Mods", Color(0xFF4ADE80), "/jogos/mods"),
+        Entry(Icons.Outlined.AutoAwesome, "Retrospectiva", PC.Purple, "/retrospectiva"),
+        Entry(Icons.Outlined.MonitorHeart, "Status", PC.Green, "/status"),
     )
 
     Column(Modifier.fillMaxSize()) {
