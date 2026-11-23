@@ -8,7 +8,7 @@ import '../styles/landing.css';
 // Página inicial pública (vitrine + download).
 //
 // Duas peças carregam a página, o resto fica quieto de propósito:
-//  1. Abertura: os nove apps giram numa órbita 3D em volta do nome,
+//  1. Abertura: os apps giram numa órbita 3D em volta do nome,
 //     passando por trás e pela frente das letras; a órbita inclina com
 //     o mouse.
 //  2. Palco dos apps: enquanto a pessoa rola, um app por vez toma a tela
@@ -24,7 +24,19 @@ const DOWNLOADS = {
   android: `${DOWNLOADS_BASE}/ProjectClub.apk`,
 };
 
+// O que aparece na vitrine por enquanto: o próprio Project Club, o Mod
+// Manager e o RPG Blackout. `note` é a linha de baixo; `art: 'type'` desenha
+// o nome em letras (sem print) no lugar da captura.
 const APPS = [
+  { id: 'projectclub', verb: 'Comunidade', shot: '01-comunidade', name: 'Project Club', what: 'Comunidade com chat, voz e fórum', color: '#5b8cff', line: 'Canais de texto e de voz, amigos, conquistas, loja e economia, no computador, no celular e no navegador.', note: 'Grátis para Windows, Linux, Android e navegador.' },
+  { id: 'modmanager', verb: 'Mods', shot: '01-biblioteca', name: 'Mod Manager', what: 'Gerenciador de mods', color: '#ff5c93', line: 'Um lugar só para os mods dos seus jogos da Steam, Epic Games e GOG, do Minecraft e do Hytale, com modpacks que entram quando o jogo abre e saem quando ele fecha.', note: 'Vem no app para computador.' },
+  { id: 'blackout', verb: 'RPG', art: 'type', name: 'RPG Blackout', what: 'RPG de mesa', color: '#ff3b3b', line: 'O compêndio do BLACKOUT abre direto no Project Club, no computador e no celular, para quem está na mesa.', note: 'Para quem participa da instância BLACKOUT.' },
+];
+
+// Os programas de criação saíram da vitrine por enquanto (continuam no app).
+// Pra voltar com eles, é só juntar esta lista na de cima.
+// eslint-disable-next-line no-unused-vars
+const CREATIVE_APPS = [
   { id: 'gameproject', verb: 'Jogos', shot: '09-jogo-rodando', name: 'GameProject', what: 'Criação de jogos 2D e 3D', color: '#818CF8', line: 'Cenas, física, animação e scripts num editor só. Aperte F5 e o jogo roda ali mesmo.', base: 'Godot Engine' },
   { id: 'photoproject', verb: 'Fotos', shot: '08-pincel-camadas', name: 'PhotoProject', what: 'Editor de imagem', color: '#A855F7', line: 'Camadas, máscaras, ajustes e arquivos do Photoshop abrindo do jeito que foram salvos.', base: 'Patchy' },
   { id: 'projectmc', verb: 'Minecraft', shot: '08-loja-de-mods', name: 'ProjectMC', what: 'Launcher de Minecraft', color: '#A3E635', line: 'Instâncias separadas, mods do Modrinth e do CurseForge e o Java certo para cada versão.', base: 'X Minecraft Launcher' },
@@ -91,7 +103,6 @@ function useVersions() {
   return v;
 }
 const fmtNum = (n) => new Intl.NumberFormat('pt-BR').format(n);
-const fmtDate = (iso) => { try { return new Date(iso).toLocaleDateString('pt-BR', { day: 'numeric', month: 'short' }).replace('.', ''); } catch { return ''; } };
 
 // Número que conta até o valor quando aparece.
 function CountUp({ value }) {
@@ -223,6 +234,20 @@ function Orbit() {
   );
 }
 
+// Captura do app ou, sem captura (art: 'type'), o nome em letras grandes.
+function AppArt({ a, className = '', eager = false, alt = '' }) {
+  if (a.art === 'type') {
+    return (
+      <div className={`lp-type-art ${className}`} style={{ '--c': a.color }} role={alt ? 'img' : undefined} aria-label={alt || undefined}>
+        <img src={`/apps/${a.id}/icon.png`} alt="" width="72" height="72" />
+        <strong>{a.name.replace(/^RPG\s+/i, '').toUpperCase()}</strong>
+        <span>{a.what}</span>
+      </div>
+    );
+  }
+  return <img className={className} src={a.shot ? `/apps/${a.id}/shots/${a.shot}.jpg` : `/apps/${a.id}/banner.jpg`} alt={alt} loading={eager ? 'eager' : 'lazy'} />;
+}
+
 function Letters({ text, start = 0 }) {
   return (
     <span className="lp-word" aria-hidden="true">
@@ -288,13 +313,13 @@ const AppStage = forwardRef(function AppStage({ versions }, apiRef) {
   if (!pinned) {
     return (
       <section id="apps" ref={sectionRef} className="lp-apps-list" aria-labelledby="apps-titulo">
-        <h2 id="apps-titulo" className="lp-display is-md">Nove programas, uma conta</h2>
-        <p className="lp-copy">Cada um é um projeto de código aberto conhecido, com o nome e a cara do Project Club. Você instala pelo app para computador e as atualizações chegam por lá.</p>
+        <h2 id="apps-titulo" className="lp-display is-md">Tudo numa conta só</h2>
+        <p className="lp-copy">A comunidade, o gerenciador de mods dos seus jogos e o RPG Blackout, com o mesmo login.</p>
         <ul>
           {APPS.map((a) => (
             <li key={a.id} style={{ '--c': a.color }}>
-              <img src={`/apps/${a.id}/banner.jpg`} alt="" loading="lazy" />
-              <div><strong>{a.name}</strong><span>{a.what}</span><p>{a.line}</p>{versions[a.id] && <small>Versão {versions[a.id].version}</small>}</div>
+              <AppArt a={a} />
+              <div><strong>{a.name}</strong><span>{a.what}</span><p>{a.line}</p><small>{a.note}</small></div>
             </li>
           ))}
         </ul>
@@ -308,7 +333,7 @@ const AppStage = forwardRef(function AppStage({ versions }, apiRef) {
       <div className="lp-stage-pin">
         <div className="lp-stage-bg" aria-hidden="true" />
         <div className="lp-stage-head">
-          <h2 id="apps-titulo" className="lp-stage-kicker">O que você quer criar?</h2>
+          <h2 id="apps-titulo" className="lp-stage-kicker">O que tem no clube</h2>
           <div className="lp-stage-chips" role="tablist" aria-label="Escolher app">
             {APPS.map((a, i) => (
               <button key={a.id} type="button" role="tab" aria-selected={i === index} className={i === index ? 'is-on' : ''} style={{ '--c': a.color }} onClick={() => goTo(i)}>{a.verb}</button>
@@ -321,10 +346,7 @@ const AppStage = forwardRef(function AppStage({ versions }, apiRef) {
           <h3 className="lp-stage-name">{app.name}</h3>
           <p className="lp-stage-what">{app.what}</p>
           <p className="lp-stage-line">{app.line}</p>
-          <p className="lp-stage-base">
-            Feito a partir do {app.base}, de código aberto.
-            {versions[app.id] ? <> Versão {versions[app.id].version}, publicada em {fmtDate(versions[app.id].date)}.</> : <> Chegando em breve.</>}
-          </p>
+          <p className="lp-stage-base">{app.note}</p>
         </div>
 
         <div className="lp-stage-art" ref={artRef} onPointerMove={onArtMove} onPointerLeave={onArtLeave}>
@@ -335,12 +357,7 @@ const AppStage = forwardRef(function AppStage({ versions }, apiRef) {
                 <span>{a.name}</span>
                 <i /><i /><i />
               </div>
-              <img
-                className={`lp-window-shot ${a.shot ? '' : 'is-banner'}`}
-                src={a.shot ? `/apps/${a.id}/shots/${a.shot}.jpg` : `/apps/${a.id}/banner.jpg`}
-                alt={i === index ? `${a.name} aberto` : ''}
-                loading={i < 2 ? 'eager' : 'lazy'}
-              />
+              <AppArt a={a} className={`lp-window-shot ${a.shot || a.art ? '' : 'is-banner'}`} alt={i === index ? `${a.name} aberto` : ''} eager={i < 2} />
             </figure>
           ))}
         </div>
@@ -412,7 +429,7 @@ export default function LandingPage() {
           </div>
           <div className="lp-hero-foot">
             <p className="lp-lede">
-              Uma comunidade com chat, voz e fórum, e um app para computador que instala os nossos programas de criação: jogos, imagem, vídeo, áudio e 3D. Tudo de graça.
+              Uma comunidade com chat, voz e fórum, o Mod Manager para os mods dos seus jogos e o RPG Blackout. Tudo de graça.
             </p>
             <div className="lp-hero-cta">
               {platform ? (
@@ -451,7 +468,7 @@ export default function LandingPage() {
         <section id="download" className="lp-band is-tint" aria-labelledby="dl-titulo">
           <div className="lp-band-head lp-reveal">
             <h2 id="dl-titulo" className="lp-display is-md">Escolha o seu sistema</h2>
-            <p className="lp-copy">O app para computador é o que instala os programas. No celular e no navegador você usa a comunidade.</p>
+            <p className="lp-copy">No computador vem também o Mod Manager. No celular e no navegador você usa a comunidade.</p>
           </div>
           <div className="lp-dl lp-reveal">
             <a className={`lp-dl-card ${platform === 'windows' ? 'is-you' : ''}`} href={DOWNLOADS.windows} download>
@@ -493,20 +510,16 @@ export default function LandingPage() {
                 <p>Não. A conta, a comunidade e todos os apps são gratuitos. Não tem plano pago nem anúncio.</p>
               </details>
               <details>
-                <summary>Os apps são de vocês?</summary>
-                <p>São versões de projetos de código aberto (Godot, Krita, Blender, Audacity e outros) com o nome e o tema do Project Club e integrados ao app. O código de cada um fica público no GitHub, com os créditos e a licença original.</p>
-              </details>
-              <details>
                 <summary>Preciso do app para computador?</summary>
-                <p>Só para instalar os programas. A comunidade funciona no navegador e no Android também, inclusive com chamada de voz em segundo plano.</p>
+                <p>Só para o Mod Manager. A comunidade funciona no navegador e no Android também, inclusive com chamada de voz em segundo plano.</p>
               </details>
               <details>
                 <summary>Como o app se atualiza?</summary>
-                <p>Sozinho. O Project Club busca a versão nova ao abrir, e cada programa mostra um botão de atualizar quando sai uma versão.</p>
+                <p>Sozinho. O Project Club busca a versão nova ao abrir e instala quando você fecha.</p>
               </details>
               <details>
                 <summary>Roda em PC fraco?</summary>
-                <p>A comunidade sim: ela abre em qualquer navegador atual e no Android. Os programas variam. O WaveProject pede 2 GB de RAM, o GameProject e o CanvasProject pedem 4 GB, e o ForgeProject, que faz 3D e render, pede 8 GB. Todos rodam em Windows 10 ou 11 de 64 bits e em Linux, e a página de cada app mostra os requisitos completos antes de instalar.</p>
+                <p>Sim. A comunidade abre em qualquer navegador atual e no Android, e o app para computador roda em Windows 10 ou 11 de 64 bits e em Linux.</p>
               </details>
             </div>
           </div>

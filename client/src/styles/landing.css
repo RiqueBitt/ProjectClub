@@ -436,3 +436,19 @@ html .lp :focus-visible { outline: 2px solid #fff !important; outline-offset: 3p
 .lp-cmd-foot { margin: 0; padding: 10px 16px; border-top: 1px solid var(--line); font-size: 12px; color: var(--text-3); display: flex; gap: 6px; align-items: center; flex-wrap: wrap; }
 @media (max-width: 900px) { .lp-search span, .lp-search kbd { display: none; } .lp-search { padding: 8px; } }
 @media (prefers-reduced-motion: reduce) { .lp-pulse-dot { animation: none; } .lp-cmd, .lp-cmd-box { animation: none; } }
+
+/* App sem captura (RPG Blackout): o nome em letras grandes sobre a cor dele */
+.lp-type-art {
+  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 10px; text-align: center;
+  background:
+    radial-gradient(70% 60% at 50% 40%, color-mix(in srgb, var(--c) 30%, transparent), transparent 70%),
+    repeating-linear-gradient(0deg, rgba(255, 255, 255, .025) 0 1px, transparent 1px 4px),
+    #0b0607;
+  color: #fff; overflow: hidden;
+}
+.lp-type-art img { width: 72px; height: 72px; border-radius: 18px; }
+.lp-type-art strong { font-size: clamp(36px, 7vw, 88px); font-weight: 900; letter-spacing: .14em; line-height: 1; color: var(--c); text-shadow: 0 0 28px color-mix(in srgb, var(--c) 60%, transparent); }
+.lp-type-art span { font-size: 14px; letter-spacing: .02em; color: rgba(255, 255, 255, .65); }
+.lp-apps-list li .lp-type-art { width: 100%; aspect-ratio: 16 / 5; padding: 12px 0; box-sizing: border-box; }
+.lp-apps-list li .lp-type-art img { width: 40px; height: 40px; border-radius: 10px; }
+.lp-apps-list li .lp-type-art strong { font-size: 34px; }
