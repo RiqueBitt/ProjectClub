@@ -45,6 +45,15 @@ import androidx.compose.material.icons.automirrored.filled.InsertDriveFile
 import androidx.compose.material.icons.automirrored.filled.Reply
 import androidx.compose.material.icons.automirrored.filled.Forward
 import androidx.compose.material.icons.filled.Alarm
+import androidx.compose.material.icons.filled.Timer
+import androidx.compose.material.icons.filled.Translate
+import androidx.compose.material.icons.filled.RecordVoiceOver
+import androidx.compose.material.icons.filled.Person
+import androidx.compose.material.icons.filled.Favorite
+import androidx.compose.material.icons.filled.Paid
+import androidx.compose.material.icons.filled.Flag
+import androidx.compose.material.icons.filled.Mic
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.filled.PushPin
 import androidx.compose.material.icons.filled.People
 import androidx.compose.material.icons.filled.Search
@@ -178,6 +187,35 @@ fun ChatScreen(
 
     var showPicker by remember { mutableStateOf(false) }
     var showActivities by remember { mutableStateOf(false) }
+    val openUserFromMenu = com.projectclub.android.ui.profile.LocalOpenUser.current
+    var tipFor by remember { mutableStateOf<Message?>(null) }
+    var reportFor by remember { mutableStateOf<Message?>(null) }
+    var showEphemeral by remember { mutableStateOf(false) }
+    var recording by remember { mutableStateOf(false) }
+    val recorder = remember { VoiceRecorder(ctx) }
+    DisposableEffect(Unit) { onDispose { recorder.stop(discard = true) } }
+    val micPermission = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { ok ->
+        if (ok) recording = recorder.start().also { if (!it) toast("Não foi possível acessar o microfone.") }
+        else toast("Sem permissão do microfone.")
+    }
+    // Respostas do Pingu (tradução) chegam pelo tempo real.
+    LaunchedEffect(Unit) { Translations.listen(repo) }
+    // "Novas mensagens": guarda a última leitura de quando a sala abriu (antes de marcar como lida).
+    val readMark = remember(room.id) {
+        room.channelId?.let { repo.channelStates.value[it]?.myReadAt } ?: room.conversationId?.let { id -> repo.conversations.value.firstOrNull { it.id == id }?.lastReadAt }
+    }
+    var firstUnreadId by remember(room.id) { mutableStateOf<String?>(null) }
+    LaunchedEffect(room.id, state.messages.isNotEmpty()) {
+        if (firstUnreadId != null || readMark == null || state.messages.isEmpty()) return@LaunchedEffect
+        val mark = runCatching { java.time.Instant.parse(readMark) }.getOrNull() ?: return@LaunchedEffect
+        firstUnreadId = state.messages.firstOrNull { m ->
+            m.authorId != me?.id && !m.id.startsWith(ChatViewModel.LOCAL) &&
+                (runCatching { java.time.Instant.parse(m.createdAt) }.getOrNull()?.isAfter(mark) == true)
+        }?.id ?: ""
+    }
+    val mentionUsers = remember(conv, channel) {
+        conv?.members?.filter { it.id != me?.id } ?: repo.community.value?.members?.map { it.user }.orEmpty()
+    }
     LaunchedEffect(state.editing?.id) { state.editing?.let { text = it.content.orEmpty() } }
 
     val picker = rememberLauncherForActivityResult(ActivityResultContracts.GetMultipleContents()) { uris ->
@@ -215,6 +253,9 @@ fun ChatScreen(
                 actions = {
                     IconButton(onClick = { showSearch = true }) { Icon(Icons.Filled.Search, "Buscar mensagens") }
                     IconButton(onClick = { showPinned = true }) { Icon(Icons.Filled.PushPin, "Mensagens fixadas") }
+                    if (conv != null) IconButton(onClick = { showEphemeral = true }) {
+                        Icon(Icons.Filled.Timer, "Mensagens temporárias: " + ephemeralLabel(conv.ephemeralSeconds), tint = if ((conv.ephemeralSeconds ?: 0) > 0) PC.Brand else androidx.compose.material3.LocalContentColor.current)
+                    }
                     if (room.conversationId != null) IconButton(onClick = { onCall("dm:${room.conversationId}", title) }) { Icon(Icons.Filled.Call, "Ligar") }
                     if (channel != null) IconButton(onClick = { showMembers = true }) { Icon(Icons.Filled.People, "Membros") }
                 },
@@ -246,6 +287,7 @@ fun ChatScreen(
                                 onReact = { e -> vm.react(m, e) },
                                 onImage = { viewing = it },
                             )
+                            if (m.id == firstUnreadId) NewMessagesDivider()
                         }
                         if (state.loadingOlder) item { Box(Modifier.fillMaxWidth().padding(12.dp), contentAlignment = Alignment.Center) { CircularProgressIndicator(Modifier.size(22.dp), strokeWidth = 2.dp) } }
                         if (state.reachedStart || (!state.loading && state.messages.isEmpty())) item {
@@ -272,7 +314,15 @@ fun ChatScreen(
             }
             TypingLine(state.typing.keys.mapNotNull { repo.user(it)?.name })
             Column(Modifier.fillMaxWidth().background(PC.Bg).navigationBarsPadding()) {
-                Composer(
+                mentionQuery(text)?.let { q ->
+                    MentionSuggestions(mentionUsers, q) { u ->
+                        text = text.replace(Regex("@[\\p{L}0-9_.]*$"), "@${u.username} ")
+                    }
+                }
+                if (recording) RecordingBar(
+                    onCancel = { recorder.stop(discard = true); recording = false },
+                    onStop = { recorder.stop(discard = false)?.let { vm.addFiles(listOf(it)) }; recording = false },
+                ) else Composer(
                     text = text, onText = { text = it; vm.onTyping(it) },
                     state = state, roomName = title,
                     onAttach = { picker.launch("*/*") },
@@ -282,12 +332,21 @@ fun ChatScreen(
                     onPicker = { showPicker = true },
                     onSchedule = { scheduling = true },
                     onActivities = { showActivities = true },
+                    onMic = {
+                        if (androidx.core.content.ContextCompat.checkSelfPermission(ctx, android.Manifest.permission.RECORD_AUDIO) == android.content.pm.PackageManager.PERMISSION_GRANTED) {
+                            recording = recorder.start().also { if (!it) toast("Não foi possível acessar o microfone.") }
+                        } else micPermission.launch(android.Manifest.permission.RECORD_AUDIO)
+                    },
                 )
                 callBar()
             }
         }
     }
     }
+
+    tipFor?.let { m -> TipDialog(repo, m) { msg -> tipFor = null; msg?.let(::toast) } }
+    reportFor?.let { m -> ReportDialog(repo, m) { msg -> reportFor = null; msg?.let(::toast) } }
+    if (showEphemeral && conv != null) EphemeralDialog(repo, conv) { msg -> showEphemeral = false; msg?.let(::toast) }
 
     if (showActivities) ActivitiesSheet(repo, onDismiss = { showActivities = false }) { t -> vm.send(t) { } }
 
@@ -299,7 +358,7 @@ fun ChatScreen(
     )
 
     menuFor?.let { m ->
-        ModalBottomSheet(onDismissRequest = { menuFor = null }, containerColor = PC.Surface) {
+        ModalBottomSheet(onDismissRequest = { menuFor = null }, containerColor = PC.Surface) { Column(Modifier.verticalScroll(rememberScrollState())) {
             Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()).padding(horizontal = 12.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 QUICK.forEach { e ->
                     Box(Modifier.size(48.dp).clip(RoundedCornerShape(24.dp)).background(PC.Surface2).clickable { vm.react(m, e); menuFor = null }, contentAlignment = Alignment.Center) {
@@ -345,12 +404,27 @@ fun ChatScreen(
                 (ctx.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager).setPrimaryClip(ClipData.newPlainText("mensagem", m.content))
                 menuFor = null
             }
+            if (!m.content.isNullOrBlank()) {
+                SheetItem(Icons.Filled.Translate, "Traduzir com o Pingu") { menuFor = null; scope.launch { Translations.request(repo, m) } }
+                SheetItem(Icons.Filled.RecordVoiceOver, "Falar mensagem") { menuFor = null; Speaker.speak(ctx, m.content.orEmpty()) }
+            }
+            if (m.authorId != null && m.authorId != me?.id) {
+                SheetItem(Icons.Filled.Person, "Ver perfil") { menuFor = null; openUserFromMenu(m.authorId) }
+                SheetItem(Icons.Filled.Favorite, "Agradecer") { menuFor = null; scope.launch { toast(thankMessage(repo, m)) } }
+                SheetItem(Icons.Filled.Paid, "Dar gorjeta") { menuFor = null; tipFor = m }
+            }
+            SheetItem(Icons.Filled.Tag, "Copiar ID da mensagem") {
+                (ctx.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager).setPrimaryClip(ClipData.newPlainText("id", m.id))
+                menuFor = null
+                toast("ID copiado.")
+            }
+            if (m.authorId != null && m.authorId != me?.id) SheetItem(Icons.Filled.Flag, "Denunciar", danger = true) { menuFor = null; reportFor = m }
             if (m.authorId == me?.id) {
                 if (!m.content.isNullOrBlank()) SheetItem(Icons.Filled.Edit, "Editar") { vm.setEditing(m); menuFor = null }
                 SheetItem(Icons.Filled.Delete, "Apagar", danger = true) { confirmDelete = m; menuFor = null }
             }
             Spacer(Modifier.navigationBarsPadding().padding(bottom = 12.dp))
-        }
+        } }
     }
     confirmDelete?.takeIf { it.id.startsWith(ChatViewModel.LOCAL) }?.let { m ->
         AlertDialog(
@@ -465,6 +539,7 @@ private fun MessageItem(
                     )
                 }
             }
+            TranslationLine(m.id)
             if (m.edited) Text("(editado)", color = PC.Muted, style = MaterialTheme.typography.labelSmall)
             status?.let { Text(it, color = PC.Yellow, style = MaterialTheme.typography.labelSmall) }
             m.stickerUrl?.let { AsyncImage(Config.media(it), "Figurinha", modifier = Modifier.padding(top = 4.dp).size(140.dp)) }
@@ -484,7 +559,8 @@ private fun MessageItem(
             m.attachments.filter { it.isVideo && !it.isSpoiler }.forEach { a ->
                 Config.media(a.url)?.let { url -> InlineVideo(url, modifier = Modifier.padding(top = 6.dp)) }
             }
-            m.attachments.filter { !(it.isImage && !it.isSpoiler) && !(it.isVideo && !it.isSpoiler) }.forEach { a -> FileChip(a) { Config.media(a.url)?.let(uri::openUri) } }
+            m.attachments.filter { it.isAudio && !it.isSpoiler }.forEach { a -> Config.media(a.url)?.let { url -> AudioAttachment(url, a.filename) } }
+            m.attachments.filter { !(it.isImage && !it.isSpoiler) && !(it.isVideo && !it.isSpoiler) && !(it.isAudio && !it.isSpoiler) }.forEach { a -> FileChip(a) { Config.media(a.url)?.let(uri::openUri) } }
             val groups = ChatLogic.groupReactions(m.reactions, myId)
             if (groups.isNotEmpty()) FlowRow(Modifier.padding(top = 4.dp), horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
                 groups.forEach { (emoji, count, mine) ->
@@ -573,6 +649,7 @@ private fun Composer(
     onPicker: () -> Unit,
     onSchedule: () -> Unit = {},
     onActivities: () -> Unit = {},
+    onMic: () -> Unit = {},
 ) {
     Column(Modifier.fillMaxWidth().background(PC.Bg).padding(horizontal = 10.dp, vertical = 8.dp).clip(RoundedCornerShape(26.dp)).background(PC.Surface).border(1.dp, PC.Line, RoundedCornerShape(26.dp))) {
         val banner = state.editing?.let { "Editando mensagem" } ?: state.replyTo?.let { "Respondendo a ${it.author?.name ?: "mensagem"}" }
@@ -606,6 +683,8 @@ private fun Composer(
             // Emojis, GIFs e figurinhas (o mesmo seletor do PC).
             // Atividades: rolar dados, YouTube, música e mostrar o cartão (igual ao site).
             if (state.editing == null && text.isBlank()) IconButton(onClick = onActivities) { Icon(Icons.Outlined.Casino, "Atividades", tint = PC.Muted) }
+            // Mensagem de voz: grava e entra como anexo (igual ao site).
+            if (state.editing == null && text.isBlank() && state.files.isEmpty()) IconButton(onClick = onMic) { Icon(Icons.Filled.Mic, "Gravar mensagem de voz", tint = PC.Muted) }
             if (state.editing == null) IconButton(onClick = onPicker) { Icon(Icons.Outlined.EmojiEmotions, "Emojis, GIFs e figurinhas", tint = PC.Muted) }
             val canSend = text.isNotBlank() || state.files.isNotEmpty()
             Box(

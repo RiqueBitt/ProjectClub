@@ -139,6 +139,8 @@ data class Conversation(
     val lastReadAt: String? = null,
     /** Link bonito do grupo (/dm/grupo-<nome>); DM 1:1 usa o @ da pessoa. */
     val slug: String? = null,
+    /** Mensagens temporárias: null = desligado, 86400 = 24 h, 604800 = 7 dias. */
+    val ephemeralSeconds: Int? = null,
 )
 
 /** GET /api/links/resolve?path=/canal/chat-geral (links bonitos → id). */
@@ -170,6 +172,7 @@ data class Attachment(
 ) {
     val isImage: Boolean get() = mimeType?.startsWith("image/") == true
     val isVideo: Boolean get() = mimeType?.startsWith("video/") == true
+    val isAudio: Boolean get() = mimeType?.startsWith("audio/") == true
 }
 
 @Serializable

@@ -666,6 +666,11 @@ class Repository(private val context: Context, val api: Api, private val scope: 
         return others.joinToString(", ") { it.name }.ifBlank { "Conversa" }
     }
 
+    /** Muda uma conversa na lista local (ex.: mensagens temporárias). */
+    fun patchConversation(id: String, f: (Conversation) -> Conversation) {
+        _conversations.update { list -> list.map { if (it.id == id) f(it) else it } }
+    }
+
     fun isUnread(conv: Conversation): Boolean = ChatLogic.isConversationUnread(conv, _me.value?.id)
     fun isUnread(channelId: String): Boolean = ChatLogic.isChannelUnread(_channelStates.value[channelId])
 
