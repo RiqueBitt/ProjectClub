@@ -58,7 +58,7 @@ export default function MiniCallWindow({ voice, onBack, onHide }) {
   const ordered = [...ids].sort((a, b) => Number(isSpeaking(b)) - Number(isSpeaking(a)));
 
   // Prioridade do "vídeo" da janelinha: tela de alguém > câmera de alguém.
-  const screenUid = Object.keys(remoteScreenStreams || {})[0];
+  const screenUid = Object.keys(remoteScreenStreams || {}).find((u) => !voice.closedScreens?.[u]);
   const camUid = !screenUid ? Object.keys(remoteCameraStreams || {})[0] : null;
   const videoStream = screenUid ? remoteScreenStreams[screenUid] : (camUid ? remoteCameraStreams[camUid] : null);
   const videoOwner = screenUid || camUid;

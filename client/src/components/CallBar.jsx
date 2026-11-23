@@ -408,7 +408,7 @@ export function RemoteAudioSinks() {
       {Object.entries(remoteScreenAudioStreams).map(([userId, stream]) => (
         <AudioSink
           key={`${userId}#tela`} userId={userId} stream={stream}
-          volume={deafened || voice.serverDeafened ? 0 : (streamVolumes[userId] ?? 1)} autoLevel={false} sinkId={sinkId}
+          volume={deafened || voice.serverDeafened || voice.closedScreens?.[userId] ? 0 : (streamVolumes[userId] ?? 1)} autoLevel={false} sinkId={sinkId}
           getInboundBytes={null}
         />
       ))}

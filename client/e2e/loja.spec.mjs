@@ -51,6 +51,15 @@ test('loja segue o tema, com vitrine, filtros, detalhe e confirmação', async (
   await expect(owned.locator('.room-hook')).toHaveCount(0);
   await expect(owned.locator('.room-owned-art')).toBeVisible();
   await expect(owned.locator('.room-stamp')).toHaveText(/Comprado|Liberado/);
+  // Carimbo reto, EMBAIXO do item (sem cruzar o item) e dentro da área da cartela.
+  await page.waitForTimeout(450); // fim da animação do carimbo
+  const art = await owned.locator('.room-owned-art').boundingBox();
+  const stamp = await owned.locator('.room-stamp').boundingBox();
+  const area = await owned.locator('.room-card-art').boundingBox();
+  expect(stamp.y).toBeGreaterThanOrEqual(art.y + art.height - 1);
+  expect(stamp.y + stamp.height).toBeLessThanOrEqual(area.y + area.height + 1);
+  expect(stamp.x).toBeGreaterThanOrEqual(area.x - 1);
+  expect(stamp.x + stamp.width).toBeLessThanOrEqual(area.x + area.width + 1);
   // E nenhuma caixinha tem mais a faixa com o nome.
   await expect(page.locator('.room-pack-label')).toHaveCount(0);
   await page.locator('.room-chip', { hasText: 'Tudo' }).click();
