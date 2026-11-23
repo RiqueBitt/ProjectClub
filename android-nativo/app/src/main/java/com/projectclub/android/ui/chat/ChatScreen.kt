@@ -348,7 +348,7 @@ fun ChatScreen(
     reportFor?.let { m -> ReportDialog(repo, m) { msg -> reportFor = null; msg?.let(::toast) } }
     if (showEphemeral && conv != null) EphemeralDialog(repo, conv) { msg -> showEphemeral = false; msg?.let(::toast) }
 
-    if (showActivities) ActivitiesSheet(repo, onDismiss = { showActivities = false }) { t -> vm.send(t) { } }
+    if (showActivities) ActivitiesSheet(repo, onDismiss = { showActivities = false }, channelId = room.channelId, conversationId = room.conversationId) { t -> vm.send(t) { } }
 
     if (showPicker) PickerSheet(
         repo, onDismiss = { showPicker = false },
@@ -539,6 +539,7 @@ private fun MessageItem(
                     )
                 }
             }
+            m.poll?.let { ChatPollCard(repo, it, myId) }
             TranslationLine(m.id)
             if (m.edited) Text("(editado)", color = PC.Muted, style = MaterialTheme.typography.labelSmall)
             status?.let { Text(it, color = PC.Yellow, style = MaterialTheme.typography.labelSmall) }

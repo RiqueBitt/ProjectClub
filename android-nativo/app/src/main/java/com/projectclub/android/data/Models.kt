@@ -202,6 +202,8 @@ data class Message(
     val embed: String? = null,
     val nonce: String? = null,
     val contentFiltered: Boolean = false,
+    /** Enquete do chat (POST /api/polls): opções em JSON, votos com quem votou. */
+    val poll: ChatPoll? = null,
 ) {
     val roomId: String? get() = channelId ?: conversationId
 }
@@ -299,3 +301,16 @@ data class FavoriteGif(val id: String = "", val gifId: String = "", val url: Str
 
 @Serializable
 data class FavoriteGifsResponse(val gifs: List<FavoriteGif> = emptyList())
+
+@Serializable
+data class ChatPollVote(val userId: String = "", val optionIndex: Int = 0, val user: User? = null)
+
+@Serializable
+data class ChatPoll(
+    val id: String = "",
+    val question: String = "",
+    /** JSON: ["Sim","Não"]. */
+    val options: String = "[]",
+    val votes: List<ChatPollVote> = emptyList(),
+    val expiresAt: String? = null,
+)

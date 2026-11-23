@@ -468,3 +468,89 @@ fun NewMessagesDivider() {
         )
     }
 }
+
+/* ---------------- Enquete do chat ---------------- */
+
+@Composable
+fun ChatPollCard(repo: Repository, poll: com.projectclub.android.data.ChatPoll, myId: String?) {
+    val options = remember(poll.options) {
+        runCatching { com.projectclub.android.data.AppJson.decodeFromString<List<String>>(poll.options) }.getOrDefault(emptyList())
+    }
+    val expired = remember(poll.expiresAt) { poll.expiresAt?.let { runCatching { java.time.Instant.parse(it).isBefore(java.time.Instant.now()) }.getOrNull() } ?: false }
+    // Voto otimista: aparece na hora; o servidor manda a mensagem atualizada pelo tempo real.
+    var localVote by remember(poll.id, poll.votes) { mutableStateOf<Int?>(null) }
+    val votes = poll.votes.filter { it.userId != myId || localVote == null } + (localVote?.let { listOf(com.projectclub.android.data.ChatPollVote(myId.orEmpty(), it)) } ?: emptyList())
+    val total = votes.size
+    val mine = votes.firstOrNull { it.userId == myId }?.optionIndex
+    var showVoters by remember { mutableStateOf<Int?>(null) }
+    val scope = rememberCoroutineScope()
+    Column(
+        Modifier.padding(top = 6.dp).widthIn(max = 380.dp).fillMaxWidth().clip(RoundedCornerShape(14.dp)).background(PC.Surface)
+            .border(1.dp, PC.Line, RoundedCornerShape(14.dp)).padding(12.dp),
+    ) {
+        Text("📊 " + poll.question, color = PC.Header, fontWeight = FontWeight.Bold)
+        Spacer(Modifier.height(8.dp))
+        options.forEachIndexed { i, label ->
+            val count = votes.count { it.optionIndex == i }
+            val pct = if (total > 0) count * 100 / total else 0
+            val isMine = mine == i
+            Box(
+                Modifier.padding(vertical = 3.dp).fillMaxWidth().height(40.dp).clip(RoundedCornerShape(10.dp)).background(PC.Surface2)
+                    .border(1.dp, if (isMine) PC.Brand else PC.Line, RoundedCornerShape(10.dp))
+                    .clickable(enabled = !expired) {
+                        localVote = i
+                        scope.launch { runCatching { repo.api.postIgnore("/api/polls/${poll.id}/vote", buildJsonObject { put("optionIndex", i) }) }.onFailure { localVote = null } }
+                    },
+            ) {
+                Box(Modifier.fillMaxWidth(pct / 100f).height(40.dp).background(PC.Brand.copy(alpha = if (isMine) 0.32f else 0.16f)))
+                Row(Modifier.fillMaxWidth().height(40.dp).padding(horizontal = 12.dp), verticalAlignment = Alignment.CenterVertically) {
+                    Text((if (isMine) "✓ " else "") + label, color = PC.Text, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
+                    Text("$pct% ($count)", color = PC.Muted, style = MaterialTheme.typography.labelSmall, modifier = Modifier.clickable { if (count > 0) showVoters = if (showVoters == i) null else i })
+                }
+            }
+            if (showVoters == i) {
+                val names = poll.votes.filter { it.optionIndex == i }.mapNotNull { it.user?.let { u -> u.displayName ?: u.username } }
+                if (names.isNotEmpty()) Text(names.joinToString(", "), color = PC.Muted, style = MaterialTheme.typography.labelSmall, modifier = Modifier.padding(start = 6.dp, bottom = 2.dp))
+            }
+        }
+        Text(
+            "$total voto" + (if (total == 1) "" else "s") + (if (expired) " · encerrada" else ""),
+            color = PC.Faint, style = MaterialTheme.typography.labelSmall, modifier = Modifier.padding(top = 6.dp),
+        )
+    }
+}
+
+private val POLL_DURATIONS = listOf("1h" to "1 hora", "4h" to "4 horas", "16h" to "16 horas", "24h" to "24 horas", "3d" to "3 dias", "1w" to "1 semana")
+
+@Composable
+fun PollComposer(busy: Boolean, onCreate: (question: String, options: List<String>, duration: String) -> Unit) {
+    var question by remember { mutableStateOf("") }
+    val options = remember { androidx.compose.runtime.mutableStateListOf("", "") }
+    var duration by remember { mutableStateOf("24h") }
+    Column(Modifier.padding(horizontal = 16.dp)) {
+        OutlinedTextField(question, { question = it.take(300) }, Modifier.fillMaxWidth(), label = { Text("Pergunta") }, singleLine = true)
+        Spacer(Modifier.height(6.dp))
+        options.forEachIndexed { i, o ->
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                OutlinedTextField(o, { options[i] = it.take(55) }, Modifier.weight(1f), label = { Text("Opção ${i + 1}") }, singleLine = true)
+                if (options.size > 2) Icon(Icons.Filled.Close, "Tirar opção", tint = PC.Muted, modifier = Modifier.padding(start = 6.dp).size(22.dp).clickable { options.removeAt(i) })
+            }
+        }
+        if (options.size < 7) TextButton(onClick = { options.add("") }) { Text("+ Adicionar opção") }
+        Row(Modifier.horizontalScroll(rememberScrollState()).padding(vertical = 6.dp), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+            POLL_DURATIONS.forEach { (k, label) ->
+                val on = duration == k
+                Box(Modifier.clip(RoundedCornerShape(10.dp)).background(if (on) PC.Brand else PC.Surface2).clickable { duration = k }.padding(horizontal = 12.dp, vertical = 7.dp)) {
+                    Text(label, color = if (on) PC.OnBrand else PC.Text, style = MaterialTheme.typography.labelMedium)
+                }
+            }
+        }
+        val clean = options.map { it.trim() }.filter { it.isNotEmpty() }
+        val can = !busy && question.isNotBlank() && clean.size >= 2
+        Box(
+            Modifier.padding(top = 6.dp).fillMaxWidth().height(48.dp).clip(RoundedCornerShape(14.dp)).background(if (can) PC.Brand else PC.Surface2)
+                .clickable(enabled = can) { onCreate(question.trim(), clean, duration) },
+            contentAlignment = Alignment.Center,
+        ) { Text(if (busy) "Criando…" else "Criar enquete", color = if (can) PC.OnBrand else PC.Muted, fontWeight = FontWeight.Bold) }
+    }
+}
