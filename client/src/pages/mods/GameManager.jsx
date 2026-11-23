@@ -201,7 +201,7 @@ export default function GameManager({ game, onBack, scrollRef, initialTab = null
           onBack={onBack}
           actions={(
             <>
-              {desktopReady && game.steamAppId && (
+              {desktopReady && game.steamAppId && (game.platforms || ['steam']).includes('steam') && (
                 <button type="button" className="mdx-btn play lg" onClick={() => window.electronAPI?.openExternal?.(`steam://run/${game.steamAppId}`)}>
                   <Icon name="play" size={16} filled /> Jogar
                 </button>

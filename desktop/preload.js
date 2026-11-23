@@ -229,6 +229,18 @@ contextBridge.exposeInMainWorld('electronAPI', {
   },
   mods: {
     detectSteamGames: () => ipcRenderer.invoke('mods:detect-steam-games'),
+    // Mod Manager único: Epic/GOG e os mods de Minecraft/Hytale por instância.
+    detectOtherGames: () => ipcRenderer.invoke('mods:detect-other-games'),
+    launcher: {
+      instances: (game) => ipcRenderer.invoke('mods:launcher-instances', { game }),
+      list: (game, instanceId) => ipcRenderer.invoke('mods:launcher-list', { game, instanceId }),
+      setEnabled: (game, instanceId, file, enabled) => ipcRenderer.invoke('mods:launcher-set-enabled', { game, instanceId, file, enabled }),
+      remove: (game, instanceId, file) => ipcRenderer.invoke('mods:launcher-remove', { game, instanceId, file }),
+      installUrl: (game, instanceId, payload) => ipcRenderer.invoke('mods:launcher-install-url', { ...(payload || {}), game, instanceId }),
+      installFile: (game, instanceId) => ipcRenderer.invoke('mods:launcher-install-file', { game, instanceId }),
+      openFolder: (game, instanceId) => ipcRenderer.invoke('mods:launcher-open-folder', { game, instanceId }),
+      catalog: (game, route, opts) => ipcRenderer.invoke('mods:launcher-catalog', { game, route, query: opts?.query, body: opts?.body }),
+    },
     selectGameFolder: () => ipcRenderer.invoke('mods:select-game-folder'),
     install: (payload) => ipcRenderer.invoke('mods:install', payload),
     uninstall: (payload) => ipcRenderer.invoke('mods:uninstall', payload),

@@ -1164,3 +1164,53 @@ button.mdx-ux-tile.dim:hover { border-color: color-mix(in srgb, var(--red) 40%, 
 .mdx-autoupd-toggle { background: linear-gradient(90deg, color-mix(in srgb, var(--green) 10%, transparent), transparent 60%), var(--bg-secondary); }
 .mdx-autoupd-toggle .mdx-nexus-toggle-icon { color: var(--green); background: color-mix(in srgb, var(--green) 16%, transparent); }
 .mdx-installed-head-right { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; justify-content: flex-end; }
+
+/* ---------- Mod Manager único: lojas, Minecraft/Hytale e animações ---------- */
+
+/* Entrada em cascata dos cartões e linhas (uma vez, ao aparecer). */
+@keyframes mdx-rise { from { opacity: 0; transform: translateY(10px) scale(.985); } to { opacity: 1; transform: none; } }
+.mdx-album-grid > .mdx-poster, .mdx-rise { animation: mdx-rise .42s cubic-bezier(.2, .8, .2, 1) both; animation-delay: calc(var(--i, 0) * 28ms); }
+
+/* Selo da loja no canto do cartão (Epic, GOG, ProjectMC, HyProject). */
+.mdx-poster-stores { position: absolute; top: 8px; left: 8px; z-index: 2; display: flex; flex-wrap: wrap; gap: 4px; max-width: calc(100% - 16px); }
+.mdx-store {
+  padding: 2px 7px; border-radius: 6px; font-size: 10.5px; font-weight: 800; letter-spacing: .2px;
+  color: #fff; background: rgba(12, 13, 18, .72); border: 1px solid rgba(255, 255, 255, .14);
+  backdrop-filter: blur(6px);
+}
+.mdx-store-epic { background: rgba(32, 32, 36, .82); }
+.mdx-store-gog { background: rgba(92, 37, 150, .78); }
+.mdx-store-minecraft { background: rgba(52, 120, 46, .82); }
+.mdx-store-hytale { background: rgba(196, 120, 30, .82); }
+.mdx-poster.is-minecraft .mdx-poster-art, .mdx-poster.is-hytale .mdx-poster-art { border-color: color-mix(in srgb, var(--brand) 35%, var(--border)); }
+
+/* Tela de Minecraft/Hytale */
+.mdx-launcher-poster { position: relative; background: rgba(255, 255, 255, .06); }
+.mdx-launcher-poster img { position: absolute; inset: 0; margin: auto; width: 72%; height: auto; object-fit: contain; filter: drop-shadow(0 8px 18px rgba(0, 0, 0, .45)); }
+.mdx-hero-minecraft .mdx-hero-gen { background: radial-gradient(120% 90% at 20% 10%, #3f8f3a 0%, #1f4d22 45%, #0d1a0f 100%); }
+.mdx-hero-hytale .mdx-hero-gen { background: radial-gradient(120% 90% at 20% 10%, #d08a2c 0%, #6b3a17 45%, #160d07 100%); }
+.mdx-hero-chip.upd { background: color-mix(in srgb, var(--brand) 55%, transparent); }
+
+.mdx-instance-bar { display: flex; align-items: center; gap: 12px; margin: 14px 0 4px; flex-wrap: wrap; }
+.mdx-instance-label { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; font-weight: 800; text-transform: uppercase; letter-spacing: .4px; color: var(--text-muted); }
+.mdx-instance-list { display: flex; gap: 8px; overflow-x: auto; flex: 1; min-width: 0; padding: 2px; scrollbar-width: thin; }
+.mdx-instance {
+  display: flex; flex-direction: column; align-items: flex-start; gap: 2px; min-width: 150px; padding: 9px 13px;
+  border-radius: 12px; border: 1px solid var(--border); background: var(--bg-secondary); color: var(--text-normal); text-align: left;
+  transition: border-color .18s ease, background .18s ease, transform .18s cubic-bezier(.2, .8, .2, 1);
+}
+.mdx-instance strong { font-size: 13.5px; max-width: 220px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.mdx-instance span { font-size: 11.5px; color: var(--text-muted); }
+.mdx-instance:hover { transform: translateY(-2px); border-color: color-mix(in srgb, var(--brand) 45%, var(--border)); }
+.mdx-instance.active { border-color: var(--brand); background: color-mix(in srgb, var(--brand) 14%, var(--bg-secondary)); box-shadow: 0 0 0 1px var(--brand) inset; }
+.mdx-instance:focus-visible { outline: 2px solid var(--brand); outline-offset: 2px; }
+
+.mdx-tile-desc { margin: 0; font-size: 12.5px; line-height: 1.4; color: var(--text-muted); display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.mdx-empty-actions { display: flex; gap: 8px; flex-wrap: wrap; justify-content: center; }
+.mdx-launcher .mdx-installed-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 10px; }
+.mdx-row-text .mdx-progress { display: block; margin-top: 6px; }
+
+@media (prefers-reduced-motion: reduce) {
+  .mdx-album-grid > .mdx-poster, .mdx-rise { animation: none; }
+  .mdx-instance { transition: none; }
+}

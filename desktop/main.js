@@ -52,6 +52,8 @@ const projectMcManager = lazy('./projectMcManager');
 // mexe com disco/registro; o site fala com esses módulos só via IPC.
 const steamDetector = lazy('./steamDetector');
 const modsManager = lazy('./modsManager');
+const otherGames = lazy('./otherGames');
+const launcherMods = lazy('./launcherMods');
 // Navegador do Project Club (abas <webview> dentro do app): sessão isolada,
 // bloqueio de anúncios/rastreadores e privacidade ao estilo LibreWolf.
 const browserEngine = lazy('./browserEngine');
@@ -1268,6 +1270,45 @@ if (!gotLock) {
       return { success: false, error: err.message, steamFound: false, games: [] };
     }
   });
+
+  // Mod Manager único: jogos da Epic e da GOG (com o AppID da Steam achado
+  // pelo nome, pra usar os mesmos catálogos de mods) — ver otherGames.js.
+  secureHandle('mods:detect-other-games', async () => {
+    try {
+      const result = await otherGames().detectOtherGames({ cacheFile: path.join(app.getPath('userData'), 'other-games-steam.json') });
+      for (const g of result.games || []) if (g?.installPath) rememberGameDir(g.installPath, false);
+      return { success: true, ...result };
+    } catch (err) {
+      return { success: false, error: err.message, games: [] };
+    }
+  });
+
+  // Minecraft (ProjectMC) e Hytale (HyProject): mods por instância — ver launcherMods.js.
+  const LAUNCHER_GAMES = new Set(['minecraft', 'hytale']);
+  const launcherCall = (fn) => async (event, arg) => {
+    try {
+      const a = arg || {};
+      if (!LAUNCHER_GAMES.has(a.game)) throw new Error('Jogo desconhecido.');
+      return { success: true, ...(await fn(a, event)) };
+    } catch (err) {
+      return { success: false, error: err.message };
+    }
+  };
+  secureHandle('mods:launcher-instances', launcherCall((a) => ({ instances: launcherMods().instancesOf(a.game) })));
+  secureHandle('mods:launcher-list', launcherCall((a) => launcherMods().listMods(a.game, String(a.instanceId || ''))));
+  secureHandle('mods:launcher-set-enabled', launcherCall((a) => launcherMods().setModEnabled(a.game, String(a.instanceId || ''), a.file, !!a.enabled)));
+  secureHandle('mods:launcher-remove', launcherCall((a) => launcherMods().removeMod(a.game, String(a.instanceId || ''), a.file, { trash: (f) => shell.trashItem(f) })));
+  secureHandle('mods:launcher-install-url', launcherCall((a, event) => launcherMods().installFromUrl(a.game, String(a.instanceId || ''), a, (progress) => {
+    if (!event.sender.isDestroyed()) event.sender.send('mods:progress', { modioModId: a.progressKey || a.fileName, ...progress });
+  })));
+  secureHandle('mods:launcher-install-file', launcherCall(async (a) => {
+    const exts = a.game === 'minecraft' ? ['jar'] : ['jar', 'zip'];
+    const r = await dialog.showOpenDialog(mainWindow || undefined, { title: 'Escolha o arquivo do mod', properties: ['openFile', 'multiSelections'], filters: [{ name: 'Mods', extensions: exts }] });
+    if (r.canceled || !r.filePaths.length) return { canceled: true, files: [] };
+    return { files: r.filePaths.map((f) => launcherMods().installFromFile(a.game, String(a.instanceId || ''), f).file) };
+  }));
+  secureHandle('mods:launcher-catalog', launcherCall(async (a) => ({ data: await launcherMods().catalogRequest(a.route, { query: a.query, body: a.body }) })));
+  secureHandle('mods:launcher-open-folder', launcherCall((a) => { shell.openPath(launcherMods().modsFolder(a.game, String(a.instanceId || ''))); return {}; }));
 
   // Item pedido 29: jogo não encontrado automaticamente — deixa a pessoa
   // escolher a pasta manualmente pelo diálogo nativo do Windows/Linux.
