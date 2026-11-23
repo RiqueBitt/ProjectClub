@@ -36,6 +36,12 @@ export function applyProfileLocally(payload) {
 
 // Steam Workshop — só lê o que já foi inscrito/baixado (a inscrição em
 // si acontece dentro da própria Steam, ver openWorkshopItemInSteam).
+// Mods do Vortex do jogo (só leitura). Apps antigos não têm: lista vazia.
+export function listVortexModsLocally(gameInstallPath) {
+  const fn = window.electronAPI?.mods?.listVortex;
+  return fn ? fn(gameInstallPath).catch(() => ({ mods: [] })) : Promise.resolve({ mods: [] });
+}
+
 export function listInstalledWorkshopItemsLocally(gameInstallPath, workshopAppId) {
   return window.electronAPI.mods.listWorkshopItems(gameInstallPath, workshopAppId);
 }

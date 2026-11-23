@@ -1510,6 +1510,16 @@ if (!gotLock) {
   // inscrição em si é feita pela própria Steam quando a pessoa clica
   // "Inscrever-se" (abre steam://url/CommunityFilePage/<id> via
   // openExternal, já existente — não precisa de handler novo pra isso).
+  // Mods do Vortex: lê os manifestos de implantação na pasta do jogo e a
+  // pasta de staging (vortexMods.js). Só leitura.
+  secureHandle('mods:list-vortex', (_event, { gameInstallPath } = {}) => {
+    try {
+      return { success: true, ...require('./vortexMods').listVortexMods(String(gameInstallPath || '')) };
+    } catch (err) {
+      return { success: false, error: err.message, mods: [] };
+    }
+  });
+
   secureHandle('mods:list-workshop-items', (_event, { gameInstallPath, workshopAppId }) => {
     try {
       return { success: true, items: steamDetector().listInstalledWorkshopItems(gameInstallPath, workshopAppId) };

@@ -267,6 +267,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
     setEnabled: (payload) => ipcRenderer.invoke('mods:set-enabled', payload),
     applyProfile: (payload) => ipcRenderer.invoke('mods:apply-profile', payload),
     listWorkshopItems: (gameInstallPath, workshopAppId) => ipcRenderer.invoke('mods:list-workshop-items', { gameInstallPath, workshopAppId }),
+    listVortex: (gameInstallPath) => ipcRenderer.invoke('mods:list-vortex', { gameInstallPath }),
     openFolder: (gameInstallPath, steamAppId) => ipcRenderer.invoke('mods:open-folder', steamAppId ? { gameInstallPath, steamAppId } : gameInstallPath),
     pickLocalFile: () => ipcRenderer.invoke('mods:pick-local-file'),
     installLocal: (payload) => ipcRenderer.invoke('mods:install-local', payload),
