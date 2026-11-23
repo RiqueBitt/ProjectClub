@@ -1,0 +1,15 @@
+/* Compêndio BLACKOUT (pages/BlackoutPage.jsx): o site ocupa a área toda. */
+.blackout-page { position: relative; height: 100%; width: 100%; background: #0b0b0d; overflow: hidden; }
+.blackout-frame { display: block; width: 100%; height: 100%; border: 0; background: #0b0b0d; }
+.blackout-newtab {
+  position: absolute; right: 14px; bottom: 14px; z-index: 2; padding: 6px 12px; border-radius: 999px;
+  background: rgba(0, 0, 0, .72); border: 1px solid rgba(255, 255, 255, .16); color: #fff; font-size: 12px; text-decoration: none;
+  opacity: .55; transition: opacity .15s;
+}
+.blackout-newtab:hover, .blackout-newtab:focus-visible { opacity: 1; }
+.blackout-page.is-msg { display: grid; place-items: center; }
+.blackout-msg { display: grid; justify-items: center; gap: 14px; color: #cfcfd4; text-align: center; padding: 24px; }
+.blackout-msg b { font-size: 26px; letter-spacing: .3em; color: #fff; }
+.blackout-msg p { margin: 0; max-width: 360px; }
+.blackout-spin { width: 26px; height: 26px; border-radius: 50%; border: 3px solid rgba(255, 255, 255, .15); border-top-color: #fff; animation: blackout-spin .8s linear infinite; }
+@keyframes blackout-spin { to { transform: rotate(360deg); } }

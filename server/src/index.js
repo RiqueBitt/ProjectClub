@@ -145,6 +145,8 @@ backfillPollTopicPermissions().catch((err) => {
 // não trava o servidor aceitar conexões.
 // Instâncias padrão (Amigos e Empresarial), se ainda não existirem.
 require('./services/instances').seedDefaultInstances();
+// Compêndio BLACKOUT: baixa do GitHub (repo privado, chave nas variáveis do app).
+require('./services/blackoutSync').start();
 // Emojis do Club Penguin (coleção "Club Penguin") — a única parte do CP que
 // ficou (pedido do dono, nov/2026). Recria as que faltarem.
 // Emojis do MSN (coleção "MSN") também — ver services/cpEmotes.js.

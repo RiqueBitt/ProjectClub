@@ -517,3 +517,8 @@ button.sx-item-body:hover { border-color: color-mix(in srgb, var(--brand) 40%, v
 }
 .featured-channels .featured-plain .featured-channel-icon svg { width: 19px; height: 19px; }
 .featured-channels { gap: 2px; }
+/* BLACKOUT (só na instância BLACKOUT): cartão preto e branco. */
+.featured-blackout { --fc: #e8e8ec; }
+.featured-channels .sidebar-item.featured-blackout { background: linear-gradient(100deg, rgba(255, 255, 255, .10), rgba(0, 0, 0, .35)); border: 1px solid rgba(255, 255, 255, .10); }
+.featured-channels .featured-blackout .featured-channel-name { letter-spacing: .14em; font-weight: 800; }
+.featured-channels .featured-blackout .featured-channel-icon { background: #0b0b0d; color: #fff; box-shadow: 0 0 0 1px rgba(255, 255, 255, .35), 0 0 12px rgba(255, 255, 255, .18); }
