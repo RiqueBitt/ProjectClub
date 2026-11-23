@@ -240,8 +240,8 @@ fun InternalLinkCards(content: String?, repo: Repository) {
 
 /* ---------------- Dados ---------------- */
 
-private val DICE_COLORS = mapOf(
-    4 to Color(0xFFEF4444), 6 to Color(0xFF3B82F6), 8 to Color(0xFF22C55E), 10 to Color(0xFFA855F7),
+internal val DICE_COLORS = mapOf(
+    2 to Color(0xFF94A3B8), 4 to Color(0xFFEF4444), 6 to Color(0xFF3B82F6), 8 to Color(0xFF22C55E), 10 to Color(0xFFA855F7),
     12 to Color(0xFFF97316), 20 to Color(0xFFEAB308), 100 to Color(0xFFEC4899),
 )
 
@@ -288,7 +288,7 @@ private fun DiceCard(l: InternalLink, repo: Repository) {
 
 /** Um dado desenhado pela forma de verdade: d4 triângulo, d6 quadrado, d8 losango, d10 pipa, d12 pentágono, d20 hexágono, d100 bola. */
 @Composable
-private fun DieFace(sides: Int, value: Int, size: Dp = 44.dp) {
+internal fun DieFace(sides: Int, value: Int, size: Dp = 44.dp) {
     val color = DICE_COLORS[sides] ?: PC.Brand
     val max = value == sides
     Box(Modifier.size(size), contentAlignment = Alignment.Center) {
@@ -306,7 +306,7 @@ private fun DieFace(sides: Int, value: Int, size: Dp = 44.dp) {
                 close()
             }
             val fill = Brush.linearGradient(listOf(color, color.copy(red = color.red * 0.6f, green = color.green * 0.6f, blue = color.blue * 0.6f)), Offset.Zero, Offset(w, h))
-            if (sides == 100) {
+            if (sides == 100 || sides == 2) {
                 drawCircle(fill, r, c)
                 drawCircle(Color.White.copy(alpha = 0.28f), r * 0.32f, Offset(c.x - r * 0.35f, c.y - r * 0.38f))
             } else {

@@ -39,6 +39,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.EmojiEmotions
+import androidx.compose.material.icons.outlined.Casino
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.InsertDriveFile
 import androidx.compose.material.icons.automirrored.filled.Reply
@@ -176,6 +177,7 @@ fun ChatScreen(
     LaunchedEffect(nearTop) { if (nearTop) vm.loadOlder() }
 
     var showPicker by remember { mutableStateOf(false) }
+    var showActivities by remember { mutableStateOf(false) }
     LaunchedEffect(state.editing?.id) { state.editing?.let { text = it.content.orEmpty() } }
 
     val picker = rememberLauncherForActivityResult(ActivityResultContracts.GetMultipleContents()) { uris ->
@@ -279,12 +281,15 @@ fun ChatScreen(
                     onSend = { val t = text; text = ""; vm.send(t) { failed -> if (text.isBlank()) text = failed } },
                     onPicker = { showPicker = true },
                     onSchedule = { scheduling = true },
+                    onActivities = { showActivities = true },
                 )
                 callBar()
             }
         }
     }
     }
+
+    if (showActivities) ActivitiesSheet(repo, onDismiss = { showActivities = false }) { t -> vm.send(t) { } }
 
     if (showPicker) PickerSheet(
         repo, onDismiss = { showPicker = false },
@@ -567,6 +572,7 @@ private fun Composer(
     onAttach: () -> Unit, onRemoveFile: (com.projectclub.android.data.PickedFile) -> Unit, onCancel: () -> Unit, onSend: () -> Unit,
     onPicker: () -> Unit,
     onSchedule: () -> Unit = {},
+    onActivities: () -> Unit = {},
 ) {
     Column(Modifier.fillMaxWidth().background(PC.Bg).padding(horizontal = 10.dp, vertical = 8.dp).clip(RoundedCornerShape(26.dp)).background(PC.Surface).border(1.dp, PC.Line, RoundedCornerShape(26.dp))) {
         val banner = state.editing?.let { "Editando mensagem" } ?: state.replyTo?.let { "Respondendo a ${it.author?.name ?: "mensagem"}" }
@@ -598,6 +604,8 @@ private fun Composer(
                 ),
             )
             // Emojis, GIFs e figurinhas (o mesmo seletor do PC).
+            // Atividades: rolar dados, YouTube, música e mostrar o cartão (igual ao site).
+            if (state.editing == null && text.isBlank()) IconButton(onClick = onActivities) { Icon(Icons.Outlined.Casino, "Atividades", tint = PC.Muted) }
             if (state.editing == null) IconButton(onClick = onPicker) { Icon(Icons.Outlined.EmojiEmotions, "Emojis, GIFs e figurinhas", tint = PC.Muted) }
             val canSend = text.isNotBlank() || state.files.isNotEmpty()
             Box(
