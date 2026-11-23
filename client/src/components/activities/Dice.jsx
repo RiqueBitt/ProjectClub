@@ -41,7 +41,7 @@ const faces = (list) => list.map(([pts, front]) => [join(pts), toneOf(pts, front
 //  D10 trapezoedro pentagonal: pipa na frente, 4 pipas em volta (contorno de 6 pontas).
 //  D12 dodecaedro: pentágono na frente, 5 pentágonos em volta (contorno de 10 lados).
 //  D20 icosaedro: triângulo no centro, 9 triângulos em volta (contorno hexagonal).
-//  D100 = D10 de porcentagem (marca %). Outros (D2, D3…): moeda.
+//  D100 Zocchihedron: bola de 100 facetas. Outros (D2, D3…): moeda.
 const GEO = (() => {
   const T4 = [50, 6]; const L4 = [5, 88]; const R4 = [95, 88]; const C4 = [50, 64];
   const d4 = { ty: 66, outline: join([T4, R4, L4]), facets: faces([[[T4, C4, L4], true], [[T4, R4, C4]], [[L4, C4, R4]]]) };
@@ -82,7 +82,37 @@ const GEO = (() => {
       [[A, Bv, Cv], true],
     ]),
   };
-  return { 4: d4, 6: d6, 8: d8, 10: { ...d10, ty: 47 }, 12: d12, 20: d20, 100: { ...d10, ty: 41 } };
+  // D100 de verdade (Zocchihedron): uma bola com 100 facetas pequenas.
+  // Uma grade de hexágonos "enrolada" na esfera (projeção azimutal): as
+  // facetas encolhem perto da borda, como na foto do dado real.
+  const ball = (() => {
+    const R = 46; const c = 0.33; // raio de cada faceta, em radianos da esfera
+    const proj = (x, y) => {
+      const th = Math.min(Math.hypot(x, y), Math.PI / 2);
+      const ph = Math.atan2(y, x);
+      return [+(50 + R * Math.sin(th) * Math.cos(ph)).toFixed(1), +(50 + R * Math.sin(th) * Math.sin(ph)).toFixed(1)];
+    };
+    const out = [];
+    const step = Math.sqrt(3) * c;
+    for (let q = -6; q <= 6; q += 1) {
+      for (let r = -6; r <= 6; r += 1) {
+        const x = step * (q + r / 2); const y = 1.5 * c * r;
+        const th = Math.hypot(x, y);
+        if (th > 1.42) continue;
+        const pts = Array.from({ length: 6 }, (_, k) => {
+          const a = ((30 + 60 * k) * Math.PI) / 180;
+          return proj(x + c * Math.cos(a), y + c * Math.sin(a));
+        });
+        const front = th < 0.01;
+        // tom: mais escuro quanto mais longe da frente e do lado da sombra
+        const shade = th / 1.42 + ((x * 0.55 + y * 0.83) / (th || 1)) * (th / 1.42) * 0.6;
+        out.push([join(pts), front ? 0 : Math.max(0, Math.min(3, Math.round(0.3 + shade * 2.6)))]);
+      }
+    }
+    return out;
+  })();
+  const d100 = { ty: 51, ball: true, facets: ball };
+  return { 4: d4, 6: d6, 8: d8, 10: { ...d10, ty: 47 }, 12: d12, 20: d20, 100: d100 };
 })();
 
 function shapeOf(sides) {
@@ -125,7 +155,16 @@ export function DieFace({ sides, value, rolling = false, delay = 0, size = 64, t
             <circle className="die-edge" cx="50" cy="48" r="35" />
           </g>
         )}
-        {s.facets && (
+        {s.ball && (
+          <g className="die-ball">
+            <circle className="die-f3" cx="50" cy="50" r="46" />
+            {s.facets.map(([pts, t]) => <polygon key={pts} className={`die-f${t}`} points={pts} />)}
+            <circle cx="50" cy="50" r="46" fill={gloss} />
+            {s.facets.map(([pts]) => <polygon key={`e${pts}`} className="die-edge" points={pts} />)}
+            <circle className="die-rim" cx="50" cy="50" r="46" />
+          </g>
+        )}
+        {s.facets && !s.ball && (
           <g>
             {s.facets.map(([pts, t]) => <polygon key={pts} className={`die-f${t}`} points={pts} />)}
             <polygon points={s.outline} fill={gloss} />
@@ -134,7 +173,6 @@ export function DieFace({ sides, value, rolling = false, delay = 0, size = 64, t
           </g>
         )}
         <text className="die-num" x={s.tx || 50} y={s.ty} fontSize={fs} textAnchor="middle" dominantBaseline="central">{label}</text>
-        {sides === 100 && <text className="die-tag" x="50" y="63" fontSize="14" textAnchor="middle">%</text>}
         {!DICE_TYPES.includes(sides) && <text className="die-tag" x="50" y="25" fontSize="11" textAnchor="middle">D{sides}</text>}
       </svg>
     </span>
