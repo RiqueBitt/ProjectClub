@@ -603,13 +603,23 @@ class MediasoupEngine(private val context: Context, private val events: Events) 
 
     // ---------------- quedas e reconexão ----------------
 
-    private fun isUp(t: Transport): Boolean = runCatching {
-        val s = t.connectionState
-        s == PeerConnection.IceConnectionState.CONNECTED || s == PeerConnection.IceConnectionState.COMPLETED
-    }.getOrDefault(false)
+    /**
+     * Último estado ICE de cada transporte (vem do onConnectionStateChange).
+     *
+     * NÃO usar Transport.connectionState: a biblioteca faz
+     * IceConnectionState.valueOf("connected") com o texto em minúsculas que o
+     * libmediasoupclient devolve — dá exceção sempre, então "está conectado?"
+     * respondia NÃO pra tudo. Resultado: 15 s depois de entrar (e depois de
+     * cada reconexão) o vigia achava a mídia "travada" e refazia a sessão
+     * inteira — a voz cortava e o app ficava reconectando em loop.
+     */
+    private val iceStates = java.util.Collections.synchronizedMap(java.util.WeakHashMap<Transport, String>())
+
+    private fun isUp(t: Transport): Boolean = iceStates[t].let { it == "connected" || it == "completed" }
 
     private suspend fun onTransportState(g: Int, t: Transport, dir: String, state: String) {
         trace("transporte $dir: $state")
+        iceStates[t] = state
         if (g != gen || closed || !sessionUp) return
         if (t !== send && t !== recv) return // de uma sessão antiga
         when (state) {
