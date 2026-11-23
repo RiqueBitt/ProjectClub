@@ -31,6 +31,20 @@ test('abre pela foto lá embaixo, mostra a prévia ao vivo e fecha com Esc', asy
   await expect(box).toBeVisible();
   await expect(page.locator('.pe-full .pf-embedded .profile-modal-box')).toBeVisible({ timeout: 15_000 });
 
+  // Organizado em grupos; sem pinguins, sem "Itens da Loja", sem cor do miniperfil.
+  const side = page.locator('.pe-side');
+  for (const g of ['Avatar e decorações', 'Nome exibido', 'Banners e cor', 'Estilo e efeitos do perfil', 'Sobre você', 'Conexões']) {
+    await expect(side.locator('.pe-group-title', { hasText: g })).toBeVisible();
+  }
+  await expect(side.locator('.penguin-avatar-picker')).toHaveCount(0);
+  await expect(side.getByText('Itens da Loja')).toHaveCount(0);
+  await expect(side.getByText('Cor do miniperfil')).toHaveCount(0);
+  // Fontes padrão e da Loja na mesma grade; escolher uma muda a prévia do nome.
+  const fonts = side.locator('.pe-font-grid[aria-label="Fonte do nome"] .pe-font');
+  expect(await fonts.count()).toBeGreaterThan(3);
+  await fonts.nth(1).click();
+  await expect(fonts.nth(1)).toHaveAttribute('aria-checked', 'true');
+
   // Digitou o nome: a prévia muda na hora (antes de salvar).
   const name = page.locator('.pe-side input[name="displayName"]');
   await name.fill('Nome Novo Prévia');

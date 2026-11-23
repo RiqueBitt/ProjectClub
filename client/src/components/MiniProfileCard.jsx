@@ -353,10 +353,10 @@ export default function MiniProfileCard({ preview = null } = {}) {
         // aplicado quando o usuário já carregou, pra não piscar com a cor
         // default enquanto ainda tá buscando os dados.
         // Item pedido: "cor do mini perfil separada do perfil grande"
-        // — miniProfileColor sobrescreve profileColor só aqui, quando
+        // — (nov/2026: a cor do miniperfil saiu; usa a do perfil.) Antes: miniProfileColor sobrescrevia profileColor só aqui, quando
         // definida; senão cai no comportamento de antes (mesma cor do
         // perfil grande).
-        ...(user ? profileAccentVars(user.miniProfileColor || user.profileColor) : {}),
+        ...(user ? profileAccentVars(user.profileColor) : {}),
       }}
     >
       {!user && <p className="dim" style={{ padding: 16 }}>Carregando...</p>}
