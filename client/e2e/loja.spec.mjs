@@ -45,21 +45,19 @@ test('loja segue o tema, com vitrine, filtros, detalhe e confirmação', async (
   await expect(page.getByRole('heading', { level: 1, name: 'Molduras de avatar' })).toBeVisible();
   await page.locator('.room-chip', { hasText: 'Adquiridos' }).click();
   await expect(page.locator('.room-card')).toHaveCount(1);
-  // Já comprado: sem caixinha nem gancho, só o item com o carimbo "Comprado".
+  // Já comprado: continua na caixinha (com o gancho) e o carimbo "Comprado"
+  // fica colado no plástico da frente, dentro da caixinha.
   const owned = page.locator('.room-card').first();
-  await expect(owned.locator('.room-pack')).toHaveCount(0);
-  await expect(owned.locator('.room-hook')).toHaveCount(0);
-  await expect(owned.locator('.room-owned-art')).toBeVisible();
-  await expect(owned.locator('.room-stamp')).toHaveText(/Comprado|Liberado/);
-  // Carimbo reto, EMBAIXO do item (sem cruzar o item) e dentro da área da cartela.
+  await expect(owned.locator('.room-pack')).toHaveCount(1);
+  await expect(owned.locator('.room-hook')).toHaveCount(1);
+  await expect(owned.locator('.room-pack-front .room-stamp')).toHaveText(/Comprado|Liberado/);
   await page.waitForTimeout(450); // fim da animação do carimbo
-  const art = await owned.locator('.room-owned-art').boundingBox();
   const stamp = await owned.locator('.room-stamp').boundingBox();
-  const area = await owned.locator('.room-card-art').boundingBox();
-  expect(stamp.y).toBeGreaterThanOrEqual(art.y + art.height - 1);
-  expect(stamp.y + stamp.height).toBeLessThanOrEqual(area.y + area.height + 1);
-  expect(stamp.x).toBeGreaterThanOrEqual(area.x - 1);
-  expect(stamp.x + stamp.width).toBeLessThanOrEqual(area.x + area.width + 1);
+  const pack = await owned.locator('.room-pack').boundingBox();
+  expect(stamp.x).toBeGreaterThanOrEqual(pack.x - 1);
+  expect(stamp.x + stamp.width).toBeLessThanOrEqual(pack.x + pack.width + 1);
+  expect(stamp.y).toBeGreaterThanOrEqual(pack.y - 1);
+  expect(stamp.y + stamp.height).toBeLessThanOrEqual(pack.y + pack.height + 1);
   // E nenhuma caixinha tem mais a faixa com o nome.
   await expect(page.locator('.room-pack-label')).toHaveCount(0);
   await page.locator('.room-chip', { hasText: 'Tudo' }).click();
