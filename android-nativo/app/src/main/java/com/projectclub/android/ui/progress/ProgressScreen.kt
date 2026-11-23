@@ -9,6 +9,7 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.IntrinsicSize
 import androidx.compose.foundation.layout.PaddingValues
@@ -67,11 +68,13 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.graphics.ColorMatrix
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.layout.layout
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
@@ -274,16 +277,17 @@ fun ProgressScreen(repo: Repository, nav: AppNav, initialTab: String?) {
                                 val podium = top.take(3)
                                 val rest = top.drop(3)
                                 val meOutside = list.firstOrNull { it.outsideTop50 }
+                                val topXp = maxOf(1L, podium.firstOrNull()?.accountXp ?: 1L)
                                 item(key = "podium") { Podium(podium, me?.id) { nav.profile(it) } }
                                 itemsIndexed(rest, key = { _, u -> "r-" + u.id }) { i, u ->
-                                    RankRow(u, i + 4, u.id == me?.id) { nav.profile(u.id) }
+                                    RankRow(u, i + 4, u.id == me?.id, topXp) { nav.profile(u.id) }
                                 }
                                 if (meOutside != null) {
                                     item(key = "gap") {
                                         Text("•••", color = PC.Faint, textAlign = TextAlign.Center, modifier = Modifier.fillMaxWidth().padding(vertical = 2.dp))
                                     }
                                     item(key = "me-out") {
-                                        RankRow(meOutside, rank?.position, true) { nav.profile(meOutside.id) }
+                                        RankRow(meOutside, rank?.position, true, topXp) { nav.profile(meOutside.id) }
                                     }
                                 }
                             }
@@ -486,53 +490,81 @@ private fun ProgressTabs(items: List<Triple<ImageVector, String, String?>>, sele
 
 /* ---------------- Ranking ---------------- */
 
+/** Onde cada lugar fica em cima do render (podio.webp): % da largura e % da altura do topo do bloco (medidas.json). */
+private val PODIUM_SPOTS = mapOf(1 to (0.50f to 0.2007f), 2 to (0.2113f to 0.3681f), 3 to (0.7877f to 0.4717f))
+private const val PODIUM_RATIO = 1.9656f
+
+/** Mede o filho e o põe com o meio em [cx] e o pé em [bottom] (coordenadas do Box pai). */
+private fun Modifier.standOn(cx: Dp, bottom: Dp): Modifier = layout { m, c ->
+    val p = m.measure(c.copy(minWidth = 0, minHeight = 0))
+    layout(p.width, p.height) { p.place(cx.roundToPx() - p.width / 2, bottom.roundToPx() - p.height) }
+}
+
 @Composable
 private fun Podium(podium: List<ProgressLeader>, myId: String?, onOpen: (String) -> Unit) {
-    // Ordem visual 2º · 1º · 3º.
-    val order = listOfNotNull(podium.getOrNull(1)?.let { it to 2 }, podium.getOrNull(0)?.let { it to 1 }, podium.getOrNull(2)?.let { it to 3 })
-    PcCard(Modifier.fillMaxWidth(), padding = PaddingValues(start = 10.dp, end = 10.dp, top = 18.dp, bottom = 0.dp)) {
-        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.Bottom) {
-            order.forEach { (u, place) ->
-                PodiumSpot(u, place, u.id == myId, Modifier.weight(1f)) { onOpen(u.id) }
+    // Pódio em 3D: os blocos são o mesmo render do site e cada pessoa fica em pé no topo do seu bloco.
+    BoxWithConstraints(Modifier.fillMaxWidth().padding(top = 4.dp)) {
+        val w = if (maxWidth < 560.dp) maxWidth else 560.dp
+        val h = w / PODIUM_RATIO
+        val narrow = w < 420.dp
+        val head = if (narrow) 104.dp else 124.dp
+        var shown by remember { mutableStateOf(false) }
+        LaunchedEffect(Unit) { shown = true }
+        val rise by animateFloatAsState(if (shown) 1f else 0f, tween(550), label = "podio")
+        Box(Modifier.align(Alignment.TopCenter).width(w).height(h + head)) {
+            // luz suave atrás do 1º lugar
+            Box(
+                Modifier.align(Alignment.TopCenter).offset(y = head - h * 0.34f).width(w * 0.62f).height(h * 0.96f)
+                    .background(Brush.radialGradient(listOf(GOLD.copy(alpha = 0.18f), Color.Transparent))),
+            )
+            AsyncImage(
+                Config.baseUrl + "/progresso/podio.webp?v=1", null, contentScale = ContentScale.FillBounds,
+                modifier = Modifier.align(Alignment.BottomCenter).fillMaxWidth().height(h)
+                    .graphicsLayer { alpha = rise; translationY = (1f - rise) * 12.dp.toPx() },
+            )
+            podium.forEachIndexed { i, u ->
+                val place = i + 1
+                val (fx, fy) = PODIUM_SPOTS.getValue(place)
+                PodiumSpot(
+                    u, place, u.id == myId, narrow,
+                    Modifier.width(w * 0.31f).standOn(w * fx, head + h * (fy + 0.01f))
+                        .graphicsLayer { alpha = rise; translationY = (1f - rise) * -16.dp.toPx() },
+                ) { onOpen(u.id) }
             }
         }
     }
 }
 
 @Composable
-private fun PodiumSpot(u: ProgressLeader, place: Int, isMe: Boolean, modifier: Modifier, onClick: () -> Unit) {
+private fun PodiumSpot(u: ProgressLeader, place: Int, isMe: Boolean, narrow: Boolean, modifier: Modifier, onClick: () -> Unit) {
     val color = placeColor(place)
-    val avatar: Dp = if (place == 1) 72.dp else 58.dp
-    val block: Dp = when (place) { 1 -> 74.dp; 2 -> 54.dp; else -> 40.dp }
-    Column(modifier.clip(RoundedCornerShape(topStart = 16.dp, topEnd = 16.dp)).clickable(onClick = onClick), horizontalAlignment = Alignment.CenterHorizontally) {
-        if (place == 1) Icon(Icons.Outlined.EmojiEvents, null, tint = GOLD, modifier = Modifier.size(22.dp))
-        Box(Modifier.size(avatar + 6.dp)) {
-            Box(Modifier.size(avatar + 6.dp).clip(CircleShape).border(3.dp, color, CircleShape))
-            Avatar(u.toUser(), avatar, modifier = Modifier.align(Alignment.Center))
-            Box(
-                Modifier.align(Alignment.BottomCenter).offset(y = 8.dp).size(24.dp).clip(CircleShape).background(color).border(2.dp, PC.Surface, CircleShape),
-                contentAlignment = Alignment.Center,
-            ) { Text("$place", color = Color(0xFF111214), fontWeight = FontWeight.ExtraBold, fontSize = 12.sp) }
-        }
-        Spacer(Modifier.height(12.dp))
+    val avatar: Dp = if (narrow) (if (place == 1) 54.dp else 44.dp) else (if (place == 1) 76.dp else 60.dp)
+    Column(modifier.clip(RoundedCornerShape(12.dp)).clickable(onClick = onClick), horizontalAlignment = Alignment.CenterHorizontally) {
         Text(
-            u.name, color = if (isMe) PC.Brand else PC.Header, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold,
-            maxLines = 1, overflow = TextOverflow.Ellipsis, textAlign = TextAlign.Center,
+            u.name, color = if (isMe) PC.Brand else PC.Header, fontWeight = FontWeight.Bold,
+            fontSize = if (place == 1) 15.sp else 13.5.sp, maxLines = 1, overflow = TextOverflow.Ellipsis, textAlign = TextAlign.Center,
         )
-        Text("Nv. ${u.accountLevel} · ${fmt(u.accountXp)} XP", color = PC.Muted, style = MaterialTheme.typography.labelSmall, maxLines = 1, overflow = TextOverflow.Ellipsis)
-        Spacer(Modifier.height(8.dp))
-        Box(
-            Modifier.fillMaxWidth().height(block).clip(RoundedCornerShape(topStart = 12.dp, topEnd = 12.dp))
-                .background(Brush.verticalGradient(listOf(color.copy(alpha = 0.35f), color.copy(alpha = 0.06f)))),
-            contentAlignment = Alignment.TopCenter,
-        ) {
-            Text("$place", color = color, fontFamily = Display, fontSize = 28.sp, modifier = Modifier.padding(top = 4.dp))
+        Text(
+            if (narrow) "${fmt(u.accountXp)} XP" else "Nv. ${u.accountLevel} · ${fmt(u.accountXp)} XP",
+            color = PC.Muted, style = MaterialTheme.typography.labelSmall, maxLines = 1, overflow = TextOverflow.Ellipsis,
+        )
+        Spacer(Modifier.height(6.dp))
+        Box(contentAlignment = Alignment.BottomCenter) {
+            // sombra de contato em cima do bloco
+            Box(
+                Modifier.offset(y = 6.dp).width(avatar * 0.76f).height(12.dp)
+                    .background(Brush.radialGradient(listOf(Color.Black.copy(alpha = 0.5f), Color.Transparent))),
+            )
+            Box(Modifier.size(avatar + 6.dp), contentAlignment = Alignment.Center) {
+                Box(Modifier.matchParentSize().clip(CircleShape).border(3.dp, color, CircleShape))
+                Avatar(u.toUser(), avatar)
+            }
         }
     }
 }
 
 @Composable
-private fun RankRow(u: ProgressLeader, pos: Int?, isMe: Boolean, onClick: () -> Unit) {
+private fun RankRow(u: ProgressLeader, pos: Int?, isMe: Boolean, topXp: Long = 0, onClick: () -> Unit) {
     PcCard(
         Modifier.fillMaxWidth(), onClick = onClick, padding = PaddingValues(horizontal = 14.dp, vertical = 10.dp),
         border = if (isMe) PC.Brand.copy(alpha = 0.55f) else PC.Line,
@@ -552,6 +584,14 @@ private fun RankRow(u: ProgressLeader, pos: Int?, isMe: Boolean, onClick: () -> 
                 Text("Nível ${u.accountLevel}", color = PC.Muted, style = MaterialTheme.typography.bodySmall)
             }
             Text("${fmt(u.accountXp)} XP", color = PC.Text, fontWeight = FontWeight.Bold, style = MaterialTheme.typography.labelLarge)
+        }
+        // barrinha: o XP da pessoa perto do 1º lugar (igual ao site)
+        if (topXp > 0) {
+            val share = (u.accountXp.toFloat() / topXp).coerceIn(0f, 1f)
+            Spacer(Modifier.height(8.dp))
+            Box(Modifier.fillMaxWidth().height(3.dp).clip(RoundedCornerShape(2.dp)).background(PC.Line)) {
+                Box(Modifier.fillMaxWidth(share).fillMaxHeight().background(PC.Brand.copy(alpha = 0.8f)))
+            }
         }
     }
 }

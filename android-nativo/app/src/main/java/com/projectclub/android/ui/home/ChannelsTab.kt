@@ -14,6 +14,7 @@ import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -24,6 +25,9 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.outlined.VolumeUp
 import androidx.compose.material.icons.outlined.Campaign
+import androidx.compose.material.icons.outlined.EmojiEvents
+import androidx.compose.material.icons.outlined.GridView
+import androidx.compose.material.icons.outlined.People
 import androidx.compose.material.icons.outlined.ChatBubbleOutline
 import androidx.compose.material.icons.outlined.Forum
 import androidx.compose.material.icons.outlined.Gavel
@@ -110,11 +114,13 @@ fun ChannelsTab(repo: Repository, actions: HomeActions) {
         LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(bottom = 24.dp)) {
             item(key = "banner") { Banner(c.community?.name ?: "Project Club", c.community?.bannerUrl, c.community?.iconUrl) }
             item(key = "featured") {
-                Column(Modifier.padding(horizontal = 14.dp, vertical = 12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    // Iguais aos do site (FeaturedChannels.jsx): Novidades e Economia.
-                    // (A Guerra das Cartas está desativada.)
-                    Featured(Icons.Outlined.Campaign, "Novidades", PC.Announce) { actions.openWeb("/anuncios") }
+                Column(Modifier.padding(horizontal = 10.dp, vertical = 8.dp), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                    // Iguais aos do site (FeaturedChannels.jsx, "minimalistas"): só o ícone colorido,
+                    // sem fundo nem borda. (A Guerra das Cartas está desativada.)
+                    Featured(Icons.Outlined.GridView, "Central", Color(0xFF4F8CFF)) { actions.openWeb("/inicio") }
+                    Featured(Icons.Outlined.People, "Amigos", Color(0xFFFF8A3D)) { actions.openWeb("/dms") }
                     Featured(Icons.Outlined.MonetizationOn, "Economia", PC.Store) { actions.openWeb("/economia") }
+                    Featured(Icons.Outlined.EmojiEvents, "Progresso", Color(0xFFF5C518)) { actions.openWeb("/progresso") }
                 }
                 Box(Modifier.padding(horizontal = 14.dp).fillMaxWidth().height(1.dp).background(PC.Line))
             }
@@ -155,20 +161,14 @@ private fun Banner(name: String, bannerUrl: String?, iconUrl: String?) {
 
 @Composable
 private fun Featured(icon: ImageVector, label: String, color: Color, onClick: () -> Unit) {
-    val shape = RoundedCornerShape(16.dp)
     Row(
-        Modifier.fillMaxWidth().height(52.dp).clip(shape)
-            .background(Brush.horizontalGradient(listOf(color.copy(alpha = 0.16f), color.copy(alpha = 0.06f))))
-            .border(1.dp, color.copy(alpha = 0.28f), shape).clickable(onClick = onClick),
+        Modifier.fillMaxWidth().heightIn(min = 44.dp).clip(RoundedCornerShape(10.dp)).clickable(onClick = onClick)
+            .padding(horizontal = 10.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Box(Modifier.width(3.dp).fillMaxHeight().background(color))
-        Spacer(Modifier.width(10.dp))
-        Box(Modifier.size(32.dp).clip(RoundedCornerShape(10.dp)).background(color.copy(alpha = 0.2f)), contentAlignment = Alignment.Center) {
-            Icon(icon, null, tint = color, modifier = Modifier.size(19.dp))
-        }
+        Icon(icon, null, tint = color, modifier = Modifier.size(21.dp))
         Spacer(Modifier.width(12.dp))
-        Text(label, color = PC.Header, style = MaterialTheme.typography.titleMedium)
+        Text(label, color = PC.Text, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Medium)
     }
 }
 

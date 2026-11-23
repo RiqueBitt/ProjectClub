@@ -227,7 +227,7 @@ fun ChatScreen(
                         Text(state.error!!, color = PC.Muted)
                         Button(onClick = vm::retry, modifier = Modifier.padding(top = 12.dp)) { Text("Tentar de novo") }
                     }
-                    else -> LazyColumn(state = list, reverseLayout = true, modifier = Modifier.fillMaxSize(), contentPadding = androidx.compose.foundation.layout.PaddingValues(vertical = 8.dp)) {
+                    else -> androidx.compose.runtime.CompositionLocalProvider(LocalOpenLink provides onOpenWeb) { LazyColumn(state = list, reverseLayout = true, modifier = Modifier.fillMaxSize(), contentPadding = androidx.compose.foundation.layout.PaddingValues(vertical = 8.dp)) {
                         itemsIndexed(reversed, key = { _, m -> m.id }) { i, m ->
                             val prev = reversed.getOrNull(i + 1)
                             MessageItem(
@@ -265,7 +265,7 @@ fun ChatScreen(
                                 )
                             }
                         }
-                    }
+                    } }
                 }
             }
             TypingLine(state.typing.keys.mapNotNull { repo.user(it)?.name })
@@ -431,7 +431,8 @@ private fun MessageItem(
                 Spacer(Modifier.width(8.dp))
                 Text(formatTime(m.createdAt), color = PC.Muted, style = MaterialTheme.typography.labelSmall)
             }
-            val content = m.content
+            // Links de atividade (dados, carteira, vídeo, música) viram cartão e somem do texto (igual ao site).
+            val content = remember(m.content) { m.content?.let(InternalLinks::stripActivities) }
             if (m.contentFiltered) Text("Mensagem escondida pelo seu filtro de conteúdo.", color = PC.Muted)
             else if (!content.isNullOrBlank()) {
                 val trimmed = content.trim()
@@ -462,6 +463,7 @@ private fun MessageItem(
             if (m.edited) Text("(editado)", color = PC.Muted, style = MaterialTheme.typography.labelSmall)
             status?.let { Text(it, color = PC.Yellow, style = MaterialTheme.typography.labelSmall) }
             m.stickerUrl?.let { AsyncImage(Config.media(it), "Figurinha", modifier = Modifier.padding(top = 4.dp).size(140.dp)) }
+            if (!m.contentFiltered) InternalLinkCards(m.content, repo)
             m.embed?.let { EmbedCard(it) }
             val images = m.attachments.filter { it.isImage && !it.isSpoiler }
             if (images.isNotEmpty()) FlowRow(Modifier.padding(top = 6.dp), horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
