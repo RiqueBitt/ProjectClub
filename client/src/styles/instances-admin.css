@@ -63,3 +63,10 @@
 .mk-help ol { margin: 8px 0 0; padding-left: 20px; display: grid; gap: 8px; line-height: 1.5; }
 .mk-help code { display: inline-block; margin-top: 4px; padding: 3px 7px; border-radius: 6px; background: var(--bg-primary); user-select: all; word-break: break-all; }
 .mk-ok { margin: 0; color: var(--green, #23a55a); font-size: 13px; }
+
+/* Compêndio BLACKOUT (só na instância BLACKOUT): versão + "Atualizar". */
+.inst-blackout { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; margin: 4px 0 6px; padding: 12px 14px; border-radius: 12px; background: #0b0b0d; border: 1px solid rgba(255, 255, 255, .14); color: #e8e8ec; }
+.inst-blackout-text { flex: 1 1 220px; display: flex; flex-direction: column; gap: 3px; min-width: 0; }
+.inst-blackout-text strong { letter-spacing: .12em; color: #fff; }
+.inst-blackout-text small { color: #a9a9b2; font-size: 12.5px; }
+.inst-blackout-text .inst-blackout-warn { color: #ffb347; }

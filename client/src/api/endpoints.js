@@ -411,6 +411,8 @@ export const createChannel = (payload) => api.post('/community/channels', { inst
 // Instâncias (Pública, Amigos, Empresarial...).
 // Compêndio BLACKOUT: libera o cookie do site (só com acesso à instância).
 export const openBlackoutSession = () => api.post('/blackout/session').then((r) => r.data);
+export const getBlackoutStatus = () => api.get('/blackout/status').then((r) => r.data);
+export const syncBlackout = () => api.post('/blackout/sync').then((r) => r.data);
 export const setCurrentInstance = (instanceId) => api.put('/community/instance', { instanceId }).then((r) => r.data);
 export const adminListInstances = () => api.get('/admin/instances').then((r) => r.data);
 export const adminCreateInstance = (payload) => api.post('/admin/instances', payload).then((r) => r.data);

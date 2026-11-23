@@ -4,6 +4,7 @@ import UserPicker from '../shop/UserPicker.jsx';
 import {
   adminListInstances, adminCreateInstance, adminUpdateInstance, adminDeleteInstance,
   adminAddInstanceMember, adminRemoveInstanceMember,
+  getBlackoutStatus, syncBlackout,
 } from '../../api/endpoints';
 import { errText } from '../../api/community';
 import '../../styles/shop.css';
@@ -125,6 +126,8 @@ function InstanceDetail({ inst, busy, run, onDeleted }) {
         “{inst.name}” no seletor do topo e use “Criar categoria”/“Criar canal” como sempre.
       </p>
 
+      {inst.id === 'blackout' && <BlackoutCompendio />}
+
       <h3 className="inst-subtitle">Quem pode entrar</h3>
       <div className="inst-add">
         <div className="inst-add-picker">
@@ -159,5 +162,36 @@ function InstanceDetail({ inst, busy, run, onDeleted }) {
         <small>Só dá pra apagar depois de apagar ou mover as categorias e canais dela.</small>
       </div>
     </section>
+  );
+}
+
+// Compêndio BLACKOUT: baixado do repositório do BLACKOUT no GitHub quando o
+// servidor liga e, depois, só quando a administração aperta "Atualizar".
+function BlackoutCompendio() {
+  const [st, setSt] = useState(null);
+  const [busy, setBusy] = useState(false);
+  const [hidden, setHidden] = useState(false);
+  useEffect(() => {
+    getBlackoutStatus().then(setSt).catch((err) => { if (err.response?.status === 403) setHidden(true); else setSt({ error: errText(err) }); });
+  }, []);
+  if (hidden) return null;
+  const update = async () => {
+    setBusy(true);
+    try { setSt(await syncBlackout()); } catch (err) { setSt((s) => ({ ...(s || {}), error: errText(err) })); }
+    setBusy(false);
+  };
+  const when = st?.at ? new Date(st.at).toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' }) : null;
+  return (
+    <div className="inst-blackout">
+      <div className="inst-blackout-text">
+        <strong>Compêndio BLACKOUT</strong>
+        <small>
+          {!st ? 'Conferindo…' : st.hasSite === false ? 'Ainda não baixado.' : `Versão ${st.sha ? st.sha.slice(0, 7) : '—'}${when ? ` · conferido em ${when}` : ''}`}
+        </small>
+        {st && st.hasToken === false && <small className="inst-blackout-warn">Sem a variável BLACKOUT_GITHUB_TOKEN: só funciona enquanto o repositório for público.</small>}
+        {st?.error && <small className="inst-blackout-warn" role="alert">{st.error}</small>}
+      </div>
+      <button type="button" className="btn-primary" disabled={busy} onClick={update}>{busy ? 'Atualizando…' : 'Atualizar BLACKOUT'}</button>
+    </div>
   );
 }
