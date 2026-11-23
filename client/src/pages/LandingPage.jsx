@@ -2,6 +2,7 @@ import { forwardRef, useEffect, useImperativeHandle, useRef, useState } from 're
 import { useLocation, useNavigate } from 'react-router-dom';
 import { Ico } from '../components/PagesKit.jsx';
 import { PublicFooter, PublicHeader, usePublicScrollChrome } from './public/PublicChrome.jsx';
+import { useAuth } from '../context/AuthContext.jsx';
 import '../styles/landing.css';
 
 // Página inicial pública (vitrine + download).
@@ -376,18 +377,21 @@ export default function LandingPage() {
     const t = setTimeout(() => document.getElementById(id)?.scrollIntoView({ behavior: 'auto' }), 60);
     return () => clearTimeout(t);
   }, [location.hash]);
+  // Logado (abriu em /site pra ver a vitrine e os downloads): os botões
+  // de entrar/criar conta levam de volta pro app.
+  const { user } = useAuth() || {};
   const cmdActions = [
     { key: 'go-dl', label: 'Baixar o Project Club', hint: 'Windows, Linux e Android', glyph: '↓', run: () => jump('download') },
-    { key: 'go-login', label: 'Entrar', hint: 'Já tenho conta', glyph: '→', run: () => navigate('/login') },
-    { key: 'go-reg', label: 'Criar conta', hint: 'Grátis, leva um minuto', glyph: '+', run: () => navigate('/register') },
+    { key: 'go-login', label: user ? 'Voltar pro app' : 'Entrar', hint: user ? 'Você já está logado' : 'Já tenho conta', glyph: '→', run: () => navigate(user ? '/inicio' : '/login') },
+    ...(user ? [] : [{ key: 'go-reg', label: 'Criar conta', hint: 'Grátis, leva um minuto', glyph: '+', run: () => navigate('/register') }]),
     { key: 'go-com', label: 'Comunidade', hint: 'Chat, voz, fórum e conquistas', glyph: '#', run: () => jump('comunidade') },
     { key: 'go-faq', label: 'Perguntas', hint: 'Preço, requisitos e atualizações', glyph: '?', run: () => jump('perguntas') },
     { key: 'go-blog', label: 'Blog', hint: 'O guia completo do Project Club', glyph: '¶', run: () => navigate('/blog') },
     { key: 'go-terms', label: 'Termos de privacidade', hint: 'Termos de uso e dados', glyph: '§', run: () => navigate('/termos') },
   ];
 
-  const goLogin = () => navigate('/login');
-  const goRegister = () => navigate('/register');
+  const goLogin = () => navigate(user ? '/inicio' : '/login');
+  const goRegister = () => navigate(user ? '/inicio' : '/register');
   const copyLink = async () => {
     try { await navigator.clipboard.writeText('https://projectclub.shardweb.app'); setCopied(true); setTimeout(() => setCopied(false), 1800); } catch { /* sem área de transferência */ }
   };
@@ -416,7 +420,7 @@ export default function LandingPage() {
                   <Mark name={platform} size={20} /> Baixar para {PLATFORM_LABEL[platform]}
                 </a>
               ) : (
-                <button type="button" className="lp-btn is-accent is-lg" onClick={goRegister}>Criar conta grátis</button>
+                <button type="button" className="lp-btn is-accent is-lg" onClick={goRegister}>{user ? 'Voltar pro app' : 'Criar conta grátis'}</button>
               )}
               <a className="lp-btn is-ghost is-lg" href="#download">Outros sistemas</a>
             </div>
@@ -472,7 +476,7 @@ export default function LandingPage() {
               <Mark name="browser" size={28} />
               <strong>Navegador</strong>
               <span>Sem instalar nada, em qualquer aparelho</span>
-              <em>Entrar</em>
+              <em>{user ? 'Abrir' : 'Entrar'}</em>
             </button>
           </div>
           <p className="lp-fine lp-reveal">
@@ -511,7 +515,7 @@ export default function LandingPage() {
         <section className="lp-end" aria-labelledby="fim-titulo">
           <h2 id="fim-titulo" className="lp-display is-lg lp-reveal">Vem pro clube</h2>
           <div className="lp-hero-cta lp-reveal">
-            <button type="button" className="lp-btn is-accent is-lg" onClick={goRegister}>Criar conta</button>
+            <button type="button" className="lp-btn is-accent is-lg" onClick={goRegister}>{user ? 'Voltar pro app' : 'Criar conta'}</button>
             <button type="button" className="lp-btn is-ghost is-lg" onClick={copyLink}>{copied ? 'Link copiado' : 'Copiar o link do site'}</button>
           </div>
         </section>
