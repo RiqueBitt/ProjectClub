@@ -17,7 +17,7 @@ async function createNotice(io, userId, { kind, title, body = null, link = null,
     const shaped = shapeNotice(notice);
     io?.notifyUser?.(userId, 'notice:new', shaped);
     try {
-      require('./pushNotifications').sendPushToUser(userId, { title: shaped.title, body: shaped.body || '', data: { link: shaped.link || '/notifications' } })?.catch?.(() => {});
+      require('./pushNotifications').sendPushToUser(userId, { title: shaped.title, body: shaped.body || '', data: { link: shaped.link || '/notifications', noticeId: shaped.id } })?.catch?.(() => {});
     } catch { /* push opcional */ }
     return shaped;
   } catch (err) {

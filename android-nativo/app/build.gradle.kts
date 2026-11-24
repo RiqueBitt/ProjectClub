@@ -100,6 +100,8 @@ dependencies {
     debugImplementation("androidx.compose.ui:ui-tooling")
 
     implementation("androidx.core:core-ktx:1.15.0")
+    // Checagem dos avisos em segundo plano (notify/NoticeCheckWorker.kt).
+    implementation("androidx.work:work-runtime-ktx:2.9.1")
     implementation("androidx.activity:activity-compose:1.9.3")
     // O Firebase traz um Fragment antigo; o pedido de permissão precisa do 1.3+.
     implementation("androidx.fragment:fragment-ktx:1.8.5")
