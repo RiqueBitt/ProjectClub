@@ -730,3 +730,67 @@
 @media (prefers-reduced-motion: reduce) {
   .room-rarity, .room-rarity::before, .room-rarity::after { animation: none !important; }
 }
+
+/* ---------- Moldura dentro da caixinha: peça de coleção em exposição ----------
+   Luz de vitrine vindo de cima (na cor da caixinha), almofada redonda de
+   veludo embaixo, sombra no chão, quatro brilhinhos e um reflexo que corre
+   pela moldura. Tudo medido no "px" do quadro (a janela já tem o zoom). */
+.room-art-deco.is-card {
+  position: relative; width: 142px; height: 150px; display: block;
+}
+.room-art-deco.is-card .deco-light {
+  position: absolute; left: -30px; right: -30px; top: -26px; height: 150px; pointer-events: none;
+  background:
+    radial-gradient(46% 60% at 50% 0%, color-mix(in srgb, var(--pk, #35d05a) 55%, #fff) 0%, transparent 70%),
+    conic-gradient(from 168deg at 50% -6%, transparent 0deg, rgba(255, 255, 255, .13) 6deg, transparent 12deg, transparent 20deg, rgba(255, 255, 255, .09) 25deg, transparent 30deg);
+  opacity: .55; mix-blend-mode: screen;
+}
+.room-art-deco.is-card .deco-cushion {
+  position: absolute; left: 50%; bottom: 10px; width: 112px; height: 28px; translate: -50% 0; border-radius: 50%;
+  background:
+    radial-gradient(60% 70% at 50% 30%, color-mix(in srgb, var(--pk, #35d05a) 30%, #3a1630) 0%, color-mix(in srgb, var(--pk, #35d05a) 12%, #12060f) 100%);
+  box-shadow: inset 0 3px 3px rgba(255, 255, 255, .22), inset 0 -4px 6px rgba(0, 0, 0, .45), 0 6px 10px rgba(0, 0, 0, .45);
+}
+/* costura dourada em volta da almofada */
+.room-art-deco.is-card .deco-cushion::after {
+  content: ''; position: absolute; inset: 4px 7px; border-radius: 50%;
+  border: 1.4px dashed rgba(255, 214, 120, .55);
+}
+.room-art-deco.is-card .deco-floor {
+  position: absolute; left: 50%; bottom: 22px; width: 80px; height: 12px; translate: -50% 0; border-radius: 50%;
+  background: radial-gradient(closest-side, rgba(0, 0, 0, .55), transparent); filter: blur(1px);
+}
+.room-art-deco.is-card .deco-float {
+  position: absolute; left: 50%; top: 34px; translate: -50% 0; width: 78px; height: 78px; display: grid; place-items: center;
+  filter: drop-shadow(0 6px 8px rgba(0, 0, 0, .45)) drop-shadow(0 0 10px color-mix(in srgb, var(--pk, #35d05a) 40%, transparent));
+}
+/* reflexo correndo pela moldura (recortado no círculo da moldura) */
+.room-art-deco.is-card .deco-glint {
+  position: absolute; inset: -14%; border-radius: 50%; pointer-events: none; overflow: hidden;
+  background: linear-gradient(115deg, transparent 38%, rgba(255, 255, 255, .55) 48%, transparent 58%) -160% 0 / 300% 100% no-repeat;
+  mix-blend-mode: overlay;
+}
+.room-art-deco.is-card .deco-spark {
+  position: absolute; width: 10px; height: 10px; pointer-events: none;
+  background: radial-gradient(closest-side, #fff, transparent);
+  clip-path: polygon(50% 0, 60% 40%, 100% 50%, 60% 60%, 50% 100%, 40% 60%, 0 50%, 40% 40%);
+  opacity: .85;
+}
+.room-art-deco.is-card .deco-spark.s1 { left: 6px; top: 34px; }
+.room-art-deco.is-card .deco-spark.s2 { right: 4px; top: 28px; width: 7px; height: 7px; }
+.room-art-deco.is-card .deco-spark.s3 { right: 10px; top: 84px; width: 8px; height: 8px; }
+.room-art-deco.is-card .deco-spark.s4 { left: 14px; top: 92px; width: 6px; height: 6px; }
+@media (prefers-reduced-motion: no-preference) {
+  .room-art-deco.is-card .deco-float { animation: deco-float 4.6s ease-in-out infinite; }
+  .room-art-deco.is-card .deco-glint { animation: deco-glint 5.5s ease-in-out infinite; }
+  .room-art-deco.is-card .deco-spark { animation: deco-twinkle 2.6s ease-in-out infinite; }
+  .room-art-deco.is-card .deco-spark.s2 { animation-delay: -.7s; }
+  .room-art-deco.is-card .deco-spark.s3 { animation-delay: -1.4s; }
+  .room-art-deco.is-card .deco-spark.s4 { animation-delay: -2s; }
+  .room-art-deco.is-card .deco-floor { animation: deco-floor 4.6s ease-in-out infinite; }
+}
+@keyframes deco-float { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-4px); } }
+@keyframes deco-floor { 0%, 100% { transform: scaleX(1); opacity: 1; } 50% { transform: scaleX(.88); opacity: .75; } }
+@keyframes deco-glint { 0%, 60% { background-position: -160% 0; } 85%, 100% { background-position: 260% 0; } }
+@keyframes deco-twinkle { 0%, 100% { transform: scale(.4) rotate(0deg); opacity: .2; } 50% { transform: scale(1) rotate(45deg); opacity: .95; } }
+html.reduced-motion-pref .room-art-deco.is-card *, html[data-lite] .room-art-deco.is-card * { animation: none !important; }

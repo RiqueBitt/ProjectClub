@@ -972,6 +972,23 @@ function Preview({ item, user, mode = 'card' }) {
   if (item.kind === 'deco') {
     if (mode === 'mini') return <MockProfile user={user} deco={decoValue(item)} size="mini" />;
     if (mode === 'chat') return <ChatPreview user={{ ...user, avatarDecoration: decoValue(item) }} />;
+    if (mode === 'card') {
+      // Na caixinha: a moldura exposta como peça de coleção — luz de vitrine de
+      // cima, almofada redonda embaixo, sombra no chão, brilhinhos e um reflexo
+      // que passa pela moldura de tempos em tempos (para com "reduzir movimento").
+      return (
+        <div className="room-art-deco is-card">
+          <span className="deco-light" aria-hidden="true" />
+          <span className="deco-cushion" aria-hidden="true" />
+          <span className="deco-floor" aria-hidden="true" />
+          <div className="deco-float">
+            <UserAvatar user={{ ...user, avatarDecoration: decoValue(item) }} size={78} />
+            <span className="deco-glint" aria-hidden="true" />
+          </div>
+          {[1, 2, 3, 4].map((n) => <span key={n} className={`deco-spark s${n}`} aria-hidden="true" />)}
+        </div>
+      );
+    }
     return <div className="room-art-deco"><UserAvatar user={{ ...user, avatarDecoration: decoValue(item) }} size={mode === 'big' ? 160 : 92} /></div>;
   }
   if (mode === 'full') return <MockProfile user={user} effect={effectValue(item)} size="big" wide />;
