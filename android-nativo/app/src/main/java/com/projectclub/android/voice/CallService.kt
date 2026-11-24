@@ -33,6 +33,8 @@ class CallService : Service() {
 
     override fun onBind(intent: Intent?): IBinder? = null
 
+    private var isForeground = false
+
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         when (intent?.action) {
             ACTION_START -> {
@@ -52,8 +54,13 @@ class CallService : Service() {
                 else (application as App).voice.startScreenShare(projection)
             }
             ACTION_SCREEN_STOPPED -> { sharing = false; foreground() }
-            ACTION_STOP -> {
+            else -> {
+                // ACTION_STOP, ou intent nulo/desconhecido. Quem chamou pode ter usado
+                // startForegroundService: o Android exige startForeground antes de parar,
+                // senão derruba o app ("did not then call Service.startForeground()").
+                if (!isForeground) foreground()
                 ServiceCompat.stopForeground(this, ServiceCompat.STOP_FOREGROUND_REMOVE)
+                isForeground = false
                 stopSelf()
             }
         }
@@ -71,13 +78,18 @@ class CallService : Service() {
         } else 0
         try {
             ServiceCompat.startForeground(this, Notifier.ID_ONGOING_CALL, notification(), type)
+            isForeground = true
         } catch (e: Exception) {
             // Recusado (ex.: tipo de tela sem a autorização, app em segundo plano
             // no Android 12+): tenta o tipo mais simples; se nem isso, sai sem derrubar o app.
             Log.w("PCChamada", "startForeground recusado ($type)", e)
             val simple = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) ServiceInfo.FOREGROUND_SERVICE_TYPE_MEDIA_PLAYBACK else 0
             runCatching { ServiceCompat.startForeground(this, Notifier.ID_ONGOING_CALL, notification(), simple) }
-                .onFailure { stopSelf() }
+                .onSuccess { isForeground = true }
+                .onFailure {
+                    Log.w("PCChamada", "startForeground recusado de novo", it)
+                    stopSelf()
+                }
         }
     }
 
@@ -110,20 +122,27 @@ class CallService : Service() {
         const val EXTRA_RESULT_CODE = "resultCode"
         const val EXTRA_RESULT_DATA = "resultData"
 
-        fun start(ctx: Context, title: String) =
-            ContextCompat.startForegroundService(ctx, Intent(ctx, CallService::class.java).setAction(ACTION_START).putExtra(EXTRA_TITLE, title))
+        fun start(ctx: Context, title: String) {
+            // Android 12+ recusa iniciar serviço em primeiro plano com o app em segundo plano.
+            runCatching { ContextCompat.startForegroundService(ctx, Intent(ctx, CallService::class.java).setAction(ACTION_START).putExtra(EXTRA_TITLE, title)) }
+                .onFailure { Log.w("PCChamada", "não deu pra iniciar o serviço da chamada", it) }
+        }
 
         /** Depois que a pessoa autorizou a captura de tela. */
-        fun startScreen(ctx: Context, resultCode: Int, data: Intent) =
-            ContextCompat.startForegroundService(ctx, Intent(ctx, CallService::class.java).setAction(ACTION_SCREEN)
-                .putExtra(EXTRA_RESULT_CODE, resultCode).putExtra(EXTRA_RESULT_DATA, data))
+        fun startScreen(ctx: Context, resultCode: Int, data: Intent) {
+            runCatching {
+                ContextCompat.startForegroundService(ctx, Intent(ctx, CallService::class.java).setAction(ACTION_SCREEN)
+                    .putExtra(EXTRA_RESULT_CODE, resultCode).putExtra(EXTRA_RESULT_DATA, data))
+            }.onFailure { Log.w("PCChamada", "não deu pra iniciar o compartilhamento", it) }
+        }
 
         fun screenStopped(ctx: Context) {
             runCatching { ctx.startService(Intent(ctx, CallService::class.java).setAction(ACTION_SCREEN_STOPPED)) }
         }
 
         fun stop(ctx: Context) {
-            runCatching { ctx.startService(Intent(ctx, CallService::class.java).setAction(ACTION_STOP)) }
+            // stopService não "acorda" o serviço só pra parar (e não cai na regra do startForeground).
+            runCatching { ctx.stopService(Intent(ctx, CallService::class.java)) }
         }
     }
 }

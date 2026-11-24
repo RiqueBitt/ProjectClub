@@ -21,7 +21,7 @@ export function autoUpdateBridge() {
 export function normalizeSettings(raw) {
   const games = {};
   for (const [k, v] of Object.entries(raw?.games || {})) if (typeof v === 'boolean') games[k] = v;
-  return { enabled: raw?.enabled === true, games };
+  return { enabled: raw?.enabled !== false, games };
 }
 
 // Igual ao isGameEnabled do app de PC: global ligado e o jogo não desligado.

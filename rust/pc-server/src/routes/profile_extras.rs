@@ -502,7 +502,7 @@ async fn recent_activity(db: &Db, user: &str) -> anyhow::Result<Vec<Value>> {
 
 // ---------------------------------------------------------------- lista de desejos
 
-const WISH_KINDS: [&str; 4] = ["deco", "effect", "font", "style"];
+const WISH_KINDS: [&str; 5] = ["deco", "effect", "font", "style", "textfx"];
 const WISH_MAX: usize = 30;
 
 /// `cleanWishlist`: `[{ kind, id, at }]` válidos e sem repetição (até 30).
@@ -593,7 +593,7 @@ async fn resolve_wishlist(db: &Db, list: &[Value]) -> anyhow::Result<Vec<Value>>
             );
         }
     }
-    let wanted = ids(&["font", "style"]);
+    let wanted = ids(&["font", "style", "textfx"]);
     if !wanted.is_empty() {
         let marks = vec!["?"; wanted.len()].join(", ");
         let rows = db::all(
@@ -608,7 +608,14 @@ async fn resolve_wishlist(db: &Db, list: &[Value]) -> anyhow::Result<Vec<Value>>
             let data: Option<String> = db::get(r, "data")?;
             let data = parse_or(data.as_deref(), json!({}));
             by.insert(
-                format!("{}:{id}", if kind == "FONT" { "font" } else { "style" }),
+                format!(
+                    "{}:{id}",
+                    match kind.as_str() {
+                        "FONT" => "font",
+                        "TEXTFX" => "textfx",
+                        _ => "style",
+                    }
+                ),
                 json!({
                     "name": db::get::<String>(r, "name")?,
                     "previewUrl": db::get::<Option<String>>(r, "previewUrl")?,
@@ -777,6 +784,7 @@ async fn item_exists(db: &Db, kind: &str, id: &str) -> db::DbResult<bool> {
         "deco" => ("SELECT id FROM AvatarDecoration WHERE id = ?", None),
         "effect" => ("SELECT id FROM ProfileEffect WHERE id = ?", None),
         "font" => ("SELECT kind FROM ShopItem WHERE id = ?", Some("FONT")),
+        "textfx" => ("SELECT kind FROM ShopItem WHERE id = ?", Some("TEXTFX")),
         _ => ("SELECT kind FROM ShopItem WHERE id = ?", Some("STYLE")),
     };
     let got: Option<String> = db::scalar(db, sql, params![id]).await?;

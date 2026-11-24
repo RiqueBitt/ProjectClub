@@ -5,13 +5,13 @@ import { useAuth } from '../context/AuthContext.jsx';
 import UserAvatar from '../components/UserAvatar.jsx';
 import { Ico } from '../components/PagesKit.jsx';
 import { MockProfile, decoValue, effectValue } from '../components/shop/ShopPreviews.jsx';
-import { getShop, buyDecoration, equipDecoration, buyEffect, equipEffect, buyCollection, buyFont, equipFont, buyStyle, equipStyle, redeemShopCode, getGiftsSummary } from '../api/decorations';
+import { getShop, buyDecoration, equipDecoration, buyEffect, equipEffect, buyCollection, buyFont, equipFont, buyStyle, equipStyle, buyTextEffect, equipTextEffect, redeemShopCode, getGiftsSummary } from '../api/decorations';
 import { getMyWishlist, toggleWishlistItem } from '../api/endpoints';
 import { SHOP_TAGS, SHOP_COLORS } from '../components/shop/ShopItemFlagsFields.jsx';
 import ShopTryOn from '../components/shop/ShopTryOn.jsx';
 import { useSectionBadges, useMarkSectionSeen, sectionCount } from '../utils/sectionBadges';
 import ShopTrades from '../components/shop/ShopTrades.jsx';
-import { nameStyleProps } from '../utils/nameStyle';
+import { nameStyleProps, nameStyleClassName } from '../utils/nameStyle';
 import { useLiveRefresh } from '../utils/liveRefresh';
 import { trackMissionEvent } from '../api/endpoints';
 import { proxyImage } from '../utils/imageProxy';
@@ -45,8 +45,8 @@ import '../styles/community4.css';
 
 const CARDS_WAR_ON = isFeatureEnabled('cardsWar');
 const DEFAULT_BACK = 'back:classico';
-const BUY = { deco: buyDecoration, effect: buyEffect, font: buyFont, style: buyStyle };
-const EQUIP = { deco: equipDecoration, effect: equipEffect, font: equipFont, style: equipStyle };
+const BUY = { deco: buyDecoration, effect: buyEffect, font: buyFont, style: buyStyle, textfx: buyTextEffect };
+const EQUIP = { deco: equipDecoration, effect: equipEffect, font: equipFont, style: equipStyle, textfx: equipTextEffect };
 const styleKey = (i) => i?.data?.style || (i?.key || '').replace(/^style:/, '') || null;
 const fontValue = (i) => (i?.data?.family ? JSON.stringify({ id: i.id, family: i.data.family, url: i.data.url || null }) : null);
 
@@ -58,6 +58,7 @@ const reduceMotion = () => window.matchMedia?.('(prefers-reduced-motion: reduce)
 const KIND = {
   deco: { label: 'Moldura de avatar', plural: 'Molduras de avatar', icon: 'frame', blurb: 'Fica em volta da sua foto em todo lugar: chat, lista de membros, mini perfil e perfil completo.' },
   effect: { label: 'Efeito de perfil', plural: 'Efeitos de perfil', icon: 'sparkles', blurb: 'Uma animação que passa por cima do seu mini perfil e do perfil completo quando alguém abre (e de novo a cada 30 segundos).' },
+  textfx: { label: 'Efeito de texto', plural: 'Efeitos de texto', icon: 'sparkles', blurb: 'Um efeito animado no seu nome. Anima no mini perfil e no perfil completo; no chat e na lista de membros o nome fica com as cores do efeito.' },
   font: { label: 'Fonte do nome', plural: 'Fontes do nome', icon: 'font', blurb: 'Muda a fonte do seu nome no perfil, no mini perfil, no chat e na lista de membros. Vale no lugar da fonte grátis escolhida no perfil.' },
   style: { label: 'Estilo de perfil', plural: 'Estilos de perfil', icon: 'palette', blurb: 'Muda o visual inteiro do seu perfil e do mini perfil: fundo, botões, barras, seções e fontes.' },
   back: { label: 'Verso de carta', plural: 'Versos de cartas', icon: 'cards', blurb: 'Verso das suas cartas na Guerra das Cartas: aparece no seu baralho, na sua mão para o oponente e nas pilhas da mesa.' },
@@ -160,7 +161,7 @@ function allItems(data) {
     }));
   return [
     ...(data?.decorations || []).map((d) => ({ ...d, kind: 'deco' })),
-    ...(data?.effects || []).map((e) => ({ ...e, kind: 'effect' })),
+    ...(data?.textEffects || []).map((e) => ({ ...e, kind: 'textfx' })),
     ...(data?.fonts || []).map((f) => ({ ...f, kind: 'font' })),
     ...(data?.styles || []).map((st) => ({ ...st, kind: 'style' })),
     ...backs,
@@ -249,7 +250,8 @@ export default function LojaPage() {
     : i.kind === 'deco' ? i.id === data?.equippedId
       : i.kind === 'font' ? i.id === data?.equippedFontId
         : i.kind === 'style' ? !!data?.equippedStyle && styleKey(i) === data.equippedStyle
-          : i.id === data?.equippedEffectId), [data]);
+          : i.kind === 'textfx' ? !!i.fx && i.fx === data?.equippedTextEffect
+            : i.id === data?.equippedEffectId), [data]);
   const now = useNow(collections.some((c) => c.offer));
 
   const go = (s) => {
@@ -391,7 +393,7 @@ export default function LojaPage() {
     ] },
     { group: 'Categorias', items: [
       { id: 'deco', label: KIND.deco.plural, icon: 'frame', n: count('deco') },
-      { id: 'effect', label: KIND.effect.plural, icon: 'sparkles', n: count('effect') },
+      { id: 'textfx', label: KIND.textfx.plural, icon: 'sparkles', n: count('textfx') },
       ...(count('font') > 0 ? [{ id: 'font', label: KIND.font.plural, icon: 'font', n: count('font') }] : []),
       ...(count('style') > 0 ? [{ id: 'style', label: KIND.style.plural, icon: 'palette', n: count('style') }] : []),
       ...(CARDS_WAR_ON && count('back') > 0 ? [{ id: 'back', label: KIND.back.plural, icon: 'cards', n: count('back') }] : []),
@@ -656,7 +658,7 @@ function Home({ items, collections, go, ctx }) {
       <section className="room-section">
         <SectionHead title="Categorias" />
         <div className="room-cats">
-          {['deco', 'effect', ...['font', 'style'].filter((k) => items.some((i) => i.kind === k)), ...(CARDS_WAR_ON && items.some((i) => i.kind === 'back') ? ['back'] : [])].map((k) => (
+          {['deco', 'textfx', ...['font', 'style'].filter((k) => items.some((i) => i.kind === k)), ...(CARDS_WAR_ON && items.some((i) => i.kind === 'back') ? ['back'] : [])].map((k) => (
             <button key={k} type="button" className={`room-cat k-${k}`} onClick={() => go(k)}>
               <span className="room-cat-ico"><Ico name={KIND[k].icon} size={22} /></span>
               <strong>{KIND[k].plural}</strong>
@@ -934,7 +936,7 @@ function OwnedPage({ list, go, ctx }) {
       {list.length === 0 ? <Empty title="Inventário vazio" text="O que você comprar ou ganhar aparece aqui." action={{ label: 'Ir para a loja', onClick: () => go('home') }} /> : (
         <>
           {equipped.length > 0 && <Shelf title="Em uso agora" list={equipped} ctx={ctx} />}
-          {['deco', 'effect', 'font', 'style', 'back'].map((k) => <Shelf key={k} title={KIND[k].plural} list={list.filter((i) => i.kind === k)} ctx={ctx} />)}
+          {['deco', 'textfx', 'font', 'style', 'back'].map((k) => <Shelf key={k} title={KIND[k].plural} list={list.filter((i) => i.kind === k)} ctx={ctx} />)}
         </>
       )}
     </div>
@@ -943,6 +945,17 @@ function OwnedPage({ list, go, ctx }) {
 
 // ---------- Card ----------
 function Preview({ item, user, mode = 'card' }) {
+  if (item.kind === 'textfx') {
+    const shown = { ...user, profileNameEffect: item.fx };
+    if (mode === 'mini') return <MockProfile user={user} nameFx={item.fx} size="mini" />;
+    if (mode === 'chat') return <ChatPreview user={shown} lines={['olha o efeito novo no meu nome ✨', 'no perfil ele fica animado']} />;
+    return (
+      <div className={`room-art-font room-art-textfx${mode !== 'card' ? ' is-big' : ''}`}>
+        <span style={nameStyleProps(shown, { fullEffect: true })} className={nameStyleClassName(shown, { fullEffect: true })}>{user?.displayName || 'Seu nome'}</span>
+        <small>Efeito animado no nome</small>
+      </div>
+    );
+  }
   if (item.kind === 'font') {
     const shown = { ...user, profileFont: fontValue(item) };
     if (mode === 'mini') return <MockProfile user={shown} size="mini" />;
@@ -979,15 +992,15 @@ function Preview({ item, user, mode = 'card' }) {
   return <MockProfile user={user} effect={effectValue(item)} size={mode === 'card' ? 'card' : 'mini'} loop={mode !== 'card' || !reduceMotion()} />;
 }
 
-function ChatPreview({ user }) {
+function ChatPreview({ user, lines = ['testando minha moldura nova 👀', 'ficou bonita né?'] }) {
   return (
     <div className="room-chat-preview" aria-label="Prévia no chat">
       {[0, 1].map((n) => (
         <div key={n} className="room-chat-line">
           <UserAvatar user={user} size={40} />
           <div>
-            <strong>{user?.displayName || 'Você'}</strong> <small>hoje às 21:0{n}</small>
-            <p>{n ? 'ficou bonita né?' : 'testando minha moldura nova 👀'}</p>
+            <strong style={nameStyleProps(user)}>{user?.displayName || 'Você'}</strong> <small>hoje às 21:0{n}</small>
+            <p>{lines[n]}</p>
           </div>
         </div>
       ))}
@@ -1198,6 +1211,7 @@ function ItemCard({ item: base, ctx }) {
 const PREVIEW_MODES = {
   deco: [['big', 'Avatar', 'user'], ['mini', 'Mini perfil', 'frame'], ['chat', 'No chat', 'chat']],
   effect: [['mini', 'Mini perfil', 'frame'], ['full', 'Perfil completo', 'monitor'], ['phone', 'Celular', 'phone']],
+  textfx: [['big', 'Nome', 'font'], ['mini', 'Mini perfil', 'frame'], ['chat', 'No chat', 'chat']],
   font: [['big', 'Nome', 'font'], ['mini', 'Mini perfil', 'frame']],
   style: [['mini', 'Mini perfil', 'frame'], ['full', 'Perfil completo', 'monitor'], ['phone', 'Celular', 'phone']],
   back: [['big', 'Verso', 'cards']],

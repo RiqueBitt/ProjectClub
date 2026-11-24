@@ -45,7 +45,6 @@ import '../../styles/profile.css';
 import '../../styles/profile-edit.css';
 import '../../styles/profile-layout.css';
 import BannerImage from '../ProfileBanner.jsx';
-import ProfileEffectOverlay from '../ProfileEffectOverlay.jsx';
 import ImageCropperModal from './ImageCropperModal.jsx';
 import ProfileShowcaseModal, { parseShowcase } from './ProfileShowcaseModal.jsx';
 import { GameCapsule } from '../games/GameLibraryParts.jsx';
@@ -1633,7 +1632,7 @@ export default function UserProfileModal({ embedded = false, previewUser = null 
         )}
       </div>
       {/* Efeito de perfil da Loja (por cima de tudo, sem receber clique). */}
-      {user?.profileEffect && <ProfileEffectOverlay effect={user.profileEffect} variant="full" />}
+      {/* Efeitos de perfil saíram (no lugar: efeitos de texto no nome). */}
       {/* O modal de Configurações agora é renderizado uma única vez, globalmente, em MainApp.jsx — reage ao mesmo estado (settingsModalOpen) que o botão de engrenagem acima e o do cabeçalho abrem, então não precisa mais de uma instância própria aqui dentro. */}
     </div>
   );

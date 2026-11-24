@@ -21,6 +21,9 @@ router.post('/fonts/equip', shop.equipFont);
 router.post('/fonts/:id/buy', shop.buyFont);
 router.post('/styles/equip', shop.equipStyle);
 router.post('/styles/:id/buy', shop.buyStyle);
+// Efeitos de texto do nome (no lugar dos efeitos de perfil).
+router.post('/text-effects/equip', shop.equipTextEffect);
+router.post('/text-effects/:id/buy', shop.buyTextEffect);
 // Itens limitados e trocas entre jogadores.
 router.get('/limiteds/:userId', extras.listLimiteds);
 router.get('/trades', extras.listTrades);

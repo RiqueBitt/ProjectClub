@@ -42,7 +42,7 @@ async function sweepExpired(io) {
   ]);
   if (!decos.length && !effects.length && !items.length) return 0;
   const userIds = [...new Set([...decos, ...effects, ...items].map((r) => r.userId))];
-  const users = await prisma.user.findMany({ where: { id: { in: userIds } }, select: { id: true, avatarDecoration: true, profileEffect: true, profileFont: true, profileStyle: true } });
+  const users = await prisma.user.findMany({ where: { id: { in: userIds } }, select: { id: true, avatarDecoration: true, profileEffect: true, profileFont: true, profileStyle: true, profileNameEffect: true } });
   const byId = Object.fromEntries(users.map((u) => [u.id, u]));
   const patches = {};
   const patch = (uid, data) => { patches[uid] = { ...(patches[uid] || {}), ...data }; };
@@ -54,6 +54,10 @@ async function sweepExpired(io) {
     if (r.item?.kind === 'STYLE') {
       const key = parseData(r.item.data).style || (r.item.key || '').replace(/^style:/, '');
       if (key && u?.profileStyle === key) patch(r.userId, { profileStyle: null });
+    }
+    if (r.item?.kind === 'TEXTFX') {
+      const fx = require('./textEffects').fxValueOf(r.item);
+      if (fx && u?.profileNameEffect === fx) patch(r.userId, { profileNameEffect: 'SOLID' });
     }
   });
   await Promise.all([

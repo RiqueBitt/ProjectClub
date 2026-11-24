@@ -1,5 +1,5 @@
 import UserAvatar from '../UserAvatar.jsx';
-import { nameStyleProps } from '../../utils/nameStyle';
+import { nameStyleProps, nameStyleClassName } from '../../utils/nameStyle';
 import ProfileEffectOverlay from '../ProfileEffectOverlay.jsx';
 import { proxyImage } from '../../utils/imageProxy';
 import { profileStyleClass } from '../../utils/profileStyle';
@@ -17,7 +17,7 @@ export const effectValue = (e) => (e ? {
 
 // Mini perfil de mentira (banner + avatar + nome) com o efeito por cima.
 // size: 'card' (grade da loja), 'big' (detalhe), 'mini' (320px) ou 'phone'.
-export function MockProfile({ user, effect, deco, style, size = 'card', mobile, loop = true, wide = false }) {
+export function MockProfile({ user, effect, deco, style, nameFx, size = 'card', mobile, loop = true, wide = false }) {
   const accent = user?.profileColor || 'var(--brand)';
   const banner = user?.miniProfileBannerUrl || user?.bannerUrl;
   const av = size === 'card' ? 54 : size === 'phone' ? 92 : 76;
@@ -29,7 +29,7 @@ export function MockProfile({ user, effect, deco, style, size = 'card', mobile, 
       </div>
       <div className="shop-mock-body">
         <div className="shop-mock-avatar"><UserAvatar user={shownUser} size={av} /></div>
-        <strong style={nameStyleProps(user)}>{user?.displayName || 'Você'}</strong>
+        {(() => { const nu = nameFx ? { ...user, profileNameEffect: nameFx } : user; return <strong style={nameStyleProps(nu, { fullEffect: !!nameFx })} className={nameFx ? nameStyleClassName(nu, { fullEffect: true }) : undefined}>{user?.displayName || 'Você'}</strong>; })()}
         <small>@{user?.username || 'usuario'}</small>
         <div className="shop-mock-lines"><span /><span /><span /></div>
       </div>

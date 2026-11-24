@@ -5,13 +5,13 @@ import { Ico } from '../PagesKit.jsx';
 import { MockProfile, decoValue, effectValue } from '../shop/ShopPreviews.jsx';
 import { useAuth } from '../../context/AuthContext.jsx';
 import { useStore } from '../../store/useStore';
-import { getShop, equipDecoration, equipEffect, equipFont, equipStyle } from '../../api/decorations';
+import { getShop, equipDecoration, equipEffect, equipFont, equipStyle, equipTextEffect } from '../../api/decorations';
 import { NAME_FONTS, FONT_FAMILY, nameStyleProps, nameStyleClassName } from '../../utils/nameStyle';
 
 // Editor de perfil: os itens da Loja (moldura, estilo, efeito, fonte) entram
 // direto nas seções do editor — sem a antiga caixa "Itens da Loja". Só lista
 // o que a pessoa já tem (comprado, ganhado ou liberado pelo apoio).
-const EQUIP = { deco: equipDecoration, effect: equipEffect, font: equipFont, style: equipStyle };
+const EQUIP = { deco: equipDecoration, effect: equipEffect, font: equipFont, style: equipStyle, textfx: equipTextEffect };
 const NONE = { deco: 'Sem moldura', effect: 'Sem efeito', style: 'Visual padrão' };
 export const styleKey = (i) => i?.data?.style || (i?.key || '').replace(/^style:/, '') || null;
 export const fontValue = (i) => (i?.data?.family ? JSON.stringify({ id: i.id, family: i.data.family, url: i.data.url || null }) : null);
@@ -27,7 +27,7 @@ export function useOwnedShop(enabled = true) {
   const owned = useMemo(() => {
     if (!data) return null;
     const pick = (list) => (list || []).filter((i) => i.owned);
-    return { deco: pick(data.decorations), effect: pick(data.effects), font: pick(data.fonts), style: pick(data.styles) };
+    return { deco: pick(data.decorations), effect: pick(data.effects), font: pick(data.fonts), style: pick(data.styles), textfx: pick(data.textEffects) };
   }, [data]);
   const equippedId = (kind) => (kind === 'deco' ? data?.equippedId : kind === 'effect' ? data?.equippedEffectId : kind === 'font' ? data?.equippedFontId : null);
   const isOn = (kind, item) => {

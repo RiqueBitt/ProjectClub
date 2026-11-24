@@ -752,3 +752,7 @@ button.room-supporter.is-none:hover { filter: brightness(1.05); }
 }
 /* com o menu à direita, a cestinha fica no canto do conteúdo (não em cima do menu) */
 @media (min-width: 981px) { :root:has(.shop-room .room-layout) .shop-basket-fab { right: 234px; } }
+
+/* Efeitos de texto: nome bem grande na prévia, com espaço pro brilho. */
+.room-art-textfx span { font-weight: 800; letter-spacing: .01em; padding: 4px 10px; }
+.room-art-textfx.is-big span { font-size: clamp(34px, 5vw, 54px); line-height: 1.25; }

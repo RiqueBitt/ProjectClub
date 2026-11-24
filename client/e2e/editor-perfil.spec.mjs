@@ -33,7 +33,7 @@ test('abre pela foto lá embaixo, mostra a prévia ao vivo e fecha com Esc', asy
 
   // Organizado em grupos; sem pinguins, sem "Itens da Loja", sem cor do miniperfil.
   const side = page.locator('.pe-side');
-  for (const g of ['Avatar e decorações', 'Nome exibido', 'Banners e cor', 'Estilo e efeitos do perfil', 'Sobre você', 'Conexões']) {
+  for (const g of ['Avatar e decorações', 'Nome exibido', 'Banners e cor', 'Estilo do perfil', 'Sobre você', 'Conexões']) {
     await expect(side.locator('.pe-group-title', { hasText: g })).toBeVisible();
   }
   await expect(side.locator('.penguin-avatar-picker')).toHaveCount(0);

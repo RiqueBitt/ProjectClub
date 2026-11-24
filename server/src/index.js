@@ -134,6 +134,13 @@ bootstrapPlatformAdmin().catch((err) => {
 require('./services/profileStyles').ensureBuiltinStyles().catch((err) => {
   console.warn('[loja] estilos de perfil:', err.message);
 });
+// Efeitos de texto à venda e efeitos de perfil fora da Loja.
+require('./services/textEffects').ensureBuiltinTextEffects().catch((err) => {
+  console.warn('[loja] efeitos de texto:', err.message);
+});
+require('./services/textEffects').disableProfileEffects().catch((err) => {
+  console.warn('[loja] efeitos de perfil:', err.message);
+});
 require('./services/supporterBadges').backfillSupporterBadges().catch((err) => {
   console.warn('[apoio] backfill das insígnias falhou:', err.message);
 });

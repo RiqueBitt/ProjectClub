@@ -156,7 +156,7 @@ async function recentActivity(userId) {
 }
 
 // ---------- Lista de desejos ----------
-const WISH_KINDS = ['deco', 'effect', 'font', 'style'];
+const WISH_KINDS = ['deco', 'effect', 'font', 'style', 'textfx'];
 const WISH_MAX = 30;
 function cleanWishlist(raw) {
   const list = parse(raw, []);
@@ -175,12 +175,12 @@ async function resolveWishlist(list) {
   const [decos, effects, items] = await Promise.all([
     ids('deco').length ? prisma.avatarDecoration.findMany({ where: { id: { in: ids('deco') } }, select: { id: true, name: true, imageUrl: true, priceCoins: true, priceGems: true, active: true } }) : [],
     ids('effect').length ? prisma.profileEffect.findMany({ where: { id: { in: ids('effect') } }, select: { id: true, name: true, imageUrl: true, priceCoins: true, priceGems: true, active: true } }) : [],
-    [...ids('font'), ...ids('style')].length ? prisma.shopItem.findMany({ where: { id: { in: [...ids('font'), ...ids('style')] } }, select: { id: true, kind: true, name: true, previewUrl: true, data: true, priceCoins: true, priceGems: true, active: true } }) : [],
+    [...ids('font'), ...ids('style'), ...ids('textfx')].length ? prisma.shopItem.findMany({ where: { id: { in: [...ids('font'), ...ids('style'), ...ids('textfx')] } }, select: { id: true, kind: true, name: true, previewUrl: true, data: true, priceCoins: true, priceGems: true, active: true } }) : [],
   ]);
   const by = {};
   decos.forEach((d) => { by[`deco:${d.id}`] = { ...d, previewUrl: d.imageUrl }; });
   effects.forEach((e) => { by[`effect:${e.id}`] = { ...e, previewUrl: e.imageUrl }; });
-  items.forEach((i) => { by[`${i.kind === 'FONT' ? 'font' : 'style'}:${i.id}`] = { ...i, data: parse(i.data, {}) }; });
+  items.forEach((i) => { by[`${i.kind === 'FONT' ? 'font' : i.kind === 'TEXTFX' ? 'textfx' : 'style'}:${i.id}`] = { ...i, data: parse(i.data, {}) }; });
   return list.map((w) => {
     const it = by[`${w.kind}:${w.id}`];
     if (!it) return null;

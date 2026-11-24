@@ -134,6 +134,22 @@ export function resolveMultiColors(user, effect) {
   return defaults;
 }
 
+// Efeitos de texto da Loja (itens TEXTFX — server/src/services/textEffects.js).
+// User.profileNameEffect = "FX_<CHAVE>". Cada um tem o estilo parado (cores,
+// brilho) e a classe da animação (styles/name-fx.css).
+const clipText = { backgroundClip: 'text', WebkitBackgroundClip: 'text', color: 'transparent', WebkitTextFillColor: 'transparent' };
+export const FX_STYLES = {
+  FX_AURORA: { style: { ...clipText, backgroundImage: 'linear-gradient(90deg, #4dffb0, #3fc9ff, #9d6bff, #4dffb0, #3fc9ff, #9d6bff, #4dffb0)', filter: 'drop-shadow(0 0 4px rgba(80, 230, 200, .45))' }, anim: 'name-fx-flow' },
+  FX_LAVA: { style: { ...clipText, backgroundImage: 'linear-gradient(0deg, #b3120a, #ff4a14, #ffb020, #ff4a14, #b3120a)', filter: 'drop-shadow(0 0 5px rgba(255, 90, 20, .6))' }, anim: 'name-fx-rise' },
+  FX_GALAXIA: { style: { ...clipText, backgroundImage: 'linear-gradient(90deg, #5b2bff, #c24dff, #4fb3ff, #ffffff 52%, #5b2bff, #c24dff, #4fb3ff)' }, anim: 'name-fx-stars' },
+  FX_HOLOGRAFICO: { style: { ...clipText, backgroundImage: 'linear-gradient(110deg, #ff9ad5, #9ff4ff, #fff59a, #c9a6ff, #ff9ad5, #9ff4ff, #fff59a)', filter: 'drop-shadow(0 1px 1px rgba(0,0,0,.35))' }, anim: 'name-fx-flow-fast' },
+  FX_OURO: { style: { ...clipText, backgroundImage: 'linear-gradient(100deg, #b8860b 0%, #f5d576 30%, #fff8dc 45%, #ffffff 50%, #fff8dc 55%, #f5d576 70%, #b8860b 100%)', filter: 'drop-shadow(0 1px 1px rgba(0,0,0,.4))' }, anim: 'name-fx-shine' },
+  FX_ELETRICO: { style: { color: '#bff4ff', textShadow: '0 0 4px #4fd8ff, 0 0 10px #1a8cff' }, anim: 'name-fx-zap' },
+  FX_DOCE: { style: { ...clipText, backgroundImage: 'repeating-linear-gradient(45deg, #ff5fa8 0 7px, #ffffff 7px 14px)', filter: 'drop-shadow(0 1px 0 rgba(150, 20, 80, .6))' }, anim: 'name-fx-stripes' },
+  FX_SYNTHWAVE: { style: { color: '#ff4fd8', textShadow: '2px 2px 0 #21e6ff, 0 0 10px rgba(255, 60, 200, .55)' }, anim: 'name-fx-vibe' },
+};
+export const isTextFx = (effect) => typeof effect === 'string' && Object.prototype.hasOwnProperty.call(FX_STYLES, effect);
+
 const DEFAULT_NAME_STYLE = { profileNameFont: 'NORMAL', profileNameEffect: 'SOLID', profileNameColor: '#1877F2', profileNameColor2: '#FFFFFF' };
 export function hasCustomNameStyle(user) {
   if (!user) return false;
@@ -161,6 +177,7 @@ export function hasCustomNameStyle(user) {
 export function nameStyleClassName(user, { fullEffect = false } = {}) {
   if (!fullEffect) return '';
   const effect = user?.profileNameEffect;
+  if (isTextFx(effect)) return FX_STYLES[effect].anim;
   if (effect === 'RAINBOW') return 'name-style-anim-rainbow';
   if (effect === 'NEON') return 'name-style-anim-neon';
   if (effect === 'GLITCH') return 'name-style-anim-glitch';
@@ -196,6 +213,7 @@ export function nameStyleProps(user, { fullEffect = false } = {}) {
   // abaixo, que continua só liberando essas classes .name-style-anim-*
   // no mini/perfil completo) fica de fora do chat; a cor/gradiente/
   // sombra de cada efeito aparece igual em todo lugar, parada.
+  if (isTextFx(effect)) return { ...base, ...FX_STYLES[effect].style };
   switch (effect) {
     case 'NEON':
       return { ...base, color, textShadow: `0 0 4px ${color}, 0 0 11px ${color}, 0 0 19px ${color}` };

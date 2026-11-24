@@ -6,8 +6,9 @@ import {
   autoUpdatableItems, itemDisplayName, summarizeRound, autoUpdateBridge, INITIAL_DELAY_MS, INTERVAL_MS,
 } from '../src/pages/mods/autoUpdatePolicy.js';
 
-test('configuração: desligada por padrão; jogo desligado individualmente', () => {
-  assert.deepEqual(normalizeSettings(undefined), { enabled: false, games: {} });
+test('configuração: ligada por padrão; jogo desligado individualmente', () => {
+  assert.deepEqual(normalizeSettings(undefined), { enabled: true, games: {} });
+  assert.deepEqual(normalizeSettings({ enabled: false }), { enabled: false, games: {} });
   assert.equal(gameAutoEnabled({ enabled: true, games: {} }, 892970), true);
   assert.equal(gameAutoEnabled({ enabled: true, games: { 892970: false } }, 892970), false);
   assert.equal(gameAutoEnabled({ enabled: true, games: { 892970: false } }, '892970'), false);
@@ -17,7 +18,8 @@ test('configuração: desligada por padrão; jogo desligado individualmente', ()
 test('rodada: só com a opção ligada, sem outra rodada, tela de Mods fechada e com internet', () => {
   const on = { enabled: true };
   assert.deepEqual(shouldStartRound({ settings: on }), { ok: true, reason: 'ok' });
-  assert.equal(shouldStartRound({ settings: {} }).reason, 'disabled');
+  assert.equal(shouldStartRound({ settings: {} }).reason, 'ok');
+  assert.equal(shouldStartRound({ settings: { enabled: false } }).reason, 'disabled');
   assert.equal(shouldStartRound({ settings: on, busy: true }).reason, 'busy');
   assert.equal(shouldStartRound({ settings: on, pageOpen: true }).reason, 'mods-page-open');
   assert.equal(shouldStartRound({ settings: on, online: false }).reason, 'offline');

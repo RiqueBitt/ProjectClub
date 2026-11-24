@@ -1,0 +1,48 @@
+/* Efeitos de texto da Loja (TEXTFX) — o estilo parado vem de FX_STYLES em
+   utils/nameStyle.js; aqui só o movimento. Cada um só anima no mini perfil,
+   perfil completo e prévias (nameStyleClassName com fullEffect); no chat e
+   na lista de membros o nome fica com as cores, parado. */
+.name-fx-flow { background-size: 300% 100%; animation: name-fx-flow 4s linear infinite; }
+.name-fx-flow-fast { background-size: 300% 100%; animation: name-fx-flow 2.2s linear infinite; }
+@keyframes name-fx-flow { from { background-position: 0% 50%; } to { background-position: 150% 50%; } }
+
+.name-fx-rise { background-size: 100% 300%; animation: name-fx-rise 2.6s linear infinite; }
+@keyframes name-fx-rise { from { background-position: 50% 100%; } to { background-position: 50% -50%; } }
+
+.name-fx-stars { background-size: 300% 100%; animation: name-fx-flow 6s linear infinite, name-fx-twinkle 2.4s ease-in-out infinite; }
+@keyframes name-fx-twinkle {
+  0%, 100% { filter: drop-shadow(0 0 2px rgba(200, 170, 255, .55)); }
+  50% { filter: drop-shadow(0 0 6px rgba(160, 200, 255, .95)); }
+}
+
+/* Ouro: o reflexo atravessa o nome e descansa um pouco antes de voltar. */
+.name-fx-shine { background-size: 250% 100%; animation: name-fx-shine 3.2s ease-in-out infinite; }
+@keyframes name-fx-shine { 0% { background-position: 120% 50%; } 55%, 100% { background-position: -20% 50%; } }
+
+.name-fx-zap { animation: name-fx-zap 1.6s steps(1) infinite; }
+@keyframes name-fx-zap {
+  0%, 100% { text-shadow: 0 0 4px #4fd8ff, 0 0 10px #1a8cff; }
+  12% { text-shadow: 0 0 2px #4fd8ff; }
+  14% { text-shadow: 0 0 6px #b8f4ff, 0 0 16px #4fd8ff, 0 0 26px #1a8cff; }
+  50% { text-shadow: 0 0 5px #4fd8ff, 0 0 12px #1a8cff; }
+  62% { text-shadow: 0 0 1px #4fd8ff; }
+  64% { text-shadow: 0 0 7px #e6fbff, 0 0 18px #4fd8ff, 0 0 30px #1a8cff; }
+}
+
+.name-fx-stripes { background-size: 28px 28px; animation: name-fx-stripes 1.2s linear infinite; }
+@keyframes name-fx-stripes { from { background-position: 0 0; } to { background-position: 28px 0; } }
+
+.name-fx-vibe { animation: name-fx-vibe 1.2s ease-in-out infinite; }
+@keyframes name-fx-vibe {
+  0%, 100% { text-shadow: 2px 2px 0 #21e6ff, 0 0 10px rgba(255, 60, 200, .55); }
+  50% { text-shadow: -2px 2px 0 #21e6ff, 0 0 16px rgba(255, 60, 200, .85); }
+}
+
+html.pc-idle .name-fx-flow, html.pc-idle .name-fx-flow-fast, html.pc-idle .name-fx-rise,
+html.pc-idle .name-fx-stars, html.pc-idle .name-fx-shine, html.pc-idle .name-fx-zap,
+html.pc-idle .name-fx-stripes, html.pc-idle .name-fx-vibe { animation-play-state: paused !important; }
+
+@media (prefers-reduced-motion: reduce) {
+  .name-fx-flow, .name-fx-flow-fast, .name-fx-rise, .name-fx-stars, .name-fx-shine,
+  .name-fx-zap, .name-fx-stripes, .name-fx-vibe { animation: none !important; }
+}
