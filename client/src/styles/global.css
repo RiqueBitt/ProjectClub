@@ -171,9 +171,17 @@ html.reduced-motion-pref *, html.reduced-motion-pref *::before, html.reduced-mot
    more dentro de #root continua caindo exatamente no mesmo lugar de
    sempre. Só o pouco que é portado pra fora de #root (emoji picker,
    menus de perfil) fica de fora do efeito — troca aceitável por não
-   arriscar quebrar o posicionamento de nada. */
+   arriscar quebrar o posicionamento de nada.
+   ATENÇÃO: o filter só entra quando a pessoa mexeu na saturação
+   (html.saturation-pref) ou no contraste. Mesmo com saturate(100%), que
+   não muda nada na tela, o filter transforma os position:fixed de dentro
+   de #root em "absolute": as gavetas escondidas fora da tela (lista de
+   membros no celular, translateX(100%)) passavam a esticar a página
+   (412px de tela → 692px de conteúdo), e qualquer focus()/rolagem por
+   código empurrava o app inteiro pro lado e fechava o menu da mensagem. */
 html { font-size: calc(16px * var(--font-scale, 1)); }
-#root { filter: saturate(var(--saturation, 100%)); transition: filter .15s ease; }
+#root { transition: filter .15s ease; }
+html.saturation-pref #root { filter: saturate(var(--saturation, 100%)); }
 html.reduced-motion-pref #root { transition: none; }
 html.high-contrast-pref #root { filter: saturate(var(--saturation, 100%)) contrast(1.35) brightness(1.03); }
 /* Deterrent-only, matches the right-click/inspect-shortcut blocking in

@@ -111,6 +111,8 @@ function ProtectedRoute({ children }) {
     const html = document.documentElement;
     html.classList.toggle('reduced-motion-pref', !!userSettings?.reducedMotion);
     html.classList.toggle('high-contrast-pref', !!userSettings?.highContrast);
+    // Só liga o filter de saturação quando sai do padrão (ver global.css).
+    html.classList.toggle('saturation-pref', Number(userSettings?.saturation ?? 100) !== 100);
     html.style.setProperty('--font-scale', userSettings?.textScale ?? 1);
     html.style.setProperty('--saturation', `${userSettings?.saturation ?? 100}%`);
   }, [userSettings]);

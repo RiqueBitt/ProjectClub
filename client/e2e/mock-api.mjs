@@ -65,6 +65,16 @@ export function handler(route) {
   const p = url.pathname.replace(/^\/api/, '');
   const json = (body, status = 200) => route.fulfill({ status, contentType: 'application/json', body: JSON.stringify(body) });
   if (p === '/bootstrap') return bootstrapMock(route, url);
+  // Salvar o perfil devolve o usuário atualizado, como o servidor real
+  // (users.js → updateProfile). Sem isso a resposta caía no genérico lá
+  // embaixo, sem "user", e o app fazia setUser(undefined) → tela de login
+  // no meio do teste (editor-perfil falhava quando o salvamento automático
+  // terminava antes do fim do teste).
+  if (p === '/users/me' && req.method() === 'PATCH') {
+    let patch = {};
+    try { patch = JSON.parse(req.postData() || '{}'); } catch { /* corpo não-JSON */ }
+    return json({ user: { ...me, ...patch } });
+  }
   // Links bonitos: /canal/<nome> ou o antigo /channels/<id> → canal.
   if (p === '/links/resolve') {
     const m = (url.searchParams.get('path') || '').match(/^\/(?:canal|channels)\/([^/?#]+)/);

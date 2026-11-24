@@ -101,7 +101,7 @@ test('menu da mensagem enxuto: reações, 4 ações rápidas e o resto guardado 
   await expect(page.locator('.chat-reply-banner')).toBeVisible();
 });
 
-test('perfil completo: até 4 insígnias no topo e barra do Windows 2000 dentro do cartão', async ({ page }) => {
+test('perfil completo: até 4 insígnias no topo e barra do Windows 2000 dentro do cartão', async ({ page, isMobile }) => {
   const keys = ['PLATFORM_OWNER', 'STAFF', 'ADMIN', 'BUG_HUNTER', 'BETA_TESTER', 'NEWCOMER'];
   const profile = {
     user: { ...ME, accountLevel: 7, profileStyle: 'win2000', bio: 'oi' }, levelProgress: 40, mutualFriends: [],
@@ -126,6 +126,8 @@ test('perfil completo: até 4 insígnias no topo e barra do Windows 2000 dentro 
   if (!(await head.count())) {
     // Abre pelo próprio avatar da barra do usuário, se a rota não existir.
     await page.goto('/channels/ch2');
+    // No celular a lista de membros é uma gaveta: abre pelo botão de pessoas.
+    if (isMobile) await page.locator('.mobile-members-toggle').click();
     await page.locator('.member-row').first().click();
     await page.getByRole('button', { name: /Ver perfil completo/ }).click();
   }

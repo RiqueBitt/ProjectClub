@@ -100,11 +100,21 @@ test('painel: gerenciamento de instâncias lista Amigos e Empresarial e libera a
   await expect(page.locator('.inst-members li')).toHaveCount(1);
 });
 
-test('lista de membros: fecha pelo X do cabeçalho e reabre pela setinha', async ({ page }) => {
+test('lista de membros: fecha pelo X do cabeçalho e reabre pela setinha', async ({ page }, testInfo) => {
   await page.goto('/');
   const list = page.getByRole('complementary', { name: 'Membros' });
   await expect(list).toBeVisible({ timeout: 20_000 });
   await expect(list.locator('.members-list-title')).toContainText('Membros');
+  if (testInfo.project.name === 'celular') {
+    // No celular a lista é uma gaveta fora da tela: abre pelo botão de
+    // pessoas do cabeçalho do chat e o X só tira ela da tela (não some do DOM).
+    await expect(list).not.toBeInViewport();
+    await page.locator('.mobile-members-toggle').click();
+    await expect(list).toBeInViewport();
+    await list.getByRole('button', { name: 'Fechar lista de membros' }).click();
+    await expect(list).not.toBeInViewport();
+    return;
+  }
   await list.getByRole('button', { name: 'Fechar lista de membros' }).click();
   await expect(list).toBeHidden();
   await page.getByRole('button', { name: 'Mostrar painel lateral' }).click();
@@ -125,7 +135,7 @@ test('barra do topo: só a barra de busca, sem lupa solta e sem "Ctrl K"', async
   }
 });
 
-test('BLACKOUT: botão só nos destaques da instância BLACKOUT e abre o compêndio', async ({ page }) => {
+test('BLACKOUT: botão só nos destaques da instância BLACKOUT e abre o compêndio', async ({ page }, testInfo) => {
   let current = 'publica';
   const list = [...INSTANCES, { id: 'blackout', name: 'BLACKOUT', icon: '🎲', isPublic: false }];
   await page.route('**/api/bootstrap**', (r) => r.fulfill({ status: 404, contentType: 'application/json', body: '{}' }));
@@ -153,6 +163,11 @@ test('BLACKOUT: botão só nos destaques da instância BLACKOUT e abre o compên
   await page.getByRole('listbox', { name: 'Escolher instância' }).getByRole('option', { name: /BLACKOUT/ }).click();
   const bo = page.locator('.featured-blackout');
   await expect(bo).toBeVisible();
+  // No celular os destaques ficam na gaveta de canais (botão ☰ do topo).
+  if (testInfo.project.name === 'celular') {
+    await page.getByRole('button', { name: 'Abrir canais e categorias' }).click();
+    await expect(bo).toBeInViewport();
+  }
   await bo.click();
   await expect(page).toHaveURL(/\/compendio-blackout$/);
   await expect.poll(() => sessions).toBe(1);
