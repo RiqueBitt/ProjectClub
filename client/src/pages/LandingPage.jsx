@@ -598,12 +598,24 @@ export default function LandingPage() {
               <p className="lp-copy">
                 Canais de texto e de voz, um fórum com temas, amigos, conquistas e uma economia com moedas, casas e figurinhas. Parece Discord por fora, mas é nosso por dentro: a gente decide o que entra.
               </p>
-              <dl className="lp-facts">
-                <div><dt>Tempo real</dt><dd>Mensagens, voz e presença atualizam na hora, sem recarregar.</dd></div>
-                <div><dt>Conquistas</dt><dd>18 para desbloquear, com raridades e destaque no perfil.</dd></div>
-                <div><dt>Perfil seu</dt><dd>Cor, banner, conexões e o que você quiser mostrar.</dd></div>
-                <div><dt>Segurança</dt><dd>Verificação em duas etapas, sessões por aparelho e moderação ativa.</dd></div>
-              </dl>
+              <ul className="lp-perks">
+                <li data-spot>
+                  <div className="lp-perk-demo is-typing" aria-hidden="true"><span className="lp-perk-dots"><i /><i /><i /></span>Rique está digitando</div>
+                  <b>Tempo real</b><p>Mensagens, voz e presença atualizam na hora, sem recarregar.</p>
+                </li>
+                <li data-spot>
+                  <div className="lp-perk-demo is-trophy" aria-hidden="true"><span className="lp-perk-ring">18</span>conquistas, com raridades</div>
+                  <b>Conquistas</b><p>18 para desbloquear, com raridades e destaque no perfil.</p>
+                </li>
+                <li data-spot>
+                  <div className="lp-perk-demo is-profile" aria-hidden="true"><span className="lp-perk-avatar" /><span className="lp-perk-swatches"><i /><i /><i /><i /></span></div>
+                  <b>Perfil seu</b><p>Cor, banner, conexões e o que você quiser mostrar.</p>
+                </li>
+                <li data-spot>
+                  <div className="lp-perk-demo is-code" aria-hidden="true">{'482913'.split('').map((d, i) => <i key={i} style={{ '--i': i }}>{d}</i>)}</div>
+                  <b>Segurança</b><p>Verificação em duas etapas, sessões por aparelho e moderação ativa.</p>
+                </li>
+              </ul>
             </div>
           </div>
         </section>
