@@ -8,8 +8,9 @@ const path = require('path');
 const au = require('../modAutoUpdate');
 
 test('configuração: desligada por padrão; arquivo estragado não quebra', () => {
-  assert.deepEqual(au.sanitizeSettings(undefined), { enabled: false, games: {} });
-  assert.deepEqual(au.sanitizeSettings({ enabled: 'sim', games: { abc: true, 10: 'x', 20: false, '-1': true } }), { enabled: false, games: { 20: false } });
+  assert.deepEqual(au.sanitizeSettings(undefined), { enabled: true, games: {} });
+  assert.deepEqual(au.sanitizeSettings({ enabled: 'sim', games: { abc: true, 10: 'x', 20: false, '-1': true } }), { enabled: true, games: { 20: false } });
+  assert.deepEqual(au.sanitizeSettings({ enabled: false }), { enabled: false, games: {} });
   assert.deepEqual(au.applyPatch({ enabled: false }, { enabled: true, game: { steamAppId: 892970, enabled: false } }), { enabled: true, games: { 892970: false } });
   assert.deepEqual(au.applyPatch({ enabled: true }, { game: { steamAppId: 'lixo', enabled: true } }), { enabled: true, games: {} });
 });
@@ -17,6 +18,8 @@ test('configuração: desligada por padrão; arquivo estragado não quebra', () 
 test('configuração: grava em disco (troca atômica) e lê de volta', () => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'pc-autoupd-'));
   const store = au.createSettingsStore(dir);
+  assert.equal(store.get().enabled, true);
+  store.set({ enabled: false });
   assert.equal(store.get().enabled, false);
   store.set({ enabled: true });
   store.set({ game: { steamAppId: 1966720, enabled: false } });
@@ -24,7 +27,7 @@ test('configuração: grava em disco (troca atômica) e lê de volta', () => {
   assert.deepEqual(again, { enabled: true, games: { 1966720: false } });
   assert.equal(fs.existsSync(path.join(dir, `${au.SETTINGS_FILE}.tmp`)), false);
   fs.writeFileSync(path.join(dir, au.SETTINGS_FILE), '{quebrado');
-  assert.deepEqual(au.createSettingsStore(dir).get(), { enabled: false, games: {} });
+  assert.deepEqual(au.createSettingsStore(dir).get(), { enabled: true, games: {} });
 });
 
 test('jogo ligado = global ligado e o jogo não desligado', () => {

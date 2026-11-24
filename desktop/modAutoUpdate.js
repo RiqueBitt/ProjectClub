@@ -25,7 +25,9 @@ const SETTINGS_FILE = 'mods-auto-update.json';
 const MIN_INTERVAL_MS = 20 * 60 * 1000;
 const MAX_GAMES = 500;
 
-const DEFAULT_SETTINGS = Object.freeze({ enabled: false, games: {} });
+// Ligada por padrão (pedido do dono): quem nunca mexeu já recebe as
+// atualizações; quem desligar na mão continua desligado (fica salvo false).
+const DEFAULT_SETTINGS = Object.freeze({ enabled: true, games: {} });
 
 function validAppId(id) {
   const n = Number(id);
@@ -41,7 +43,7 @@ function sanitizeSettings(raw) {
     const id = validAppId(k);
     if (id && typeof v === 'boolean') games[id] = v;
   }
-  return { enabled: src.enabled === true, games };
+  return { enabled: src.enabled !== false, games };
 }
 
 // Aplica uma mudança vinda do site: { enabled?, game?: { steamAppId, enabled } }.
