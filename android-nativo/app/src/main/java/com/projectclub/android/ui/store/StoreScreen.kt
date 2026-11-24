@@ -586,7 +586,7 @@ private fun CardStylesSection(repo: com.projectclub.android.data.Repository, me:
         if (w == null) { if (err == null) Text("Carregando…", color = PC.Muted) } else CARD_OPTIONS.forEach { (id, name, desc) ->
             val unlocked = id == "DEFAULT" || id in w.cardStyles
             val current = (w.cardStyle ?: "DEFAULT") == id
-            PcCard(Modifier.fillMaxWidth(), padding = PaddingValues(14.dp), border = if (current) PC.Green.copy(alpha = 0.6f) else PC.Line) {
+            com.projectclub.android.ui.common.PcCard(Modifier.fillMaxWidth(), padding = PaddingValues(14.dp), border = if (current) PC.Green.copy(alpha = 0.6f) else PC.Line) {
                 Box(Modifier.graphicsLayer { alpha = if (unlocked) 1f else 0.7f }) {
                     com.projectclub.android.ui.economy.FlipWalletCard(w.copy(cardStyle = id), me, hint = false)
                 }
