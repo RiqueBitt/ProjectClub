@@ -51,7 +51,7 @@ const OUTER_KEYS = ['margin', 'marginLeft', 'marginRight', 'marginTop', 'marginB
 export default function UserAvatar({ user, size = 32, className = '', style = {}, noDecoration = false }) {
   const deco = noDecoration ? null : parseDecoration(user?.avatarDecoration);
   if (!deco) return <BaseAvatar user={user} size={size} className={className} style={style} />;
-  const scale = Math.min(2, Math.max(1, Number(deco.s) || 1.2));
+  const scale = Math.min(2.8, Math.max(1, Number(deco.s) || 1.2));
   // A caixa (layout) continua com o tamanho do avatar; só a moldura cresce.
   const decoSize = Math.round(size * scale);
   // Camadas EXPLÍCITAS dentro do próprio componente (contexto de

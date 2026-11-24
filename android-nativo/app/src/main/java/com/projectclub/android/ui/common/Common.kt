@@ -62,7 +62,7 @@ fun avatarDecorationOf(raw: String?): AvatarDeco? {
             val o = org.json.JSONObject(raw)
             val url = o.optString("url")
             if (url.isBlank()) noDeco
-            else AvatarDeco(url, o.optDouble("s", 1.2).toFloat().coerceIn(1f, 2f), o.optDouble("x", 0.0).toFloat(), o.optDouble("y", 0.0).toFloat())
+            else AvatarDeco(url, o.optDouble("s", 1.2).toFloat().coerceIn(1f, 2.8f), o.optDouble("x", 0.0).toFloat(), o.optDouble("y", 0.0).toFloat())
         }.getOrDefault(noDeco)
     }
     return d.takeIf { it.url.isNotBlank() }

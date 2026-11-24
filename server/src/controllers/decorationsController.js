@@ -72,7 +72,7 @@ function readFields(body) {
   if (body.name !== undefined) data.name = String(body.name).trim().slice(0, 60);
   if (body.priceCoins !== undefined) data.priceCoins = priceOrNull(body.priceCoins);
   if (body.priceGems !== undefined) data.priceGems = priceOrNull(body.priceGems);
-  if (body.scale !== undefined) data.scale = clamp(body.scale, 0.8, 2, 1.2);
+  if (body.scale !== undefined) data.scale = clamp(body.scale, 0.8, 2.8, 1.2);
   if (body.offsetX !== undefined) data.offsetX = clamp(body.offsetX, -50, 50, 0);
   if (body.offsetY !== undefined) data.offsetY = clamp(body.offsetY, -50, 50, 0);
   if (body.active !== undefined) data.active = body.active === true || body.active === 'true';
