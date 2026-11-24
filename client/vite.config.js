@@ -100,6 +100,11 @@ export default defineConfig({
           // jogava ele no pacote inicial. Pacote próprio = só baixa ao abrir
           // um arquivo de código.
           if (id.includes('/highlight.js/')) return 'vendor-hljs';
+          // Mesmo caso: o 3D dos pacotes da loja (three, ~580 KB) e o editor do
+          // Dev Studio (CodeMirror + Lezer, ~400 KB) já vêm por import(), mas
+          // caíam no vendor geral e todo mundo baixava logo de cara.
+          if (id.includes('/three/')) return 'vendor-three';
+          if (/\/node_modules\/(@codemirror|@lezer|codemirror|style-mod|w3c-keyname|crelt|@marijn)\//.test(id)) return 'vendor-codemirror';
           // Plugins nativos do Capacitor (só o app Android usa, todos por
           // import() dinâmico). O @capacitor/core fica no vendor geral.
           if (/\/node_modules\/(@capacitor\/(app|filesystem|push-notifications)|@capawesome|@m430|@anuradev)\//.test(id)) return 'vendor-native';
