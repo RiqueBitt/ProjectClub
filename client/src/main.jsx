@@ -5,6 +5,7 @@ import App from './App.jsx';
 import { AuthProvider } from './context/AuthContext.jsx';
 import { RouteErrorBoundary } from './components/ErrorBoundary.jsx';
 import './styles/global.css';
+import './styles/name-fx.css';
 // Correção de responsividade mobile da barra lateral de Configurações —
 // mantida em arquivo próprio (ver o comentário completo no topo do
 // arquivo) em vez de dentro de global.css, que já está com ~400KB.

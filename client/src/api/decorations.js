@@ -50,6 +50,9 @@ export const buyStyle = (id, currency, expectedPrice, coupon) => api.post(`/deco
 // Cestinha da Loja: compra vários itens de uma vez (tudo ou nada).
 export const checkoutBasket = (items) => api.post('/decorations/checkout', { items }).then((r) => r.data);
 export const equipStyle = (id) => api.post('/decorations/styles/equip', { id }).then((r) => r.data);
+// Efeitos de texto do nome (no lugar dos efeitos de perfil).
+export const buyTextEffect = (id, currency, expectedPrice, coupon) => api.post(`/decorations/text-effects/${id}/buy`, { currency, expectedPrice, ...(coupon ? { coupon } : {}) }).then((r) => r.data);
+export const equipTextEffect = (id) => api.post('/decorations/text-effects/equip', { id }).then((r) => r.data);
 
 // Itens limitados e trocas.
 export const getLimiteds = (userId = 'me') => api.get(`/decorations/limiteds/${encodeURIComponent(userId)}`).then((r) => r.data);

@@ -47,7 +47,7 @@ import ClanIcon from '../ClanIcon.jsx';
 import UserAvatar from '../UserAvatar.jsx';
 import { usePopoverCoordination } from '../../utils/popoverCoordinator';
 import { isGradientColor, gradientStops, makeGradient } from '../../utils/roleColor';
-import { NAME_FONTS, NAME_EFFECTS, nameStyleProps, nameStyleClassName, FONT_FAMILY, DEFAULT_MULTI_COLORS } from '../../utils/nameStyle';
+import { NAME_FONTS, NAME_EFFECTS, nameStyleProps, nameStyleClassName, FONT_FAMILY, DEFAULT_MULTI_COLORS, isTextFx } from '../../utils/nameStyle';
 import { EMOJI_STYLE_OPTIONS, emojiImageUrl, useEmojiSet } from '../../utils/emojiStyle';
 import { isEyeDropperSupported, pickColorFromScreen } from '../../utils/eyeDropper';
 
@@ -1052,7 +1052,26 @@ export default function UserSettingsModal({ onClose, mode = 'settings', initialT
                   </button>
                 );
               })}
+              {/* Efeitos de texto comprados na Loja: equipam na hora (o salvar
+                  do perfil só aceita os grátis, então o form acompanha). */}
+              {(shop.owned?.textfx || []).map((i) => {
+                const u = { ...previewUser, profileNameEffect: i.fx };
+                const on = form.profileNameEffect === i.fx;
+                return (
+                  <button
+                    type="button" key={i.id} role="radio" aria-checked={on} className={`pe-font is-shop${on ? ' is-on' : ''}`} disabled={!!shop.busy || !i.fx}
+                    title={i.description || i.name}
+                    onClick={async () => { if (on) return; await shop.equip('textfx', i); setForm((st) => ({ ...st, profileNameEffect: i.fx })); }}
+                  >
+                    <span className={`pe-font-sample ${nameStyleClassName(u, { fullEffect: true })}`} style={nameStyleProps(u, { fullEffect: true })}>Abc</span>
+                    <span className="pe-font-label">{i.name}</span>
+                  </button>
+                );
+              })}
             </div>
+            {isTextFx(form.profileNameEffect) ? (
+              <p className="pe-group-desc">Esse efeito da Loja tem cores próprias.</p>
+            ) : (
             <div className="pe-card pe-name-colors">
                 {form.profileNameEffect !== 'RAINBOW' && (
                   <div className="name-style-color-row">
@@ -1075,6 +1094,7 @@ export default function UserSettingsModal({ onClose, mode = 'settings', initialT
                   <NameColorPresets setForm={setForm} />
                 )}
             </div>
+            )}
           </section>
           <section className="pe-group" aria-labelledby="pe-g-banners">
             <h3 className="pe-group-title" id="pe-g-banners">Banners e cor</h3>
@@ -1153,12 +1173,9 @@ export default function UserSettingsModal({ onClose, mode = 'settings', initialT
             )}
           </section>
           <section className="pe-group" aria-labelledby="pe-g-efeitos">
-            <h3 className="pe-group-title" id="pe-g-efeitos">Estilo e efeitos do perfil</h3>
+            <h3 className="pe-group-title" id="pe-g-efeitos">Estilo do perfil</h3>
             <p className="pe-group-desc">Itens que você tem da Loja.</p>
-            <h4 className="pe-sub">Estilo do perfil</h4>
             <ShopTileGrid kind="style" shop={shop} user={previewUser} />
-            <h4 className="pe-sub">Efeito do perfil</h4>
-            <ShopTileGrid kind="effect" shop={shop} user={previewUser} />
             {shop.msg && <p className={`pe-shop-msg${shop.msg.bad ? ' is-bad' : ''}`} role="status">{shop.msg.text}</p>}
           </section>
           <section className="pe-group" aria-labelledby="pe-g-sobre">

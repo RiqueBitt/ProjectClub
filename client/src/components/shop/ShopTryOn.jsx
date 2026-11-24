@@ -1,12 +1,12 @@
 import { useMemo, useState } from 'react';
 import { Ico } from '../PagesKit.jsx';
-import { MockProfile, decoValue, effectValue } from './ShopPreviews.jsx';
-import { nameStyleProps } from '../../utils/nameStyle';
+import { MockProfile, decoValue } from './ShopPreviews.jsx';
+import { nameStyleProps, nameStyleClassName } from '../../utils/nameStyle';
 
 // Provador da Loja (igual ao "Painel de estilos de perfil" do Discord):
-// combine moldura, efeito, estilo e fonte e veja no seu perfil antes de
+// combine moldura, efeito de texto, estilo e fonte e veja no seu perfil antes de
 // comprar. Mostra o que falta comprar e quanto custa tudo junto.
-const KINDS = [['deco', 'Moldura'], ['effect', 'Efeito'], ['style', 'Estilo de perfil'], ['font', 'Fonte do nome']];
+const KINDS = [['deco', 'Moldura'], ['textfx', 'Efeito de texto'], ['style', 'Estilo de perfil'], ['font', 'Fonte do nome']];
 const styleKey = (i) => i?.data?.style || (i?.key || '').replace(/^style:/, '') || null;
 const fontRaw = (i) => (i?.data?.family ? JSON.stringify({ id: i.id, family: i.data.family, url: i.data.url || null }) : null);
 const fmt = (n) => Number(n || 0).toLocaleString('pt-BR');
@@ -14,7 +14,7 @@ const fmt = (n) => Number(n || 0).toLocaleString('pt-BR');
 export default function ShopTryOn({ items, user, data, ctx }) {
   const equipped = useMemo(() => ({
     deco: items.find((i) => i.kind === 'deco' && i.id === data?.equippedId) || null,
-    effect: items.find((i) => i.kind === 'effect' && i.id === data?.equippedEffectId) || null,
+    textfx: items.find((i) => i.kind === 'textfx' && i.fx && i.fx === data?.equippedTextEffect) || null,
     style: items.find((i) => i.kind === 'style' && styleKey(i) === data?.equippedStyle) || null,
     font: items.find((i) => i.kind === 'font' && i.id === data?.equippedFontId) || null,
   }), [items, data]);
@@ -22,14 +22,14 @@ export default function ShopTryOn({ items, user, data, ctx }) {
   const [tab, setTab] = useState('deco');
   const [mode, setMode] = useState('full');
 
-  const previewUser = { ...user, profileFont: pick.font ? fontRaw(pick.font) : null };
+  const previewUser = { ...user, profileFont: pick.font ? fontRaw(pick.font) : null, ...(pick.textfx ? { profileNameEffect: pick.textfx.fx } : {}) };
   const missing = Object.values(pick).filter((i) => i && !i.owned && !i.locked);
   const totalCoins = missing.reduce((s, i) => s + (i.pricing?.coins?.final ?? i.priceCoins ?? 0), 0);
   const allOwned = Object.values(pick).every((i) => !i || i.owned);
   const list = items.filter((i) => i.kind === tab && !i.locked);
 
   const useOwned = async () => {
-    for (const k of ['deco', 'effect', 'style', 'font']) {
+    for (const k of ['deco', 'textfx', 'style', 'font']) {
       const it = pick[k];
       const isOn = it && ctx.isEquipped(it);
       if (it && it.owned && !isOn) await ctx.equip(it, true);
@@ -47,9 +47,9 @@ export default function ShopTryOn({ items, user, data, ctx }) {
             ))}
           </div>
           <div className={`tryon-preview m-${mode}`}>
-            <MockProfile user={previewUser} size={mode} deco={pick.deco ? decoValue(pick.deco) : null} effect={pick.effect ? effectValue(pick.effect) : null} style={pick.style ? styleKey(pick.style) : null} wide={mode === 'full'} />
+            <MockProfile user={previewUser} size={mode} deco={pick.deco ? decoValue(pick.deco) : null} nameFx={pick.textfx ? pick.textfx.fx : undefined} style={pick.style ? styleKey(pick.style) : null} wide={mode === 'full'} />
           </div>
-          <div className="tryon-name" style={nameStyleProps(previewUser)}>{user?.displayName}</div>
+          <div className="tryon-name"><span className={nameStyleClassName(previewUser, { fullEffect: true })} style={nameStyleProps(previewUser, { fullEffect: true })}>{user?.displayName}</span></div>
           <div className="tryon-summary">
             {missing.length === 0 ? (
               <span>{allOwned ? 'Você já tem tudo desse visual.' : 'Escolha itens ao lado.'}</span>
@@ -76,7 +76,8 @@ export default function ShopTryOn({ items, user, data, ctx }) {
             {list.map((i) => (
               <button key={i.id} type="button" className={`tryon-item${pick[tab]?.id === i.id ? ' on' : ''}`} onClick={() => setPick((p) => ({ ...p, [tab]: i }))} title={i.name}>
                 <span className="tryon-item-art">
-                  {i.kind === 'deco' || i.kind === 'effect' ? (i.imageUrl ? <img src={i.imageUrl} alt="" loading="lazy" /> : <Ico name="sparkles" size={20} />)
+                  {i.kind === 'deco' ? (i.imageUrl ? <img src={i.imageUrl} alt="" loading="lazy" /> : <Ico name="sparkles" size={20} />)
+                    : i.kind === 'textfx' ? <span style={nameStyleProps({ ...user, profileNameEffect: i.fx }, { fullEffect: true })} className={nameStyleClassName({ profileNameEffect: i.fx }, { fullEffect: true })}>Aa</span>
                     : i.kind === 'font' ? <span style={nameStyleProps({ ...user, profileFont: fontRaw(i) })}>Aa</span> : <Ico name="palette" size={20} />}
                 </span>
                 <span className="tryon-item-name">{i.name}</span>

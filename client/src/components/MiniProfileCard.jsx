@@ -18,7 +18,6 @@ import PendantIcon from './PendantIcon.jsx';
 import { nameStyleProps, nameStyleClassName } from '../utils/nameStyle';
 import BannerImage from './ProfileBanner.jsx';
 import { canViewProfileImage, viewProfileImage } from '../utils/viewProfileImage';
-import ProfileEffectOverlay from './ProfileEffectOverlay.jsx';
 import { profileStyleClass } from '../utils/profileStyle';
 import { cssZoom } from '../utils/cssZoom';
 import { MiniProfilePet } from './pet/ProfilePet.jsx';
@@ -360,7 +359,7 @@ export default function MiniProfileCard({ preview = null } = {}) {
       }}
     >
       {!user && <p className="dim" style={{ padding: 16 }}>Carregando...</p>}
-      {user?.profileEffect && <ProfileEffectOverlay effect={user.profileEffect} variant="mini" />}
+      {/* Efeitos de perfil saíram (no lugar: efeitos de texto no nome). */}
       {/* Seu próprio miniperfil: atalho discreto pro Editor de perfil. */}
       {user && !preview && isMine && (
         <button type="button" className="mini-profile-edit-corner" onClick={() => { closeMiniProfile(); useStore.getState().openProfileEditor(); }} title="Editar perfil">
