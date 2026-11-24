@@ -119,17 +119,22 @@ fun ChannelsTab(repo: Repository, actions: HomeActions) {
                 Column(Modifier.padding(horizontal = 10.dp, vertical = 8.dp), verticalArrangement = Arrangement.spacedBy(2.dp)) {
                     // Iguais aos do site (FeaturedChannels.jsx, "minimalistas"): só o ícone colorido,
                     // sem fundo nem borda. (A Guerra das Cartas está desativada.)
-                    // Assinatura (nov/2026): sempre no topo, em dourado — abre a página de planos.
-                    Featured(Icons.Outlined.WorkspacePremium, "Assinatura", Color(0xFFF5C542), gold = true) { actions.openWeb("/assinatura") }
+                    // Assinatura (nov/2026): faixa dourada no topo — abre a página de planos.
+                    FeaturedBanner(Icons.Outlined.WorkspacePremium, "Assinatura", "Planos e vantagens", gold = true) { actions.openWeb("/assinatura") }
                     // BLACKOUT: só dentro da instância BLACKOUT; abre o compêndio em tela cheia.
                     if (c.community?.instance == "blackout") {
                         val ctx = androidx.compose.ui.platform.LocalContext.current
-                        Featured(Icons.Outlined.Casino, "BLACKOUT", Color.White) { com.projectclub.android.ui.praca.BlackoutActivity.open(ctx) }
+                        FeaturedBanner(Icons.Outlined.Casino, "BLACKOUT", "Compêndio do RPG") { com.projectclub.android.ui.praca.BlackoutActivity.open(ctx) }
                     }
-                    Featured(Icons.Outlined.GridView, "Central", Color(0xFF4F8CFF)) { actions.openWeb("/inicio") }
-                    Featured(Icons.Outlined.People, "Amigos", Color(0xFFFF8A3D)) { actions.openWeb("/dms") }
-                    Featured(Icons.Outlined.MonetizationOn, "Economia", PC.Store) { actions.openWeb("/economia") }
-                    Featured(Icons.Outlined.EmojiEvents, "Progresso", Color(0xFFF5C518)) { actions.openWeb("/progresso") }
+                    // Blocos 2×N (iguais aos do site): ícone colorido em cima, nome embaixo.
+                    Row(Modifier.fillMaxWidth().padding(top = 4.dp), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                        Featured(Icons.Outlined.GridView, "Central", Color(0xFF4F8CFF), Modifier.weight(1f)) { actions.openWeb("/inicio") }
+                        Featured(Icons.Outlined.People, "Amigos", Color(0xFFFF8A3D), Modifier.weight(1f)) { actions.openWeb("/dms") }
+                    }
+                    Row(Modifier.fillMaxWidth().padding(top = 4.dp), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                        Featured(Icons.Outlined.MonetizationOn, "Economia", PC.Store, Modifier.weight(1f)) { actions.openWeb("/economia") }
+                        Featured(Icons.Outlined.EmojiEvents, "Progresso", Color(0xFFF5C518), Modifier.weight(1f)) { actions.openWeb("/progresso") }
+                    }
                 }
                 Box(Modifier.padding(horizontal = 14.dp).fillMaxWidth().height(1.dp).background(PC.Line))
             }
@@ -169,25 +174,43 @@ private fun Banner(name: String, bannerUrl: String?, iconUrl: String?) {
 }
 
 @Composable
-private fun Featured(icon: ImageVector, label: String, color: Color, gold: Boolean = false, onClick: () -> Unit) {
-    // Centralizados (ícone + nome no meio), iguais aos do site.
-    val shape = RoundedCornerShape(10.dp)
-    Row(
-        Modifier.fillMaxWidth().heightIn(min = 44.dp).clip(shape)
-            .then(
-                if (gold) Modifier.background(Brush.horizontalGradient(listOf(Color(0x2EF5C542), Color(0x14FF9F1C))))
-                    .border(1.dp, Color(0x4DF5C542), shape) else Modifier,
-            )
-            .clickable(onClick = onClick).padding(horizontal = 10.dp),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.Center,
+private fun Featured(icon: ImageVector, label: String, color: Color, modifier: Modifier = Modifier, onClick: () -> Unit) {
+    val shape = RoundedCornerShape(12.dp)
+    Column(
+        modifier.heightIn(min = 68.dp).clip(shape).background(color.copy(alpha = 0.09f)).border(1.dp, color.copy(alpha = 0.18f), shape)
+            .clickable(onClick = onClick).padding(vertical = 10.dp, horizontal = 6.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.Center,
     ) {
-        Icon(icon, null, tint = color, modifier = Modifier.size(21.dp))
+        Box(Modifier.size(32.dp).clip(RoundedCornerShape(10.dp)).background(color.copy(alpha = 0.24f)), contentAlignment = Alignment.Center) {
+            Icon(icon, null, tint = color, modifier = Modifier.size(19.dp))
+        }
+        Spacer(Modifier.height(6.dp))
+        Text(label, color = PC.Text, fontSize = 13.sp, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
+    }
+}
+
+/** Faixa larga dos destaques (Assinatura em dourado; BLACKOUT em preto). */
+@Composable
+private fun FeaturedBanner(icon: ImageVector, label: String, sub: String, gold: Boolean = false, onClick: () -> Unit) {
+    val shape = RoundedCornerShape(14.dp)
+    val bg = if (gold) Brush.horizontalGradient(listOf(Color(0x33F5C542), Color(0x14FF9F1C))) else Brush.horizontalGradient(listOf(Color(0xFF1B1C22), Color(0xFF0A0A0D)))
+    Row(
+        Modifier.fillMaxWidth().padding(top = 4.dp).heightIn(min = 56.dp).clip(shape).background(bg)
+            .border(1.dp, if (gold) Color(0x59F5C542) else Color(0x1FFFFFFF), shape)
+            .clickable(onClick = onClick).padding(horizontal = 12.dp, vertical = 8.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Box(
+            Modifier.size(38.dp).clip(RoundedCornerShape(11.dp))
+                .background(if (gold) Brush.linearGradient(listOf(Color(0xFFF5C542), Color(0xFFFF9F1C))) else Brush.linearGradient(listOf(Color(0xFF2A2B33), Color(0xFF111114)))),
+            contentAlignment = Alignment.Center,
+        ) { Icon(icon, null, tint = if (gold) Color(0xFF2A1800) else Color.White, modifier = Modifier.size(22.dp)) }
         Spacer(Modifier.width(12.dp))
-        Text(
-            label, color = if (gold) Color(0xFFFFE7A6) else PC.Text, style = MaterialTheme.typography.titleMedium,
-            fontWeight = if (gold) FontWeight.Bold else FontWeight.Medium,
-        )
+        Column(Modifier.weight(1f)) {
+            Text(label, color = if (gold) Color(0xFFFFE7A6) else Color.White, fontSize = 15.sp, fontWeight = FontWeight.ExtraBold, letterSpacing = if (gold) 0.sp else 2.sp)
+            Text(sub, color = if (gold) Color(0xFFF5D78A) else PC.Muted, fontSize = 11.5.sp)
+        }
     }
 }
 
