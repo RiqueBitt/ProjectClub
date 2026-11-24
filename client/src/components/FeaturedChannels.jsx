@@ -27,6 +27,7 @@ import '../styles/socialx.css';
 // páginas nesse layout). O Fórum saiu do menu; a rota /comunidades continua.
 
 const PATHS = {
+  crown: 'M3 8l4.5 4L12 5l4.5 7L21 8l-2 10H5L3 8ZM5 21h14',
   megaphone: 'M3 11v2a1 1 0 0 0 1 1h2l5 4V6L6 10H4a1 1 0 0 0-1 1zM15 9a3 3 0 0 1 0 6M18 6a7 7 0 0 1 0 12',
   calendar: 'M7 3v3M17 3v3M4 8h16M5 5h14a1 1 0 0 1 1 1v13a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V6a1 1 0 0 1 1-1zM8 12h3v3H8z',
   feed: 'M4 5h16v14H4zM8 9h8M8 13h8M8 17h4',
@@ -68,6 +69,11 @@ export function FeaturedGlyph({ name, size = 16 }) {
 // Progresso. (Suporte foi pro topo: TopSearchBar.jsx; Novidades entrou na
 // Central.)
 export const FEATURED = [
+  // Assinatura (nov/2026): sempre no topo, em dourado. Era uma aba da Loja.
+  {
+    key: 'assinatura', label: 'Assinatura', icon: 'crown', to: '/assinatura',
+    hint: 'Planos de assinatura e vantagens', match: (p) => p.startsWith('/assinatura'), fixed: true,
+  },
   {
     key: 'arena', label: 'Guerra das Cartas', icon: 'cards', to: '/cartas',
     hint: 'Jogo de cartas: colecione, monte seu baralho e batalhe', match: (p) => p.startsWith('/cartas'),

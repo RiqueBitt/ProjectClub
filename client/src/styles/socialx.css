@@ -523,3 +523,18 @@ button.sx-item-body:hover { border-color: color-mix(in srgb, var(--brand) 40%, v
 .featured-channels .sidebar-item.featured-blackout { background: linear-gradient(100deg, rgba(255, 255, 255, .10), rgba(0, 0, 0, .35)); border: 1px solid rgba(255, 255, 255, .10); }
 .featured-channels .featured-blackout .featured-channel-name { letter-spacing: .14em; font-weight: 800; }
 .featured-channels .featured-blackout .featured-channel-icon { background: #0b0b0d; color: #fff; box-shadow: 0 0 0 1px rgba(255, 255, 255, .35), 0 0 12px rgba(255, 255, 255, .18); }
+
+/* Canais em destaque centralizados (ícone + nome no meio da faixa). */
+.featured-channels .sidebar-item.featured-channel,
+.n2-sidebar .featured-channels .sidebar-item.featured-channel { justify-content: center; text-align: center; }
+.featured-channels .sidebar-item.featured-channel .featured-channel-name { flex: 0 1 auto; }
+/* Assinatura: no topo, em dourado. */
+.featured-channels .sidebar-item.featured-channel.featured-assinatura,
+.n2-sidebar .featured-channels .sidebar-item.featured-channel.featured-assinatura {
+  --fc: #f5c542; font-weight: 700; color: #ffe7a6;
+  background: linear-gradient(100deg, rgba(245, 197, 66, .18), rgba(255, 159, 28, .08)); box-shadow: inset 0 0 0 1px rgba(245, 197, 66, .3);
+}
+.featured-channels .sidebar-item.featured-channel.featured-assinatura:hover { background: linear-gradient(100deg, rgba(245, 197, 66, .26), rgba(255, 159, 28, .12)); color: #fff3cc; }
+.featured-channels .sidebar-item.featured-channel.featured-assinatura.active { background: linear-gradient(100deg, rgba(245, 197, 66, .32), rgba(255, 159, 28, .16)); color: #fff; }
+.featured-channels .featured-assinatura .featured-channel-icon { color: #2a1800; background: linear-gradient(135deg, #f5c542, #ff9f1c); box-shadow: 0 0 12px rgba(245, 197, 66, .45); }
+.featured-channels .sidebar-item.featured-channel.featured-assinatura + .featured-channel { margin-top: 4px; }

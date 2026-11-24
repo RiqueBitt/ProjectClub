@@ -58,6 +58,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.material.icons.outlined.WorkspacePremium
 import coil.compose.AsyncImage
 import com.projectclub.android.Config
 import com.projectclub.android.data.Channel
@@ -118,6 +119,8 @@ fun ChannelsTab(repo: Repository, actions: HomeActions) {
                 Column(Modifier.padding(horizontal = 10.dp, vertical = 8.dp), verticalArrangement = Arrangement.spacedBy(2.dp)) {
                     // Iguais aos do site (FeaturedChannels.jsx, "minimalistas"): só o ícone colorido,
                     // sem fundo nem borda. (A Guerra das Cartas está desativada.)
+                    // Assinatura (nov/2026): sempre no topo, em dourado — abre a página de planos.
+                    Featured(Icons.Outlined.WorkspacePremium, "Assinatura", Color(0xFFF5C542), gold = true) { actions.openWeb("/assinatura") }
                     // BLACKOUT: só dentro da instância BLACKOUT; abre o compêndio em tela cheia.
                     if (c.community?.instance == "blackout") {
                         val ctx = androidx.compose.ui.platform.LocalContext.current
@@ -166,15 +169,25 @@ private fun Banner(name: String, bannerUrl: String?, iconUrl: String?) {
 }
 
 @Composable
-private fun Featured(icon: ImageVector, label: String, color: Color, onClick: () -> Unit) {
+private fun Featured(icon: ImageVector, label: String, color: Color, gold: Boolean = false, onClick: () -> Unit) {
+    // Centralizados (ícone + nome no meio), iguais aos do site.
+    val shape = RoundedCornerShape(10.dp)
     Row(
-        Modifier.fillMaxWidth().heightIn(min = 44.dp).clip(RoundedCornerShape(10.dp)).clickable(onClick = onClick)
-            .padding(horizontal = 10.dp),
+        Modifier.fillMaxWidth().heightIn(min = 44.dp).clip(shape)
+            .then(
+                if (gold) Modifier.background(Brush.horizontalGradient(listOf(Color(0x2EF5C542), Color(0x14FF9F1C))))
+                    .border(1.dp, Color(0x4DF5C542), shape) else Modifier,
+            )
+            .clickable(onClick = onClick).padding(horizontal = 10.dp),
         verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.Center,
     ) {
         Icon(icon, null, tint = color, modifier = Modifier.size(21.dp))
         Spacer(Modifier.width(12.dp))
-        Text(label, color = PC.Text, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Medium)
+        Text(
+            label, color = if (gold) Color(0xFFFFE7A6) else PC.Text, style = MaterialTheme.typography.titleMedium,
+            fontWeight = if (gold) FontWeight.Bold else FontWeight.Medium,
+        )
     }
 }
 

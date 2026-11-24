@@ -107,6 +107,7 @@ const EconomyPage = lazy(() => import('./EconomyPage.jsx'));
 // rota própria aqui — a rota é só /progresso agora.
 const ProgressPage = lazy(() => import('./ProgressPage.jsx'));
 const BlackoutPage = lazy(() => import('./BlackoutPage.jsx'));
+const AssinaturaPage = lazy(() => import('./AssinaturaPage.jsx'));
 const HousesPage = lazy(() => import('./HousesPage.jsx'));
 const CardsGamePage = lazy(() => import('./CardsGamePage.jsx'));
 const CardsDisabledPage = lazy(() => import('./CardsDisabledPage.jsx'));
@@ -523,6 +524,7 @@ export default function MainApp() {
                     quem tinha um deles salvo/aberto. */}
                 <Route path="/progresso" element={<ProgressPage />} />
                 <Route path="/compendio-blackout" element={<BlackoutPage />} />
+                <Route path="/assinatura" element={<AssinaturaPage />} />
                 <Route path="/rank" element={<Navigate to="/progresso" replace />} />
                 <Route path="/conquistas" element={<Navigate to="/progresso" replace />} />
                 {/* Casas e Figurinhas desligadas no código (utils/features.js) — rota antiga cai na Economia. */}
