@@ -1,5 +1,6 @@
 const prisma = require('../config/prisma');
 const env = require('../config/env');
+const { safeEqual } = require('../services/selfDeploy');
 
 // Chamado pelo GitHub Actions (não por login de usuário nenhum) toda vez
 // que uma nova versão do app (Windows/Linux/Android) termina de ser
@@ -10,7 +11,7 @@ const env = require('../config/env');
 // do GitHub — nunca por token de usuário, já que a CI não "é" ninguém.
 async function publishRelease(req, res, next) {
   try {
-    if (!env.CI_UPDATE_SECRET || req.headers['x-ci-secret'] !== env.CI_UPDATE_SECRET) {
+    if (!env.CI_UPDATE_SECRET || !safeEqual(req.headers['x-ci-secret'], env.CI_UPDATE_SECRET)) {
       return res.status(403).json({ error: 'Segredo inválido.' });
     }
     const { version, notes } = req.body;

@@ -17,6 +17,11 @@ node_modules/
 # mudam juntos) mesmo já tendo trocado antes.
 server/certs/
 
+# Chaves, certificados e bancos SQLite com dados reais, em qualquer pasta
+*.pem
+*.key
+*.db
+
 # Builds/saídas geradas
 client/dist/
 desktop/dist/

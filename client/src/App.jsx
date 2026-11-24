@@ -17,7 +17,11 @@ import { useApplyAppearance } from './components/AppearanceRuntime.jsx';
 import { useApplyExtraPrefs } from './components/ExtraPrefsRuntime.jsx';
 import { migrateZoomValue } from './utils/zoomDefault';
 
-import MainApp from './pages/MainApp.jsx';
+// O app logado também vira pacote próprio: quem abre o site, o login ou o
+// cadastro não baixa o app inteiro. Quem está logado não espera mais por
+// isso: o download começa junto com a tela de carregamento (ProtectedRoute).
+const loadMainApp = () => import('./pages/MainApp.jsx');
+const MainApp = lazy(loadMainApp);
 import { useLiveRefresh, sameData } from './utils/liveRefresh';
 
 // Telas que quem já está logado quase nunca vê (login, cadastro, página
@@ -50,6 +54,7 @@ const DevStudioPage = lazy(() => import('./pages/DevStudioPage.jsx'));
 // failing with an unexplained 503.
 function ProtectedRoute({ children }) {
   const { user, loading } = useAuth();
+  useEffect(() => { loadMainApp().catch(() => {}); }, []);
   const [maintenance, setMaintenance] = useState(null);
   const [staffBypassed, setStaffBypassed] = useState(false);
   // BUG CORRIGIDO ("a tela de carregamento não aparece mais / quero ela
@@ -195,7 +200,10 @@ function ProtectedApp() {
       <SocketProvider>
         <VoiceProvider>
           <ContextMenuProvider>
-            <MainApp />
+            {/* Mesma tela de carregamento do ProtectedRoute: sem piscar na troca. */}
+            <Suspense fallback={<AppSkeletonScreen />}>
+              <MainApp />
+            </Suspense>
           </ContextMenuProvider>
         </VoiceProvider>
       </SocketProvider>
