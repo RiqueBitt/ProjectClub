@@ -675,3 +675,80 @@ html .lp :focus-visible { outline: 2px solid #fff !important; outline-offset: 3p
   .lp-hero .lp-display { font-size: clamp(44px, 12.5vw, 76px); }
   .lp-hero-shot { border-right: 1px solid var(--line-2); border-radius: 12px; }
 }
+
+/* ---------- Abertura com o app ao vivo ---------- */
+.lp-words span { display: inline-block; }
+@media (prefers-reduced-motion: no-preference) {
+  .lp-words span { opacity: 0; transform: translateY(.45em) rotate(2deg); filter: blur(6px); animation: lp-word .8s var(--ease-out) forwards; animation-delay: calc(var(--i) * 70ms + 120ms); }
+  .lp-hero .lp-lede { opacity: 0; animation: lp-rise .8s var(--ease-out) .75s forwards; }
+  .lp-hero .lp-hero-cta { opacity: 0; animation: lp-rise .8s var(--ease-out) .9s forwards; }
+  .lc { opacity: 0; transform: perspective(1600px) rotateY(-14deg) translateX(60px); transform-origin: right center; animation: lc-in 1.2s var(--ease-out) .35s forwards; }
+}
+@keyframes lp-word { to { opacity: 1; transform: none; filter: none; } }
+@keyframes lc-in { to { opacity: 1; transform: perspective(1600px) rotateY(-4deg); } }
+
+.lc { font-family: 'Inter', system-ui, sans-serif; font-size: 15px; color: #dbdee1; background: #050505; display: flex; flex-direction: column; aspect-ratio: 16 / 10.5; min-height: 440px; }
+.lc-top { display: flex; align-items: center; gap: 8px; padding: 14px 20px; border-bottom: 1px solid rgba(255,255,255,.07); font-weight: 600; color: #fff; }
+.lc-hash { display: grid; place-items: center; width: 28px; height: 28px; border-radius: 7px; background: rgba(76,159,255,.12); color: var(--brand); }
+.lc-online { margin-left: auto; display: flex; align-items: center; gap: 7px; font-size: 13px; font-weight: 500; color: #a1a1aa; }
+.lc-online i { width: 8px; height: 8px; border-radius: 50%; background: #23a55a; animation: lp-ping 2s infinite; }
+.lc-body { flex: 1; display: grid; grid-template-columns: 210px 1fr; min-height: 0; }
+.lc-side { padding: 16px 12px; border-right: 1px solid rgba(255,255,255,.07); background: #0a0a0b; }
+.lc-cat { margin: 14px 8px 6px; font-size: 12px; font-weight: 700; color: #8b8b93; }
+.lc-cat:first-child { margin-top: 0; }
+.lc-ch { margin: 0; padding: 7px 10px; border-radius: 8px; color: #9a9aa2; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.lc-ch.is-on { background: rgba(255,255,255,.07); color: #fff; }
+.lc-voice { list-style: none; margin: 4px 0 0; padding: 0 0 0 26px; display: grid; gap: 6px; }
+.lc-voice li { display: flex; align-items: center; gap: 8px; font-size: 13.5px; color: #c4c4cc; }
+.lc-voice .lc-av { font-size: 10px; animation: lc-speak 4.8s infinite; animation-delay: var(--d); }
+@keyframes lc-speak { 0%, 4% { box-shadow: 0 0 0 0 transparent; } 8%, 26% { box-shadow: 0 0 0 2px #050505, 0 0 0 4px #23a55a; } 32%, 100% { box-shadow: 0 0 0 0 transparent; } }
+.lc-av { flex: none; display: grid; place-items: center; border-radius: 50%; font-style: normal; font-weight: 700; font-size: 14px; color: rgba(255,255,255,.9); }
+.lc-chat { position: relative; display: flex; flex-direction: column; justify-content: flex-end; gap: 14px; padding: 18px 22px 16px; overflow: hidden; transition: opacity .45s ease; }
+.lc-chat.is-fading { opacity: 0; }
+.lc-day { display: flex; align-items: center; gap: 12px; margin: 0 0 auto; font-size: 12px; font-weight: 600; color: #a1a1aa; }
+.lc-day::before, .lc-day::after { content: ''; flex: 1; height: 1px; background: rgba(255,255,255,.08); }
+.lc-day span { padding: 2px 10px; border: 1px solid rgba(255,255,255,.1); border-radius: 99px; }
+.lc-msg { display: flex; gap: 12px; animation: lc-msg .5s var(--ease-out) both; }
+@keyframes lc-msg { from { opacity: 0; transform: translateY(14px); } to { opacity: 1; transform: none; } }
+.lc-meta { margin: 0 0 2px; display: flex; align-items: center; gap: 7px; }
+.lc-meta time { font-size: 12px; color: #71717a; }
+.lc-badge { font-size: 10px; font-weight: 800; letter-spacing: .04em; padding: 1px 5px; border-radius: 4px; background: rgba(76,159,255,.16); color: var(--brand); }
+.lc-badge.is-bot { background: #5865f2; color: #fff; }
+.lc-text { margin: 0; color: #e4e4e7; }
+.lc-reacts { display: flex; gap: 6px; margin-top: 6px; }
+.lc-reacts b { font-weight: 600; font-size: 13px; padding: 3px 9px; border-radius: 8px; background: rgba(255,255,255,.06); border: 1px solid transparent; animation: lc-pop .35s var(--ease-out); }
+.lc-reacts b.is-mine { background: rgba(76,159,255,.15); border-color: rgba(76,159,255,.6); color: #cfe3ff; }
+@keyframes lc-pop { 0% { transform: scale(.7); } 60% { transform: scale(1.15); } 100% { transform: none; } }
+.lc-typing { margin: 0; height: 16px; font-size: 12.5px; color: #a1a1aa; display: flex; align-items: center; gap: 6px; opacity: 0; transition: opacity .2s; }
+.lc-typing.is-on { opacity: 1; }
+.lc-typing b { color: #e4e4e7; }
+.lc-dots { display: inline-flex; gap: 3px; }
+.lc-dots i { width: 5px; height: 5px; border-radius: 50%; background: #d4d4d8; animation: lc-dot 1s infinite; }
+.lc-dots i:nth-child(2) { animation-delay: .15s; } .lc-dots i:nth-child(3) { animation-delay: .3s; }
+@keyframes lc-dot { 0%, 60%, 100% { transform: none; opacity: .4; } 30% { transform: translateY(-4px); opacity: 1; } }
+.lc-input { padding: 13px 16px; border-radius: 12px; background: #111113; border: 1px solid rgba(255,255,255,.07); color: #71717a; }
+@media (max-width: 900px) {
+  .lc { aspect-ratio: auto; min-height: 460px; font-size: 14px; }
+  .lc-body { grid-template-columns: 1fr; }
+  .lc-side { display: none; }
+  @media (prefers-reduced-motion: no-preference) { .lc { transform: translateY(30px); animation-name: lc-in-m; } }
+}
+@keyframes lc-in-m { to { opacity: 1; transform: none; } }
+@media (prefers-reduced-motion: reduce) { .lc *, .lc { animation: none !important; } }
+
+/* Seções aparecem ao rolar (só com JS ativo; sem JS fica tudo visível) */
+@media (prefers-reduced-motion: no-preference) {
+  .lp.is-js .lp-reveal { opacity: 0; transform: translateY(28px); transition: opacity .8s var(--ease-out), transform .8s var(--ease-out), background-position 1.3s var(--ease-out) .1s; }
+  .lp.is-js .lp-reveal.is-in { opacity: 1; transform: none; }
+  .lp.is-js .lp-dl.lp-reveal { opacity: 1; transform: none; }
+  .lp.is-js .lp-dl.lp-reveal > * { opacity: 0; transform: translateY(36px); transition: opacity .7s var(--ease-out), transform .7s var(--ease-out); }
+  .lp.is-js .lp-dl.lp-reveal.is-in > * { opacity: 1; transform: none; }
+  .lp.is-js .lp-dl.lp-reveal > :nth-child(2) { transition-delay: .08s; }
+  .lp.is-js .lp-dl.lp-reveal > :nth-child(3) { transition-delay: .16s; }
+  .lp.is-js .lp-dl.lp-reveal > :nth-child(4) { transition-delay: .24s; }
+  .lp.is-js .lp-facts > div { opacity: 0; transform: translateX(-16px); transition: opacity .6s var(--ease-out), transform .6s var(--ease-out); }
+  .lp.is-js .is-in .lp-facts > div { opacity: 1; transform: none; }
+  .lp.is-js .lp-facts > div:nth-child(2) { transition-delay: .1s; }
+  .lp.is-js .lp-facts > div:nth-child(3) { transition-delay: .2s; }
+  .lp.is-js .lp-facts > div:nth-child(4) { transition-delay: .3s; }
+}

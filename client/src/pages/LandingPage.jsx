@@ -75,12 +75,15 @@ const PLATFORM_LABEL = { windows: 'Windows', linux: 'Linux', android: 'Android' 
 function useReveal() {
   useEffect(() => {
     if (reducedMotion()) return undefined;
-    const root = document.querySelector('.lp');
+    const lp = document.querySelector('.lp');
+    // Só usa a .lp como raiz se ela for quem rola; senão, a janela.
+    const root = lp && lp.scrollHeight > lp.clientHeight + 1 ? lp : null;
     const io = new IntersectionObserver((entries) => {
       entries.forEach((e) => { if (e.isIntersecting) { e.target.classList.add('is-in'); io.unobserve(e.target); } });
-    }, { root, threshold: 0.12 });
+    }, { root, threshold: 0, rootMargin: '0px 0px -10% 0px' });
     document.querySelectorAll('.lp-reveal').forEach((el) => io.observe(el));
-    return () => io.disconnect();
+    lp?.classList.add('is-js');
+    return () => { io.disconnect(); lp?.classList.remove('is-js'); };
   }, []);
 }
 
@@ -342,6 +345,111 @@ const AppStage = forwardRef(function AppStage({ versions }, apiRef) {
   );
 });
 
+// ---------- O app ao vivo (abertura) ----------
+// Réplica em HTML da tela de chat do app: a conversa acontece sozinha, com
+// "digitando", reação somando e quem fala na call acendendo. Sem
+// movimento reduzido mostra a conversa inteira parada.
+const LIVE_PEOPLE = {
+  rique: { name: 'RiqueBitt', color: '#f08a3c', bg: 'linear-gradient(135deg,#8a1c1c,#4a0d0d)', mod: true },
+  lia: { name: 'Lia', color: '#fff', bg: 'linear-gradient(135deg,#7c8cff,#4C9FFF)' },
+  kaio: { name: 'Kaio', color: '#fff', bg: 'linear-gradient(135deg,#23a55a,#0f5c32)' },
+  loritta: { name: 'Loritta', color: '#7cb3ff', bg: 'linear-gradient(135deg,#f0a6d8,#b05fc0)', bot: true },
+};
+const LIVE_SCRIPT = [
+  { who: 'lia', time: '18:14', text: 'alguém pra call hoje à noite?' },
+  { who: 'rique', time: '18:15', text: 'bora! abro a sala de voz às 21h', typing: 900 },
+  { who: 'kaio', time: '18:16', text: 'baixei o modpack pelo Mod Manager, já tá rodando aqui', typing: 1500 },
+  { who: 'loritta', time: '18:20', text: 'Lembrete: o evento de figurinhas começa amanhã 🎉', typing: 700, reactions: true },
+];
+
+function LiveAvatar({ who, size = 36 }) {
+  const p = LIVE_PEOPLE[who];
+  return <i className="lc-av" style={{ background: p.bg, width: size, height: size }} aria-hidden="true">{p.name[0]}</i>;
+}
+
+function LiveReactions() {
+  const [party, setParty] = useState(14);
+  const [like, setLike] = useState(2);
+  useEffect(() => {
+    if (reducedMotion()) return undefined;
+    const a = setTimeout(() => setParty(15), 900);
+    const b = setTimeout(() => setLike(3), 1700);
+    return () => { clearTimeout(a); clearTimeout(b); };
+  }, []);
+  return (
+    <span className="lc-reacts">
+      <b className={like > 2 ? 'is-mine' : ''} key={`l${like}`}>👍 {like}</b>
+      <b key={`p${party}`}>🎉 {party}</b>
+    </span>
+  );
+}
+
+function LiveClub() {
+  const reduced = reducedMotion();
+  const [count, setCount] = useState(reduced ? LIVE_SCRIPT.length : 0);
+  const [typing, setTyping] = useState(null);
+  const [fading, setFading] = useState(false);
+  useEffect(() => {
+    if (reduced) return undefined;
+    let alive = true; const timers = [];
+    const wait = (ms) => new Promise((r) => { timers.push(setTimeout(r, ms)); });
+    (async () => {
+      await wait(700);
+      while (alive) {
+        for (let i = 0; i < LIVE_SCRIPT.length && alive; i += 1) {
+          const m = LIVE_SCRIPT[i];
+          if (m.typing) { setTyping(m.who); await wait(m.typing); setTyping(null); }
+          setCount(i + 1);
+          await wait(1500);
+        }
+        await wait(4200); if (!alive) break;
+        setFading(true); await wait(500);
+        setCount(0); setFading(false); await wait(600);
+      }
+    })();
+    return () => { alive = false; timers.forEach(clearTimeout); };
+  }, [reduced]);
+
+  return (
+    <figure className="lp-hero-shot lc" aria-label="Prévia do Project Club: canal chat geral com uma conversa acontecendo e três pessoas na sala de voz">
+      <div className="lc-top" aria-hidden="true"><span className="lc-hash">#</span> 🌎 | chat geral<span className="lc-online"><i />4 online</span></div>
+      <div className="lc-body" aria-hidden="true">
+        <aside className="lc-side">
+          <p className="lc-cat">Comunidade</p>
+          <p className="lc-ch is-on"># 🌎 | chat geral</p>
+          <p className="lc-ch"># 🔧 | comandos</p>
+          <p className="lc-ch"># 📸 | mídias</p>
+          <p className="lc-cat">Canais de voz</p>
+          <p className="lc-ch">🔊 ☕ | Call</p>
+          <ul className="lc-voice">
+            {['rique', 'lia', 'kaio'].map((w, i) => (
+              <li key={w} style={{ '--d': `${i * 1.6}s` }}><LiveAvatar who={w} size={22} />{LIVE_PEOPLE[w].name}</li>
+            ))}
+          </ul>
+        </aside>
+        <div className={`lc-chat ${fading ? 'is-fading' : ''}`}>
+          <p className="lc-day"><span>Hoje</span></p>
+          {LIVE_SCRIPT.slice(0, count).map((m) => {
+            const p = LIVE_PEOPLE[m.who];
+            return (
+              <div className="lc-msg" key={m.who + m.time}>
+                <LiveAvatar who={m.who} />
+                <div>
+                  <p className="lc-meta"><b style={{ color: p.color }}>{p.name}</b>{p.mod && <span className="lc-badge">MOD</span>}{p.bot && <span className="lc-badge is-bot">BOT</span>}<time>{m.time}</time></p>
+                  <p className="lc-text">{m.text}</p>
+                  {m.reactions && <LiveReactions />}
+                </div>
+              </div>
+            );
+          })}
+          <p className={`lc-typing ${typing ? 'is-on' : ''}`}>{typing && <><span className="lc-dots"><i /><i /><i /></span><b>{LIVE_PEOPLE[typing].name}</b> está digitando…</>}</p>
+          <div className="lc-input">Conversar em # 🌎 | chat geral</div>
+        </div>
+      </div>
+    </figure>
+  );
+}
+
 export default function LandingPage() {
   const navigate = useNavigate();
   const location = useLocation();
@@ -425,7 +533,7 @@ export default function LandingPage() {
       <main id="conteudo">
         <section className="lp-hero" aria-labelledby="titulo">
           <div className="lp-hero-text">
-            <h1 id="titulo" className="lp-display">Parece Discord por fora. É nosso por dentro.</h1>
+            <h1 id="titulo" className="lp-display lp-words" aria-label="Parece Discord por fora. É nosso por dentro."><span aria-hidden="true" style={{ '--i': 0 }}>Parece</span> <span aria-hidden="true" style={{ '--i': 1 }}>Discord</span> <span aria-hidden="true" style={{ '--i': 2 }}>por</span> <span aria-hidden="true" style={{ '--i': 3 }}>fora.</span> <span aria-hidden="true" style={{ '--i': 4 }}>É</span> <span aria-hidden="true" style={{ '--i': 5 }}>nosso</span> <span aria-hidden="true" style={{ '--i': 6 }}>por</span> <span aria-hidden="true" style={{ '--i': 7 }}>dentro.</span></h1>
             <p className="lp-lede">
               O Project Club junta chat, salas de voz e fórum com o Mod Manager para os mods dos seus jogos e o RPG Blackout. Tudo de graça, no computador, no celular e no navegador.
             </p>
@@ -441,9 +549,7 @@ export default function LandingPage() {
             </div>
             <Pulse />
           </div>
-          <figure className="lp-hero-shot">
-            <img src="/apps/projectclub/shots/01-comunidade.jpg" width="1600" height="1000" alt="O Project Club aberto no canal chat geral, com a lista de canais à esquerda e os membros online à direita" fetchPriority="high" />
-          </figure>
+          <LiveClub />
         </section>
 
         <AppStage ref={stageRef} versions={versions} />
