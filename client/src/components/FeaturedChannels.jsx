@@ -71,7 +71,7 @@ export function FeaturedGlyph({ name, size = 16 }) {
 export const FEATURED = [
   // Assinatura (nov/2026): sempre no topo, em dourado. Era uma aba da Loja.
   {
-    key: 'assinatura', label: 'Assinatura', icon: 'crown', to: '/assinatura',
+    key: 'assinatura', label: 'Assinatura', icon: 'crown', to: '/assinatura', banner: true, sub: 'Planos e vantagens',
     hint: 'Planos de assinatura e vantagens', match: (p) => p.startsWith('/assinatura'), fixed: true,
   },
   {
@@ -82,7 +82,7 @@ export const FEATURED = [
   // BLACKOUT: só aparece na instância BLACKOUT (o site em si é protegido no
   // servidor — routes/blackoutSite.js). Não dá pra esconder.
   {
-    key: 'blackout', label: 'BLACKOUT', icon: 'dice', to: '/compendio-blackout',
+    key: 'blackout', label: 'BLACKOUT', icon: 'dice', to: '/compendio-blackout', sub: 'Compêndio do RPG',
     hint: 'Compêndio do RPG BLACKOUT', match: (p) => p.startsWith('/compendio-blackout'),
     instance: 'blackout', game: true, fixed: true,
   },
@@ -203,14 +203,21 @@ export default function FeaturedChannels({ canManage }) {
         title={item.hint} aria-current={active ? 'page' : undefined}
       >
         <span className="featured-channel-icon"><FeaturedGlyph name={item.icon} /></span>
-        <span className="featured-channel-name truncate">{item.label}</span>
+        <span className="featured-channel-text">
+          <span className="featured-channel-name truncate">{item.label}</span>
+          {item.sub && <span className="featured-channel-sub truncate">{item.sub}</span>}
+        </span>
         {badge}
       </button>
     );
   };
+  // Faixas largas em cima (Assinatura, jogos/BLACKOUT); o resto em blocos 2×N.
+  const banners = items.filter((i) => i.game || i.banner);
+  const tiles = items.filter((i) => !(i.game || i.banner));
   return (
     <div className="featured-channels" role="group" aria-label="Canais em destaque">
-      {items.map(renderItem)}
+      {banners.map(renderItem)}
+      {tiles.length > 0 && <div className="featured-grid">{tiles.map(renderItem)}</div>}
     </div>
   );
 }
