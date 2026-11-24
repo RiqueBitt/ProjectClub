@@ -68,7 +68,11 @@ async function evaluate(user, channelName, deps = {}) {
   // Canal AFK da comunidade: ninguém fala lá (igual ao Discord).
   const afk = deps.voiceAfk || require('./voiceAfk');
   if (await afk.isAfkChannel(name, { prisma }).catch(() => false)) claims.canSpeak = false;
-  if (Number(channel.userLimit) > 0 && !participant) {
+  if (channel.rpgMode && !participant) {
+    // Modo RPG: mesa de 5, sem exceção (nem pra quem move membros).
+    const size = await voiceStore.roomSize(name).catch(() => 0);
+    if (size >= 5) return { claims, error: { ...FULL_ERROR } };
+  } else if (Number(channel.userLimit) > 0 && !participant) {
     const bypass = has(perms, 'MOVE_MEMBERS')
       || (voiceStore.hasMoveTicket ? await voiceStore.hasMoveTicket(user.id, name).catch(() => false) : false);
     const size = await voiceStore.roomSize(name).catch(() => 0);

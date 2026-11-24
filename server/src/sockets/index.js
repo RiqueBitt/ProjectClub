@@ -15,6 +15,8 @@ const voiceUsage = require('../services/voiceUsage');
 const gamePlaytime = require('../services/gamePlaytime');
 const { steamAppIdOf } = require('../utils/steamCover');
 const ytWatch = require('./ytWatch');
+const rpgTable = require('./rpgTable');
+const { RPG_LIMIT } = rpgTable;
 const { visibleStatus, installSocketMasking } = require('../utils/presenceVisibility');
 const { createTokenBucket } = require('../utils/tokenBucket');
 const mediaControl = require('../services/mediaControl');
@@ -794,7 +796,8 @@ function initSockets(httpServer) {
         // A checagem que VALE é a atômica lá embaixo (addParticipantIfRoom);
         // esta só evita sair do canal atual à toa quando já está cheio.
         const limitBypass = has(perms, 'MOVE_MEMBERS') || await voiceStore.hasMoveTicket(userId, channelId);
-        const effectiveLimit = limitBypass ? 0 : (Number(channel.userLimit) || 0);
+        // Modo RPG: mesa de 5 (1 mestre + 4 jogadores) — sem exceção.
+        const effectiveLimit = channel.rpgMode ? RPG_LIMIT : (limitBypass ? 0 : (Number(channel.userLimit) || 0));
         if (effectiveLimit && (await voiceStore.roomSize(channelId)) >= effectiveLimit) {
           socket.emit('voice:join-denied', { channelId, reason: 'Canal cheio', code: 'channel-full' });
           return;
@@ -984,6 +987,7 @@ function initSockets(httpServer) {
     ytWatch.register(io, socket, userId);
     // Rolagem de dados na call (popup de 2 s pra todos) — ver diceRoll.js.
     require('./diceRoll').register(io, socket, userId);
+    rpgTable.register(io, socket, userId); // call modo RPG (mesa, fichas, histórico)
     // Sala de estudos (Pomodoro compartilhado na call) — ver focusRoom.js.
     require('./focusRoom').register(io, socket, userId);
 

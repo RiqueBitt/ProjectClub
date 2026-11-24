@@ -21,6 +21,8 @@ function register(io, socket, userId) {
       const user = await prisma.user.findUnique({ where: { id: userId }, select: { id: true, username: true, displayName: true, avatarUrl: true } });
       const event = { channelId: roomId, user, ...r, notation: dice.notation(r), at: now };
       io.to(`voice:${roomId}`).emit('dice:rolled', event);
+      // Call modo RPG: a rolagem entra no histórico da mesa.
+      require('./rpgTable').onRoll(io, roomId, event).catch(() => {});
       reply({ ok: true, roll: event });
     } catch (err) {
       reply({ error: err.status === 400 ? err.message : 'Não deu pra rolar os dados agora.' });

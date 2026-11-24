@@ -13,6 +13,7 @@ import ScreenQualityMenu from './voice/ScreenQualityMenu.jsx';
 import { useYouTubeWatch, YouTubeStage, YouTubePicker, ActivitiesButton, YouTubeToast, markYouTubeStageMounted } from './voice/YouTubeWatch.jsx';
 import { CallMusicPicker } from '../music/MusicPlayer.jsx';
 import { DicePicker, CallDicePopup, useCallDice } from './activities/Dice.jsx';
+import RpgTable from './voice/RpgTable.jsx';
 import { ReactionBar, ReactionsOverlay, RecordingBanner, RecordButton, LiveCaptions } from './voice/CallExtras.jsx';
 import { getVoicePref, setVoicePref, onVoicePrefsChange } from '../utils/voicePrefs';
 import { useContextMenu } from '../context/ContextMenuContext.jsx';
@@ -225,10 +226,57 @@ export default function VoiceChannelView({ channel }) {
     );
   });
 
+  // A área de apresentação (telas transmitidas + vídeo/música da atividade):
+  // no modo normal fica em destaque; no modo RPG é a "transmissão da mesa".
+  const screensEl = (
+    <div className={`vc-screens vc-screens-${Math.min(screens.length + (yt.active ? 1 : 0), 5)}`}>
+      {yt.active && <YouTubeStage yt={yt} viewers={viewers} onAdd={(kind) => setYtPicker(kind || 'youtube')} />}
+      {screens.map((s) => {
+        // Volume desta transmissão (0–200%): o SOM DA TELA tem volume
+        // próprio, separado da voz (igual ao Discord). Sem faixa de som
+        // da tela: vale o volume da pessoa. O mesmo controle aparece
+        // por cima do vídeo quando a tela está expandida (tela cheia).
+        const streamName = memberFor(s.uid)?.displayName || 'transmissão';
+        const volumeCtl = s.mine ? null : (voice.remoteScreenAudioStreams?.[s.uid] ? (
+          <VolumeControl className="vc-vol-stream" name={streamName} volume={voice.streamVolumes?.[s.uid] ?? 1} onVolume={(v) => voice.setStreamVolume(s.uid, v)} label="Volume da transmissão" />
+        ) : (
+          <VolumeControl className="vc-vol-stream" name={streamName} volume={volumes[s.uid] ?? 1} onVolume={(v) => voice.setParticipantVolume(s.uid, v)} label="Volume da transmissão" />
+        ));
+        return (
+          <div key={s.key} className="vc-screen">
+            {/* Sem tela cheia na própria tela: evita o "espelho infinito". */}
+            <VideoTile
+              stream={s.stream} muted allowFullscreen={!s.mine} uid={s.mine ? null : s.uid} kind="screen" report={voice.reportVideoViewport}
+              fullscreenExtras={volumeCtl && (
+                <>
+                  <span className="vc-fs-name"><Icon name="screen" size={14} /> {streamName}</span>
+                  {volumeCtl}
+                </>
+              )}
+            />
+            <span className="vc-label"><Icon name="screen" size={14} /> {s.mine ? 'Sua tela' : streamName}</span>
+            {volumeCtl}
+            {!s.mine && voice.setScreenClosed && (
+              <button
+                type="button" className="vc-screen-close" onClick={() => voice.setScreenClosed(s.uid, true)}
+                title="Fechar live (para de baixar o vídeo e o som dela)" aria-label={`Fechar a live de ${streamName}`}
+              >
+                <Icon name="close" size={16} />
+              </button>
+            )}
+          </div>
+        );
+      })}
+    </div>
+  );
+  const rpgOn = !!channel.rpgMode;
+  const cameraFor = (uid) => (uid === user.id ? (cameraOn ? voice.localCameraStream : null) : remoteCameraStreams[uid]);
+  const renderCamera = (uid, stream) => <VideoTile stream={stream} muted allowFullscreen={false} uid={uid === user.id ? null : uid} kind="camera" report={voice.reportVideoViewport} />;
+
   return (
     <div className="vc">
       <CallHeader channel={channel} count={allUserIds.length}>
-        {hasPresenter && <ViewModeToggle mode={viewMode} onChange={changeViewMode} />}
+        {hasPresenter && !rpgOn && <ViewModeToggle mode={viewMode} onChange={changeViewMode} />}
       </CallHeader>
       <RecordingBanner voice={voice} meId={user.id} />
       {closedLives.length > 0 && (
@@ -246,48 +294,18 @@ export default function VoiceChannelView({ channel }) {
         </div>
       )}
       <ReconnectBanner voice={voice} />
-      <div className={`vc-stage${spotlight ? ' is-spotlight' : ''}`}>
-        {spotlight ? (
+      <div className={`vc-stage${spotlight && !rpgOn ? ' is-spotlight' : ''}${rpgOn ? ' is-rpg' : ''}`}>
+        {rpgOn ? (
+          // Call modo RPG: a mesa (mestre no topo, 4 jogadores, histórico).
+          <RpgTable
+            channelId={channel.id} me={user} memberFor={memberFor} participants={participants}
+            localSpeaking={localSpeaking} muted={muted} stage={hasPresenter ? screensEl : null}
+            cameraFor={cameraFor} renderCamera={renderCamera} rosterKey={allUserIds.join(',')}
+            onRollDice={() => setYtPicker('dice')}
+          />
+        ) : spotlight ? (
           <>
-            <div className={`vc-screens vc-screens-${Math.min(screens.length + (yt.active ? 1 : 0), 5)}`}>
-              {yt.active && <YouTubeStage yt={yt} viewers={viewers} onAdd={(kind) => setYtPicker(kind || 'youtube')} />}
-              {screens.map((s) => {
-                // Volume desta transmissão (0–200%): o SOM DA TELA tem volume
-                // próprio, separado da voz (igual ao Discord). Sem faixa de som
-                // da tela: vale o volume da pessoa. O mesmo controle aparece
-                // por cima do vídeo quando a tela está expandida (tela cheia).
-                const streamName = memberFor(s.uid)?.displayName || 'transmissão';
-                const volumeCtl = s.mine ? null : (voice.remoteScreenAudioStreams?.[s.uid] ? (
-                  <VolumeControl className="vc-vol-stream" name={streamName} volume={voice.streamVolumes?.[s.uid] ?? 1} onVolume={(v) => voice.setStreamVolume(s.uid, v)} label="Volume da transmissão" />
-                ) : (
-                  <VolumeControl className="vc-vol-stream" name={streamName} volume={volumes[s.uid] ?? 1} onVolume={(v) => voice.setParticipantVolume(s.uid, v)} label="Volume da transmissão" />
-                ));
-                return (
-                  <div key={s.key} className="vc-screen">
-                    {/* Sem tela cheia na própria tela: evita o "espelho infinito". */}
-                    <VideoTile
-                      stream={s.stream} muted allowFullscreen={!s.mine} uid={s.mine ? null : s.uid} kind="screen" report={voice.reportVideoViewport}
-                      fullscreenExtras={volumeCtl && (
-                        <>
-                          <span className="vc-fs-name"><Icon name="screen" size={14} /> {streamName}</span>
-                          {volumeCtl}
-                        </>
-                      )}
-                    />
-                    <span className="vc-label"><Icon name="screen" size={14} /> {s.mine ? 'Sua tela' : streamName}</span>
-                    {volumeCtl}
-                    {!s.mine && voice.setScreenClosed && (
-                      <button
-                        type="button" className="vc-screen-close" onClick={() => voice.setScreenClosed(s.uid, true)}
-                        title="Fechar live (para de baixar o vídeo e o som dela)" aria-label={`Fechar a live de ${streamName}`}
-                      >
-                        <Icon name="close" size={16} />
-                      </button>
-                    )}
-                  </div>
-                );
-              })}
-            </div>
+            {screensEl}
             <div className="vc-strip">{tiles}</div>
           </>
         ) : (
