@@ -2,7 +2,7 @@
 // descrição, destaque, exclusividade de apoio, desconto de Assinante e
 // estoque de item limitado.
 // O servidor valida tudo de novo (ver shopController.readShopFlags).
-export const FLAGS_EMPTY = { description: '', featured: false, exclusiveTier: '', discountEligible: true, stock: '', tags: '', color: '', variantGroup: '' };
+export const FLAGS_EMPTY = { description: '', featured: false, exclusiveTier: '', discountEligible: true, stock: '', tags: '', color: '', variantGroup: '', rarity: '' };
 // Filtros da Loja (iguais aos do servidor — shopController SHOP_TAGS/SHOP_COLORS).
 export const SHOP_TAGS = [
   ['anime', 'Anime'], ['jogos', 'Jogos'], ['fofo', 'Fofo e aconchegante'], ['scifi', 'Ficção científica'], ['comida', 'Comida e bebidas'],
@@ -17,7 +17,7 @@ export const flagsFrom = (d) => ({
   description: d?.description || '', featured: !!d?.featured,
   exclusiveTier: d?.exclusiveTier || '', discountEligible: d?.discountEligible !== false,
   stock: d?.stock ?? '', sold: d?.sold ?? 0,
-  tags: Array.isArray(d?.tags) ? d.tags.join(',') : d?.tags || '', color: d?.color || '', variantGroup: d?.variantGroup || '',
+  tags: Array.isArray(d?.tags) ? d.tags.join(',') : d?.tags || '', color: d?.color || '', variantGroup: d?.variantGroup || '', rarity: d?.rarity || '',
 });
 
 export default function ShopItemFlagsFields({ form, set }) {
@@ -40,6 +40,17 @@ export default function ShopItemFlagsFields({ form, set }) {
         <label className="deco-check"><input type="checkbox" checked={form.featured} onChange={set('featured')} /> Em destaque na Loja</label>
         <label className="deco-check"><input type="checkbox" checked={form.discountEligible} onChange={set('discountEligible')} disabled={exclusive} /> Desconto de Assinante (15%)</label>
       </div>
+      <label>Raridade (faixa no topo da caixinha)
+        <select value={form.rarity || ''} onChange={set('rarity')}>
+          <option value="">Automática (pelo preço)</option>
+          <option value="COMUM">Comum</option>
+          <option value="INCOMUM">Incomum</option>
+          <option value="RARA">Rara</option>
+          <option value="EPICA">Épica</option>
+          <option value="LENDARIA">Lendária</option>
+          <option value="MITICA">Mítica (cromada, borda arco-íris)</option>
+        </select>
+      </label>
       <label>Item limitado — estoque total (vazio = ilimitado)
         <input type="number" min="0" value={form.stock} onChange={set('stock')} placeholder="Ex.: 100 cópias" />
       </label>

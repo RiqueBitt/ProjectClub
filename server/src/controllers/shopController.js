@@ -513,8 +513,11 @@ function readShopFlags(b) {
   }
   if (b.color !== undefined) data.color = SHOP_COLORS.includes(b.color) ? b.color : null;
   if (b.variantGroup !== undefined) data.variantGroup = String(b.variantGroup || '').trim().toLowerCase().replace(/[^a-z0-9-]/g, '-').slice(0, 64) || null;
+  // Raridade (faixa no topo da caixinha). Vazio = a Loja calcula pelo preço.
+  if (b.rarity !== undefined) data.rarity = SHOP_RARITIES.includes(b.rarity) ? b.rarity : null;
   return data;
 }
+const SHOP_RARITIES = ['COMUM', 'INCOMUM', 'RARA', 'EPICA', 'LENDARIA', 'MITICA'];
 const SHOP_TAGS = ['anime', 'jogos', 'fofo', 'scifi', 'comida', 'fantasia', 'animais', 'natureza', 'filmes', 'dark', 'terror', 'esportes', 'musica', 'parceria'];
 const SHOP_COLORS = ['roxo', 'azul', 'verde', 'marrom', 'amarelo', 'laranja', 'vermelho', 'rosa', 'branco', 'preto'];
 

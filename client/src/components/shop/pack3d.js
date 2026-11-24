@@ -25,6 +25,7 @@ import {
   MeshStandardMaterial, MeshPhysicalMaterial, MeshBasicMaterial, DirectionalLight, HemisphereLight,
   PMREMGenerator, Color, Vector3, Matrix4, Quaternion, Euler, PCFSoftShadowMap, SRGBColorSpace, SphereGeometry, Float32BufferAttribute,
   CustomBlending, OneFactor, OneMinusSrcAlphaFactor, FrontSide, DoubleSide, BackSide, NoToneMapping,
+  Shape, ExtrudeGeometry, CanvasTexture, LinearFilter,
 } from 'three';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 
@@ -89,6 +90,123 @@ function chromeMaterial() {
   return new MeshStandardMaterial({ color: 0xeef1f5, metalness: 1, roughness: 0.18, envMapIntensity: 1.6 });
 }
 
+/* ---------------------------------------------------------------- raridade
+   A faixa da raridade é uma plaquinha de verdade (extrudada, com chanfro
+   redondo), presa no topo da frente da caixinha: gira e faz sombra junto.
+   Estilo desenho animado: plástico de brinquedo, cor chapada, contorno
+   grosso e o nome em branco com a fonte Lilita One. */
+const RARITY = {
+  COMUM: { label: 'Comum', top: '#f4f6f9', base: '#c3cad4', line: '#3d4552' },
+  INCOMUM: { label: 'Incomum', top: '#9dffb4', base: '#33cc63', line: '#0d4a22' },
+  RARA: { label: 'Rara', top: '#a9dcff', base: '#3a8dff', line: '#0f2f6e' },
+  EPICA: { label: 'Épica', top: '#f0c4ff', base: '#a64dff', line: '#3b0d6b' },
+  LENDARIA: { label: 'Lendária', top: '#ffe98a', base: '#ffad1f', line: '#6b3a00' },
+  MITICA: { label: 'Mítica', top: '#ffffff', base: '#ff7ad9', line: '#3a1260', rainbow: true },
+};
+const BAND_W = W * 0.9;
+const BAND_H = 1.16;
+const BAND_D = 0.26;
+// Fonte de desenho animado (Lilita One, licença OFL, em /fonts/cartoon).
+const BAND_FONT = 'Lilita One';
+let bandFontReady = null;
+function loadBandFont() {
+  if (bandFontReady) return bandFontReady;
+  bandFontReady = (async () => {
+    try {
+      if (![...document.fonts].some((f) => f.family.replace(/"/g, '') === BAND_FONT)) {
+        const ff = new FontFace(BAND_FONT, 'url(/fonts/cartoon/lilita-one.ttf)');
+        document.fonts.add(await ff.load());
+      }
+      await document.fonts.load(`64px "${BAND_FONT}"`);
+    } catch { /* sem a fonte: usa a reserva */ }
+  })();
+  return bandFontReady;
+}
+
+function roundRectPath(ctx, x, y, w, h, r) {
+  ctx.beginPath();
+  ctx.moveTo(x + r, y); ctx.arcTo(x + w, y, x + w, y + h, r); ctx.arcTo(x + w, y + h, x, y + h, r);
+  ctx.arcTo(x, y + h, x, y, r); ctx.arcTo(x, y, x + w, y, r); ctx.closePath();
+}
+
+function star(g, x, y, R, fill, line, lw) {
+  g.beginPath();
+  for (let i = 0; i < 10; i++) {
+    const rr = i % 2 ? R * 0.45 : R;
+    const a = -Math.PI / 2 + (i * Math.PI) / 5;
+    g.lineTo(x + Math.cos(a) * rr, y + Math.sin(a) * rr);
+  }
+  g.closePath();
+  g.lineJoin = 'round'; g.lineWidth = lw; g.strokeStyle = line; g.stroke();
+  g.fillStyle = fill; g.fill();
+}
+
+// Faixa estilo desenho animado: cor chapada em dois tons, contorno grosso
+// escuro, um brilho branco em cima, estrelinhas nas pontas e o nome branco
+// com contorno e sombra dura.
+function rarityTexture(key) {
+  const r = RARITY[key];
+  const cw = 1024;
+  const ch = Math.round((cw * BAND_H) / BAND_W);
+  const cv = document.createElement('canvas');
+  cv.width = cw; cv.height = ch;
+  const g = cv.getContext('2d');
+  const ol = ch * 0.1;               // contorno
+  // fundo = cor do contorno (as bordas da textura batem com o chanfro)
+  g.fillStyle = r.line; g.fillRect(0, 0, cw, ch);
+  const ix = ol; const iy = ol; const iw = cw - ol * 2; const ih = ch - ol * 2; const rad = ih * 0.34;
+  g.save();
+  roundRectPath(g, ix, iy, iw, ih, rad); g.clip();
+  if (r.rainbow) {
+    const cols = ['#ff4d6d', '#ff9f1c', '#ffe347', '#3ee07a', '#33c3ff', '#8a5cff'];
+    const sw = iw / cols.length;
+    cols.forEach((c, i) => { g.fillStyle = c; g.beginPath(); g.moveTo(ix + i * sw - ih * 0.5, iy + ih); g.lineTo(ix + i * sw + ih * 0.5, iy); g.lineTo(ix + (i + 1) * sw + ih * 0.5 + 2, iy); g.lineTo(ix + (i + 1) * sw - ih * 0.5 + 2, iy + ih); g.fill(); });
+    g.fillStyle = cols[0]; g.fillRect(ix - ih, iy, ih * 0.6, ih);
+    g.fillStyle = cols[cols.length - 1]; g.fillRect(ix + iw - ih * 0.1, iy, ih, ih);
+  } else {
+    g.fillStyle = r.base; g.fillRect(ix, iy, iw, ih);
+    g.fillStyle = r.top; g.fillRect(ix, iy, iw, ih * 0.5);  // metade de cima mais clara (tom chapado)
+  }
+  // sombra chapada embaixo
+  g.fillStyle = 'rgba(0,0,0,.16)'; g.fillRect(ix, iy + ih * 0.78, iw, ih * 0.22);
+  // brilho branco em cima, em forma de pílula
+  g.fillStyle = 'rgba(255,255,255,.75)';
+  roundRectPath(g, ix + ih * 0.55, iy + ih * 0.1, iw - ih * 1.1, ih * 0.16, ih * 0.08); g.fill();
+  g.restore();
+  // estrelinhas nas pontas
+  const sr = ih * 0.3;
+  for (const x of [ix + ih * 0.52, ix + iw - ih * 0.52]) star(g, x, ch / 2 + ih * 0.02, sr, '#fff36b', r.line, ol * 0.55);
+  // nome: branco, contorno grosso e sombra dura deslocada
+  const text = r.label.toUpperCase();
+  let size = Math.round(ih * 0.72);
+  g.font = `${size}px "${BAND_FONT}", "Arial Black", Arial, sans-serif`;
+  if ('letterSpacing' in g) g.letterSpacing = `${Math.round(ih * 0.05)}px`;
+  while (g.measureText(text).width > iw - ih * 2.2 && size > 10) { size -= 2; g.font = `${size}px "${BAND_FONT}", "Arial Black", Arial, sans-serif`; }
+  g.textAlign = 'center'; g.textBaseline = 'middle';
+  const tx = cw / 2; const ty = ch / 2 + ih * 0.04;
+  g.lineJoin = 'round';
+  g.fillStyle = r.line; g.strokeStyle = r.line; g.lineWidth = ol * 1.25;
+  g.strokeText(text, tx + ih * 0.03, ty + ih * 0.09); g.fillText(text, tx + ih * 0.03, ty + ih * 0.09); // sombra dura
+  g.strokeText(text, tx, ty);
+  g.fillStyle = '#ffffff'; g.fillText(text, tx, ty);
+  const tex = new CanvasTexture(cv);
+  tex.colorSpace = SRGBColorSpace;
+  tex.minFilter = LinearFilter;
+  tex.anisotropy = 4;
+  // as coordenadas da tampa da extrusão são em unidades: centraliza a imagem nela
+  tex.repeat.set(1 / BAND_W, 1 / BAND_H);
+  tex.offset.set(0.5, 0.5);
+  return tex;
+}
+
+// Material de brinquedo de plástico (nada de metal): cor viva com verniz.
+function rarityMaterials(key) {
+  const r = RARITY[key];
+  const face = new MeshPhysicalMaterial({ map: rarityTexture(key), metalness: 0, roughness: 0.42, clearcoat: 0.7, clearcoatRoughness: 0.25, envMapIntensity: 0.55 });
+  const edge = new MeshPhysicalMaterial({ color: r.line, metalness: 0, roughness: 0.5, clearcoat: 0.5, clearcoatRoughness: 0.3, envMapIntensity: 0.5 });
+  return [face, edge];
+}
+
 /* ---------------------------------------------------------------- ambiente
    Um "estúdio" feito em código: paredes escuras, um softbox grande em cima à
    esquerda, uma faixa à direita e um painel na frente. É o que o plástico e o
@@ -142,6 +260,7 @@ export function loadPackEngine() {
 }
 
 async function createEngine() {
+  await loadBandFont();   // a faixa da raridade é desenhada com ela
   const canvas = document.createElement('canvas');
   const renderer = new WebGLRenderer({ canvas, antialias: true, alpha: true, premultipliedAlpha: true, powerPreference: 'low-power' });
   renderer.setClearColor(0x000000, 0);
@@ -198,6 +317,27 @@ async function createEngine() {
     casters.push(mesh);
     box.add(mesh);
   });
+  // Faixa da raridade: plaquinha com chanfro no topo da frente (fora do filme).
+  const bandShape = new Shape();
+  {
+    const bw = BAND_W / 2; const bh = BAND_H / 2; const rr = 0.4;
+    bandShape.moveTo(-bw + rr, -bh); bandShape.lineTo(bw - rr, -bh); bandShape.quadraticCurveTo(bw, -bh, bw, -bh + rr);
+    bandShape.lineTo(bw, bh - rr); bandShape.quadraticCurveTo(bw, bh, bw - rr, bh); bandShape.lineTo(-bw + rr, bh);
+    bandShape.quadraticCurveTo(-bw, bh, -bw, bh - rr); bandShape.lineTo(-bw, -bh + rr); bandShape.quadraticCurveTo(-bw, -bh, -bw + rr, -bh);
+  }
+  const bandGeo = new ExtrudeGeometry(bandShape, { depth: BAND_D, bevelEnabled: true, bevelThickness: 0.1, bevelSize: 0.08, bevelSegments: 5, curveSegments: 10 });
+  const band = new Mesh(bandGeo, rarityMaterials('COMUM'));
+  band.position.set(0, H / 2 - 0.2 - BAND_H / 2, Z_FRONT + 0.06);
+  band.castShadow = true;
+  band.renderOrder = 4;
+  band.visible = false;
+  box.add(band);
+  const bandCache = new Map();
+  const bandFor = (key) => {
+    if (!bandCache.has(key)) bandCache.set(key, rarityMaterials(key));
+    return bandCache.get(key);
+  };
+
   assembly.add(hook);
   assembly.add(box);
   scene.add(assembly);
@@ -311,6 +451,8 @@ async function createEngine() {
     key.target.position.set(0, 1, 0);
     key.target.updateMatrixWorld();
     pose(s);
+    // faixa da raridade (some se o item não tem)
+    if (s.rarity && RARITY[s.rarity]) { band.material = bandFor(s.rarity); band.visible = true; } else band.visible = false;
     // "Foto" pro arraste (snapshot): só a caixinha, sem o gancho e sem a sombra na cartela.
     hook.visible = !s.noHook && !s.hideHook;   // hideHook: o 360° mostra a caixinha sem o gancho
     // Caixinha fora do gancho (sendo arrastada pra cestinha): fica só o gancho.
@@ -410,7 +552,7 @@ export function mountPack(el, opts = {}) {
   const insertEl = el.querySelector('.room-pack-back');
   const frontEl = el.querySelector('.room-pack-front');
   const s = {
-    color: opts.color, tilt: opts.tilt || 0, orbit: !!opts.orbit, hideHook: !!opts.hideHook, drag: null,
+    color: opts.color, tilt: opts.tilt || 0, rarity: opts.rarity || null, orbit: !!opts.orbit, hideHook: !!opts.hideHook, drag: null,
     yaw: 0, yawV: 0, yawT: 0, pitch: 0, pitchV: 0, pitchT: 0, swing: 0, swingV: 0,
     lx: 0, ly: 0, lxT: 0, lyT: 0,
   };
@@ -496,6 +638,7 @@ export function mountPack(el, opts = {}) {
     update(o) {
       if (o.color !== undefined && o.color !== s.color) { s.color = o.color; dirty = true; }
       if (o.tilt !== undefined && o.tilt !== s.tilt) { s.tilt = o.tilt; dirty = true; }
+      if (o.rarity !== undefined && o.rarity !== s.rarity) { s.rarity = o.rarity; dirty = true; }
       wake();
     },
     /** Desenha só a caixinha (sem gancho nem sombra na parede) num <canvas>
@@ -506,6 +649,10 @@ export function mountPack(el, opts = {}) {
       if (!engine || !size || !target) return false;
       target.width = Math.round(size.w * size.dpr);
       target.height = Math.round(size.h * size.dpr);
+      // O canvas da parede tem margem em volta (left/top negativos e maior que a
+      // caixinha): o clone herda isso. A foto é sem margem, então volta pro tamanho
+      // exato da caixinha — senão ela aparecia esticada e fora do lugar no arraste.
+      Object.assign(target.style, { inset: '0', left: '0', top: '0', width: '100%', height: '100%' });
       const tctx = target.getContext('2d');
       if (!tctx) return false;
       s.noHook = true;
