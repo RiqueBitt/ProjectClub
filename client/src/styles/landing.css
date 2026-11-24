@@ -800,3 +800,32 @@ html .lp :focus-visible { outline: 2px solid #fff !important; outline-offset: 3p
   .lp-bo-art { position: relative; order: 2; top: auto; bottom: auto; left: auto; right: auto; width: 100%; height: 440px; margin-top: 32px; }
   .lp-bo-pick:not(.is-on) { transform: translateX(48%) scale(.75); }
 }
+
+/* Blackout: a cor e a ficha seguem o personagem escolhido */
+.lp-bo.is-v2 { --acc: var(--blood); --acc-rgb: 255, 59, 59; --glow-rgb: 170, 20, 24; }
+.lp-bo.is-v2 .lp-bo-bg { background: radial-gradient(80% 60% at 20% 100%, rgba(40, 6, 8, .35), transparent 70%), #070405; }
+.lp-bo-glow { position: absolute; inset: 0; z-index: 0; pointer-events: none; background: radial-gradient(45% 70% at 72% 55%, rgba(var(--glow-rgb), .42), transparent 70%), radial-gradient(40% 50% at 15% 30%, rgba(var(--glow-rgb), .14), transparent 70%); animation: lp-fade .7s var(--ease-out) both; }
+.lp-bo.is-v2 .lp-bo-kicker, .lp-bo.is-v2 .lp-bo-feats b::before { color: var(--acc); transition: color .5s; }
+.lp-bo.is-v2 .lp-bo-kicker::before { background: var(--acc); transition: background .5s; }
+.lp-bo.is-v2 .lp-bo-title { transition: text-shadow .6s; text-shadow: 0 0 60px rgba(var(--acc-rgb), .25); }
+.lp-bo-tabs button.is-on { background: var(--acc); border-color: var(--acc); color: #120a08; }
+.lp-bo.is-v2 .lp-d20 { color: var(--acc); transition: color .5s; }
+.lp-bo.is-v2 .lp-d20 svg { fill: rgba(var(--acc-rgb), .1); filter: drop-shadow(0 0 14px rgba(var(--acc-rgb), .55)); }
+.lp-bo.is-v2 .lp-d20 b { text-shadow: 0 0 12px rgba(var(--acc-rgb), .9); }
+.lp-bo.is-v2 .lp-d20.is-crit svg { fill: rgba(var(--acc-rgb), .3); filter: drop-shadow(0 0 26px rgba(var(--acc-rgb), .95)); }
+.lp-bo.is-v2 .lp-d20.is-crit small { color: var(--acc); }
+
+.lp-bo-sheet { width: 100%; max-width: 440px; display: grid; gap: 12px; padding: 16px 0 4px; border-top: 1px solid rgba(var(--acc-rgb), .35); }
+.lp-bo-who { margin: 0; display: flex; align-items: baseline; gap: 12px; animation: lp-swap .5s var(--ease-out) both; }
+.lp-bo-who b { font-family: var(--display); font-weight: 900; text-transform: uppercase; font-size: 30px; color: var(--acc); letter-spacing: .02em; }
+.lp-bo-who span { font-size: 14px; color: rgba(239, 230, 218, .6); }
+.lp-bo-stats { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
+.lp-bo-stats li { display: grid; grid-template-columns: 78px 1fr 32px; align-items: center; gap: 12px; font-size: 13px; color: rgba(239, 230, 218, .65); animation: lp-swap .5s var(--ease-out) both; animation-delay: calc(.08s + var(--i) * .07s); }
+.lp-bo-stats i { height: 4px; border-radius: 4px; background: rgba(239, 230, 218, .1); position: relative; overflow: hidden; }
+.lp-bo-stats i::after { content: ''; position: absolute; inset: 0; background: var(--acc); box-shadow: 0 0 10px rgba(var(--acc-rgb), .7); transform-origin: left; transform: scaleX(var(--v)); animation: lp-bar .8s var(--ease-out) both; animation-delay: calc(.15s + var(--i) * .07s); }
+.lp-bo-stats b { font-family: var(--display); font-weight: 800; font-size: 16px; color: var(--bone); text-align: right; font-variant-numeric: tabular-nums; }
+@keyframes lp-bar { from { transform: scaleX(0); } }
+@media (prefers-reduced-motion: reduce) {
+  .lp-bo-glow, .lp-bo-who, .lp-bo-stats li { animation: lp-fade .3s both; animation-delay: 0s; }
+  .lp-bo-stats i::after { animation: none; }
+}
