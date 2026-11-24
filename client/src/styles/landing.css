@@ -280,8 +280,8 @@ html .lp :focus-visible { outline: 2px solid #fff !important; outline-offset: 3p
 }
 .lp-reveal.is-in.lp-display, .lp-reveal.is-in .lp-display { background-position: left; }
 
-.lp-reveal { opacity: 0; transform: translateY(30px); transition: opacity 1s var(--ease-out), transform 1s var(--ease-out), background-position 1.3s var(--ease-out) .1s; }
-.lp-reveal.is-in { opacity: 1; transform: none; }
+/* Conteúdo sempre visível: só o preenchimento dos títulos anima ao entrar na tela. */
+.lp-reveal { transition: background-position 1.3s var(--ease-out) .1s; }
 .lp-split > .lp-reveal:nth-child(2) { transition-delay: .12s; }
 
 /* ---------- Comunidade ---------- */
@@ -649,3 +649,29 @@ html .lp :focus-visible { outline: 2px solid #fff !important; outline-offset: 3p
 .lp-tag i { width: 7px; height: 7px; border-radius: 50%; background: #6ee7b7; box-shadow: 0 0 8px #6ee7b7; animation: lp-blink 1.6s ease-in-out infinite; animation-delay: calc(var(--i) * -200ms); }
 @keyframes lp-blink { 50% { opacity: .25; } }
 @media (max-width: 700px) { .lp-tag { font-size: 11px; height: 24px; padding: 0 9px; } }
+
+/* ---------- Abertura: o próprio app como vitrine ----------
+   Frase à esquerda, print real do app à direita saindo da tela.
+   Cores do app (global.css): preto e o azul da marca. */
+.lp { --brand: #4C9FFF; }
+.lp-hero {
+  min-height: auto; display: grid; grid-template-columns: minmax(0, 5fr) minmax(0, 7fr);
+  align-items: center; gap: clamp(32px, 4vw, 72px); text-align: left;
+  padding: clamp(48px, 7vw, 104px) 0 clamp(72px, 8vw, 128px) var(--gutter);
+}
+.lp-hero::before { display: none; }
+.lp-hero-text { display: flex; flex-direction: column; align-items: flex-start; gap: 28px; }
+.lp-hero .lp-display { font-size: clamp(56px, 6.2vw, 104px); line-height: .9; word-spacing: normal; text-shadow: none; text-wrap: balance; pointer-events: auto; }
+.lp-hero .lp-lede { text-shadow: none; max-width: 46ch; }
+.lp-hero .lp-hero-cta, .lp-hero .lp-pulse { justify-content: flex-start; }
+.lp-hero-shot {
+  margin: 0; overflow: hidden; background: #000;
+  border: 1px solid var(--line-2); border-right: 0; border-radius: 14px 0 0 14px;
+  box-shadow: 0 40px 120px rgba(0, 0, 0, .7), 0 0 0 1px rgba(76, 159, 255, .08);
+}
+.lp-hero-shot img { display: block; width: 100%; height: auto; }
+@media (max-width: 900px) {
+  .lp-hero { grid-template-columns: 1fr; padding: 40px var(--gutter) 72px; }
+  .lp-hero .lp-display { font-size: clamp(44px, 12.5vw, 76px); }
+  .lp-hero-shot { border-right: 1px solid var(--line-2); border-radius: 12px; }
+}
