@@ -34,7 +34,13 @@ class PushService : FirebaseMessagingService() {
         when {
             conversationId.isNotEmpty() -> Notifier.message(this, conversationId, title, body)
             channelId.isNotEmpty() -> Notifier.mention(this, channelId, title, body)
-            else -> Notifier.notice(this, msg.messageId ?: title, title, body, data["link"])
+            else -> {
+                // Aviso: o mesmo pode chegar pelo socket e pela checagem de fundo — mostra uma vez só.
+                val noticeId = data["noticeId"].orEmpty()
+                if (noticeId.isNotEmpty() && NoticeSeen.seen(this, noticeId)) return
+                Notifier.notice(this, noticeId.ifEmpty { msg.messageId ?: title }, title, body, data["link"])
+                if (noticeId.isNotEmpty()) NoticeSeen.mark(this, noticeId)
+            }
         }
     }
 }

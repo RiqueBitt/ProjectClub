@@ -91,7 +91,10 @@ class App : Application(), coil.ImageLoaderFactory {
             }
         })
 
-        repo.beforeLogout = { pushToken?.let { repo.unregisterPushToken(it) } }
+        repo.beforeLogout = {
+            com.projectclub.android.notify.NoticeCheckWorker.cancel(this)
+            pushToken?.let { repo.unregisterPushToken(it) }
+        }
         appScope.launch { repo.restore() }
         appScope.launch { runCatching { CrashReporter.sendPending(this@App) } }
         appScope.launch { repo.alerts.collect(::onAlert) }
@@ -108,6 +111,8 @@ class App : Application(), coil.ImageLoaderFactory {
         when (a) {
             Alert.SessionStarted -> {
                 registerPush()
+                // Avisos com o app fechado mesmo sem o Firebase (notify/NoticeCheckWorker.kt).
+                com.projectclub.android.notify.NoticeCheckWorker.schedule(this)
                 // Entrou na conta (ou a sessão voltou): o widget pega os dados novos.
                 com.projectclub.android.widget.OnlineWidget.requestUpdate(this)
             }
@@ -123,8 +128,12 @@ class App : Application(), coil.ImageLoaderFactory {
                 Notifier.message(this, conv, title, text)
             }
             is Alert.Mention -> Notifier.mention(this, a.channelId, "${a.authorName} em #${a.channelName}", a.preview)
-            is Alert.NoticeArrived -> if (!_isForeground.value) {
-                Notifier.notice(this, a.notice.id, a.notice.title ?: "Project Club", a.notice.body.orEmpty(), a.notice.link)
+            is Alert.NoticeArrived -> {
+                val seen = com.projectclub.android.notify.NoticeSeen
+                if (!_isForeground.value && !seen.seen(this, a.notice.id)) {
+                    Notifier.notice(this, a.notice.id, a.notice.title ?: "Project Club", a.notice.body.orEmpty(), a.notice.link)
+                }
+                seen.mark(this, a.notice.id)
             }
             is Alert.IncomingCall -> {
                 if (voice.state.value.channelName == a.channelName) return
