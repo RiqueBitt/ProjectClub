@@ -35,7 +35,7 @@ export default function PersonalStickersSection({ query = '', onPickSticker, onC
           <strong>Figurinhas personalizadas são para Assinantes</strong>
           <span>Envie até 5 figurinhas suas (15 no Super Assinante) e use em qualquer chat.</span>
         </div>
-        <button type="button" className="personal-stickers-upsell-btn" onClick={() => { onClose?.(); navigate('/loja?secao=assinatura'); }}>
+        <button type="button" className="personal-stickers-upsell-btn" onClick={() => { onClose?.(); navigate('/assinatura'); }}>
           Ver Assinatura
         </button>
       </div>

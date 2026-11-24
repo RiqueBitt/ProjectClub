@@ -138,7 +138,7 @@ export default function EconomyPage({ initialTab = 'geral' }) {
   const refreshSeason = useCallback(() => getMissionSeason().then((d) => setSeason(Array.isArray(d?.tiers) ? d : null)).catch(() => {}), []);
   useEffect(() => { refreshSeason(); }, [refreshSeason]);
   // Link direto pro passe sem ser Assinante: manda pra Assinatura.
-  useEffect(() => { if (tab === 'temporada' && season && !season.isSupporter) navigate('/loja?secao=assinatura', { replace: true }); }, [tab, season, navigate]);
+  useEffect(() => { if (tab === 'temporada' && season && !season.isSupporter) navigate('/assinatura', { replace: true }); }, [tab, season, navigate]);
   const seasonReady = season ? season.tiers.filter((t) => t.unlocked && (!t.claimedFree || (season.isSupporter && !t.claimedPlus))).length : 0;
   const claimSeason = async (level, track) => {
     setSeasonBusy(`${level}:${track}`);
@@ -237,7 +237,7 @@ export default function EconomyPage({ initialTab = 'geral' }) {
         onChange={(id) => {
           if (id === 'loja') navigate('/loja');
           else if (id === 'criadores') navigate('/loja/criadores');
-          else if (id === 'temporada' && season && !season.isSupporter) navigate('/loja?secao=assinatura');
+          else if (id === 'temporada' && season && !season.isSupporter) navigate('/assinatura');
           else setTab(id);
         }}
       />

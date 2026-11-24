@@ -67,10 +67,15 @@ test('loja: coração da lista de desejos, presentes e códigos, comparar planos
   await expect(page.getByRole('heading', { name: 'Resgatar código' })).toBeVisible();
   await expect(page.getByRole('heading', { name: 'Insígnia de Presentes' })).toBeVisible();
   await shot(page, 'loja-presentes', info);
-  // "Comparar planos" virou o item "Assinatura" no topo do menu da Loja (#127).
-  await page.locator('.room-nav-sub', { hasText: 'Assinatura' }).click();
-  await expect(page.locator('.room-subs')).toBeVisible();
-  await shot(page, 'loja-planos', info);
+  // Assinatura saiu da Loja: agora é a página /assinatura (canais em destaque).
+  await expect(page.locator('.room-nav-sub', { hasText: 'Assinatura' })).toHaveCount(0);
+  await page.goto('/loja?secao=assinatura');
+  await expect(page).toHaveURL(/\/assinatura$/);
+  await expect(page.locator('.sub-plan')).toHaveCount(2);
+  await expect(page.getByRole('heading', { name: 'Compare os planos' })).toBeVisible();
+  await page.getByRole('button', { name: 'Quanto tempo vale?' }).click();
+  await expect(page.getByText('Um mês por pagamento.')).toBeVisible();
+  await shot(page, 'assinatura', info);
   expect(errors).toEqual([]);
 });
 
@@ -114,4 +119,15 @@ test('configurações: tema colorido, ícone, modo streamer, sons, privacidade',
   await page.getByRole('heading', { name: 'Filtros de spam' }).scrollIntoViewIfNeeded();
   await shot(page, 'cfg-privacidade', info);
   expect(errors).toEqual([]);
+});
+
+test('canais em destaque: Assinatura no topo leva pra página de planos', async ({ page }, info) => {
+  test.skip(info.project.name !== 'pc', 'barra de canais conferida no PC');
+  await page.goto('/inicio');
+  const first = page.locator('.featured-channels .featured-channel').first();
+  await expect(first).toBeVisible({ timeout: 20_000 });
+  await expect(first).toContainText('Assinatura');
+  await first.click();
+  await expect(page).toHaveURL(/\/assinatura$/);
+  await expect(page.locator('.sub-hero h1')).toContainText('Assinatura');
 });

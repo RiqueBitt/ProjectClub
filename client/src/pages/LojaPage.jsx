@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
-import { useParams, useSearchParams } from 'react-router-dom';
+import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { slugify } from '../utils/prettyPaths';
 import { useAuth } from '../context/AuthContext.jsx';
 import UserAvatar from '../components/UserAvatar.jsx';
@@ -197,9 +197,12 @@ function useEscape(onClose) {
 export default function LojaPage() {
   const { user, setUser } = useAuth();
   const [params] = useSearchParams();
+  const navigate = useNavigate();
+  // Link antigo (/loja?secao=assinatura): a assinatura agora tem página própria.
+  useEffect(() => { if (params.get('secao') === 'assinatura') navigate('/assinatura', { replace: true }); }, [params, navigate]);
   const [data, setData] = useState(null);
   const [loadError, setLoadError] = useState('');
-  const [section, setSection] = useState(() => (params.get('secao') === 'assinatura' ? 'plans' : params.get('secao') === 'cartao' ? 'cartao' : params.get('tab') === 'trocas' ? 'trades' : CARDS_WAR_ON && params.get('cat') === 'versos' ? 'back' : 'home'));
+  const [section, setSection] = useState(() => (params.get('secao') === 'cartao' ? 'cartao' : params.get('tab') === 'trocas' ? 'trades' : CARDS_WAR_ON && params.get('cat') === 'versos' ? 'back' : 'home'));
   const [query, setQuery] = useState('');
   const [sort, setSort] = useState('foryou');
   const [shuffleSeed, setShuffleSeed] = useState(() => Math.floor(Math.random() * 1e9));
@@ -331,7 +334,7 @@ export default function LojaPage() {
     return { kinds, collections: cols };
   }, [items]);
   const ctx = {
-    user, data, supporter, busy, isEquipped, now, open: setDetail, equip, goPlans: () => { setDetail(null); go('plans'); }, askBuy: (item, cur) => setConfirm({ item, currency: cur }), gift: setGiftFor,
+    user, data, supporter, busy, isEquipped, now, open: setDetail, equip, goPlans: () => { setDetail(null); navigate('/assinatura'); }, askBuy: (item, cur) => setConfirm({ item, currency: cur }), gift: setGiftFor,
     inWish, toggleWish, ownedStats, shuffleSeed,
     basket: { has: basket.has, add: addToBasket, canAdd, dragDown: drag.onPointerDown }, colorF, setColorF, tagF, setTagF,
     variantsOf: (i) => (i.variantGroup ? items.filter((x) => x.kind === i.kind && x.variantGroup === i.variantGroup) : []),
@@ -453,7 +456,6 @@ export default function LojaPage() {
   else if (section === 'owned') content = <OwnedPage list={ownedItems} go={go} ctx={ctx} />;
   else if (section === 'wishlist') content = <WishlistPage list={items.filter(inWish)} go={go} ctx={ctx} />;
   else if (section === 'gifts') content = <GiftsPage go={go} onWallet={(w) => setData((d) => (d ? { ...d, coins: w.coins ?? d.coins, gems: w.gems ?? d.gems } : d))} reload={load} flash={flash} />;
-  else if (section === 'plans') content = <PlansPage supporter={supporter} />;
   else if (section === 'checkout') {
     content = (
       <CheckoutPage
@@ -470,7 +472,7 @@ export default function LojaPage() {
       />
     );
   }
-  else if (section === 'cartao') content = <WalletCardStyles user={user} flash={flash} onPlans={() => go('plans')} />;
+  else if (section === 'cartao') content = <WalletCardStyles user={user} flash={flash} onPlans={() => navigate('/assinatura')} />;
   else if (section === 'cartas') content = <CardsSoonPage />;
   else if (section === 'tryon') content = <ShopTryOn items={items} user={user} data={data} ctx={ctx} />;
   else if (section === 'look') content = <LookPage look={lookParam} from={params.get('from')} items={items} ctx={ctx} />;
@@ -488,12 +490,6 @@ export default function LojaPage() {
           <ShopLogo onHome={() => { setQuery(''); go('home'); }} />
           <nav className="room-nav-scroll" ref={navRef}>
             <span className="room-nav-pill" aria-hidden="true" style={pill ? { transform: `translate(${pill.x}px, ${pill.y}px)`, width: pill.w, height: pill.h, opacity: 1 } : undefined} />
-            {/* Assinatura sempre no topo, em destaque dourado. */}
-            <button type="button" className={`room-nav-sub${!searching && section === 'plans' ? ' active' : ''}`} aria-current={!searching && section === 'plans' ? 'page' : undefined} onClick={() => go('plans')}>
-              <Ico name="crown" size={17} />
-              <span>Assinatura</span>
-              {supporter?.tier && supporter.tier !== 'NONE' && <em>{TIER_LABEL[supporter.tier]}</em>}
-            </button>
             {nav.map((g) => (
               <div key={g.group} className="room-nav-group">
                 <span className={`room-nav-label${g.crown ? ' with-crown' : ''}`}>{g.group}{g.crown && <Ico name="crown" size={12} strokeWidth={2.2} />}</span>
@@ -511,7 +507,7 @@ export default function LojaPage() {
               </div>
             ))}
           </nav>
-          <SupporterCard supporter={supporter} compact onPlans={() => go('plans')} />
+          <SupporterCard supporter={supporter} compact onPlans={() => navigate('/assinatura')} />
         </aside>
 
         <main className="room-main" ref={mainRef}>
@@ -1709,73 +1705,8 @@ function GiftsPage({ go, onWallet, reload, flash }) {
   );
 }
 
-// ---------- Assinatura ----------
-const PLANS = [
-  {
-    id: 'SUBSCRIBER', name: 'Assinante', price: '13,50', url: 'https://livepix.gg/projectclubr/assinante',
-    perks: [
-      '10% de desconto em todos os itens da Loja',
-      '5% de bônus de XP',
-      ['Acesso ao ', 'passe do clube'],
-      ['Acesso à ', 'loja exclusiva'],
-      'Pacote de 5 figurinhas personalizadas',
-      ['Insígnia exclusiva de ', 'Assinante'],
-      ['Decoração exclusiva de ', 'Assinante'],
-      'Destaque na lista de membros',
-    ],
-  },
-  {
-    id: 'SUPER', name: 'Super Assinante', price: '20,50', url: 'https://livepix.gg/projectclubr/super-assinante', note: 'Todas as vantagens de Assinante +',
-    perks: [
-      '20% de desconto em todos os itens da Loja',
-      '15% de bônus de XP',
-      'Pacote de 15 figurinhas personalizadas',
-      ['Insígnia exclusiva de ', 'Super Assinante'],
-      ['Decoração exclusiva de ', 'Super Assinante'],
-    ],
-  },
-];
-function PlansPage({ supporter }) {
-  const cur = supporter?.tier || 'NONE';
-  return (
-    <div className="room-stack">
-      <div className="room-page-head">
-        <h1 className="room-title-crown"><Ico name="crown" size={22} strokeWidth={2.2} /> Assinatura</h1>
-        <p>Apoie o Project Club e ganhe vantagens na comunidade. Tudo que é personalização básica continua grátis pra todo mundo.</p>
-      </div>
-      <div className="room-subs">
-        {PLANS.map((p) => {
-          const mine = cur === p.id;
-          return (
-            <section key={p.id} className={`room-sub t-${p.id.toLowerCase()}${mine ? ' mine' : ''}`} aria-label={p.name}>
-              <header>
-                <span className="room-sub-ico"><Ico name="crown" size={20} strokeWidth={2.2} /></span>
-                <div>
-                  <h2>{p.name}</h2>
-                  <p className="room-sub-price"><b>R$ {p.price}</b> <small>/mês</small></p>
-                </div>
-                {mine && <span className="room-sub-mine">Seu plano</span>}
-              </header>
-              {p.note && <p className="room-sub-note">{p.note}</p>}
-              <ul>
-                {p.perks.map((perk) => (
-                  <li key={Array.isArray(perk) ? perk.join('') : perk}>
-                    <Ico name="check" size={15} strokeWidth={2.6} />
-                    <span>{Array.isArray(perk) ? <>{perk[0]}<strong>{perk[1]}</strong></> : perk}</span>
-                  </li>
-                ))}
-              </ul>
-              <a className="room-sub-cta" href={p.url} target="_blank" rel="noopener noreferrer">
-                <Ico name="crown" size={16} strokeWidth={2.2} /> {mine ? 'Renovar' : 'Assinar'} {p.name}
-              </a>
-            </section>
-          );
-        })}
-      </div>
-      <p className="room-muted">Para assinar, clique no botão do plano: o pagamento é feito pelo LivePix (Pix). Depois de pagar, a equipe libera as vantagens na sua conta. Gemas são a moeda da plataforma e servem para a Loja, não para a assinatura.</p>
-    </div>
-  );
-}
+// Assinatura: saiu da Loja (nov/2026) — agora é a página /assinatura
+// (pages/AssinaturaPage.jsx), nos canais em destaque.
 
 // ---------- Cartas (em breve) ----------
 function CardsSoonPage() {
