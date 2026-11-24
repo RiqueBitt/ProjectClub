@@ -178,7 +178,13 @@ function CommandPalette({ open, onClose, onPickApp, actions }) {
   );
 }
 
+const BO_CHARS = [
+  { id: 'bruxo', name: 'Bruxo', src: '/site/personagens/bruxo.webp' },
+  { id: 'sacerdotisa', name: 'Sacerdotisa', src: '/site/personagens/sacerdotisa.webp' },
+];
+
 function BlackoutTable() {
+  const [hero, setHero] = useState(0);
   const [roll, setRoll] = useState(20);
   const [spin, setSpin] = useState(0);
   const timer = useRef(0);
@@ -198,9 +204,18 @@ function BlackoutTable() {
   return (
     <section id="blackout" className="lp-bo is-v2" aria-labelledby="bo-titulo">
       <div className="lp-bo-bg" aria-hidden="true" />
-      <div className="lp-bo-art" aria-hidden="true">
-        <img className="lp-bo-char is-back" src="/site/personagens/sacerdotisa.webp" alt="" loading="lazy" />
-        <img className="lp-bo-char is-front" src="/site/personagens/bruxo.webp" alt="" loading="lazy" />
+      <div className="lp-bo-art">
+        {BO_CHARS.map((c, i) => (
+          <button key={c.id} type="button" className={`lp-bo-pick ${i === hero ? 'is-on' : ''}`} onClick={() => setHero(i)} aria-pressed={i === hero} aria-label={`Mostrar ${c.name}`} tabIndex={-1}>
+            <img src={c.src} alt="" loading="lazy" />
+          </button>
+        ))}
+        <p className="lp-bo-name" key={hero} aria-hidden="true">{BO_CHARS[hero].name}</p>
+        <div className="lp-bo-tabs" role="group" aria-label="Escolher personagem">
+          {BO_CHARS.map((c, i) => (
+            <button key={c.id} type="button" className={i === hero ? 'is-on' : ''} aria-pressed={i === hero} onClick={() => setHero(i)}>{c.name}</button>
+          ))}
+        </div>
       </div>
       <div className="lp-bo-center lp-reveal">
         <p className="lp-bo-kicker">RPG de mesa dentro do clube</p>
@@ -245,7 +260,7 @@ const AppStage = forwardRef(function AppStage({ versions }, apiRef) {
   const [pinned, setPinned] = useState(true);
 
   useEffect(() => {
-    const mq = window.matchMedia('(max-width: 900px), (prefers-reduced-motion: reduce)');
+    const mq = window.matchMedia('(max-width: 900px)');
     const sync = () => setPinned(!mq.matches);
     sync();
     mq.addEventListener('change', sync);
@@ -350,7 +365,7 @@ const AppStage = forwardRef(function AppStage({ versions }, apiRef) {
 // ---------- O app ao vivo (abertura) ----------
 // Réplica em HTML da tela de chat do app: a conversa acontece sozinha, com
 // "digitando", reação somando e quem fala na call acendendo. Sem
-// movimento reduzido mostra a conversa inteira parada.
+// movimento reduzido a conversa continua, só sem deslizar.
 const LIVE_PEOPLE = {
   rique: { name: 'RiqueBitt', color: '#f08a3c', bg: 'linear-gradient(135deg,#8a1c1c,#4a0d0d)', mod: true },
   lia: { name: 'Lia', color: '#fff', bg: 'linear-gradient(135deg,#7c8cff,#4C9FFF)' },
@@ -373,7 +388,6 @@ function LiveReactions() {
   const [party, setParty] = useState(14);
   const [like, setLike] = useState(2);
   useEffect(() => {
-    if (reducedMotion()) return undefined;
     const a = setTimeout(() => setParty(15), 900);
     const b = setTimeout(() => setLike(3), 1700);
     return () => { clearTimeout(a); clearTimeout(b); };
@@ -387,12 +401,10 @@ function LiveReactions() {
 }
 
 function LiveClub() {
-  const reduced = reducedMotion();
-  const [count, setCount] = useState(reduced ? LIVE_SCRIPT.length : 0);
+  const [count, setCount] = useState(0);
   const [typing, setTyping] = useState(null);
   const [fading, setFading] = useState(false);
   useEffect(() => {
-    if (reduced) return undefined;
     let alive = true; const timers = [];
     const wait = (ms) => new Promise((r) => { timers.push(setTimeout(r, ms)); });
     (async () => {
@@ -410,7 +422,7 @@ function LiveClub() {
       }
     })();
     return () => { alive = false; timers.forEach(clearTimeout); };
-  }, [reduced]);
+  }, []);
 
   return (
     <figure className="lp-hero-shot lc" aria-label="Prévia do Project Club: canal chat geral com uma conversa acontecendo e três pessoas na sala de voz">
