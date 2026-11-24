@@ -132,6 +132,8 @@ data class StoreShopItem(
     /** Cor do filtro da Loja (roxo, azul…) e raridade (COMUM…MITICA, null = pelo preço). */
     val color: String? = null,
     val rarity: String? = null,
+    /** Efeito de texto: o valor que vai no nome ("FX_AURORA"…). */
+    val fx: String? = null,
 ) {
     val styleKey: String? get() = data?.style ?: key?.removePrefix("style:")
     /** O mesmo JSON que fica em User.profileFont (pra prévia). */
@@ -151,6 +153,9 @@ data class StoreShop(
     val styles: List<StoreShopItem> = emptyList(),
     val equippedFontId: String? = null,
     val equippedStyle: String? = null,
+    /** Efeitos de texto do nome (no lugar dos efeitos de perfil). */
+    val textEffects: List<StoreShopItem> = emptyList(),
+    val equippedTextEffect: String? = null,
     /** Opcional: o servidor ainda não manda; se mandar, a tela mostra o selo de Assinante. */
     val subscriber: Boolean = false,
 )

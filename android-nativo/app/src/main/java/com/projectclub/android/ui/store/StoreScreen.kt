@@ -110,6 +110,8 @@ internal data class ShopItem(
     /** Fonte: JSON igual ao User.profileFont; estilo: a chave (win2000...). */
     val fontJson: String? = null,
     val styleKey: String? = null,
+    /** Efeito de texto: "FX_AURORA"… (ui/common/NameFx.kt). */
+    val fx: String? = null,
     /** Cor (filtro da Loja) e raridade escolhida pela staff — a caixinha usa as duas. */
     val color: String? = null,
     val rarity: String? = null,
@@ -124,14 +126,15 @@ internal enum class Kind(val label: String, val buy: String, val equip: String, 
     Effect("Efeito de perfil", "/api/decorations/effects/%s/buy", "/api/decorations/effects/equip", "effect"),
     Font("Fonte do nome", "/api/decorations/fonts/%s/buy", "/api/decorations/fonts/equip", "font"),
     Style("Estilo de perfil", "/api/decorations/styles/%s/buy", "/api/decorations/styles/equip", "style"),
+    TextFx("Efeito de texto", "/api/decorations/text-effects/%s/buy", "/api/decorations/text-effects/equip", "textfx"),
 }
 
 private enum class StoreTab(val label: String) {
-    All("Tudo"), Frames("Molduras"), Effects("Efeitos"), Fonts("Fontes"), Styles("Estilos"), Limited("Limitados"),
+    All("Tudo"), Frames("Molduras"), Effects("Efeitos de texto"), Fonts("Fontes"), Styles("Estilos"), Limited("Limitados"),
     Collections("Coleções"), Card("Cartão"), Mine("Meus itens"), Trades("Trocas"),
 }
 
-/** Loja do Project Club: molduras, efeitos de perfil e coleções. */
+/** Loja do Project Club: molduras, efeitos de texto, fontes, estilos e coleções. */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun StoreScreen(repo: Repository, nav: AppNav, initialTab: String?) {
@@ -219,9 +222,10 @@ fun StoreScreen(repo: Repository, nav: AppNav, initialTab: String?) {
                         it.limited, it.stock, it.sold, it.remaining, it.serial, it.locked, it.description,
                         color = it.color, rarity = it.rarity, exclusiveTier = it.exclusiveTier)
                 }
-                val effects = s.effects.sortedBy { it.sortOrder }.map {
-                    ShopItem(it.id, Kind.Effect, it.name, it.imageUrl, it.priceCoins, it.priceGems, it.owned, it.id == s.equippedEffectId, isNew(it.createdAt), it.collectionId,
-                        it.limited, it.stock, it.sold, it.remaining, it.serial, it.locked, it.description,
+                // Efeitos de perfil saíram da Loja: no lugar, efeitos de texto do nome.
+                val effects = s.textEffects.sortedBy { it.sortOrder }.map {
+                    ShopItem(it.id, Kind.TextFx, it.name, it.previewUrl, it.priceCoins, it.priceGems, it.owned, it.fx != null && it.fx == s.equippedTextEffect, isNew(it.createdAt), it.collectionId,
+                        it.limited, it.stock, it.sold, it.remaining, it.serial, it.locked, it.description, fx = it.fx,
                         color = it.color, rarity = it.rarity, exclusiveTier = it.exclusiveTier)
                 }
                 val fonts = s.fonts.sortedBy { it.sortOrder }.map {
@@ -305,7 +309,7 @@ fun StoreScreen(repo: Repository, nav: AppNav, initialTab: String?) {
             text = {
                 Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
                     c.description?.takeIf { it.isNotBlank() }?.let { Text(it, color = PC.Muted) }
-                    val inCol = s?.let { it.decorations.count { d -> d.collectionId == c.id } + it.effects.count { e -> e.collectionId == c.id } } ?: 0
+                    val inCol = s?.let { it.decorations.count { d -> d.collectionId == c.id } + it.textEffects.count { e -> e.collectionId == c.id } } ?: 0
                     Text("$inCol itens no pacote", color = PC.Text)
                     if (c.offer?.active == true) Chip("-${c.offer.discount}% por tempo limitado", PC.Green)
                     confirmGems?.let { g -> Text("Confirmar compra por ${fmtNum(if (g) c.finalBundleGems else c.finalBundleCoins)} ${if (g) "gemas" else "moedas"}?", color = PC.Header, fontWeight = FontWeight.Bold) }
@@ -360,7 +364,13 @@ internal fun ItemPreview(item: ShopItem, me: com.projectclub.android.data.User?,
     val st = if (item.kind == Kind.Style) com.projectclub.android.ui.profile.profileStyleOf(item.styleKey) else null
     val bg = st?.bg ?: if (transparent) Brush.linearGradient(listOf(Color.Transparent, Color.Transparent)) else Brush.radialGradient(listOf(PC.Surface3, PC.Surface))
     Box(modifier.background(bg), contentAlignment = Alignment.Center) {
-        if (item.kind == Kind.Font) {
+        if (item.kind == Kind.TextFx) {
+            // Seu nome com o efeito, animado.
+            Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.padding(8.dp)) {
+                Text(me?.name ?: "Seu nome", style = (com.projectclub.android.ui.common.nameFxStyle(item.fx) ?: androidx.compose.ui.text.TextStyle(color = PC.Header)).copy(fontSize = (26 * scale).sp, fontWeight = FontWeight.ExtraBold), maxLines = 1, overflow = TextOverflow.Ellipsis)
+                Text("Efeito animado no nome", color = PC.Muted, fontSize = (12 * scale).sp)
+            }
+        } else if (item.kind == Kind.Font) {
             // Seu nome escrito com a fonte.
             val f = com.projectclub.android.ui.profile.rememberShopFont(item.fontJson)
             Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.padding(8.dp)) {
@@ -518,7 +528,7 @@ private fun StoreSkeleton() {
 /** "Lista de desejos" (igual ao site): amigos veem no seu perfil e podem te dar de presente. */
 @Composable
 private fun WishlistButton(repo: com.projectclub.android.data.Repository, item: ShopItem) {
-    val kind = when (item.kind) { Kind.Frame -> "deco"; Kind.Effect -> "effect"; Kind.Font -> "font"; Kind.Style -> "style" }
+    val kind = when (item.kind) { Kind.Frame -> "deco"; Kind.Effect -> "effect"; Kind.Font -> "font"; Kind.Style -> "style"; Kind.TextFx -> "textfx" }
     val ctx = androidx.compose.ui.platform.LocalContext.current
     val scope = rememberCoroutineScope()
     var on by remember(item.id) { mutableStateOf<Boolean?>(null) }

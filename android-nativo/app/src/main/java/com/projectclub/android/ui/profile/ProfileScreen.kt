@@ -603,12 +603,12 @@ private fun ProfileHeader(u: ProfileUser, status: String, birthday: Boolean) {
                 Avatar(user, 102.dp, status)
             }
             // Efeito de perfil da Loja tocando por cima do topo do perfil.
-            ProfileEffectOverlay(u.profileEffect, Modifier.matchParentSize())
+            // Efeitos de perfil saíram da Loja (no lugar: efeito de texto no nome).
         }
         Column(Modifier.fillMaxWidth().padding(horizontal = 16.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text(
-                    u.name, style = nameTextStyle(MaterialTheme.typography.headlineSmall.copy(color = PC.Header), st, shopFont),
+                    u.name, style = nameTextStyle(MaterialTheme.typography.headlineSmall.copy(color = PC.Header), st, shopFont).let { b -> com.projectclub.android.ui.common.nameFxStyle(u.profileNameEffect)?.let { b.merge(it) } ?: b },
                     maxLines = 2, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f, fill = false),
                 )
                 if (birthday) { Spacer(Modifier.width(8.dp)); Text("🎂", fontSize = 22.sp) }

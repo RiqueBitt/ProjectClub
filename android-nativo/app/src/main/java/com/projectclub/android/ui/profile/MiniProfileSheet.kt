@@ -111,7 +111,7 @@ fun MiniProfileSheet(
                 }
                 Column(Modifier.padding(start = 18.dp, end = 18.dp, top = 0.dp).offset(y = (-34).dp)) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
-                        Text(u?.name ?: "…", style = nameTextStyle(MaterialTheme.typography.headlineSmall.copy(color = PC.Header), st, shopFont), fontWeight = FontWeight.Bold, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f, fill = false))
+                        Text(u?.name ?: "…", style = nameTextStyle(MaterialTheme.typography.headlineSmall.copy(color = PC.Header), st, shopFont).let { b -> com.projectclub.android.ui.common.nameFxStyle(u?.profileNameEffect)?.let { b.merge(it) } ?: b }, fontWeight = FontWeight.Bold, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f, fill = false))
                         profile?.user?.tagEmoji?.let { Spacer(Modifier.width(6.dp)); Text(it) }
                     }
                     Text(listOfNotNull(u?.username?.let { "@$it" }, u?.pronouns?.takeIf { it.isNotBlank() }).joinToString(" · "), color = st?.muted ?: PC.Muted, style = MaterialTheme.typography.bodyMedium, fontFamily = st?.bodyFont)
@@ -179,7 +179,7 @@ fun MiniProfileSheet(
                 }
             }
             st?.let { StyleOverlay(it, Modifier.matchParentSize().padding(top = 176.dp)) }
-            ProfileEffectOverlay(u?.profileEffect, Modifier.matchParentSize())
+            // Efeitos de perfil saíram da Loja (no lugar: efeito de texto no nome).
         }
     }
 }

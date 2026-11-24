@@ -78,7 +78,7 @@ import kotlinx.serialization.json.buildJsonArray
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.put
 
-private val KIND_LABEL = mapOf("deco" to "Moldura", "effect" to "Efeito", "font" to "Fonte", "style" to "Estilo")
+private val KIND_LABEL = mapOf("deco" to "Moldura", "effect" to "Efeito", "font" to "Fonte", "style" to "Estilo", "textfx" to "Efeito de texto")
 private val STATUS_LABEL = mapOf("PENDING" to "Esperando", "ACCEPTED" to "Aceita", "DECLINED" to "Recusada", "CANCELLED" to "Cancelada", "FAILED" to "Não deu certo")
 private fun key(i: TradeItem) = "${i.kind}:${i.id}"
 

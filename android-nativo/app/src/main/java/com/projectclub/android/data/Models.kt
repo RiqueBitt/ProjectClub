@@ -35,6 +35,8 @@ data class User(
     val customStatusEmoji: String? = null,
     val profileColor: String? = null,
     val profileNameColor: String? = null,
+    /** Efeito do nome; "FX_<CHAVE>" = efeito de texto da Loja (ui/common/NameFx.kt). */
+    val profileNameEffect: String? = null,
     val platformRole: String? = null,
     val accountLevel: Int? = null,
     val email: String? = null,
