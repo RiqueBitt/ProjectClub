@@ -189,9 +189,15 @@ async function updateUserAdmin(req, res, next) {
   } catch (err) { next(err); }
 }
 
+// Ninguém se tranca para fora sem querer: banir, suspender ou tirar o
+// próprio cargo de ADMIN só por outro admin (excluir a conta já seguia essa
+// regra, ver deleteUserAccount). Voltar a ter acesso exigiria mexer no banco.
+const SELF_ACTION_ERROR = 'Você não pode fazer isso com a própria conta. Peça a outro administrador.';
+
 async function banUser(req, res, next) {
   try {
     const { id } = req.params;
+    if (id === req.user.id) return res.status(400).json({ error: SELF_ACTION_ERROR });
     const reason = auditReason(req.body?.reason); // platformBanReason é VARCHAR(191)
     const user = await prisma.user.update({
       where: { id }, data: { isPlatformBanned: true, platformBanReason: reason }, select: ADMIN_USER_FIELDS,
@@ -220,6 +226,7 @@ async function unbanUser(req, res, next) {
 async function suspendUser(req, res, next) {
   try {
     const { id } = req.params;
+    if (id === req.user.id) return res.status(400).json({ error: SELF_ACTION_ERROR });
     const { hours } = req.body || {};
     const reason = auditReason(req.body?.reason);
     // Horas fora da faixa (negativo, 1e12...) davam uma data inválida → 500.
@@ -249,6 +256,9 @@ async function setPlatformRole(req, res, next) {
     const { id } = req.params;
     const { role } = req.body;
     if (!['USER', 'MODERATOR', 'ADMIN'].includes(role)) return res.status(400).json({ error: 'Cargo administrativo inválido.' });
+    // Quem chama é ADMIN (requirePlatformAdmin), então rebaixar a si mesmo é
+    // o único jeito de a plataforma ficar sem nenhum ADMIN.
+    if (role !== 'ADMIN' && id === req.user.id) return res.status(400).json({ error: SELF_ACTION_ERROR });
     const user = await prisma.user.update({ where: { id }, data: { platformRole: role }, select: ADMIN_USER_FIELDS });
     await logPlatformAction(req, { action: 'USER_ROLE_CHANGE', targetType: 'USER', targetId: id, metadata: { role } });
 
