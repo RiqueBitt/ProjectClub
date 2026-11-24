@@ -11,7 +11,7 @@ test.beforeEach(async ({ page }) => {
   await page.route(/fonts\.(googleapis|gstatic)\.com/, (r) => r.abort());
 });
 
-test('visão geral em fila, grupos recolhíveis, fixar e recentes', async ({ page }) => {
+test('visão geral em fila, grupos recolhíveis, fixar e recentes', async ({ page }, testInfo) => {
   await page.goto('/admin');
   const todo = page.locator('.staff-todo-list');
   await expect(todo).toBeVisible({ timeout: 20_000 });
@@ -23,6 +23,8 @@ test('visão geral em fila, grupos recolhíveis, fixar e recentes', async ({ pag
   const pessoas = page.locator('.staff-nav-group', { hasText: 'Pessoas' });
   await expect(pessoas.locator('.staff-nav-item')).toHaveCount(0);
   await expect(pessoas.locator('.staff-count-group')).toHaveText('3');
+  // No celular as ferramentas ficam numa gaveta (botão ☰ ao lado do título).
+  if (testInfo.project.name === 'celular') await page.getByRole('button', { name: 'Abrir ferramentas' }).click();
   await pessoas.locator('.staff-nav-group-toggle').click();
   await expect(pessoas.locator('.staff-nav-item', { hasText: 'Inscrições' })).toBeVisible();
 
