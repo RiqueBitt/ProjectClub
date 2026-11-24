@@ -75,12 +75,15 @@ const PLATFORM_LABEL = { windows: 'Windows', linux: 'Linux', android: 'Android' 
 function useReveal() {
   useEffect(() => {
     if (reducedMotion()) return undefined;
-    const root = document.querySelector('.lp');
+    const lp = document.querySelector('.lp');
+    // Só usa a .lp como raiz se ela for quem rola; senão, a janela.
+    const root = lp && lp.scrollHeight > lp.clientHeight + 1 ? lp : null;
     const io = new IntersectionObserver((entries) => {
       entries.forEach((e) => { if (e.isIntersecting) { e.target.classList.add('is-in'); io.unobserve(e.target); } });
-    }, { root, threshold: 0.12 });
+    }, { root, threshold: 0, rootMargin: '0px 0px -10% 0px' });
     document.querySelectorAll('.lp-reveal').forEach((el) => io.observe(el));
-    return () => io.disconnect();
+    lp?.classList.add('is-js');
+    return () => { io.disconnect(); lp?.classList.remove('is-js'); };
   }, []);
 }
 
@@ -124,12 +127,10 @@ function CountUp({ value }) {
 
 function Pulse() {
   const pulse = usePulse();
-  if (!pulse) return null;
+  if (!pulse || !pulse.online) return null;
   return (
     <p className="lp-pulse" aria-live="polite">
       <span className="lp-pulse-item"><i className="lp-pulse-dot" aria-hidden="true" /><b><CountUp value={pulse.online} /></b> {pulse.online === 1 ? 'pessoa online agora' : 'pessoas online agora'}</span>
-      <span className="lp-pulse-item"><b><CountUp value={pulse.members} /></b> membros</span>
-      <span className="lp-pulse-item"><b><CountUp value={pulse.messagesToday} /></b> mensagens hoje</span>
     </p>
   );
 }
@@ -177,151 +178,24 @@ function CommandPalette({ open, onClose, onPickApp, actions }) {
   );
 }
 
-// ---------- Abertura: órbita 3D dos apps ----------
-// Cada ícone anda numa elipse em volta do título. Quando passa "atrás"
-// (metade de cima da elipse) fica menor, mais escuro e abaixo das letras;
-// na frente, maior e por cima. A elipse inclina conforme o mouse.
-// O que gira em volta do nome: peças de tecnologia do clube (voz, chat,
-// mods, dados, nuvem...) em dois anéis que giram em sentidos opostos.
-const TECH = [
-  { k: 'chat', c: '#5b8cff', d: 'M4 5h16v11H9l-5 4zM8 9.5h8M8 12.5h5' },
-  { k: 'mic', c: '#22d3ee', d: 'M12 3a3 3 0 0 1 3 3v5a3 3 0 0 1-6 0V6a3 3 0 0 1 3-3zM6 11a6 6 0 0 0 12 0M12 17v4M9 21h6' },
-  { k: 'pad', c: '#a78bfa', d: 'M7 8h10a5 5 0 0 1 4.6 7l-.7 1.7a2.2 2.2 0 0 1-3.8.4L15.5 15h-7l-1.6 2.1a2.2 2.2 0 0 1-3.8-.4L2.4 15A5 5 0 0 1 7 8zM7 11v3M5.5 12.5h3M16 12h.01M18 13.5h.01' },
-  { k: 'mods', c: '#ff5c93', d: 'M10 4a2 2 0 1 1 4 0v1h3a1 1 0 0 1 1 1v3h1a2 2 0 1 1 0 4h-1v3a1 1 0 0 1-1 1h-3v-1a2 2 0 1 0-4 0v1H7a1 1 0 0 1-1-1v-3h1a2 2 0 1 0 0-4H6V6a1 1 0 0 1 1-1h3z' },
-  { k: 'd20', c: '#ff3b3b', d: 'M12 2.5 20.5 7.3v9.4L12 21.5 3.5 16.7V7.3zM12 2.5 8 9.5h8zM3.5 7.3 8 9.5M20.5 7.3 16 9.5M8 9.5l4 7 4-7M12 16.5v5' },
-  { k: 'cloud', c: '#7dd3fc', d: 'M7 18a4.5 4.5 0 0 1-.6-9 6 6 0 0 1 11.4 1.6A3.8 3.8 0 0 1 17.5 18z' },
-  { k: 'code', c: '#4ade80', d: 'M8 7l-5 5 5 5M16 7l5 5-5 5M14 4l-4 16' },
-  { k: 'shield', c: '#facc15', d: 'M12 3l7 3v6c0 4.5-3 7.5-7 9-4-1.5-7-4.5-7-9V6zM9 12l2 2 4-4' },
-  { k: 'bolt', c: '#fb923c', d: 'M13 2 4 14h7l-1 8 9-12h-7z' },
-  { k: 'chip', c: '#c4b5fd', d: 'M7 7h10v10H7zM10 10h4v4h-4zM9 3v4M15 3v4M9 17v4M15 17v4M3 9h4M3 15h4M17 9h4M17 15h4' },
+// Cor e ficha de exemplo de cada personagem. O lado esquerdo da seção troca
+// junto com a figura. Mesma ficha da Call modo RPG (PV, Estresse, PA e Ação
+// Rápida, ver components/voice/RpgTable.jsx); os valores são de exemplo.
+const BO_CHARS = [
+  {
+    id: 'bruxo', name: 'Bruxo', src: '/site/personagens/bruxo.webp',
+    acc: '#ff3b3b', rgb: '255, 59, 59', glow: '170, 20, 24',
+    sheet: { pv: 11, pvMax: 20, stress: 4, pa: 3, ar: 1 },
+  },
+  {
+    id: 'sacerdotisa', name: 'Sacerdotisa', src: '/site/personagens/sacerdotisa.webp',
+    acc: '#f2c46b', rgb: '242, 196, 107', glow: '150, 98, 22',
+    sheet: { pv: 18, pvMax: 18, stress: 1, pa: 2, ar: 0 },
+  },
 ];
-const TAGS = ['Voz em HD', 'Tempo real', 'Mods', 'RPG', 'Fórum', 'Loja', 'Modpacks', 'Conquistas'];
 
-function Orbit() {
-  const ref = useRef(null);
-  useEffect(() => {
-    const box = ref.current;
-    if (!box) return undefined;
-    const items = [...box.querySelectorAll('[data-ring]')];
-    const rings = [...box.querySelectorAll('.lp-ring')];
-    const count = { 0: 0, 1: 0 };
-    items.forEach((el) => { count[el.dataset.ring] += 1; });
-    const still = reducedMotion();
-    let t = 0; let raf = 0; let last = performance.now();
-    let tiltX = 0; let tiltY = 0; let wantX = 0; let wantY = 0;
-    const onMove = (e) => {
-      const r = box.getBoundingClientRect();
-      wantX = ((e.clientX - r.left) / r.width - 0.5) * 2;
-      wantY = ((e.clientY - r.top) / r.height - 0.5) * 2;
-    };
-    const place = () => {
-      const w = box.clientWidth; const h = box.clientHeight;
-      const R = [
-        { rx: Math.min(w * 0.47, 780), ry: Math.min(h * 0.26, 180), dir: 1, off: 0.1 },
-        { rx: Math.min(w * 0.33, 520), ry: Math.min(h * 0.16, 110), dir: -1.35, off: 0.02 },
-      ];
-      rings.forEach((el, i) => {
-        const r = R[i];
-        el.style.width = `${r.rx * 2}px`; el.style.height = `${r.ry * 2 * (1 + tiltY * 0.3)}px`;
-        el.style.transform = `translate(-50%, calc(-50% + ${(h * r.off).toFixed(1)}px)) rotate(${(tiltX * 3).toFixed(2)}deg)`;
-      });
-      const idx = { 0: 0, 1: 0 };
-      items.forEach((el) => {
-        const ring = el.dataset.ring;
-        const r = R[ring];
-        const i = idx[ring]++;
-        const a = t * r.dir + (i / count[ring]) * Math.PI * 2 + ring * 0.4;
-        const depth = Math.sin(a);
-        const x = Math.cos(a) * r.rx;
-        const y = depth * r.ry * (1 + tiltY * 0.3) + h * r.off + tiltX * Math.cos(a) * 22;
-        const s = 0.6 + (depth + 1) * 0.27;
-        el.style.transform = `translate3d(${x.toFixed(1)}px, ${y.toFixed(1)}px, 0) scale(${s.toFixed(3)})`;
-        el.style.zIndex = depth > 0 ? 3 : 1;
-        el.style.setProperty('--depth', ((depth + 1) / 2).toFixed(3));
-      });
-    };
-    const loop = (now) => {
-      const dt = Math.min(64, now - last); last = now;
-      t += dt * 0.00011;
-      tiltX += (wantX - tiltX) * 0.05; tiltY += (wantY - tiltY) * 0.05;
-      place();
-      raf = requestAnimationFrame(loop);
-    };
-    if (still) { place(); return undefined; }
-    window.addEventListener('pointermove', onMove, { passive: true });
-    raf = requestAnimationFrame(loop);
-    return () => { cancelAnimationFrame(raf); window.removeEventListener('pointermove', onMove); };
-  }, []);
-  return (
-    <div className="lp-orbit" ref={ref} aria-hidden="true">
-      <span className="lp-ring is-outer" />
-      <span className="lp-ring is-inner" />
-      {TECH.map((it, i) => (
-        <span key={it.k} data-ring="0" className="lp-orbit-item" style={{ '--c': it.c, '--i': i }}>
-          <span className="lp-tech"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round"><path d={it.d} /></svg></span>
-        </span>
-      ))}
-      {TAGS.map((tg, i) => (
-        <span key={tg} data-ring="1" className="lp-orbit-item is-tag" style={{ '--i': i + TECH.length }}><span className="lp-tag"><i />{tg}</span></span>
-      ))}
-    </div>
-  );
-}
-
-// ---------- Brasas ----------
-// Faíscas subindo devagar atrás do título (canvas leve, pausa fora da tela).
-function Embers({ count = 70 }) {
-  const ref = useRef(null);
-  useEffect(() => {
-    const cv = ref.current;
-    if (!cv || reducedMotion()) return undefined;
-    const ctx = cv.getContext('2d');
-    let w = 0; let h = 0; let raf = 0; let on = true;
-    const dpr = Math.min(window.devicePixelRatio || 1, 2);
-    const size = () => { w = cv.clientWidth; h = cv.clientHeight; cv.width = w * dpr; cv.height = h * dpr; ctx.setTransform(dpr, 0, 0, dpr, 0, 0); };
-    size();
-    const spawn = (p = {}) => Object.assign(p, {
-      x: Math.random() * w, y: h + Math.random() * h * 0.6, r: 0.6 + Math.random() * 2.2,
-      vy: 0.25 + Math.random() * 0.9, vx: (Math.random() - 0.5) * 0.3, t: Math.random() * 6.28,
-      hue: Math.random() < 0.72 ? 8 + Math.random() * 26 : 205 + Math.random() * 20, life: 0.4 + Math.random() * 0.6,
-    });
-    const ps = Array.from({ length: count }, () => { const p = spawn(); p.y = Math.random() * h; return p; });
-    const tick = () => {
-      if (!on) return;
-      ctx.clearRect(0, 0, w, h);
-      ctx.globalCompositeOperation = 'lighter';
-      for (const p of ps) {
-        p.t += 0.02; p.y -= p.vy; p.x += p.vx + Math.sin(p.t) * 0.35;
-        if (p.y < -10) spawn(p);
-        const a = Math.max(0, Math.min(1, (p.y / h) * 1.6)) * p.life;
-        const g = ctx.createRadialGradient(p.x, p.y, 0, p.x, p.y, p.r * 4);
-        g.addColorStop(0, `hsla(${p.hue}, 100%, 70%, ${a})`);
-        g.addColorStop(1, `hsla(${p.hue}, 100%, 50%, 0)`);
-        ctx.fillStyle = g; ctx.beginPath(); ctx.arc(p.x, p.y, p.r * 4, 0, 6.283); ctx.fill();
-      }
-      raf = requestAnimationFrame(tick);
-    };
-    const io = new IntersectionObserver(([e]) => { on = e.isIntersecting; cancelAnimationFrame(raf); if (on) raf = requestAnimationFrame(tick); });
-    io.observe(cv);
-    window.addEventListener('resize', size);
-    return () => { on = false; cancelAnimationFrame(raf); io.disconnect(); window.removeEventListener('resize', size); };
-  }, [count]);
-  return <canvas ref={ref} className="lp-embers" aria-hidden="true" />;
-}
-
-// Faixa que corre entre as seções.
-function Marquee({ words }) {
-  const row = words.map((w, i) => <span key={i}>{w}<i aria-hidden="true">✦</i></span>);
-  return (
-    <div className="lp-marquee" aria-hidden="true">
-      <div className="lp-marquee-track">{row}{row}</div>
-    </div>
-  );
-}
-
-// ---------- Mesa do BLACKOUT ----------
-// Os dois personagens grandes e um d20 que rola de verdade (clique).
 function BlackoutTable() {
+  const [hero, setHero] = useState(0);
   const [roll, setRoll] = useState(20);
   const [spin, setSpin] = useState(0);
   const timer = useRef(0);
@@ -338,20 +212,41 @@ function BlackoutTable() {
     }, 55);
   };
   const crit = roll === 20 ? ' is-crit' : roll === 1 ? ' is-fail' : '';
+  const ch = BO_CHARS[hero];
   return (
-    <section id="blackout" className="lp-bo" aria-labelledby="bo-titulo">
+    <section id="blackout" className="lp-bo is-v2" aria-labelledby="bo-titulo" style={{ '--acc': ch.acc, '--acc-rgb': ch.rgb, '--glow-rgb': ch.glow }}>
       <div className="lp-bo-bg" aria-hidden="true" />
-      <img className="lp-bo-char is-l" src="/site/personagens/bruxo.webp" alt="" loading="lazy" />
-      <img className="lp-bo-char is-r" src="/site/personagens/sacerdotisa.webp" alt="" loading="lazy" />
+      <div className="lp-bo-glow" key={`g${hero}`} aria-hidden="true" />
+      <div className="lp-bo-art">
+        {BO_CHARS.map((c, i) => (
+          <button key={c.id} type="button" className={`lp-bo-pick ${i === hero ? 'is-on' : ''}`} onClick={() => setHero(i)} aria-pressed={i === hero} aria-label={`Mostrar ${c.name}`} tabIndex={-1}>
+            <img src={c.src} alt="" loading="lazy" />
+          </button>
+        ))}
+        <p className="lp-bo-name" key={hero} aria-hidden="true">{BO_CHARS[hero].name}</p>
+        <div className="lp-bo-tabs" role="group" aria-label="Escolher personagem">
+          {BO_CHARS.map((c, i) => (
+            <button key={c.id} type="button" className={i === hero ? 'is-on' : ''} aria-pressed={i === hero} onClick={() => setHero(i)}>{c.name}</button>
+          ))}
+        </div>
+      </div>
       <div className="lp-bo-center lp-reveal">
         <p className="lp-bo-kicker">RPG de mesa dentro do clube</p>
-        <h2 id="bo-titulo" className="lp-bo-title" data-text="BLACKOUT">BLACKOUT</h2>
+        <h2 id="bo-titulo" className="lp-bo-title">Blackout</h2>
         <p className="lp-copy">História, espécies, classes, itens e criação de personagem num compêndio só. A ficha fica salva, sai em PDF e as rolagens acontecem ali mesmo.</p>
-        <ul className="lp-bo-feats">
+        <div className="lp-bo-sheet" key={`s${hero}`} aria-live="polite">
+          <p className="lp-bo-who"><b>{ch.name}</b><span>Ficha de exemplo</span></p>
+          <ul className="lp-bo-stats">
+            <li style={{ '--i': 0 }}><span title="Pontos de Vida">PV</span><i style={{ '--v': ch.sheet.pv / ch.sheet.pvMax }} /><b>{ch.sheet.pv}/{ch.sheet.pvMax}</b></li>
+            <li style={{ '--i': 1 }}><span title="Estresse: cheio vira BURNOUT">Estresse</span><em className="lp-bo-pips" role="img" aria-label={`Estresse ${ch.sheet.stress} de 6`}>{[1, 2, 3, 4, 5, 6].map((n) => <s key={n} className={n <= ch.sheet.stress ? 'is-on' : ''} style={{ '--n': n }} />)}</em><b>{ch.sheet.stress}/6</b></li>
+            <li style={{ '--i': 2 }}><span title="Pontos de Ação por turno e Ação Rápida">PA</span><em className="lp-bo-pips is-pa" role="img" aria-label={`Pontos de Ação ${ch.sheet.pa} de 3${ch.sheet.ar ? ', com Ação Rápida' : ''}`}>{[1, 2, 3].map((n) => <s key={n} className={n <= ch.sheet.pa ? 'is-on' : ''} style={{ '--n': n }} />)}<s className={`is-ar${ch.sheet.ar ? ' is-on' : ''}`} style={{ '--n': 4 }}>AR</s></em><b>{ch.sheet.pa}/3</b></li>
+          </ul>
+        </div>
+        <ol className="lp-bo-feats">
           <li><b>Ficha</b><span>Monta o personagem passo a passo</span></li>
           <li><b>Trilha</b><span>A classe evolui com o personagem</span></li>
           <li><b>Rolagens</b><span>Dados na hora, sem sair da mesa</span></li>
-        </ul>
+        </ol>
         <button type="button" className={`lp-d20${crit}`} onClick={doRoll} aria-label={`Rolar um d20. Último resultado: ${roll}`}>
           <svg key={spin} viewBox="0 0 100 100" aria-hidden="true">
             <path d="M50 4 92 28v44L50 96 8 72V28z" />
@@ -379,17 +274,6 @@ function AppArt({ a, className = '', eager = false, alt = '' }) {
   return <img className={className} src={a.shot ? `/apps/${a.id}/shots/${a.shot}.jpg` : `/apps/${a.id}/banner.jpg`} alt={alt} loading={eager ? 'eager' : 'lazy'} />;
 }
 
-function Letters({ text, start = 0 }) {
-  return (
-    <span className="lp-word" aria-hidden="true">
-      {[...text].map((ch, i) => <span key={i} className="lp-char" style={{ '--d': `${start + i * 55}ms` }}>{ch}</span>)}
-    </span>
-  );
-}
-
-// ---------- Palco dos apps ----------
-// A seção é alta (um "andar" por app) e o palco fica preso na tela; a
-// posição da rolagem escolhe o app. Os ícones ao lado levam direto a cada um.
 const AppStage = forwardRef(function AppStage({ versions }, apiRef) {
   const sectionRef = useRef(null);
   const artRef = useRef(null);
@@ -397,7 +281,7 @@ const AppStage = forwardRef(function AppStage({ versions }, apiRef) {
   const [pinned, setPinned] = useState(true);
 
   useEffect(() => {
-    const mq = window.matchMedia('(max-width: 900px), (prefers-reduced-motion: reduce)');
+    const mq = window.matchMedia('(max-width: 900px)');
     const sync = () => setPinned(!mq.matches);
     sync();
     mq.addEventListener('change', sync);
@@ -499,6 +383,108 @@ const AppStage = forwardRef(function AppStage({ versions }, apiRef) {
   );
 });
 
+// ---------- O app ao vivo (abertura) ----------
+// Réplica em HTML da tela de chat do app: a conversa acontece sozinha, com
+// "digitando", reação somando e quem fala na call acendendo. Sem
+// movimento reduzido a conversa continua, só sem deslizar.
+const LIVE_PEOPLE = {
+  rique: { name: 'RiqueBitt', color: '#f08a3c', bg: 'linear-gradient(135deg,#8a1c1c,#4a0d0d)', mod: true },
+  lia: { name: 'Lia', color: '#fff', bg: 'linear-gradient(135deg,#7c8cff,#4C9FFF)' },
+  kaio: { name: 'Kaio', color: '#fff', bg: 'linear-gradient(135deg,#23a55a,#0f5c32)' },
+  loritta: { name: 'Loritta', color: '#7cb3ff', bg: 'linear-gradient(135deg,#f0a6d8,#b05fc0)', bot: true },
+};
+const LIVE_SCRIPT = [
+  { who: 'lia', time: '18:14', text: 'alguém pra call hoje à noite?' },
+  { who: 'rique', time: '18:15', text: 'bora! abro a sala de voz às 21h', typing: 900 },
+  { who: 'kaio', time: '18:16', text: 'baixei o modpack pelo Mod Manager, já tá rodando aqui', typing: 1500 },
+  { who: 'loritta', time: '18:20', text: 'Lembrete: o evento de figurinhas começa amanhã 🎉', typing: 700, reactions: true },
+];
+
+function LiveAvatar({ who, size = 36 }) {
+  const p = LIVE_PEOPLE[who];
+  return <i className="lc-av" style={{ background: p.bg, width: size, height: size }} aria-hidden="true">{p.name[0]}</i>;
+}
+
+function LiveReactions() {
+  const [party, setParty] = useState(14);
+  const [like, setLike] = useState(2);
+  useEffect(() => {
+    const a = setTimeout(() => setParty(15), 900);
+    const b = setTimeout(() => setLike(3), 1700);
+    return () => { clearTimeout(a); clearTimeout(b); };
+  }, []);
+  return (
+    <span className="lc-reacts">
+      <b className={like > 2 ? 'is-mine' : ''} key={`l${like}`}>👍 {like}</b>
+      <b key={`p${party}`}>🎉 {party}</b>
+    </span>
+  );
+}
+
+function LiveClub() {
+  const [count, setCount] = useState(0);
+  const [typing, setTyping] = useState(null);
+  const [fading, setFading] = useState(false);
+  useEffect(() => {
+    let alive = true; const timers = [];
+    const wait = (ms) => new Promise((r) => { timers.push(setTimeout(r, ms)); });
+    (async () => {
+      await wait(700);
+      while (alive) {
+        for (let i = 0; i < LIVE_SCRIPT.length && alive; i += 1) {
+          const m = LIVE_SCRIPT[i];
+          if (m.typing) { setTyping(m.who); await wait(m.typing); setTyping(null); }
+          setCount(i + 1);
+          await wait(1500);
+        }
+        await wait(4200); if (!alive) break;
+        setFading(true); await wait(500);
+        setCount(0); setFading(false); await wait(600);
+      }
+    })();
+    return () => { alive = false; timers.forEach(clearTimeout); };
+  }, []);
+
+  return (
+    <figure className="lp-hero-shot lc" aria-label="Prévia do Project Club: canal chat geral com uma conversa acontecendo e três pessoas na sala de voz">
+      <div className="lc-top" aria-hidden="true"><span className="lc-hash">#</span> 🌎 | chat geral<span className="lc-online"><i />4 online</span></div>
+      <div className="lc-body" aria-hidden="true">
+        <aside className="lc-side">
+          <p className="lc-cat">Comunidade</p>
+          <p className="lc-ch is-on"># 🌎 | chat geral</p>
+          <p className="lc-ch"># 🔧 | comandos</p>
+          <p className="lc-ch"># 📸 | mídias</p>
+          <p className="lc-cat">Canais de voz</p>
+          <p className="lc-ch">🔊 ☕ | Call</p>
+          <ul className="lc-voice">
+            {['rique', 'lia', 'kaio'].map((w, i) => (
+              <li key={w} style={{ '--d': `${i * 1.6}s` }}><LiveAvatar who={w} size={22} />{LIVE_PEOPLE[w].name}</li>
+            ))}
+          </ul>
+        </aside>
+        <div className={`lc-chat ${fading ? 'is-fading' : ''}`}>
+          <p className="lc-day"><span>Hoje</span></p>
+          {LIVE_SCRIPT.slice(0, count).map((m) => {
+            const p = LIVE_PEOPLE[m.who];
+            return (
+              <div className="lc-msg" key={m.who + m.time}>
+                <LiveAvatar who={m.who} />
+                <div>
+                  <p className="lc-meta"><b style={{ color: p.color }}>{p.name}</b>{p.mod && <span className="lc-badge">MOD</span>}{p.bot && <span className="lc-badge is-bot">BOT</span>}<time>{m.time}</time></p>
+                  <p className="lc-text">{m.text}</p>
+                  {m.reactions && <LiveReactions />}
+                </div>
+              </div>
+            );
+          })}
+          <p className={`lc-typing ${typing ? 'is-on' : ''}`}>{typing && <><span className="lc-dots"><i /><i /><i /></span><b>{LIVE_PEOPLE[typing].name}</b> está digitando…</>}</p>
+          <div className="lc-input">Conversar em # 🌎 | chat geral</div>
+        </div>
+      </div>
+    </figure>
+  );
+}
+
 export default function LandingPage() {
   const navigate = useNavigate();
   const location = useLocation();
@@ -581,16 +567,10 @@ export default function LandingPage() {
 
       <main id="conteudo">
         <section className="lp-hero" aria-labelledby="titulo">
-          <div className="lp-hero-glow" aria-hidden="true" />
-          <div className="lp-hero-grid" aria-hidden="true" />
-          <Embers />
-          <div className="lp-hero-stage">
-            <Orbit />
-            <h1 id="titulo" className="lp-display" aria-label="Project Club"><Letters text="Project" /> <Letters text="Club" start={420} /></h1>
-          </div>
-          <div className="lp-hero-foot">
+          <div className="lp-hero-text">
+            <h1 id="titulo" className="lp-display lp-words" aria-label="Parece Discord por fora. É nosso por dentro."><span aria-hidden="true" style={{ '--i': 0 }}>Parece</span> <span aria-hidden="true" style={{ '--i': 1 }}>Discord</span> <span aria-hidden="true" style={{ '--i': 2 }}>por</span> <span aria-hidden="true" style={{ '--i': 3 }}>fora.</span> <span aria-hidden="true" style={{ '--i': 4 }}>É</span> <span aria-hidden="true" style={{ '--i': 5 }}>nosso</span> <span aria-hidden="true" style={{ '--i': 6 }}>por</span> <span aria-hidden="true" style={{ '--i': 7 }}>dentro.</span></h1>
             <p className="lp-lede">
-              Uma comunidade com chat, voz e fórum, o Mod Manager para os mods dos seus jogos e o RPG Blackout. Tudo de graça.
+              O Project Club junta chat, salas de voz e fórum com o Mod Manager para os mods dos seus jogos e o RPG Blackout. Tudo de graça, no computador, no celular e no navegador.
             </p>
             <div className="lp-hero-cta">
               {platform ? (
@@ -604,10 +584,8 @@ export default function LandingPage() {
             </div>
             <Pulse />
           </div>
-          <a className="lp-scroll-hint" href="#apps" aria-label="Ver os apps"><span /></a>
+          <LiveClub />
         </section>
-
-        <Marquee words={['Comunidade', 'Chat de voz', 'Mod Manager', 'Fórum', 'RPG Blackout', 'Loja', 'Conquistas', 'Amigos', 'Modpacks']} />
 
         <AppStage ref={stageRef} versions={versions} />
 
@@ -620,12 +598,24 @@ export default function LandingPage() {
               <p className="lp-copy">
                 Canais de texto e de voz, um fórum com temas, amigos, conquistas e uma economia com moedas, casas e figurinhas. Parece Discord por fora, mas é nosso por dentro: a gente decide o que entra.
               </p>
-              <dl className="lp-facts">
-                <div><dt>Tempo real</dt><dd>Mensagens, voz e presença atualizam na hora, sem recarregar.</dd></div>
-                <div><dt>Conquistas</dt><dd>18 para desbloquear, com raridades e destaque no perfil.</dd></div>
-                <div><dt>Perfil seu</dt><dd>Cor, banner, conexões e o que você quiser mostrar.</dd></div>
-                <div><dt>Segurança</dt><dd>Verificação em duas etapas, sessões por aparelho e moderação ativa.</dd></div>
-              </dl>
+              <ul className="lp-perks">
+                <li data-spot>
+                  <div className="lp-perk-demo is-typing" aria-hidden="true"><span className="lp-perk-dots"><i /><i /><i /></span>Rique está digitando</div>
+                  <b>Tempo real</b><p>Mensagens, voz e presença atualizam na hora, sem recarregar.</p>
+                </li>
+                <li data-spot>
+                  <div className="lp-perk-demo is-trophy" aria-hidden="true"><span className="lp-perk-ring">18</span>conquistas, com raridades</div>
+                  <b>Conquistas</b><p>18 para desbloquear, com raridades e destaque no perfil.</p>
+                </li>
+                <li data-spot>
+                  <div className="lp-perk-demo is-profile" aria-hidden="true"><span className="lp-perk-avatar" /><span className="lp-perk-swatches"><i /><i /><i /><i /></span></div>
+                  <b>Perfil seu</b><p>Cor, banner, conexões e o que você quiser mostrar.</p>
+                </li>
+                <li data-spot>
+                  <div className="lp-perk-demo is-code" aria-hidden="true">{'482913'.split('').map((d, i) => <i key={i} style={{ '--i': i }}>{d}</i>)}</div>
+                  <b>Segurança</b><p>Verificação em duas etapas, sessões por aparelho e moderação ativa.</p>
+                </li>
+              </ul>
             </div>
           </div>
         </section>
