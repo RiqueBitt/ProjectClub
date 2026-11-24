@@ -291,7 +291,6 @@ fun CallLayout(
                 }
                 }
               }
-                FloatingReactions(state.reactions, { id -> if (id == me?.id) me else userOf(id) }, Modifier.fillMaxSize())
                 if (state.status == CallStatus.Connecting || state.status == CallStatus.Reconnecting) {
                     Box(Modifier.fillMaxSize().background(Color(0x99050506)), contentAlignment = Alignment.Center) {
                         Column(horizontalAlignment = Alignment.CenterHorizontally) {
@@ -322,11 +321,6 @@ fun CallLayout(
             }
 
             if (!fullscreen) {
-                AnimatedVisibility(picker, enter = expandVertically() + fadeIn(), exit = shrinkVertically() + fadeOut(), modifier = Modifier.align(Alignment.CenterHorizontally)) {
-                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                        ReactionPicker { actions.react(it); picker = false }
-                    }
-                }
                 if (state.pushToTalk) PushToTalkButton(state, actions)
                 val ctx = LocalContext.current
                 ControlDock(state, actions, picker, onActivities = activities?.let { a ->
@@ -529,7 +523,6 @@ private fun ControlDock(state: CallState, actions: CallActions, pickerOpen: Bool
         DockButton(if (state.muted) Icons.Filled.MicOff else Icons.Filled.Mic, if (state.muted) "Mudo" else "Microfone", danger = state.muted, onClick = actions.toggleMute)
         DockButton(if (state.deafened) Icons.Filled.HeadsetOff else Icons.Filled.Headset, if (state.deafened) "Sem som" else "Ouvir", danger = state.deafened, onClick = actions.toggleDeafen)
         DockButton(if (state.speakerOn) Icons.AutoMirrored.Filled.VolumeUp else Icons.AutoMirrored.Filled.VolumeOff, if (state.speakerOn) "Viva-voz" else "Fone", active = !state.speakerOn, onClick = actions.toggleSpeaker)
-        DockButton(Icons.Filled.EmojiEmotions, "Reagir", active = pickerOpen, onClick = onReact)
         DockButton(if (state.sharingScreen) Icons.Filled.StopScreenShare else Icons.Filled.ScreenShare, if (state.sharingScreen) "Parar tela" else "Tela", active = state.sharingScreen, onClick = actions.toggleScreen)
         // Atividades (igual ao PC): YouTube, Música, Rolar dados e Soundboard.
         if (onActivities != null) DockButton(Icons.Filled.RocketLaunch, "Atividades", onClick = onActivities)

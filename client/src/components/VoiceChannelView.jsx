@@ -14,7 +14,7 @@ import { useYouTubeWatch, YouTubeStage, YouTubePicker, ActivitiesButton, YouTube
 import { CallMusicPicker } from '../music/MusicPlayer.jsx';
 import { DicePicker, CallDicePopup, useCallDice } from './activities/Dice.jsx';
 import RpgTable from './voice/RpgTable.jsx';
-import { ReactionBar, ReactionsOverlay, RecordingBanner, RecordButton, LiveCaptions } from './voice/CallExtras.jsx';
+import { RecordingBanner, RecordButton, LiveCaptions } from './voice/CallExtras.jsx';
 import { getVoicePref, setVoicePref, onVoicePrefsChange } from '../utils/voicePrefs';
 import { useContextMenu } from '../context/ContextMenuContext.jsx';
 import { buildVoiceModerationItems } from './voice/voiceModerationMenu';
@@ -312,7 +312,6 @@ export default function VoiceChannelView({ channel }) {
           <div className={`vc-grid vc-grid-${Math.min(allUserIds.length, 5)}`}>{tiles}</div>
         )}
         {/* Camada dos emojis flutuantes (I). */}
-        <ReactionsOverlay voice={voice} memberFor={memberFor} meId={user.id} meName={user.displayName} />
         {callDice.current && <CallDicePopup key={`${callDice.current.user?.id}-${callDice.current.at}`} event={callDice.current} onDone={callDice.done} />}
         {/* Legendas ao vivo do seu microfone (K). */}
         <LiveCaptions active={inThisCall} />
@@ -582,7 +581,6 @@ function VoiceCallControls({ voice, micLocked, onActivity, screenLimitReached = 
         />
         {/* Transmitindo: troca 720p/1080p e 15/30/60 FPS sem parar. */}
         {screenOn && <ScreenQualityMenu voice={voice} className="vc-sqm" />}
-        {!micLocked && <ReactionBar voice={voice} />}
         {/* Soundboard: agora dentro de Atividades (nov/2026). */}
         {/* Sala de estudos (Pomodoro na call) REMOVIDA da chamada (pedido do dono,
             nov/2026) — o código fica em voice/FocusRoom.jsx e server/src/sockets/focusRoom.js. */}
