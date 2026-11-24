@@ -33,6 +33,8 @@ import org.json.JSONObject
 data class ActivityLayout(val mode: String = "hidden", val heightDp: Int = 0) {
     val full get() = mode == "full"
     val stage get() = mode == "stage" && heightDp > 0
+    /** Call modo RPG: a mesa (desenhada pela camada) ocupa a área da chamada. */
+    val table get() = mode == "table"
 }
 
 /**
@@ -49,6 +51,12 @@ data class ActivityLayout(val mode: String = "hidden", val heightDp: Int = 0) {
 @SuppressLint("SetJavaScriptEnabled", "JavascriptInterface")
 class CallActivitiesWeb(context: Context, private val repo: Repository, val channelId: String) {
     val layout: MutableState<ActivityLayout> = mutableStateOf(ActivityLayout())
+    /** A página carregou, está logada e acompanhando a sala. */
+    val ready: MutableState<Boolean> = mutableStateOf(false)
+    /** Na mesa de RPG, tocou em "ver a tela de fulano": o app mostra a transmissão nativa. */
+    val screenRequest: MutableState<String?> = mutableStateOf(null)
+    private var pendingOpen: String? = null
+    private var reloads = 0
     private val main = Handler(Looper.getMainLooper())
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
     private var handoffTried = false
@@ -82,10 +90,23 @@ class CallActivitiesWeb(context: Context, private val repo: Repository, val chan
                 return request.isForMainFrame && u.host != Uri.parse(Config.baseUrl).host
             }
             override fun onPageStarted(view: WebView, url: String, favicon: android.graphics.Bitmap?) {
-                if (Uri.parse(url).path.orEmpty().startsWith("/login") && !handoffTried) { handoffTried = true; viaHandoff() }
+                if (Uri.parse(url).path.orEmpty().startsWith("/login")) onLoginPage()
+            }
+            // O site manda pro login SEM recarregar (navegação interna) quando a
+            // sessão salva do WebView venceu: sem isto a camada ficava presa
+            // num login invisível e o botão Atividades não fazia nada.
+            override fun doUpdateVisitedHistory(view: WebView, url: String, isReload: Boolean) {
+                if (Uri.parse(url).path.orEmpty().startsWith("/login") || Uri.parse(url).path.orEmpty().startsWith("/verify-email")) onLoginPage()
             }
             override fun onPageFinished(view: WebView, url: String) { pendingViewers?.let { sendViewers(it) } }
         }
+    }
+
+    private fun onLoginPage() {
+        ready.value = false
+        if (handoffTried) return
+        handoffTried = true
+        viaHandoff()
     }
 
     fun load() {
@@ -104,8 +125,20 @@ class CallActivitiesWeb(context: Context, private val repo: Repository, val chan
         }
     }
 
-    /** Abre o menu Atividades (ou direto uma: youtube, music, dice, soundboard). */
-    fun open(kind: String = "menu") = js("window.__pcActivities&&window.__pcActivities.open(${JSONObject.quote(kind)})")
+    /**
+     * Abre o menu Atividades (ou direto uma: youtube, music, dice, soundboard).
+     * Ainda carregando: guarda e abre quando a página ficar pronta (true = abriu já).
+     */
+    fun open(kind: String = "menu"): Boolean {
+        if (!ready.value) {
+            pendingOpen = kind
+            // Travou (sem rede na hora, sessão nova falhou…): tenta de novo.
+            if (reloads < 3) main.postDelayed({ if (!ready.value && pendingOpen != null) { reloads++; handoffTried = false; load() } }, 6000)
+            return false
+        }
+        js("window.__pcActivities&&window.__pcActivities.open(${JSONObject.quote(kind)})")
+        return true
+    }
     fun closePanel() = js("window.__pcActivities&&window.__pcActivities.close()")
 
     /** Quem está na call (avatares no palco do vídeo, igual ao PC). */
@@ -131,6 +164,14 @@ class CallActivitiesWeb(context: Context, private val repo: Repository, val chan
 
     private inner class Bridge {
         /** A página diz quanto espaço precisa: {"mode":"full|stage|hidden","height":px}. */
+        @JavascriptInterface fun ready(json: String) {
+            main.post {
+                ready.value = true
+                pendingViewers?.let { sendViewers(it) }
+                pendingOpen?.let { k -> pendingOpen = null; js("window.__pcActivities&&window.__pcActivities.open(${JSONObject.quote(k)})") }
+            }
+        }
+        @JavascriptInterface fun showScreen(userId: String) { main.post { screenRequest.value = userId } }
         @JavascriptInterface fun layout(json: String) {
             val o = runCatching { JSONObject(json) }.getOrNull() ?: return
             val l = ActivityLayout(o.optString("mode", "hidden"), o.optInt("height", 0))
