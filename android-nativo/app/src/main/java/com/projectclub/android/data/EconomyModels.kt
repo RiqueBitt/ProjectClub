@@ -137,3 +137,10 @@ data class SeasonInfo(
     val points: Int = 0, val level: Int = 0, val maxLevel: Int = 30, val levelPoints: Int = 100,
     val isSupporter: Boolean = false, val tiers: List<SeasonTier> = emptyList(),
 )
+
+/** Um baú do sorteio diário (GET /api/economy/chests) — fechado e aberto. */
+@Serializable
+data class EcoChest(val id: String = "", val name: String = "", val imageClosed: String? = null, val imageOpened: String? = null)
+
+@Serializable
+data class EcoChestList(val chests: List<EcoChest> = emptyList())

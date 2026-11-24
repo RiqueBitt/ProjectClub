@@ -100,6 +100,7 @@ fun EconomyScreen(repo: Repository, nav: AppNav) {
     val ctx = LocalContext.current
     val scope = rememberCoroutineScope()
     var wallet by remember { mutableStateOf<EcoWallet?>(null) }
+    var chests by remember { mutableStateOf<List<com.projectclub.android.data.EcoChest>>(emptyList()) }
     var missions by remember { mutableStateOf<EcoMissionList?>(null) }
     var history by remember { mutableStateOf<EcoHistory?>(null) }
     var error by remember { mutableStateOf<String?>(null) }
@@ -119,7 +120,9 @@ fun EconomyScreen(repo: Repository, nav: AppNav) {
                 val m = async { runCatching { repo.api.get<EcoMissionList>("/api/missions") }.getOrNull() }
                 val h = async { runCatching { repo.api.get<EcoHistory>("/api/economy/history?limit=30") }.getOrNull() }
                 val s = async { runCatching { repo.api.get<com.projectclub.android.data.SeasonInfo>("/api/missions/season") }.getOrNull() }
+                val ch = async { runCatching { repo.api.get<com.projectclub.android.data.EcoChestList>("/api/economy/chests") }.getOrNull() }
                 wallet = w.await(); missions = m.await() ?: missions; history = h.await() ?: history; season = s.await() ?: season
+                ch.await()?.let { list -> chests = list.chests.filter { it.imageClosed != null } }
             }
             error = null
         } catch (e: Exception) { if (wallet == null) error = e.message ?: "Não deu pra abrir a Economia." }
@@ -200,8 +203,9 @@ fun EconomyScreen(repo: Repository, nav: AppNav) {
                     item(key = "card-style") { CardStylePicker(w, styleBusy) { setStyle(it) } }
                     item(key = "daily") {
                         val wait = untilText(w.nextDailyAt, maxOf(tick, System.currentTimeMillis()))
-                        DailyCard(w, wait, claiming, lastChest) { claimDaily() }
+                        DailyCard(w, wait, claiming, lastChest, chests.firstOrNull()) { claimDaily() }
                     }
+                    if (chests.isNotEmpty()) item(key = "chests") { ChestGallery(chests) }
                     item(key = "links") {
                         Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                             PcCard(Modifier.weight(1f), onClick = { nav.store() }, padding = PaddingValues(12.dp)) {
@@ -279,11 +283,13 @@ private fun WalletCard(w: EcoWallet) {
 }
 
 @Composable
-private fun DailyCard(w: EcoWallet, wait: String?, claiming: Boolean, last: EcoDailyResult?, onClaim: () -> Unit) {
+private fun DailyCard(w: EcoWallet, wait: String?, claiming: Boolean, last: EcoDailyResult?, sample: com.projectclub.android.data.EcoChest?, onClaim: () -> Unit) {
     val loader = rememberAnimatedImageLoader()
     PcCard(padding = PaddingValues(16.dp), border = if (wait == null) PC.Yellow.copy(alpha = 0.5f) else PC.Line) {
         Row(verticalAlignment = Alignment.CenterVertically) {
-            val img = if (wait != null) last?.chestImageOpened ?: last?.chestImageClosed else last?.chestImageClosed
+            // o baú (igual ao site): o que abriu hoje, ou um dos baús possíveis fechado
+            val img = if (wait != null) last?.chestImageOpened ?: last?.chestImageClosed ?: sample?.imageOpened ?: sample?.imageClosed
+                else last?.chestImageClosed ?: sample?.imageClosed
             Box(Modifier.size(64.dp).clip(RoundedCornerShape(16.dp)).background(PC.Surface2), contentAlignment = Alignment.Center) {
                 if (img != null) AsyncImage(Config.media(img), null, imageLoader = loader, contentScale = ContentScale.Fit, modifier = Modifier.size(56.dp))
                 else ArtIcon(PcArt.Gift, PC.Yellow, Modifier.size(32.dp))
@@ -300,8 +306,8 @@ private fun DailyCard(w: EcoWallet, wait: String?, claiming: Boolean, last: EcoD
             }
         }
         Spacer(Modifier.height(12.dp))
-        if (wait == null) PillButton("Abrir baú", onClaim, Modifier.fillMaxWidth(), busy = claiming, color = Color(0xFFB7851E))
-        else Text("Próximo baú em $wait", color = PC.Muted, modifier = Modifier.align(Alignment.CenterHorizontally))
+        if (wait == null) PillButton("Resgatar baú diário", onClaim, Modifier.fillMaxWidth(), busy = claiming, color = Color(0xFFB7851E))
+        else Text("Já resgatado hoje · volta em $wait", color = PC.Muted, modifier = Modifier.align(Alignment.CenterHorizontally))
     }
 }
 
@@ -470,6 +476,35 @@ private fun StreakNodes(streak: Int, goal: Int) {
                 else Text("$i", color = if (lit) Color(0xFF3A2A00) else PC.Faint, style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Bold)
             }
             if (i < n) Box(Modifier.weight(1f).height(3.dp).background(if (i < done) PC.Yellow else PC.Surface3))
+        }
+    }
+}
+
+
+/** "Baús possíveis" (igual ao site): cada resgate abre um destes. */
+@OptIn(androidx.compose.foundation.layout.ExperimentalLayoutApi::class)
+@Composable
+private fun ChestGallery(chests: List<com.projectclub.android.data.EcoChest>) {
+    val loader = rememberAnimatedImageLoader()
+    PcCard(padding = PaddingValues(14.dp)) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Text("Baús possíveis", style = MaterialTheme.typography.titleSmall, color = PC.Header)
+            Spacer(Modifier.width(6.dp))
+            Text("${chests.size}", color = PC.Faint, style = MaterialTheme.typography.labelMedium)
+        }
+        Text("Cada resgate abre um destes, com moedas.", color = PC.Muted, style = MaterialTheme.typography.bodySmall)
+        Spacer(Modifier.height(10.dp))
+        androidx.compose.foundation.layout.FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            chests.forEach { c ->
+                Column(
+                    Modifier.width(84.dp).clip(RoundedCornerShape(14.dp)).background(PC.Surface2).padding(8.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                ) {
+                    AsyncImage(Config.media(c.imageClosed), c.name, imageLoader = loader, contentScale = ContentScale.Fit, modifier = Modifier.size(60.dp))
+                    Spacer(Modifier.height(4.dp))
+                    Text(c.name, color = PC.Text, style = MaterialTheme.typography.labelSmall, maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis)
+                }
+            }
         }
     }
 }

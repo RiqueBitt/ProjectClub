@@ -503,7 +503,7 @@ private fun Modifier.standOn(cx: Dp, bottom: Dp): Modifier = layout { m, c ->
 }
 
 @Composable
-private fun Podium(podium: List<ProgressLeader>, myId: String?, onOpen: (String) -> Unit) {
+internal fun Podium(podium: List<ProgressLeader>, myId: String?, onOpen: (String) -> Unit) {
     // Pódio em 3D: os blocos são o mesmo render do site e cada pessoa fica em pé no topo do seu bloco.
     BoxWithConstraints(Modifier.fillMaxWidth().padding(top = 4.dp)) {
         val w = if (maxWidth < 560.dp) maxWidth else 560.dp
@@ -566,7 +566,7 @@ private fun PodiumSpot(u: ProgressLeader, place: Int, isMe: Boolean, narrow: Boo
 }
 
 @Composable
-private fun RankRow(u: ProgressLeader, pos: Int?, isMe: Boolean, topXp: Long = 0, onClick: () -> Unit) {
+internal fun RankRow(u: ProgressLeader, pos: Int?, isMe: Boolean, topXp: Long = 0, onClick: () -> Unit) {
     PcCard(
         Modifier.fillMaxWidth(), onClick = onClick, padding = PaddingValues(horizontal = 14.dp, vertical = 10.dp),
         border = if (isMe) PC.Brand.copy(alpha = 0.55f) else PC.Line,
