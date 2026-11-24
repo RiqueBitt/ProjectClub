@@ -80,6 +80,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.scale
 import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
@@ -463,10 +464,15 @@ private fun BigAvatar(p: Person, size: androidx.compose.ui.unit.Dp) {
     val t = rememberInfiniteTransition(label = "ring")
     val pulse by t.animateFloat(1f, 1.08f, infiniteRepeatable(tween(700, easing = FastOutSlowInEasing), RepeatMode.Reverse), label = "p")
     val ring by animateFloatAsState(if (p.speaking) 1f else 0f, tween(200), label = "r")
-    Box(contentAlignment = Alignment.Center) {
-        if (ring > 0f) Box(
-            Modifier.size(size + 14.dp).scale(if (p.speaking) pulse else 1f).clip(CircleShape)
-                .background(PC.Green.copy(alpha = 0.18f * ring)).border(3.dp, PC.Green.copy(alpha = ring), CircleShape),
+    // BUG CORRIGIDO ("a tela compartilhada fica subindo e descendo quando
+    // alguém fala"): o anel só existia enquanto a pessoa falava e era 14 dp
+    // maior que a foto, então a fileira de pessoas crescia/encolhia e a tela
+    // compartilhada acima (weight 1f) ia junto. Agora o espaço do anel fica
+    // sempre reservado; só a cor acende e apaga (e o pulso é só desenho).
+    Box(Modifier.size(size + 14.dp), contentAlignment = Alignment.Center) {
+        Box(
+            Modifier.matchParentSize().graphicsLayer { val k = if (p.speaking) pulse else 1f; scaleX = k; scaleY = k; alpha = ring }.clip(CircleShape)
+                .background(PC.Green.copy(alpha = 0.18f)).border(3.dp, PC.Green, CircleShape),
         )
         Avatar(p.user, size)
     }
