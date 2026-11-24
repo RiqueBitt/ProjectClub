@@ -109,6 +109,7 @@
   .ytw-item { flex-wrap: wrap; }
   .ytw-item-actions { width: 100%; justify-content: flex-end; }
   .ytw-act-pop { left: auto; right: -60px; transform: none; width: 260px; }
+  .ytw-act > .sb-wrap > .sb-pop { left: auto; right: -80px; transform: none; }
 }
 @media (prefers-reduced-motion: reduce) { .ytw-bar { transition: none; } }
 
@@ -148,3 +149,6 @@
 .ytw-shield { position: absolute; inset: 0; z-index: 1; cursor: pointer; }
 .ytw-ytm { background: linear-gradient(135deg, #a855f7, #ec4899) !important; }
 .ytw-dice { background: linear-gradient(135deg, #ff8a2a, #ff5a1f) !important; color: #fff; }
+/* Soundboard dentro de Atividades */
+.ytw-sb { font-size: 20px; line-height: 1; background: linear-gradient(135deg, #5865f2, #9b59b6); }
+.ytw-act > .sb-wrap { position: absolute; left: 50%; bottom: 100%; width: 0; height: 0; }

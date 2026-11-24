@@ -1,3 +1,4 @@
+import { SoundboardPanel } from './Soundboard.jsx';
 import { useMusic } from '../../music/musicStore';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useSocket } from '../../context/SocketContext.jsx';
@@ -426,21 +427,59 @@ export function YouTubePicker({ yt, onClose }) {
 // Botão "Atividades" do dock + menu.
 // `active`: atividade rolando agora ('youtube' | 'music' | null) — só 1 por
 // vez na chamada: a outra opção fica desligada até encerrar a atual.
-export function ActivitiesButton({ onPick, active = null }) {
+/**
+ * Itens do menu Atividades (o mesmo no PC e na camada do app Android).
+ * `soundboard`: mostra "Soundboard" (fica aqui dentro desde nov/2026).
+ */
+export function ActivitiesMenu({ onPick, active = null, soundboard = false }) {
+  return (
+    <>
+      <p className="ytw-sub">Atividades{active ? ' · 1 por vez' : ''}</p>
+      <button type="button" role="menuitem" className="ytw-act-item" disabled={!!active && active !== 'youtube'} onClick={() => onPick('youtube')}>
+        <span className="ytw-yt"><YIcon d={P.yt} size={22} /></span>
+        <span><strong>YouTube - Assistir juntos</strong><small>{active === 'youtube' ? 'Rolando agora' : (active ? 'Encerre a atividade atual antes' : 'Vídeos sincronizados com a chamada')}</small></span>
+      </button>
+      <button type="button" role="menuitem" className="ytw-act-item" disabled={!!active && active !== 'music'} onClick={() => onPick('music')}>
+        <span className="ytw-yt ytw-ytm"><YIcon d={MUSIC_ICON} size={22} /></span>
+        <span><strong>Música - Ouvir juntos</strong><small>{active === 'music' ? 'Rolando agora' : (active ? 'Encerre a atividade atual antes' : 'YouTube Music, Spotify ou Last.fm pra todo mundo')}</small></span>
+      </button>
+      {/* Dados e soundboard não ocupam a "vaga" de atividade: dá pra usar com vídeo/música rolando. */}
+      <button type="button" role="menuitem" className="ytw-act-item" onClick={() => onPick('dice')}>
+        <span className="ytw-yt ytw-dice"><YIcon d={DICE_ICON} size={22} /></span>
+        <span><strong>Rolar dados</strong><small>Do D2 ao D100 — todo mundo vê o resultado</small></span>
+      </button>
+      {soundboard && (
+        <button type="button" role="menuitem" className="ytw-act-item" onClick={() => onPick('soundboard')}>
+          <span className="ytw-yt ytw-sb" aria-hidden="true">🔊</span>
+          <span><strong>Soundboard</strong><small>Sons curtos que tocam pra todo mundo da sala</small></span>
+        </button>
+      )}
+    </>
+  );
+}
+
+export function ActivitiesButton({ onPick, active = null, channelId = null }) {
   const [open, setOpen] = useState(false);
+  const [sbOpen, setSbOpen] = useState(false);
   const ref = useRef(null);
   useEffect(() => {
-    if (!open) return undefined;
-    const onDown = (e) => { if (!ref.current?.contains(e.target)) setOpen(false); };
-    const onKey = (e) => { if (e.key === 'Escape') setOpen(false); };
+    if (!open && !sbOpen) return undefined;
+    const close = () => { setOpen(false); setSbOpen(false); };
+    const onDown = (e) => { if (!ref.current?.contains(e.target)) close(); };
+    const onKey = (e) => { if (e.key === 'Escape') close(); };
     document.addEventListener('mousedown', onDown);
     document.addEventListener('keydown', onKey);
     return () => { document.removeEventListener('mousedown', onDown); document.removeEventListener('keydown', onKey); };
-  }, [open]);
+  }, [open, sbOpen]);
+  const pick = (kind) => {
+    setOpen(false);
+    if (kind === 'soundboard') { setSbOpen(true); return; }
+    onPick(kind);
+  };
   return (
     <div ref={ref} className="ytw-act">
       <button
-        type="button" className={`vc-ctrl${open ? ' is-active' : ''}`} onClick={() => setOpen((v) => !v)}
+        type="button" className={`vc-ctrl${open || sbOpen ? ' is-active' : ''}`} onClick={() => { setSbOpen(false); setOpen((v) => !v); }}
         aria-label="Atividades" aria-expanded={open} title="Atividades"
       >
         <YIcon d={ACTIVITY_ICON} size={21} />
@@ -448,22 +487,10 @@ export function ActivitiesButton({ onPick, active = null }) {
       </button>
       {open && (
         <div className="ytw-act-pop" role="menu" aria-label="Atividades">
-          <p className="ytw-sub">Atividades{active ? ' · 1 por vez' : ''}</p>
-          <button type="button" role="menuitem" className="ytw-act-item" disabled={!!active && active !== 'youtube'} onClick={() => { setOpen(false); onPick('youtube'); }}>
-            <span className="ytw-yt"><YIcon d={P.yt} size={22} /></span>
-            <span><strong>YouTube - Assistir juntos</strong><small>{active === 'youtube' ? 'Rolando agora' : (active ? 'Encerre a atividade atual antes' : 'Vídeos sincronizados com a chamada')}</small></span>
-          </button>
-          <button type="button" role="menuitem" className="ytw-act-item" disabled={!!active && active !== 'music'} onClick={() => { setOpen(false); onPick('music'); }}>
-            <span className="ytw-yt ytw-ytm"><YIcon d={MUSIC_ICON} size={22} /></span>
-            <span><strong>Música - Ouvir juntos</strong><small>{active === 'music' ? 'Rolando agora' : (active ? 'Encerre a atividade atual antes' : 'YouTube Music, Spotify ou Last.fm pra todo mundo')}</small></span>
-          </button>
-          {/* Dados não ocupam a "vaga" de atividade: dá pra rolar com vídeo/música rolando. */}
-          <button type="button" role="menuitem" className="ytw-act-item" onClick={() => { setOpen(false); onPick('dice'); }}>
-            <span className="ytw-yt ytw-dice"><YIcon d={DICE_ICON} size={22} /></span>
-            <span><strong>Rolar dados</strong><small>Do D2 ao D100 — todo mundo vê o resultado</small></span>
-          </button>
+          <ActivitiesMenu onPick={pick} active={active} soundboard={!!channelId} />
         </div>
       )}
+      {sbOpen && channelId && <div className="sb-wrap open"><SoundboardPanel channelId={channelId} /></div>}
     </div>
   );
 }

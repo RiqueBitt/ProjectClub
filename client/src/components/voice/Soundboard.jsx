@@ -67,34 +67,28 @@ function AddSoundForm({ onAdded }) {
   );
 }
 
-export function SoundboardButton({ channelId }) {
+/**
+ * Painel do Soundboard (lista de sons + gerenciar). Abre pelo menu
+ * Atividades da call (PC e celular); `onClose` fecha.
+ */
+export function SoundboardPanel({ channelId, className = '' }) {
   const { socket } = useSocket() || {};
   const { user } = useAuth();
   const roles = useStore((s) => s.roles);
   const members = useStore((s) => s.members);
-  const [open, setOpen] = useState(false);
   const [sounds, setSounds] = useState(listCache || []);
   const [managing, setManaging] = useState(false);
   const [msg, setMsg] = useState('');
-  const wrapRef = useRef(null);
   const canManage = !!user && hasPermission(getMyCommunityPermissions(roles, members, user.id, user.platformRole), 'MANAGE_EMOJIS');
 
   const refresh = useCallback((force) => { loadSounds(force).then(setSounds).catch(() => {}); }, []);
-  useEffect(() => { if (open) refresh(false); }, [open, refresh]);
+  useEffect(() => { refresh(false); }, [refresh]);
   useEffect(() => {
     if (!socket) return undefined;
-    const on = () => { listCache = null; if (open) refresh(true); };
+    const on = () => { listCache = null; refresh(true); };
     socket.on('soundboard:changed', on);
     return () => socket.off('soundboard:changed', on);
-  }, [socket, open, refresh]);
-  useEffect(() => {
-    if (!open) return undefined;
-    const onDown = (e) => { if (!wrapRef.current?.contains(e.target)) setOpen(false); };
-    const onKey = (e) => { if (e.key === 'Escape') setOpen(false); };
-    document.addEventListener('mousedown', onDown);
-    document.addEventListener('keydown', onKey);
-    return () => { document.removeEventListener('mousedown', onDown); document.removeEventListener('keydown', onKey); };
-  }, [open]);
+  }, [socket, refresh]);
 
   const play = (s) => {
     if (!socket) return;
@@ -108,36 +102,28 @@ export function SoundboardButton({ channelId }) {
   };
 
   return (
-    <div className={`sb-wrap${open ? ' open' : ''}`} ref={wrapRef}>
-      <button type="button" className="vc-ctrl" aria-label="Soundboard" aria-expanded={open} title="Soundboard: tocar um som pra sala" onClick={() => setOpen((v) => !v)}>
-        <span aria-hidden="true" className="sb-ctrl-emoji">🔊</span>
-        <span className="vc-ctrl-label">Sons</span>
-      </button>
-      {open && (
-        <div className="sb-pop" role="dialog" aria-label="Soundboard">
-          <div className="sb-head">
-            <strong>Soundboard</strong>
-            {canManage && <button type="button" className="sb-link" onClick={() => setManaging((v) => !v)}>{managing ? 'Pronto' : 'Gerenciar'}</button>}
-          </div>
-          {sounds.length === 0 ? (
-            <p className="sb-empty">{canManage ? 'Nenhum som ainda. Clique em "Gerenciar" para adicionar.' : 'A equipe ainda não adicionou sons.'}</p>
-          ) : (
-            <div className="sb-grid">
-              {sounds.map((s) => (
-                <div key={s.id} className="sb-item">
-                  <button type="button" className="sb-play" onClick={() => play(s)} title={`Tocar "${s.name}" pra todo mundo`}>
-                    <span aria-hidden="true">{s.emoji || '🔉'}</span>
-                    <span className="sb-name">{s.name}</span>
-                  </button>
-                  {managing && <button type="button" className="sb-del" aria-label={`Apagar ${s.name}`} onClick={() => remove(s)}>×</button>}
-                </div>
-              ))}
+    <div className={`sb-pop ${className}`.trim()} role="dialog" aria-label="Soundboard">
+      <div className="sb-head">
+        <strong>Soundboard</strong>
+        {canManage && <button type="button" className="sb-link" onClick={() => setManaging((v) => !v)}>{managing ? 'Pronto' : 'Gerenciar'}</button>}
+      </div>
+      {sounds.length === 0 ? (
+        <p className="sb-empty">{canManage ? 'Nenhum som ainda. Clique em "Gerenciar" para adicionar.' : 'A equipe ainda não adicionou sons.'}</p>
+      ) : (
+        <div className="sb-grid">
+          {sounds.map((s) => (
+            <div key={s.id} className="sb-item">
+              <button type="button" className="sb-play" onClick={() => play(s)} title={`Tocar "${s.name}" pra todo mundo`}>
+                <span aria-hidden="true">{s.emoji || '🔉'}</span>
+                <span className="sb-name">{s.name}</span>
+              </button>
+              {managing && <button type="button" className="sb-del" aria-label={`Apagar ${s.name}`} onClick={() => remove(s)}>×</button>}
             </div>
-          )}
-          {msg && <p className="sb-err" role="status">{msg}</p>}
-          {managing && <AddSoundForm onAdded={() => refresh(true)} />}
+          ))}
         </div>
       )}
+      {msg && <p className="sb-err" role="status">{msg}</p>}
+      {managing && <AddSoundForm onAdded={() => refresh(true)} />}
     </div>
   );
 }
