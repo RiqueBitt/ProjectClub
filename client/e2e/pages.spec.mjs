@@ -75,9 +75,12 @@ test('clubes: aba Clubes lista convites e clubes abertos', async ({ page }) => {
   await expect(page.getByText('Algo deu errado')).toHaveCount(0);
 });
 
-test('miniperfil abre e fecha ao abrir outro menu', async ({ page }) => {
+test('miniperfil abre e fecha ao abrir outro menu', async ({ page, isMobile }) => {
   await page.goto('/channels/ch2');
   await expect(page.locator('.chat-header')).toBeVisible({ timeout: 20_000 });
+  // No celular a lista de membros é uma gaveta fora da tela (e, aberta,
+  // cobre o menu do topo) — o cenário deste teste é o do PC.
+  if (isMobile) test.skip(true, 'lista de membros escondida neste tamanho');
   const row = page.locator('.member-row').first();
   if (!(await row.isVisible())) test.skip(true, 'lista de membros escondida neste tamanho');
   await row.click();
