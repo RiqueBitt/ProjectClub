@@ -662,6 +662,9 @@
 /* O "Pré-visualizar" do hover ficaria em cima do carimbo: no item comprado o clique já abre. */
 .shop-room .room-card.is-owned .room-card-peek { display: none; }
 
+/* Com o 3D ligado a faixa é desenhada no próprio modelo (pack3d.js): a de HTML
+   fica só pra quando não tem WebGL. */
+.room-pack.p3d .room-rarity { display: none; }
 /* ---------- Raridade: faixa cromada no topo da caixinha ----------
    Fica no plano da FRENTE (gira junto com o 3D). Cor da raridade com brilho
    de metal; a Mítica é cromada, com borda arco-íris e as cores passando. */

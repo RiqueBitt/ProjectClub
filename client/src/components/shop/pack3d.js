@@ -25,6 +25,7 @@ import {
   MeshStandardMaterial, MeshPhysicalMaterial, MeshBasicMaterial, DirectionalLight, HemisphereLight,
   PMREMGenerator, Color, Vector3, Matrix4, Quaternion, Euler, PCFSoftShadowMap, SRGBColorSpace, SphereGeometry, Float32BufferAttribute,
   CustomBlending, OneFactor, OneMinusSrcAlphaFactor, FrontSide, DoubleSide, BackSide, NoToneMapping,
+  Shape, ExtrudeGeometry, CanvasTexture, LinearFilter,
 } from 'three';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 
@@ -87,6 +88,105 @@ function plasticMaterial({ alphaMin, alphaMax, power = 2.6, rough = 0.06 }) {
 
 function chromeMaterial() {
   return new MeshStandardMaterial({ color: 0xeef1f5, metalness: 1, roughness: 0.18, envMapIntensity: 1.6 });
+}
+
+/* ---------------------------------------------------------------- raridade
+   A faixa da raridade é uma plaquinha de verdade (extrudada, com chanfro),
+   presa no topo da frente da caixinha: gira, brilha e faz sombra junto.
+   A frente leva uma textura desenhada aqui (metal na cor da raridade + o
+   nome em branco); o chanfro e as laterais são metal liso. A Mítica é cromo
+   holográfico: arco-íris na frente e iridescência (as cores andam quando a
+   caixinha mexe). */
+const RARITY = {
+  COMUM: { label: 'Comum', a: '#eef1f5', b: '#9aa3ae', c: '#5b636e', edge: 0xc9ced6 },
+  INCOMUM: { label: 'Incomum', a: '#b7ffc9', b: '#22b455', c: '#0d5a28', edge: 0x3fd170 },
+  RARA: { label: 'Rara', a: '#c4e3ff', b: '#2f80ea', c: '#123f86', edge: 0x5aa2ff },
+  EPICA: { label: 'Épica', a: '#f0d2ff', b: '#9b40ec', c: '#4a1386', edge: 0xb46cff },
+  LENDARIA: { label: 'Lendária', a: '#fff1b8', b: '#f0a91c', c: '#8a4d06', edge: 0xffc23d },
+  MITICA: { label: 'Mítica', a: '#ffffff', b: '#c9cfd8', c: '#7b8492', edge: 0xf2f4f8, holo: true },
+};
+const BAND_W = W * 0.9;
+const BAND_H = 1.02;
+const BAND_D = 0.22;
+
+function roundRectPath(ctx, x, y, w, h, r) {
+  ctx.beginPath();
+  ctx.moveTo(x + r, y); ctx.arcTo(x + w, y, x + w, y + h, r); ctx.arcTo(x + w, y + h, x, y + h, r);
+  ctx.arcTo(x, y + h, x, y, r); ctx.arcTo(x, y, x + w, y, r); ctx.closePath();
+}
+
+function rarityTexture(key) {
+  const r = RARITY[key];
+  const cw = 1024;
+  const ch = Math.round((cw * BAND_H) / BAND_W);
+  const cv = document.createElement('canvas');
+  cv.width = cw; cv.height = ch;
+  const g = cv.getContext('2d');
+  // metal escovado: degradê vertical com a "linha do horizonte" do cromo no meio
+  const v = g.createLinearGradient(0, 0, 0, ch);
+  v.addColorStop(0, r.a); v.addColorStop(0.45, r.b); v.addColorStop(0.52, r.c); v.addColorStop(0.62, r.b); v.addColorStop(1, r.a);
+  g.fillStyle = v; g.fillRect(0, 0, cw, ch);
+  if (r.holo) {
+    // holográfico: arco-íris na diagonal bem vivo e o cromo por cima (overlay)
+    const hg = g.createLinearGradient(0, 0, cw, ch * 4);
+    ['#ff3b6b', '#ff9b2e', '#ffe14a', '#4ade80', '#38bdf8', '#8b5cf6', '#ff3b6b', '#ff9b2e', '#ffe14a', '#4ade80', '#38bdf8'].forEach((c, i, arr) => hg.addColorStop(i / (arr.length - 1), c));
+    g.fillStyle = hg; g.fillRect(0, 0, cw, ch);
+    g.globalCompositeOperation = 'overlay'; g.globalAlpha = 0.75; g.fillStyle = v; g.fillRect(0, 0, cw, ch);
+    g.globalCompositeOperation = 'source-over'; g.globalAlpha = 1;
+  }
+  // riscos finos do metal escovado
+  g.globalAlpha = 0.07;
+  for (let x = 0; x < cw; x += 3) { g.fillStyle = Math.random() < 0.5 ? '#fff' : '#000'; g.fillRect(x, 0, 1, ch); }
+  g.globalAlpha = 1;
+  // brilho de cima e filete por dentro da borda
+  const hl = g.createLinearGradient(0, 0, 0, ch * 0.5);
+  hl.addColorStop(0, 'rgba(255,255,255,.55)'); hl.addColorStop(1, 'rgba(255,255,255,0)');
+  g.fillStyle = hl; g.fillRect(0, 0, cw, ch * 0.5);
+  roundRectPath(g, ch * 0.09, ch * 0.09, cw - ch * 0.18, ch * 0.82, ch * 0.22);
+  g.lineWidth = ch * 0.035; g.strokeStyle = 'rgba(255,255,255,.55)'; g.stroke();
+  // pedrinhas nas pontas
+  for (const x of [ch * 0.42, cw - ch * 0.42]) {
+    g.save(); g.translate(x, ch / 2); g.rotate(Math.PI / 4);
+    const d = ch * 0.17;
+    const gg = g.createLinearGradient(-d, -d, d, d);
+    gg.addColorStop(0, '#fff'); gg.addColorStop(0.5, r.holo ? '#c4b5fd' : r.b); gg.addColorStop(1, r.c);
+    g.fillStyle = gg; g.fillRect(-d, -d, d * 2, d * 2);
+    g.lineWidth = ch * 0.02; g.strokeStyle = 'rgba(0,0,0,.35)'; g.strokeRect(-d, -d, d * 2, d * 2);
+    g.restore();
+  }
+  // o nome: branco, em relevo (sombra embaixo, luz em cima)
+  const text = r.label.toUpperCase();
+  g.font = `800 ${Math.round(ch * 0.58)}px "Barlow Condensed", "Arial Narrow", "Roboto Condensed", Arial, sans-serif`;
+  g.textAlign = 'center'; g.textBaseline = 'middle';
+  if ('letterSpacing' in g) g.letterSpacing = `${Math.round(ch * 0.1)}px`;
+  const ty = ch * 0.54;
+  g.lineJoin = 'round';
+  g.lineWidth = ch * 0.09; g.strokeStyle = r.holo ? 'rgba(40,20,70,.75)' : 'rgba(0,0,0,.5)'; g.strokeText(text, cw / 2, ty);
+  g.fillStyle = 'rgba(0,0,0,.55)'; g.fillText(text, cw / 2, ty + ch * 0.045);
+  g.fillStyle = 'rgba(255,255,255,.35)'; g.fillText(text, cw / 2, ty - ch * 0.02);
+  g.fillStyle = '#ffffff'; g.fillText(text, cw / 2, ty);
+  const tex = new CanvasTexture(cv);
+  tex.colorSpace = SRGBColorSpace;
+  tex.minFilter = LinearFilter;
+  tex.anisotropy = 4;
+  // as coordenadas da tampa da extrusão são em unidades: centraliza a imagem nela
+  tex.repeat.set(1 / BAND_W, 1 / BAND_H);
+  tex.offset.set(0.5, 0.5);
+  return tex;
+}
+
+function rarityMaterials(key) {
+  const r = RARITY[key];
+  const face = new MeshPhysicalMaterial({
+    map: rarityTexture(key), metalness: r.holo ? 0.3 : 0.18, roughness: r.holo ? 0.2 : 0.3,
+    clearcoat: 1, clearcoatRoughness: 0.05, envMapIntensity: 1.3,
+    ...(r.holo ? { iridescence: 1, iridescenceIOR: 1.6, iridescenceThicknessRange: [180, 900] } : {}),
+  });
+  const edge = new MeshPhysicalMaterial({
+    color: r.edge, metalness: 1, roughness: 0.14, envMapIntensity: 1.7,
+    ...(r.holo ? { iridescence: 1, iridescenceIOR: 1.8, iridescenceThicknessRange: [200, 1000] } : {}),
+  });
+  return [face, edge];
 }
 
 /* ---------------------------------------------------------------- ambiente
@@ -198,6 +298,27 @@ async function createEngine() {
     casters.push(mesh);
     box.add(mesh);
   });
+  // Faixa da raridade: plaquinha com chanfro no topo da frente (fora do filme).
+  const bandShape = new Shape();
+  {
+    const bw = BAND_W / 2; const bh = BAND_H / 2; const rr = 0.26;
+    bandShape.moveTo(-bw + rr, -bh); bandShape.lineTo(bw - rr, -bh); bandShape.quadraticCurveTo(bw, -bh, bw, -bh + rr);
+    bandShape.lineTo(bw, bh - rr); bandShape.quadraticCurveTo(bw, bh, bw - rr, bh); bandShape.lineTo(-bw + rr, bh);
+    bandShape.quadraticCurveTo(-bw, bh, -bw, bh - rr); bandShape.lineTo(-bw, -bh + rr); bandShape.quadraticCurveTo(-bw, -bh, -bw + rr, -bh);
+  }
+  const bandGeo = new ExtrudeGeometry(bandShape, { depth: BAND_D, bevelEnabled: true, bevelThickness: 0.07, bevelSize: 0.07, bevelSegments: 3, curveSegments: 8 });
+  const band = new Mesh(bandGeo, rarityMaterials('COMUM'));
+  band.position.set(0, H / 2 - 0.2 - BAND_H / 2, Z_FRONT + 0.06);
+  band.castShadow = true;
+  band.renderOrder = 4;
+  band.visible = false;
+  box.add(band);
+  const bandCache = new Map();
+  const bandFor = (key) => {
+    if (!bandCache.has(key)) bandCache.set(key, rarityMaterials(key));
+    return bandCache.get(key);
+  };
+
   assembly.add(hook);
   assembly.add(box);
   scene.add(assembly);
@@ -311,6 +432,8 @@ async function createEngine() {
     key.target.position.set(0, 1, 0);
     key.target.updateMatrixWorld();
     pose(s);
+    // faixa da raridade (some se o item não tem)
+    if (s.rarity && RARITY[s.rarity]) { band.material = bandFor(s.rarity); band.visible = true; } else band.visible = false;
     // "Foto" pro arraste (snapshot): só a caixinha, sem o gancho e sem a sombra na cartela.
     hook.visible = !s.noHook && !s.hideHook;   // hideHook: o 360° mostra a caixinha sem o gancho
     // Caixinha fora do gancho (sendo arrastada pra cestinha): fica só o gancho.
@@ -410,7 +533,7 @@ export function mountPack(el, opts = {}) {
   const insertEl = el.querySelector('.room-pack-back');
   const frontEl = el.querySelector('.room-pack-front');
   const s = {
-    color: opts.color, tilt: opts.tilt || 0, orbit: !!opts.orbit, hideHook: !!opts.hideHook, drag: null,
+    color: opts.color, tilt: opts.tilt || 0, rarity: opts.rarity || null, orbit: !!opts.orbit, hideHook: !!opts.hideHook, drag: null,
     yaw: 0, yawV: 0, yawT: 0, pitch: 0, pitchV: 0, pitchT: 0, swing: 0, swingV: 0,
     lx: 0, ly: 0, lxT: 0, lyT: 0,
   };
@@ -496,6 +619,7 @@ export function mountPack(el, opts = {}) {
     update(o) {
       if (o.color !== undefined && o.color !== s.color) { s.color = o.color; dirty = true; }
       if (o.tilt !== undefined && o.tilt !== s.tilt) { s.tilt = o.tilt; dirty = true; }
+      if (o.rarity !== undefined && o.rarity !== s.rarity) { s.rarity = o.rarity; dirty = true; }
       wake();
     },
     /** Desenha só a caixinha (sem gancho nem sombra na parede) num <canvas>

@@ -1069,7 +1069,7 @@ function packColors(item) {
 // Liga a caixinha 3D da cartela (components/shop/pack3d.js: o modelo do
 // Blender desenhado ao vivo). O motor só carrega quando a primeira cartela
 // aparece; sem WebGL fica a imagem parada (classe .p3d-off).
-function usePack3D(cardRef, tint, tilt, enabled = true) {
+function usePack3D(cardRef, tint, tilt, rarity = null, enabled = true) {
   const ctrl = useRef(null);
   useEffect(() => {
     const el = enabled ? cardRef.current?.querySelector('.room-pack') : null;
@@ -1077,11 +1077,11 @@ function usePack3D(cardRef, tint, tilt, enabled = true) {
     let gone = false;
     import('../components/shop/pack3d.js').then((m) => {
       if (gone) return;
-      ctrl.current = m.mountPack(el, { color: tint, tilt });
+      ctrl.current = m.mountPack(el, { color: tint, tilt, rarity });
     }).catch(() => el.classList.add('p3d-off'));
     return () => { gone = true; ctrl.current?.destroy(); ctrl.current = null; };
   }, [enabled]); // eslint-disable-line react-hooks/exhaustive-deps
-  useEffect(() => { ctrl.current?.update({ color: tint, tilt }); }, [tint, tilt]);
+  useEffect(() => { ctrl.current?.update({ color: tint, tilt, rarity }); }, [tint, tilt, rarity]);
   return ctrl;
 }
 
@@ -1097,7 +1097,7 @@ function ItemCard({ item: base, ctx }) {
   // Quando a cartela aparece na tela, a caixinha dá uma balançadinha no gancho.
   const cardRef = useRef(null);
   const colors = packColors(item);
-  const pack = usePack3D(cardRef, colors.tint, colors.tilt);
+  const pack = usePack3D(cardRef, colors.tint, colors.tilt, rarityOf(item));
   useEffect(() => {
     const el = cardRef.current;
     if (!el || typeof IntersectionObserver === 'undefined') return undefined;
@@ -1221,7 +1221,7 @@ function Pack360({ item, user }) {
     let gone = false;
     import('../components/shop/pack3d.js').then((m) => {
       if (gone) return;
-      ctrl.current = m.mountPack(el, { color: tint, orbit: true, hideHook: true });
+      ctrl.current = m.mountPack(el, { color: tint, orbit: true, hideHook: true, rarity: rarityOf(item) });
     }).catch(() => setOff(true));
     const watch = new MutationObserver(() => { if (el.classList.contains('p3d-off')) setOff(true); });
     watch.observe(el, { attributes: true, attributeFilter: ['class'] });
