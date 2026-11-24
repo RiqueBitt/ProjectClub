@@ -24,7 +24,7 @@ No app de PC, a aba **Apps** instala e mantém atualizados os apps do ecossistem
 | Windows 10/11 (64 bits) | [ProjectClub-Setup-Windows.exe](../../releases/latest/download/ProjectClub-Setup-Windows.exe) |
 | Linux (x86_64) | [ProjectClub-Linux.AppImage](../../releases/latest/download/ProjectClub-Linux.AppImage) |
 | Android 7+ | [ProjectClub.apk](../../releases/latest/download/ProjectClub.apk) |
-| Navegador | [projectclub.squareweb.app](https://projectclub.squareweb.app) |
+| Navegador | [projectclub.shardweb.app](https://projectclub.shardweb.app) |
 
 Todas as versões ficam em [Releases](../../releases).
 
@@ -48,7 +48,7 @@ Instalados e atualizados pela aba **Apps** do app de PC. Cada um tem o próprio 
 - **Site e app:** React 18 + Vite
 - **Servidor:** Node.js + Express, Socket.IO, Prisma com MySQL, Redis e Backblaze B2
 - **App de PC:** Electron (Windows e Linux, com electron-updater)
-- **Android:** Capacitor
+- **Android:** app nativo em Kotlin + Jetpack Compose (`android-nativo/`)
 
 ## Rodar localmente
 
