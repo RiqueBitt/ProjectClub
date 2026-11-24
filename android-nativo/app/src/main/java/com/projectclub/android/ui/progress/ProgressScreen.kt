@@ -510,7 +510,8 @@ internal fun Podium(podium: List<ProgressLeader>, myId: String?, onOpen: (String
         val h = w / PODIUM_RATIO
         val narrow = w < 420.dp
         val head = if (narrow) 104.dp else 124.dp
-        var shown by remember { mutableStateOf(false) }
+        val preview = androidx.compose.ui.platform.LocalInspectionMode.current
+        var shown by remember { mutableStateOf(preview) }
         LaunchedEffect(Unit) { shown = true }
         val rise by animateFloatAsState(if (shown) 1f else 0f, tween(550), label = "podio")
         Box(Modifier.align(Alignment.TopCenter).width(w).height(h + head)) {
@@ -519,8 +520,9 @@ internal fun Podium(podium: List<ProgressLeader>, myId: String?, onOpen: (String
                 Modifier.align(Alignment.TopCenter).offset(y = head - h * 0.34f).width(w * 0.62f).height(h * 0.96f)
                     .background(Brush.radialGradient(listOf(GOLD.copy(alpha = 0.18f), Color.Transparent))),
             )
-            AsyncImage(
-                Config.baseUrl + "/progresso/podio.webp?v=1", null, contentScale = ContentScale.FillBounds,
+            // o render do pódio vem junto do app (antes vinha da internet e, até carregar, as fotos ficavam soltas no ar)
+            androidx.compose.foundation.Image(
+                androidx.compose.ui.res.painterResource(com.projectclub.android.R.drawable.pc_podium), null, contentScale = ContentScale.FillBounds,
                 modifier = Modifier.align(Alignment.BottomCenter).fillMaxWidth().height(h)
                     .graphicsLayer { alpha = rise; translationY = (1f - rise) * 12.dp.toPx() },
             )
