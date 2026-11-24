@@ -66,7 +66,6 @@ import androidx.compose.ui.unit.em
 import androidx.compose.ui.unit.sp
 import com.projectclub.android.R
 import com.projectclub.android.data.User
-import kotlin.math.ceil
 import kotlin.math.roundToInt
 
 /*
@@ -331,9 +330,11 @@ internal class WallMetrics(rowWidth: Dp) {
     val headroom = sw * 0.196f           // o gancho e a aba ficam acima da cartela
     val artH = sw * 1.125f
     val bodyH = 112.dp
-    val tile = sw * (252f / 264f)        // um ladrilho do painel (6 x 6 furos)
-    // altura da fileira: múltiplo do ladrilho, assim os furos continuam certinhos de uma fileira pra outra
-    val rowH = tile * ceil(((headroom + artH + bodyH + 26.dp) / tile).toDouble()).toFloat()
+    // Altura da fileira e o ladrilho do painel (6 x 6 furos): o ladrilho estica um tiquinho
+    // pra caber um número inteiro deles na fileira — assim os furos continuam certinhos de
+    // uma fileira pra outra, sem sobrar parede entre elas.
+    val rowH = headroom + artH + bodyH + 30.dp
+    val tile = rowH / maxOf(1, (rowH / (sw * (252f / 264f))).roundToInt())
 }
 
 /** Uma fileira do painel perfurado com até 2 cartelas. [first]/[last] fecham a moldura de madeira. */
