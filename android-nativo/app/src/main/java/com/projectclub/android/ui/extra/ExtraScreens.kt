@@ -403,7 +403,7 @@ fun StickersScreen(repo: Repository, nav: AppNav) {
                         }, padding = PaddingValues(12.dp)) {
                             Row(verticalAlignment = Alignment.CenterVertically) {
                                 Text("$qty cápsula" + if (qty == "1") "" else "s", color = PC.Header, fontWeight = FontWeight.Bold, modifier = Modifier.weight(1f))
-                                Text("🪙 $price", color = PC.Text)
+                                com.projectclub.android.ui.store.CurrencyAmount(false, price, color = PC.Text)
                             }
                         }
                     }
@@ -473,7 +473,7 @@ fun CreatorShopScreen(repo: Repository, nav: AppNav) {
             else -> LazyVerticalGrid(GridCells.Adaptive(150.dp), contentPadding = PaddingValues(12.dp), horizontalArrangement = Arrangement.spacedBy(10.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
                 item(span = { GridItemSpan(maxLineSpan) }) {
                     Text(
-                        "Você tem 🪙 ${d.coins}. Quem criou recebe as moedas da venda" + (d.feePercent?.let { " (menos $it% de taxa)" } ?: "") + ". Pra enviar a sua criação, use o site.",
+                        "Você tem ${d.coins} moedas. Quem criou recebe as moedas da venda" + (d.feePercent?.let { " (menos $it% de taxa)" } ?: "") + ". Pra enviar a sua criação, use o site.",
                         color = PC.Muted, style = MaterialTheme.typography.bodySmall,
                     )
                 }
@@ -489,7 +489,7 @@ fun CreatorShopScreen(repo: Repository, nav: AppNav) {
                             Text(ci.creator?.displayName ?: "Alguém", color = PC.Muted, style = MaterialTheme.typography.labelSmall, maxLines = 1, overflow = TextOverflow.Ellipsis)
                         }
                         Text(
-                            when { ci.mine -> "Sua criação"; ci.owned -> "Você já tem"; else -> "🪙 ${ci.priceCoins}" },
+                            when { ci.mine -> "Sua criação"; ci.owned -> "Você já tem"; else -> "${ci.priceCoins} moedas" },
                             color = if (ci.owned || ci.mine) PC.Green else PC.Text, fontWeight = FontWeight.SemiBold, modifier = Modifier.padding(top = 4.dp),
                         )
                     }
@@ -501,7 +501,7 @@ fun CreatorShopScreen(repo: Repository, nav: AppNav) {
         AlertDialog(
             onDismissRequest = { if (!busy) confirm = null },
             title = { Text("Comprar ${item.name}?") },
-            text = { Text("Custa 🪙 ${item.priceCoins}. ${when (item.kind) { "EMOJI" -> "O emoji entra na sua lista de emojis."; "STICKER" -> "A figurinha aparece no seletor de figurinhas."; else -> "A moldura vai pros seus itens da Loja." }}") },
+            text = { Text("Custa ${item.priceCoins} moedas. ${when (item.kind) { "EMOJI" -> "O emoji entra na sua lista de emojis."; "STICKER" -> "A figurinha aparece no seletor de figurinhas."; else -> "A moldura vai pros seus itens da Loja." }}") },
             confirmButton = {
                 TextButton(enabled = !busy, onClick = {
                     busy = true

@@ -201,7 +201,7 @@ private fun FeedCard(item: FeedItem, onUser: () -> Unit, onCheer: () -> Unit, on
                     if (spec != null) com.projectclub.android.ui.common.StrokeIconTile(spec.first, spec.second, 40.dp)
                     else Box(Modifier.size(40.dp).clip(RoundedCornerShape(10.dp)).background(PC.Surface2), contentAlignment = Alignment.Center) {
                         val img = Config.media(a.iconUrl)
-                        if (img != null) AsyncImage(img, a.name, modifier = Modifier.size(30.dp)) else Text("🏆")
+                        if (img != null) AsyncImage(img, a.name, modifier = Modifier.size(30.dp)) else com.projectclub.android.ui.common.ArtIcon(com.projectclub.android.ui.common.PcArt.Ranks, PC.Yellow, Modifier.size(24.dp))
                     }
                     Spacer(Modifier.width(10.dp))
                     Column {

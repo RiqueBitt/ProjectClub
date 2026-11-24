@@ -160,7 +160,7 @@ private fun FirstStepsCard(
                         Spacer(Modifier.width(10.dp))
                         Column(Modifier.weight(1f)) {
                             Text(s.title, color = if (s.claimed) PC.Muted else PC.Header, fontWeight = FontWeight.SemiBold, style = MaterialTheme.typography.bodyMedium)
-                            Text("🪙 ${s.coins}" + (s.description?.let { " · $it" } ?: ""), color = PC.Faint, style = MaterialTheme.typography.labelSmall, maxLines = 2)
+                            Text("${s.coins} moedas" + (s.description?.let { " · $it" } ?: ""), color = PC.Faint, style = MaterialTheme.typography.labelSmall, maxLines = 2)
                         }
                         when {
                             s.claimed -> {}

@@ -1,5 +1,7 @@
 package com.projectclub.android.ui.economy
 
+import com.projectclub.android.ui.common.PcArt
+import com.projectclub.android.ui.common.ArtIcon
 import android.widget.Toast
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.foundation.background
@@ -8,6 +10,7 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
@@ -156,6 +159,17 @@ fun EconomyScreen(repo: Repository, nav: AppNav) {
         claimingMission = null
     }
 
+    var styleBusy by remember { mutableStateOf<String?>(null) }
+    fun setStyle(style: String) = scope.launch {
+        styleBusy = style
+        try {
+            repo.api.put<kotlinx.serialization.json.JsonElement>("/api/economy/card-style", kotlinx.serialization.json.buildJsonObject { put("style", kotlinx.serialization.json.JsonPrimitive(style)) })
+            wallet = wallet?.copy(cardStyle = style)
+            toast("Estilo do cartão atualizado.")
+        } catch (e: Exception) { toast(e.message ?: "Não foi possível trocar o estilo.") }
+        styleBusy = null
+    }
+
     fun claimSeason(level: Int, track: String) = scope.launch {
         seasonBusy = "$level:$track"
         try {
@@ -172,7 +186,7 @@ fun EconomyScreen(repo: Repository, nav: AppNav) {
     }
 
     Column(Modifier.fillMaxSize().background(PC.Bg)) {
-        PcTopBar("Economia", Icons.Outlined.MonetizationOn, navigation = { IconButton(onClick = nav::back) { Icon(Icons.AutoMirrored.Outlined.ArrowBack, "Voltar", tint = PC.Text) } })
+        PcTopBar("Economia", PcArt.Coin, navigation = { IconButton(onClick = nav::back) { Icon(Icons.AutoMirrored.Outlined.ArrowBack, "Voltar", tint = PC.Text) } })
         val w = wallet
         when {
             w == null && error != null -> EmptyState(Icons.Outlined.CloudOff, "Economia indisponível", error ?: "", Modifier.padding(top = 40.dp)) {
@@ -182,6 +196,8 @@ fun EconomyScreen(repo: Repository, nav: AppNav) {
             else -> PullToRefreshBox(refreshing, onRefresh = { scope.launch { refreshing = true; load(); refreshing = false } }, Modifier.fillMaxSize()) {
                 LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
                     item(key = "wallet") { FlipWalletCard(w, me) }
+                    // Igual ao site: atalho pro ranking e o estilo do cartão logo embaixo dele.
+                    item(key = "card-style") { CardStylePicker(w, styleBusy) { setStyle(it) } }
                     item(key = "daily") {
                         val wait = untilText(w.nextDailyAt, maxOf(tick, System.currentTimeMillis()))
                         DailyCard(w, wait, claiming, lastChest) { claimDaily() }
@@ -196,8 +212,8 @@ fun EconomyScreen(repo: Repository, nav: AppNav) {
                             }
                             PcCard(Modifier.weight(1f), onClick = { nav.progress("ranks") }, padding = PaddingValues(12.dp)) {
                                 Row(verticalAlignment = Alignment.CenterVertically) {
-                                    IconTile(Icons.Outlined.Leaderboard, PC.Brand); Spacer(Modifier.width(10.dp))
-                                    Text("Rank", style = MaterialTheme.typography.titleSmall, color = PC.Header)
+                                    IconTile(PcArt.Ranks, PC.Brand); Spacer(Modifier.width(10.dp))
+                                    Text("Ver ranking", style = MaterialTheme.typography.titleSmall, color = PC.Header)
                                 }
                             }
                         }
@@ -270,7 +286,7 @@ private fun DailyCard(w: EcoWallet, wait: String?, claiming: Boolean, last: EcoD
             val img = if (wait != null) last?.chestImageOpened ?: last?.chestImageClosed else last?.chestImageClosed
             Box(Modifier.size(64.dp).clip(RoundedCornerShape(16.dp)).background(PC.Surface2), contentAlignment = Alignment.Center) {
                 if (img != null) AsyncImage(Config.media(img), null, imageLoader = loader, contentScale = ContentScale.Fit, modifier = Modifier.size(56.dp))
-                else Icon(Icons.Outlined.CardGiftcard, null, tint = PC.Yellow, modifier = Modifier.size(32.dp))
+                else ArtIcon(PcArt.Gift, PC.Yellow, Modifier.size(32.dp))
             }
             Spacer(Modifier.width(14.dp))
             Column(Modifier.weight(1f)) {
@@ -279,9 +295,8 @@ private fun DailyCard(w: EcoWallet, wait: String?, claiming: Boolean, last: EcoD
                     Icon(Icons.Outlined.LocalFireDepartment, null, tint = Color(0xFFFF7A45), modifier = Modifier.size(16.dp))
                     Text(" Sequência ${w.dailyStreak}/${w.streakRequired} para o baú mega", color = PC.Muted, style = MaterialTheme.typography.bodySmall)
                 }
-                Spacer(Modifier.height(6.dp))
-                val p by animateFloatAsState((w.dailyStreak.toFloat() / w.streakRequired.coerceAtLeast(1)).coerceIn(0f, 1f), label = "streak")
-                LinearProgressIndicator(progress = { p }, Modifier.fillMaxWidth().height(6.dp).clip(CircleShape), color = PC.Yellow, trackColor = PC.Surface3)
+                Spacer(Modifier.height(8.dp))
+                StreakNodes(w.dailyStreak, w.streakRequired)
             }
         }
         Spacer(Modifier.height(12.dp))
@@ -371,8 +386,8 @@ private fun SeasonCard(s: com.projectclub.android.data.SeasonInfo, busy: String?
                                 .clickable(enabled = !locked && !claimed && busy == null) { onClaim(t.level, track) }.padding(8.dp),
                             horizontalAlignment = Alignment.CenterHorizontally,
                         ) {
-                            if (r.coins > 0) Text("🪙 ${fmtNum(r.coins)}", color = PC.Text, style = MaterialTheme.typography.labelMedium)
-                            if (r.gems > 0) Text("💎 ${fmtNum(r.gems)}", color = PC.Purple, style = MaterialTheme.typography.labelMedium)
+                            if (r.coins > 0) com.projectclub.android.ui.store.CurrencyAmount(false, r.coins, iconSize = 15.dp, color = PC.Text)
+                            if (r.gems > 0) com.projectclub.android.ui.store.CurrencyAmount(true, r.gems, iconSize = 15.dp, color = PC.Purple)
                             Text(
                                 when { claimed -> "✓ Resgatado"; busy == "${t.level}:$track" -> "…"; locked -> if (track == "plus" && t.unlocked) "Assinante" else "Nível ${t.level}"; else -> "Resgatar" },
                                 color = when { claimed -> PC.Green; locked -> PC.Faint; else -> PC.Brand },
@@ -385,5 +400,76 @@ private fun SeasonCard(s: com.projectclub.android.data.SeasonInfo, busy: String?
         }
         Spacer(Modifier.height(6.dp))
         Text("Missão diária = 10 pontos, semanal = 40. Faixa de cima é grátis; a de baixo é de Assinante.", color = PC.Faint, style = MaterialTheme.typography.bodySmall)
+    }
+}
+
+
+/* ---------- igual ao site: estilo do cartão e a sequência do baú ---------- */
+
+private val CARD_STYLES = listOf(
+    Triple("DEFAULT", "Clássico", null),
+    Triple("GOLD", "Dourado", "Assinante"),
+    Triple("RAINBOW", "Arco-íris", "Super Assinante"),
+)
+
+@Composable
+private fun CardStylePicker(w: EcoWallet, busy: String?, onPick: (String) -> Unit) {
+    val current = w.cardStyle ?: "DEFAULT"
+    Column {
+        Text("Estilo do cartão", color = PC.Muted, style = MaterialTheme.typography.labelLarge, modifier = Modifier.padding(start = 4.dp, bottom = 6.dp))
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            CARD_STYLES.forEach { (id, label, need) ->
+                val unlocked = id in w.cardStyles || id == "DEFAULT"
+                val on = id == current
+                val swatch = when (id) {
+                    "GOLD" -> Brush.linearGradient(listOf(Color(0xFF1D1B16), Color(0xFF050504)))
+                    "RAINBOW" -> Brush.sweepGradient(listOf(Color(0xFFFF5D7A), Color(0xFFFFB65C), Color(0xFF5CF7A6), Color(0xFF5CC8FF), Color(0xFF9A7BFF), Color(0xFFFF5D7A)))
+                    else -> Brush.linearGradient(listOf(Color(0xFF2552CC), Color(0xFF091654)))
+                }
+                Column(
+                    Modifier.weight(1f).clip(RoundedCornerShape(14.dp))
+                        .background(if (on) PC.Surface3 else PC.Surface)
+                        .border(1.5.dp, if (on) PC.Brand else PC.Line, RoundedCornerShape(14.dp))
+                        .clickable(enabled = unlocked && !on && busy == null) { onPick(id) }
+                        .padding(8.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                ) {
+                    Box(
+                        Modifier.fillMaxWidth().aspectRatio(1.586f).clip(RoundedCornerShape(6.dp)).background(swatch)
+                            .border(1.dp, if (id == "GOLD") Color(0x80E8C468) else Color(0x33FFFFFF), RoundedCornerShape(6.dp)),
+                    )
+                    Spacer(Modifier.height(6.dp))
+                    Text(label, color = if (unlocked) PC.Header else PC.Faint, style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.SemiBold, maxLines = 1)
+                    Text(
+                        when { busy == id -> "Salvando…"; on -> "Em uso"; unlocked -> "Usar"; else -> need ?: "" },
+                        color = when { on -> PC.Green; unlocked -> PC.Brand; else -> PC.Faint },
+                        style = MaterialTheme.typography.labelSmall, maxLines = 1,
+                    )
+                }
+            }
+        }
+    }
+}
+
+/** Bolinhas da sequência (igual ao site): dias feitos acesos, o último é o baú mega. */
+@Composable
+private fun StreakNodes(streak: Int, goal: Int) {
+    val n = goal.coerceIn(1, 14)
+    val done = streak.coerceIn(0, n)
+    Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+        for (i in 1..n) {
+            val lit = i <= done
+            val mega = i == n
+            Box(
+                Modifier.size(if (mega) 26.dp else 20.dp).clip(CircleShape)
+                    .background(if (lit) PC.Yellow else PC.Surface3)
+                    .border(1.5.dp, if (lit) Color(0xFFFFE08A) else PC.Line, CircleShape),
+                contentAlignment = Alignment.Center,
+            ) {
+                if (mega) ArtIcon(PcArt.Gift, if (lit) Color(0xFF3A2A00) else PC.Muted, Modifier.size(14.dp))
+                else Text("$i", color = if (lit) Color(0xFF3A2A00) else PC.Faint, style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Bold)
+            }
+            if (i < n) Box(Modifier.weight(1f).height(3.dp).background(if (i < done) PC.Yellow else PC.Surface3))
+        }
     }
 }

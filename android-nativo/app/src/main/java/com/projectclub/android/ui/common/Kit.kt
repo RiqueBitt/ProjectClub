@@ -92,7 +92,7 @@ fun PcCard(
 @Composable
 fun PcTopBar(
     title: String,
-    icon: ImageVector? = null,
+    icon: Any? = null,
     navigation: (@Composable () -> Unit)? = null,
     actions: @Composable RowScope.() -> Unit = {},
 ) {
@@ -100,7 +100,7 @@ fun PcTopBar(
         Row(Modifier.fillMaxWidth().height(56.dp).padding(horizontal = 8.dp), verticalAlignment = Alignment.CenterVertically) {
             if (navigation != null) navigation() else Spacer(Modifier.width(8.dp))
             if (icon != null) {
-                Icon(icon, null, tint = PC.Muted, modifier = Modifier.size(22.dp))
+                ArtIcon(icon, PC.Muted, Modifier.size(22.dp))
                 Spacer(Modifier.width(10.dp))
             }
             Text(title, style = MaterialTheme.typography.titleMedium, color = PC.Header, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
@@ -222,9 +222,9 @@ fun Chip(text: String, color: Color, modifier: Modifier = Modifier, dot: Boolean
 
 /** Quadradinho colorido com ícone (atalhos, menus). */
 @Composable
-fun IconTile(icon: ImageVector, color: Color, size: Dp = 40.dp, iconSize: Dp = 22.dp) {
+fun IconTile(icon: Any, color: Color, size: Dp = 40.dp, iconSize: Dp = 22.dp) {
     Box(Modifier.size(size).clip(RoundedCornerShape(size * 0.32f)).background(color.copy(alpha = 0.16f)), contentAlignment = Alignment.Center) {
-        Icon(icon, null, tint = color, modifier = Modifier.size(iconSize))
+        ArtIcon(icon, color, Modifier.size(iconSize))
     }
 }
 
@@ -289,10 +289,10 @@ fun ListSkeleton(rows: Int = 7, avatar: Dp = 44.dp, modifier: Modifier = Modifie
 
 /** Mensagem curta no meio da tela (lista vazia, erro…), com ícone grande. */
 @Composable
-fun EmptyState(icon: ImageVector, title: String, text: String, modifier: Modifier = Modifier, action: (@Composable () -> Unit)? = null) {
+fun EmptyState(icon: Any, title: String, text: String, modifier: Modifier = Modifier, action: (@Composable () -> Unit)? = null) {
     Column(modifier.fillMaxWidth().padding(32.dp), horizontalAlignment = Alignment.CenterHorizontally) {
         Box(Modifier.size(72.dp).clip(CircleShape).background(PC.Surface2), contentAlignment = Alignment.Center) {
-            Icon(icon, null, tint = PC.Muted, modifier = Modifier.size(34.dp))
+            ArtIcon(icon, PC.Muted, Modifier.size(34.dp))
         }
         Spacer(Modifier.height(16.dp))
         Text(title, style = MaterialTheme.typography.titleMedium, color = PC.Header)
