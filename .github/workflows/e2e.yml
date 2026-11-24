@@ -32,8 +32,10 @@ jobs:
       contents: write
     timeout-minutes: 35
     # Os testes são divididos em 6 máquinas que rodam ao mesmo tempo.
-    # Pull Request: só o PC (bem mais rápido pra conferir antes do merge);
-    # push na main: PC e celular (a conferência completa).
+    # PC e celular em todo PR e na main. Antes o PR rodava só o PC e as
+    # falhas do celular só apareciam depois do merge (a main ficou vermelha
+    # de 22 a 24/11 sem ninguém ver). Pra rodar só o PC num teste local:
+    # npm run test:e2e -w client -- --project=pc
     strategy:
       fail-fast: false
       matrix:
@@ -71,7 +73,7 @@ jobs:
         # sufocar os mini-jogos (Ruffle), que pesam na CPU.
         env:
           PW_WORKERS: '3'
-        run: npm run test:e2e -w client -- --shard=${{ matrix.shard }}/6 ${{ github.event_name == 'pull_request' && '--project=pc' || '' }}
+        run: npm run test:e2e -w client -- --shard=${{ matrix.shard }}/6
       - name: Anotar os testes que falharam
         if: failure()
         run: |
