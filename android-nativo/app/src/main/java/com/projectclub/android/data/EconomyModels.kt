@@ -137,3 +137,4 @@ data class SeasonInfo(
     val points: Int = 0, val level: Int = 0, val maxLevel: Int = 30, val levelPoints: Int = 100,
     val isSupporter: Boolean = false, val tiers: List<SeasonTier> = emptyList(),
 )
+

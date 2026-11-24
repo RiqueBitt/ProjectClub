@@ -497,20 +497,24 @@ private val PODIUM_SPOTS = mapOf(1 to (0.50f to 0.2007f), 2 to (0.2113f to 0.368
 private const val PODIUM_RATIO = 1.9656f
 
 /** Mede o filho e o põe com o meio em [cx] e o pé em [bottom] (coordenadas do Box pai). */
+// Mede com a largura exata da vaga (o `width` de fora): medindo menor, o Compose
+// centralizava de novo a vaga dentro da largura e todo mundo saía deslocado pra
+// direita do bloco (as fotos ficavam "tortas" no pódio).
 private fun Modifier.standOn(cx: Dp, bottom: Dp): Modifier = layout { m, c ->
-    val p = m.measure(c.copy(minWidth = 0, minHeight = 0))
+    val p = m.measure(c.copy(minHeight = 0))
     layout(p.width, p.height) { p.place(cx.roundToPx() - p.width / 2, bottom.roundToPx() - p.height) }
 }
 
 @Composable
-private fun Podium(podium: List<ProgressLeader>, myId: String?, onOpen: (String) -> Unit) {
+internal fun Podium(podium: List<ProgressLeader>, myId: String?, onOpen: (String) -> Unit) {
     // Pódio em 3D: os blocos são o mesmo render do site e cada pessoa fica em pé no topo do seu bloco.
     BoxWithConstraints(Modifier.fillMaxWidth().padding(top = 4.dp)) {
         val w = if (maxWidth < 560.dp) maxWidth else 560.dp
         val h = w / PODIUM_RATIO
         val narrow = w < 420.dp
         val head = if (narrow) 104.dp else 124.dp
-        var shown by remember { mutableStateOf(false) }
+        val preview = androidx.compose.ui.platform.LocalInspectionMode.current
+        var shown by remember { mutableStateOf(preview) }
         LaunchedEffect(Unit) { shown = true }
         val rise by animateFloatAsState(if (shown) 1f else 0f, tween(550), label = "podio")
         Box(Modifier.align(Alignment.TopCenter).width(w).height(h + head)) {
@@ -519,8 +523,9 @@ private fun Podium(podium: List<ProgressLeader>, myId: String?, onOpen: (String)
                 Modifier.align(Alignment.TopCenter).offset(y = head - h * 0.34f).width(w * 0.62f).height(h * 0.96f)
                     .background(Brush.radialGradient(listOf(GOLD.copy(alpha = 0.18f), Color.Transparent))),
             )
-            AsyncImage(
-                Config.baseUrl + "/progresso/podio.webp?v=1", null, contentScale = ContentScale.FillBounds,
+            // o render do pódio vem junto do app (antes vinha da internet e, até carregar, as fotos ficavam soltas no ar)
+            androidx.compose.foundation.Image(
+                androidx.compose.ui.res.painterResource(com.projectclub.android.R.drawable.pc_podium), null, contentScale = ContentScale.FillBounds,
                 modifier = Modifier.align(Alignment.BottomCenter).fillMaxWidth().height(h)
                     .graphicsLayer { alpha = rise; translationY = (1f - rise) * 12.dp.toPx() },
             )
@@ -566,7 +571,7 @@ private fun PodiumSpot(u: ProgressLeader, place: Int, isMe: Boolean, narrow: Boo
 }
 
 @Composable
-private fun RankRow(u: ProgressLeader, pos: Int?, isMe: Boolean, topXp: Long = 0, onClick: () -> Unit) {
+internal fun RankRow(u: ProgressLeader, pos: Int?, isMe: Boolean, topXp: Long = 0, onClick: () -> Unit) {
     PcCard(
         Modifier.fillMaxWidth(), onClick = onClick, padding = PaddingValues(horizontal = 14.dp, vertical = 10.dp),
         border = if (isMe) PC.Brand.copy(alpha = 0.55f) else PC.Line,

@@ -208,4 +208,18 @@ class ScreenShots {
             }
         }
     }
+
+    // Ranking do celular: pódio e a lista (as fotos têm que ficar redondas e centradas no bloco).
+    @Test fun ranking() {
+        fun l(id: String, name: String, lvl: Int, xp: Long) = com.projectclub.android.data.ProgressLeader(id = id, username = name.lowercase(), displayName = name, accountLevel = lvl, accountXp = xp)
+        val all = listOf(l("me", "RiqueBitt", 12, 9800), l("u1", "Lia", 9, 7200), l("u2", "Loritta", 7, 5100), l("u3", "Rio Bot", 5, 3000), l("u4", "Ana", 3, 1200))
+        shot("ranking") {
+            androidx.compose.runtime.CompositionLocalProvider(androidx.compose.ui.platform.LocalInspectionMode provides true) {
+            androidx.compose.foundation.layout.Column(Modifier.padding(16.dp)) {
+                com.projectclub.android.ui.progress.Podium(all.take(3), "me") {}
+                all.drop(3).forEachIndexed { i, u -> com.projectclub.android.ui.progress.RankRow(u, i + 4, false, 9800) {} }
+            }
+            }
+        }
+    }
 }

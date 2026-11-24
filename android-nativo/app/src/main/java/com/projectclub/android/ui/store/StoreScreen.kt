@@ -1,5 +1,6 @@
 package com.projectclub.android.ui.store
 
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.LazyColumn
@@ -127,7 +128,7 @@ internal enum class Kind(val label: String, val buy: String, val equip: String, 
 
 private enum class StoreTab(val label: String) {
     All("Tudo"), Frames("Molduras"), Effects("Efeitos"), Fonts("Fontes"), Styles("Estilos"), Limited("Limitados"),
-    Collections("Coleções"), Mine("Meus itens"), Trades("Trocas"),
+    Collections("Coleções"), Card("Cartão"), Mine("Meus itens"), Trades("Trocas"),
 }
 
 /** Loja do Project Club: molduras, efeitos de perfil e coleções. */
@@ -141,7 +142,7 @@ fun StoreScreen(repo: Repository, nav: AppNav, initialTab: String?) {
     var error by remember { mutableStateOf<String?>(null) }
     var refreshing by remember { mutableStateOf(false) }
     var tab by rememberSaveable {
-        mutableStateOf(when (if (initialTab?.startsWith("colecao:") == true) "colecoes" else initialTab) { "molduras" -> StoreTab.Frames; "efeitos" -> StoreTab.Effects; "fontes" -> StoreTab.Fonts; "estilos" -> StoreTab.Styles; "limitados" -> StoreTab.Limited; "colecoes" -> StoreTab.Collections; "meus" -> StoreTab.Mine; "trocas" -> StoreTab.Trades; else -> StoreTab.All })
+        mutableStateOf(when (if (initialTab?.startsWith("colecao:") == true) "colecoes" else initialTab) { "molduras" -> StoreTab.Frames; "efeitos" -> StoreTab.Effects; "fontes" -> StoreTab.Fonts; "estilos" -> StoreTab.Styles; "limitados" -> StoreTab.Limited; "colecoes" -> StoreTab.Collections; "cartao" -> StoreTab.Card; "meus" -> StoreTab.Mine; "trocas" -> StoreTab.Trades; else -> StoreTab.All })
     }
     var query by rememberSaveable { mutableStateOf("") }
     var selected by remember { mutableStateOf<ShopItem?>(null) }
@@ -243,7 +244,7 @@ fun StoreScreen(repo: Repository, nav: AppNav, initialTab: String?) {
                     StoreTab.Styles -> styles
                     StoreTab.Limited -> everything.filter { it.limited }
                     StoreTab.Mine -> everything.filter { it.owned }
-                    StoreTab.Collections, StoreTab.Trades -> emptyList()
+                    StoreTab.Collections, StoreTab.Card, StoreTab.Trades -> emptyList()
                 }
                 val items = base.filter { q.isEmpty() || it.name.contains(q, ignoreCase = true) }
                 PullToRefreshBox(refreshing, onRefresh = { scope.launch { refreshing = true; load(); refreshing = false } }, Modifier.fillMaxSize()) {
@@ -260,7 +261,9 @@ fun StoreScreen(repo: Repository, nav: AppNav, initialTab: String?) {
                                 }
                             }
                         }
-                        if (tab == StoreTab.Collections) {
+                        if (tab == StoreTab.Card) {
+                            item(key = "cartao") { CardStylesSection(repo, me) }
+                        } else if (tab == StoreTab.Collections) {
                             if (s.collections.isEmpty()) item {
                                 EmptyState(Icons.Outlined.LocalMall, "Nenhuma coleção", "As coleções da loja aparecem aqui.")
                             }
@@ -551,3 +554,64 @@ private fun WishlistButton(repo: com.projectclub.android.data.Repository, item: 
 private fun slugify(input: String): String =
     java.text.Normalizer.normalize(input, java.text.Normalizer.Form.NFKD).replace(Regex("\\p{Mn}+"), "").lowercase()
         .replace("ß", "ss").replace("æ", "ae").replace("ø", "o").replace(Regex("[^a-z0-9]+"), "-").trim('-').take(60).trim('-')
+
+
+/*
+ * Loja → "Cartão da carteira" (igual à seção do site, WalletCardStyles.jsx):
+ * os três estilos do cartão lado a lado. Azul é de todo mundo; o dourado é
+ * do Assinante; o arco-íris, do Super Assinante. O servidor confere de novo.
+ */
+private val CARD_OPTIONS = listOf(
+    Triple("DEFAULT", "Clássico", "O cartão azul do Project Club."),
+    Triple("GOLD", "Preto e dourado", "Exclusivo de Assinante."),
+    Triple("RAINBOW", "Preto e arco-íris", "Exclusivo de Super Assinante."),
+)
+
+@Composable
+private fun CardStylesSection(repo: com.projectclub.android.data.Repository, me: com.projectclub.android.data.User?) {
+    val ctx = LocalContext.current
+    val scope = rememberCoroutineScope()
+    var eco by remember { mutableStateOf<com.projectclub.android.data.EcoWallet?>(null) }
+    var err by remember { mutableStateOf<String?>(null) }
+    var busy by remember { mutableStateOf<String?>(null) }
+    LaunchedEffect(Unit) {
+        runCatching { repo.api.get<com.projectclub.android.data.EcoWallet>("/api/economy") }
+            .onSuccess { eco = it }.onFailure { err = "Não foi possível carregar o seu cartão." }
+    }
+    Column(Modifier.padding(horizontal = 16.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
+        Text("Cartão da carteira", style = MaterialTheme.typography.titleLarge, color = PC.Header)
+        Text("Escolha o visual do seu cartão na Economia e quando você mostrar ele no chat.", color = PC.Muted, style = MaterialTheme.typography.bodyMedium)
+        err?.let { Text(it, color = PC.Red) }
+        val w = eco
+        if (w == null) { if (err == null) Text("Carregando…", color = PC.Muted) } else CARD_OPTIONS.forEach { (id, name, desc) ->
+            val unlocked = id == "DEFAULT" || id in w.cardStyles
+            val current = (w.cardStyle ?: "DEFAULT") == id
+            com.projectclub.android.ui.common.PcCard(Modifier.fillMaxWidth(), padding = PaddingValues(14.dp), border = if (current) PC.Green.copy(alpha = 0.6f) else PC.Line) {
+                Box(Modifier.graphicsLayer { alpha = if (unlocked) 1f else 0.7f }) {
+                    com.projectclub.android.ui.economy.FlipWalletCard(w.copy(cardStyle = id), me, hint = false)
+                }
+                Spacer(Modifier.height(10.dp))
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Column(Modifier.weight(1f)) {
+                        Text(name, color = PC.Header, fontWeight = FontWeight.Bold)
+                        Text(desc, color = PC.Muted, style = MaterialTheme.typography.bodySmall)
+                    }
+                    when {
+                        current -> Chip("Em uso", PC.Green)
+                        unlocked -> PillButton(if (busy == id) "Salvando…" else "Usar este", {
+                            busy = id
+                            scope.launch {
+                                runCatching {
+                                    repo.api.put<kotlinx.serialization.json.JsonElement>("/api/economy/card-style", buildJsonObject { put("style", id) })
+                                }.onSuccess { eco = w.copy(cardStyle = id); Toast.makeText(ctx, "Estilo do cartão atualizado.", Toast.LENGTH_SHORT).show() }
+                                    .onFailure { Toast.makeText(ctx, it.message ?: "Não foi possível trocar o estilo.", Toast.LENGTH_SHORT).show() }
+                                busy = null
+                            }
+                        }, enabled = busy == null)
+                        else -> Chip(if (id == "GOLD") "Assinante" else "Super Assinante", PC.Yellow)
+                    }
+                }
+            }
+        }
+    }
+}
