@@ -19,7 +19,7 @@ const ITEMS = [
   { to: '/inicio', label: 'Central', icon: 'home', match: (p) => p === '/inicio' || p.startsWith('/anuncios') || p.startsWith('/comunidade/eventos') },
   { to: '/', label: 'Comunidade', icon: 'chat', match: (p) => p === '/' },
   { to: '/dms', label: 'Amigos', icon: 'friends', match: (p) => p === '/dms' || p.startsWith('/clans') },
-  { to: '/economia', label: 'Economia', icon: 'coin', system: 'economia', match: (p) => p.startsWith('/economia') || p.startsWith('/missoes') || p === '/loja' },
+  { to: '/economia', label: 'Economia', icon: 'coin', system: 'economia', match: (p) => p.startsWith('/economia') || p === '/loja' },
   { to: '/notifications', label: 'Avisos', icon: 'bell', match: (p) => p === '/notifications' },
 ];
 const HIDDEN = [/^\/channels\//, /^\/conversations\//, /^\/clans\/mine/, /^\/$/];

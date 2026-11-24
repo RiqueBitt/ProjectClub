@@ -18,7 +18,7 @@ export function useBadges(user) {
   const allChannels = [...channels, ...categories.flatMap((c) => c.channels || [])];
   const unreadChannels = allChannels.filter((ch) => isChannelUnread(ch, channelReadAt, user?.id, myRoleIds)).length;
   return (to) => {
-    if (to === '/economia') return claimableMissions;
+    if (to === '/progresso') return claimableMissions; // missões (moraram na Economia até nov/2026)
     if (to === '/dms') return unreadConversations + pendingIncoming;
     if (to === '/notifications') return unreadChannels + unreadConversations + pendingIncoming;
     return 0;

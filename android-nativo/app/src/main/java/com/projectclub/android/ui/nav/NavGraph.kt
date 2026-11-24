@@ -156,7 +156,8 @@ class AppNavigator(
             "carteira" -> seg.getOrNull(1)?.let { go("wallet/" + enc(it)) } ?: economy()
             "sorteio" -> economy()
             "retrospectiva" -> onHome(0)
-            "economia", "missoes" -> economy()
+            "economia" -> economy()
+            "missoes" -> progress("missoes") // missões moram no Progresso desde nov/2026
             "progresso" -> progress(tab)
             "rank" -> progress("ranks")
             "conquistas" -> progress("conquistas")

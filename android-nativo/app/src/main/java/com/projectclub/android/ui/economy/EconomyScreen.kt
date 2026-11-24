@@ -225,17 +225,17 @@ fun EconomyScreen(repo: Repository, nav: AppNav) {
                     season?.let { s ->
                         item(key = "season") { SeasonCard(s, seasonBusy) { lv, track -> claimSeason(lv, track) } }
                     }
-                    val ms = missions?.missions.orEmpty()
-                    if (ms.isNotEmpty()) {
-                        item(key = "mt") { Section(Icons.Outlined.TaskAlt, "Missões", PC.Pink) }
-                        listOf("DAILY" to "Diárias", "WEEKLY" to "Semanais").forEach { (period, label) ->
-                            val list = ms.filter { it.period == period }
-                            if (list.isNotEmpty()) {
-                                item(key = "mh-$period") {
-                                    val reset = untilText(if (period == "DAILY") missions?.resets?.daily else missions?.resets?.weekly)
-                                    Text(label + (reset?.let { " · renovam em $it" } ?: ""), color = PC.Muted, style = MaterialTheme.typography.labelLarge)
+                    // Missões (nov/2026): moraram aqui; agora são uma aba do Progresso.
+                    item(key = "mt") {
+                        PcCard(padding = PaddingValues(14.dp), onClick = { nav.progress("missoes") }) {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Icon(Icons.Outlined.TaskAlt, null, tint = PC.Pink, modifier = Modifier.size(22.dp))
+                                Spacer(Modifier.width(12.dp))
+                                Column(Modifier.weight(1f)) {
+                                    Text("Missões", color = PC.Header, style = MaterialTheme.typography.titleSmall)
+                                    Text("Agora ficam no Progresso", color = PC.Muted, style = MaterialTheme.typography.bodySmall)
                                 }
-                                items(list, key = { "m-" + it.id }) { m -> MissionCard(m, claimingMission == m.id) { claimMission(m) } }
+                                Text("Ver ›", color = PC.Brand, style = MaterialTheme.typography.labelLarge)
                             }
                         }
                     }
@@ -311,8 +311,9 @@ private fun DailyCard(w: EcoWallet, wait: String?, claiming: Boolean, last: EcoD
     }
 }
 
+/** Uma missão (usada na aba Missões do Progresso). */
 @Composable
-private fun MissionCard(m: EcoMission, busy: Boolean, onClaim: () -> Unit) {
+internal fun MissionCard(m: EcoMission, busy: Boolean, onClaim: () -> Unit) {
     val ready = m.completed && !m.claimed
     PcCard(padding = PaddingValues(14.dp), border = if (ready) PC.Green.copy(alpha = 0.5f) else PC.Line) {
         Row(verticalAlignment = Alignment.CenterVertically) {

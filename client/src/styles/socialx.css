@@ -524,99 +524,52 @@ button.sx-item-body:hover { border-color: color-mix(in srgb, var(--brand) 40%, v
 .featured-channels .featured-blackout .featured-channel-name { letter-spacing: .14em; font-weight: 800; }
 .featured-channels .featured-blackout .featured-channel-icon { background: #0b0b0d; color: #fff; box-shadow: 0 0 0 1px rgba(255, 255, 255, .35), 0 0 12px rgba(255, 255, 255, .18); }
 
-/* Canais em destaque centralizados (ícone + nome no meio da faixa). */
-.featured-channels .sidebar-item.featured-channel,
-.n2-sidebar .featured-channels .sidebar-item.featured-channel { justify-content: center; text-align: center; }
-.featured-channels .sidebar-item.featured-channel .featured-channel-name { flex: 0 1 auto; }
-/* Assinatura: no topo, em dourado. */
-.featured-channels .sidebar-item.featured-channel.featured-assinatura,
-.n2-sidebar .featured-channels .sidebar-item.featured-channel.featured-assinatura {
-  --fc: #f5c542; font-weight: 700; color: #ffe7a6;
-  background: linear-gradient(100deg, rgba(245, 197, 66, .18), rgba(255, 159, 28, .08)); box-shadow: inset 0 0 0 1px rgba(245, 197, 66, .3);
+/* ===== Canais em destaque — lista limpa (modelo 1, nov/2026) =====
+   Ícone colorido + nome, à esquerda, sem caixa; a página aberta ganha um
+   fundo suave na cor dela e uma barrinha à esquerda. Assinatura em cima,
+   dourada, e uma linha separando do resto. */
+.featured-channels.fc-list { gap: 2px; padding: 8px 8px 10px; }
+.featured-channels.fc-list .sidebar-item.featured-channel,
+.n2-sidebar .featured-channels.fc-list .sidebar-item.featured-channel {
+  position: relative; display: flex; flex-direction: row; align-items: center; justify-content: flex-start; gap: 12px;
+  min-height: 40px; margin: 0; padding: 8px 10px; border-radius: 8px; text-align: left;
+  font-size: 15px; font-weight: 600; color: var(--text-normal); background: transparent; box-shadow: none; transform: none;
 }
-.featured-channels .sidebar-item.featured-channel.featured-assinatura:hover { background: linear-gradient(100deg, rgba(245, 197, 66, .26), rgba(255, 159, 28, .12)); color: #fff3cc; }
-.featured-channels .sidebar-item.featured-channel.featured-assinatura.active { background: linear-gradient(100deg, rgba(245, 197, 66, .32), rgba(255, 159, 28, .16)); color: #fff; }
-.featured-channels .featured-assinatura .featured-channel-icon { color: #2a1800; background: linear-gradient(135deg, #f5c542, #ff9f1c); box-shadow: 0 0 12px rgba(245, 197, 66, .45); }
-.featured-channels .sidebar-item.featured-channel.featured-assinatura + .featured-channel { margin-top: 4px; }
-
-/* ===== Canais em destaque — visual novo (nov/2026) =====
-   Faixas largas em cima (Assinatura, BLACKOUT) e o resto em blocos 2×N:
-   ícone colorido em cima, nome embaixo, tudo centralizado; contagens e
-   "novo" viram selos no canto. */
-.featured-channels { gap: 8px; padding: 6px 8px 12px; }
-.featured-channel-text { display: flex; flex-direction: column; min-width: 0; line-height: 1.15; }
-.featured-channel-sub { font-size: 11px; font-weight: 500; opacity: .75; }
-
-/* Faixas (banner) */
-.featured-channels .sidebar-item.featured-channel.featured-game,
-.featured-channels .sidebar-item.featured-channel.featured-assinatura,
-.n2-sidebar .featured-channels .sidebar-item.featured-channel.featured-game,
-.n2-sidebar .featured-channels .sidebar-item.featured-channel.featured-assinatura {
-  position: relative; min-height: 54px; margin: 0; padding: 8px 12px; gap: 12px; border-radius: 14px;
-  justify-content: flex-start; text-align: left; overflow: hidden;
+.featured-channels.fc-list .sidebar-item.featured-channel:hover { background: var(--bg-modifier-hover); color: var(--header-primary); }
+.featured-channels.fc-list .sidebar-item.featured-channel.active {
+  background: color-mix(in srgb, var(--fc, var(--brand)) 14%, transparent); color: var(--header-primary);
 }
-.featured-channels .featured-game .featured-channel-icon,
-.featured-channels .featured-assinatura .featured-channel-icon { width: 36px; height: 36px; border-radius: 11px; }
-.featured-channels .featured-game .featured-channel-icon svg,
-.featured-channels .featured-assinatura .featured-channel-icon svg { width: 20px; height: 20px; }
-.featured-channels .featured-game .featured-channel-name,
-.featured-channels .featured-assinatura .featured-channel-name { font-size: 15px; font-weight: 800; }
-/* brilho que passa devagar na Assinatura */
-.featured-channels .sidebar-item.featured-channel.featured-assinatura::before {
-  content: ''; position: absolute; inset: 0; pointer-events: none;
-  background: linear-gradient(110deg, transparent 30%, rgba(255, 236, 170, .22) 45%, transparent 60%);
-  transform: translateX(-120%); animation: featured-shine 5.5s ease-in-out infinite;
+.featured-channels.fc-list .sidebar-item.featured-channel::after { display: none; }
+.featured-channels.fc-list .sidebar-item.featured-channel.active::before {
+  content: ''; position: absolute; left: -8px; top: 8px; bottom: 8px; width: 4px; border-radius: 0 4px 4px 0; background: var(--fc, var(--brand));
 }
-@keyframes featured-shine { 0%, 55% { transform: translateX(-120%); } 85%, 100% { transform: translateX(120%); } }
-.featured-channels .sidebar-item.featured-channel.featured-assinatura::after { display: none; }
-.featured-channels .featured-assinatura .featured-channel-sub { color: #f5d78a; opacity: .85; }
-.featured-channels .sidebar-item.featured-channel.featured-blackout,
-.n2-sidebar .featured-channels .sidebar-item.featured-channel.featured-blackout {
-  background: linear-gradient(110deg, #1b1c22, #0a0a0d); color: #f1f1f4; box-shadow: inset 0 0 0 1px rgba(255, 255, 255, .12);
+.featured-channels.fc-list .featured-channel-icon,
+.featured-channels.fc-list .featured-game .featured-channel-icon {
+  width: 22px; height: 22px; border-radius: 0; background: none; box-shadow: none; color: var(--fc, var(--brand));
 }
-.featured-channels .featured-blackout .featured-channel-name { letter-spacing: .16em; }
-
-/* Blocos 2×N */
-.featured-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px; }
-.featured-grid .sidebar-item.featured-channel,
-.n2-sidebar .featured-channels .featured-grid .sidebar-item.featured-channel.featured-plain,
-.featured-channels .featured-grid .sidebar-item.featured-channel.featured-plain {
-  position: relative; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 6px;
-  min-height: 66px; margin: 0; padding: 10px 6px 8px; border-radius: 12px; text-align: center;
-  font-size: 12.5px; font-weight: 600; color: var(--text-normal);
-  background: color-mix(in srgb, var(--fc, var(--brand)) 9%, var(--bg-secondary, transparent));
-  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--fc, var(--brand)) 16%, transparent);
-  transition: background .15s, box-shadow .15s, transform .15s;
+.featured-channels.fc-list .featured-channel-icon svg { width: 20px; height: 20px; }
+.featured-channels.fc-list .featured-channel-text { flex: 1; min-width: 0; line-height: 1.2; }
+.featured-channels.fc-list .featured-channel-name { font-size: inherit; font-weight: inherit; letter-spacing: 0; }
+.featured-channels.fc-list .featured-channel-sub { display: none; }
+.featured-channels.fc-list .featured-channel-count,
+.featured-channels.fc-list .featured-channel-live,
+.featured-channels.fc-list .featured-channel-soon,
+.featured-channels.fc-list .featured-channel-tag,
+.featured-channels.fc-list .section-new-badge { position: static; margin-left: auto; transform: none; }
+.featured-channels.fc-list .featured-channel-count { background: var(--red, #f23f43); color: #fff; }
+/* Assinatura: dourada, com o fundo esmaecendo pra direita. */
+.featured-channels.fc-list .sidebar-item.featured-channel.featured-assinatura,
+.n2-sidebar .featured-channels.fc-list .sidebar-item.featured-channel.featured-assinatura {
+  color: #ffe7a6; background: linear-gradient(90deg, rgba(245, 197, 66, .16), transparent 85%);
 }
-.featured-channels .featured-grid .sidebar-item.featured-channel.featured-plain:hover {
-  background: color-mix(in srgb, var(--fc, var(--brand)) 16%, var(--bg-secondary, transparent));
-  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--fc, var(--brand)) 34%, transparent);
-  color: var(--header-primary); transform: translateY(-1px);
-}
-.featured-channels .featured-grid .sidebar-item.featured-channel.featured-plain.active {
-  background: color-mix(in srgb, var(--fc, var(--brand)) 22%, var(--bg-secondary, transparent));
-  box-shadow: inset 0 0 0 2px color-mix(in srgb, var(--fc, var(--brand)) 70%, transparent);
-  color: var(--header-primary);
-}
-.featured-grid .featured-channel-icon { width: 30px; height: 30px; border-radius: 10px;
-  background: color-mix(in srgb, var(--fc, var(--brand)) 24%, transparent); color: var(--fc, var(--brand)); }
-.featured-grid .featured-channel-icon svg { width: 18px; height: 18px; }
-.featured-grid .featured-channel-text { align-items: center; max-width: 100%; }
-.featured-grid .featured-channel-name { flex: none; max-width: 100%; }
-/* Selos no canto (contagem, ao vivo, novo, em breve, tag) */
-.featured-grid .featured-channel-count,
-.featured-grid .featured-channel-live,
-.featured-grid .featured-channel-soon,
-.featured-grid .featured-channel-tag,
-.featured-grid .section-new-badge { position: absolute; top: 5px; right: 5px; margin: 0; transform: scale(.92); transform-origin: top right; }
-.featured-grid .featured-channel-count { background: var(--red, #f23f43); color: #fff; }
-.featured-grid .sidebar-item.featured-channel::after { display: none; }
-/* Um bloco sozinho na última linha ocupa a largura toda, deitado. */
-.featured-channels .featured-grid > .sidebar-item.featured-channel.featured-plain:last-child:nth-child(odd),
-.n2-sidebar .featured-channels .featured-grid > .sidebar-item.featured-channel.featured-plain:last-child:nth-child(odd) {
-  grid-column: 1 / -1; flex-direction: row; min-height: 46px; gap: 10px;
-}
-.featured-channels .sidebar-item.featured-channel.featured-game::after { display: none; }
-@media (prefers-reduced-motion: reduce) {
-  .featured-channels .sidebar-item.featured-channel.featured-assinatura::before { animation: none; display: none; }
-}
+.featured-channels.fc-list .sidebar-item.featured-channel.featured-assinatura:hover { background: linear-gradient(90deg, rgba(245, 197, 66, .24), transparent 90%); color: #fff3cc; }
+.featured-channels.fc-list .sidebar-item.featured-channel.featured-assinatura.active { background: linear-gradient(90deg, rgba(245, 197, 66, .3), rgba(245, 197, 66, .06)); color: #fff; }
+.featured-channels.fc-list .featured-assinatura .featured-channel-icon { color: #f5c542; }
+.featured-channels.fc-list .sidebar-item.featured-channel.featured-assinatura::before { content: none; }
+.featured-channels.fc-list .sidebar-item.featured-channel.featured-assinatura.active::before { content: ''; background: #f5c542; animation: none; transform: none; inset: 8px auto 8px -8px; }
+/* BLACKOUT (jogo): mesma linha, só o nome espaçado. */
+.featured-channels.fc-list .sidebar-item.featured-channel.featured-blackout,
+.n2-sidebar .featured-channels.fc-list .sidebar-item.featured-channel.featured-blackout { background: transparent; box-shadow: none; color: var(--text-normal); }
+.featured-channels.fc-list .featured-blackout .featured-channel-name { letter-spacing: .14em; font-weight: 800; }
+.featured-channels.fc-list .featured-blackout .featured-channel-icon { color: var(--header-primary); }
+.fc-sep { height: 1px; margin: 4px 6px 6px; background: var(--border); }

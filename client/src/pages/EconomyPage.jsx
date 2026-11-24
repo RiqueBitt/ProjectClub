@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
-import { getMyEconomy, claimDaily, listChests, listMissions, claimMission, getMissionSeason, claimSeasonReward } from '../api/endpoints';
+import { getMyEconomy, claimDaily, listChests, getMissionSeason, claimSeasonReward } from '../api/endpoints';
 import { useAuth } from '../context/AuthContext.jsx';
 import WalletCard from '../components/WalletCard.jsx';
 import { useSocket } from '../context/SocketContext.jsx';
@@ -8,7 +8,6 @@ import { EmptyState, Ico, PillTabs, Skeleton, Toast, Unavailable } from '../comp
 import '../styles/hub-tabs.css';
 import '../styles/economy.css';
 import { useLiveRefresh } from '../utils/liveRefresh';
-import { setClaimableMissions } from '../utils/missionBadge';
 import '../styles/contentx.css';
 import { TrimmedImg } from '../utils/trimImage.jsx';
 
@@ -28,65 +27,6 @@ function untilText(target, now = Date.now()) {
   return h > 0 ? `${h}h ${m}min` : `${Math.max(1, m)}min`;
 }
 
-// Ícone de cada tipo de missão (traço, sem emoji).
-const MISSION_ICON = {
-  MESSAGES: 'chat', REACTIONS: 'heart', VOICE_MINUTES: 'volume', FORUM_POSTS: 'news',
-  FORUM_COMMENTS: 'pen', SHOP_VISIT: 'store', DAILY_CHEST: 'chest',
-};
-
-function RewardChips({ m }) {
-  return (
-    <span className="eco-rewards">
-      {m.rewardCoins > 0 && (
-        <span className="eco-reward coins" title={m.finalCoins > m.rewardCoins ? `${fmt(m.rewardCoins)} + bônus de apoio` : undefined}>
-          <Ico name="coin" size={14} />{fmt(m.finalCoins || m.rewardCoins)}{m.finalCoins > m.rewardCoins && <em className="eco-bonus">bônus</em>}
-        </span>
-      )}
-      {m.rewardGems > 0 && <span className="eco-reward gems"><Ico name="gem" size={14} />{fmt(m.rewardGems)}</span>}
-      {m.rewardXp > 0 && <span className="eco-reward xp">{fmt(m.rewardXp)} XP</span>}
-      {m.rewardItem && (
-        <span className="eco-reward item" title={m.rewardItem.days ? `${m.rewardItem.name} por ${m.rewardItem.days} dias` : m.rewardItem.name}>
-          <Ico name="gift" size={13} strokeWidth={2} /><span className="truncate">{m.rewardItem.name}</span>{m.rewardItem.days ? <em>{m.rewardItem.days}d</em> : null}
-        </span>
-      )}
-    </span>
-  );
-}
-
-// Uma missão = uma linha: o que fazer, quanto falta, o que ganha e o botão.
-// As colunas se alinham entre as linhas (grade da lista — ver economy.css).
-function MissionCard({ m, onClaim, busy, compact }) {
-  const pct = m.target > 0 ? Math.min(100, Math.round((m.progress / m.target) * 100)) : 0;
-  const state = m.claimed ? 'claimed' : m.completed ? 'ready' : 'open';
-  return (
-    <div className={`eco-mission ${state}${compact ? ' compact' : ''}`}>
-      <span className="eco-mission-icon"><Ico name={m.claimed ? 'check' : (MISSION_ICON[m.type] || 'bolt')} size={18} strokeWidth={m.claimed ? 2.4 : 1.8} /></span>
-      <div className="eco-mission-body">
-        <strong className="truncate">{m.title}</strong>
-        {!compact && m.description && <p>{m.description}</p>}
-      </div>
-      <div className="eco-mission-progress">
-        <div
-          className={`eco-bar cxm-bar${state === 'ready' ? ' is-ready' : ''}`} role="progressbar" aria-valuemin={0} aria-valuemax={m.target} aria-valuenow={m.progress}
-          aria-label={`${m.title}: ${m.progress} de ${m.target}`}
-        >
-          <span style={{ width: `${pct}%` }} />
-        </div>
-        <small>{fmt(m.progress)}/{fmt(m.target)}{m.unit ? ` ${m.unit}` : ''}</small>
-      </div>
-      <RewardChips m={m} />
-      <div className="eco-mission-action">
-        {state === 'ready' && (
-          <button type="button" className="pk-btn primary sm eco-mission-claim" disabled={busy} onClick={() => onClaim(m)}>
-            {busy ? '...' : 'Resgatar'}
-          </button>
-        )}
-        {state === 'claimed' && <span className="eco-mission-done">Resgatada</span>}
-      </div>
-    </div>
-  );
-}
-
 // Saldo em linha (abas que não mostram o cartão).
 function Purse({ coins, gems }) {
   return (
@@ -102,20 +42,19 @@ function Purse({ coins, gems }) {
 export default function EconomyPage({ initialTab = 'geral' }) {
   const { socket } = useSocket();
   const { user } = useAuth();
-  // ?aba=temporada|missoes|geral — usado pela barra de abas da
+  // ?aba=temporada|geral — usado pela barra de abas da
   // Loja (HubTabs) pra voltar direto pra aba certa da Economia.
+  // (Missões foram pro Progresso: ?aba=missoes leva pra lá.)
   const [searchParams] = useSearchParams();
   const abaParam = searchParams.get('aba');
-  const validAba = ['geral', 'missoes', 'temporada'].includes(abaParam) ? abaParam : null;
+  const validAba = ['geral', 'temporada'].includes(abaParam) ? abaParam : null;
   const [tab, setTab] = useState(() => validAba || initialTab);
   const [eco, setEco] = useState(null);
   const [chests, setChests] = useState([]);
-  const [missionData, setMissionData] = useState(null); // { missions, resets }
   const [wonChest, setWonChest] = useState(null); // última recompensa, pra mostrar o PNG do baú
   const [notice, setNotice] = useState(null);
   const [unavailable, setUnavailable] = useState(false);
   const [claiming, setClaiming] = useState(false);
-  const [claimingId, setClaimingId] = useState(null);
   const [now, setNow] = useState(() => Date.now());
 
   useEffect(() => { setTab(validAba || initialTab); }, [initialTab, validAba]);
@@ -124,15 +63,14 @@ export default function EconomyPage({ initialTab = 'geral' }) {
     if (err?.response?.status === 503) setUnavailable(true);
   }), []);
   const refreshChests = useCallback(() => listChests().then((d) => setChests(d.chests)).catch(() => {}), []);
-  const refreshMissions = useCallback(() => listMissions().then(setMissionData).catch(() => {}), []);
 
   useEffect(() => {
     refresh();
     refreshChests();
-    refreshMissions();
-  }, [refresh, refreshChests, refreshMissions]);
+  }, [refresh, refreshChests]);
   // Temporada do mês (passe de missões).
   const navigate = useNavigate();
+  useEffect(() => { if (abaParam === 'missoes') navigate('/progresso?tab=missoes', { replace: true }); }, [abaParam, navigate]);
   const [season, setSeason] = useState(null);
   const [seasonBusy, setSeasonBusy] = useState('');
   const refreshSeason = useCallback(() => getMissionSeason().then((d) => setSeason(Array.isArray(d?.tiers) ? d : null)).catch(() => {}), []);
@@ -171,53 +109,25 @@ export default function EconomyPage({ initialTab = 'geral' }) {
     return () => clearInterval(t);
   }, []);
 
-  // Staff edita baús/missões e a tela atualiza sozinha; o progresso das
-  // missões chega ao vivo pelo socket (mensagem, reação, call...).
+  // Staff edita os baús e a tela atualiza sozinha.
   useEffect(() => {
     if (!socket) return undefined;
-    const onProgress = (p) => {
-      setMissionData((cur) => {
-        if (!cur) return cur;
-        let changed = false;
-        const missions = cur.missions.map((m) => {
-          if (m.id !== p.missionId) return m;
-          changed = true;
-          return { ...m, progress: Math.max(m.progress, p.progress), completed: m.completed || !!p.completed };
-        });
-        return changed ? { ...cur, missions } : cur;
-      });
-    };
     socket.on('chests:update', refreshChests);
-    socket.on('missions:update', refreshMissions);
-    socket.on('missions:progress', onProgress);
-    return () => {
-      socket.off('chests:update', refreshChests);
-      socket.off('missions:update', refreshMissions);
-      socket.off('missions:progress', onProgress);
-    };
-  }, [socket, refreshChests, refreshMissions]);
+    return () => { socket.off('chests:update', refreshChests); };
+  }, [socket, refreshChests]);
 
   // Tempo real: saldo, baús e missões, em silêncio.
   useLiveRefresh(async ({ put }) => {
     await Promise.allSettled([
       getMyEconomy().then(put(setEco)),
       listChests().then((d) => put(setChests)(d.chests)),
-      listMissions().then(put(setMissionData)),
     ]);
   }, { enabled: !unavailable });
 
   const pushNotice = (msg) => { setNotice(msg); setTimeout(() => setNotice(null), 4000); };
 
-  // Mantém o badge do menu (missões pra resgatar) igual ao que esta tela mostra.
-  useEffect(() => {
-    if (missionData) setClaimableMissions((missionData.missions || []).filter((m) => m.completed && !m.claimed).length);
-  }, [missionData]);
-
-  const allMissions = missionData?.missions || [];
-  const readyCount = allMissions.filter((m) => m.completed && !m.claimed).length;
   const tabs = [
     { id: 'geral', label: 'Visão geral', icon: 'grid' },
-    { id: 'missoes', label: 'Missões', icon: 'bolt', count: readyCount },
     // Economia + Loja unificadas: a Loja é uma aba desta área, logo à
     // esquerda do Passe (abre a página da Loja com a mesma barra de abas
     // no topo — ver components/HubTabs.jsx). Compras continuam validadas
@@ -263,10 +173,6 @@ export default function EconomyPage({ initialTab = 'geral' }) {
   const streak = Math.min(Number(eco.dailyStreak) || 0, goal);
   const daysToMega = Math.max(0, goal - streak);
   const gallery = chests.filter((c) => c.imageClosed);
-  const missions = allMissions;
-  const daily = missions.filter((m) => m.period === 'DAILY');
-  const weekly = missions.filter((m) => m.period === 'WEEKLY');
-  const doneToday = daily.filter((m) => m.claimed).length;
 
   const claim = async () => {
     setClaiming(true);
@@ -278,7 +184,6 @@ export default function EconomyPage({ initialTab = 'geral' }) {
       });
       if (!r.chestImageOpened) pushNotice(`Baú ${r.chestName}: +${fmt(r.coins)} moedas${r.megaAwarded ? ` e +${r.megaGems} gemas` : ''}!`);
       refresh();
-      refreshMissions();
     } catch (err) {
       pushNotice(err.response?.data?.error || 'Não foi possível resgatar.');
     } finally {
@@ -286,46 +191,11 @@ export default function EconomyPage({ initialTab = 'geral' }) {
     }
   };
 
-  const claimOne = async (m) => {
-    setClaimingId(m.id);
-    try {
-      const r = await claimMission(m.id);
-      setMissionData((cur) => cur && { ...cur, missions: cur.missions.map((x) => (x.id === m.id ? { ...x, claimed: true } : x)) });
-      refreshSeason();
-      if (r.balance) setEco((e) => e && { ...e, coins: r.balance.coins, gems: r.balance.gems, accountLevel: r.balance.accountLevel, accountXp: r.balance.accountXp });
-      const parts = [];
-      if (r.reward?.coins) parts.push(`+${fmt(r.reward.coins)} moedas`);
-      if (r.reward?.gems) parts.push(`+${fmt(r.reward.gems)} gemas`);
-      if (r.reward?.xp) parts.push(`+${fmt(r.reward.xp)} XP`);
-      if (r.reward?.item) parts.push(r.reward.item.already ? `"${r.reward.item.name}" (você já tinha)` : `"${r.reward.item.name}"${r.reward.item.expiresAt ? ` até ${new Date(r.reward.item.expiresAt).toLocaleDateString('pt-BR')}` : ''}`);
-      if (r.reward?.multiplier > 1) parts.push(`bônus ${String(r.reward.multiplier).replace('.', ',')}x de apoio`);
-      if (r.reward?.seasonPoints) parts.push(`+${r.reward.seasonPoints} pontos de temporada`);
-      pushNotice(`${m.title}: ${parts.join(', ') || 'resgatada'}${r.levelUp ? ` · Nível ${r.levelUp.newLevel}!` : ''}`);
-    } catch (err) {
-      pushNotice(err.response?.data?.error || 'Não foi possível resgatar a missão.');
-      refreshMissions();
-    } finally {
-      setClaimingId(null);
-    }
-  };
-
-  const resetDaily = missionData?.resets?.daily ? untilText(missionData.resets.daily, now) : null;
-  const resetWeekly = missionData?.resets?.weekly ? untilText(missionData.resets.weekly, now) : null;
-
-  const missionList = (list, emptyText, compact = false) => (list.length > 0 ? (
-    <div className="eco-mission-list">
-      {list.map((m) => <MissionCard key={m.id} m={m} onClaim={claimOne} busy={claimingId === m.id} compact={compact} />)}
-    </div>
-  ) : <EmptyState compact icon="bolt" title="Nenhuma missão" text={emptyText} />);
-
   const wait = !canClaim && nextDailyAt ? untilText(nextDailyAt, now) : null;
   // Nível do passe pra onde a trilha rola ao abrir.
   const focusLevel = season
     ? (season.tiers.find((t) => t.unlocked && (!t.claimedFree || (season.isSupporter && !t.claimedPlus)))?.level || Math.max(1, season.level))
     : 0;
-  const multiplierNote = missionData?.multiplier > 1
-    ? <span>Bônus de apoio ativo: você ganha <b>{String(missionData.multiplier).replace('.', ',')}x</b> das moedas de cada missão.</span>
-    : <span>Assinantes ganham <b>1,2x</b> e Super Assinantes <b>1,5x</b> das moedas das missões.</span>;
 
   return (
     <div className="hub-frame eco-frame">
@@ -391,18 +261,11 @@ export default function EconomyPage({ initialTab = 'geral' }) {
                 </div>
               </section>
 
-              <section className="eco-panel eco-today">
-                <header className="eco-panel-head">
-                  <h2>Missões de hoje{daily.length > 0 && <small>{doneToday} de {daily.length}</small>}</h2>
-                  <div className="eco-panel-meta">
-                    {resetDaily && <span className="eco-reset"><Ico name="clock" size={14} /> Novas em {resetDaily}</span>}
-                    <button type="button" className="pk-btn sm" onClick={() => setTab('missoes')}>Ver todas</button>
-                  </div>
-                </header>
-                {!missionData ? <Skeleton rows={3} height={52} /> : daily.length > 0
-                  ? missionList(daily.slice(0, 4), '', true)
-                  : <EmptyState compact icon="bolt" title="Sem missões hoje" text="A equipe ainda não criou missões diárias." />}
-              </section>
+              <Link to="/progresso?tab=missoes" className="eco-panel eco-today eco-missions-moved">
+                <Ico name="bolt" size={18} />
+                <span><strong>Missões</strong> agora ficam no <strong>Progresso</strong>.</span>
+                <span className="eco-quiet">Ver missões ›</span>
+              </Link>
 
               <section className="eco-chests">
                 <header className="eco-panel-head">
@@ -420,38 +283,6 @@ export default function EconomyPage({ initialTab = 'geral' }) {
                   </div>
                 )}
               </section>
-            </>
-          )}
-
-          {tab === 'missoes' && (
-            <>
-              <header className="eco-tabhead">
-                <div>
-                  <h1>Missões</h1>
-                  <p>O progresso conta sozinho enquanto você usa o Project Club.</p>
-                </div>
-                <Purse coins={eco.coins} gems={eco.gems} />
-              </header>
-              {!missionData ? <Skeleton rows={4} height={64} /> : (
-                <div className="eco-missions">
-                  <div className="eco-mult" role="note"><Ico name="crown" size={16} />{multiplierNote}</div>
-                  <section className="eco-panel">
-                    <header className="eco-panel-head">
-                      <h2>Diárias</h2>
-                      {resetDaily && <span className="eco-reset"><Ico name="clock" size={14} /> Renova em {resetDaily}</span>}
-                    </header>
-                    {missionList(daily, 'A equipe ainda não criou missões diárias.')}
-                  </section>
-                  <section className="eco-panel">
-                    <header className="eco-panel-head">
-                      <h2>Semanais</h2>
-                      {resetWeekly && <span className="eco-reset"><Ico name="clock" size={14} /> Renova em {resetWeekly}</span>}
-                    </header>
-                    {missionList(weekly, 'A equipe ainda não criou missões semanais.')}
-                  </section>
-                  <p className="pk-muted eco-missions-note">Contam: mensagens nos canais, reações em mensagens de outras pessoas, tempo em call com mais alguém, posts e comentários no Fórum. Os horários são de Brasília.</p>
-                </div>
-              )}
             </>
           )}
 

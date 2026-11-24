@@ -44,7 +44,7 @@ const PAGES = [
   { path: '/comunidade/eventos', label: 'Eventos', keywords: 'eventos agenda calendário' },
   { path: '/comunidade/galeria', label: 'Galeria', keywords: 'fotos imagens mídia' },
   { path: '/economia', label: 'Economia e Loja', keywords: 'economia moedas gemas carteira baú diário histórico' },
-  { path: '/missoes', label: 'Economia e Loja › Missões', keywords: 'missões tarefas diárias semanais recompensas' },
+  { path: '/progresso?tab=missoes', label: 'Progresso › Missões', keywords: 'missões tarefas diárias semanais recompensas' },
   { path: '/loja', label: 'Economia e Loja › Loja', keywords: 'loja molduras efeitos comprar decorações fontes' },
   { path: '/economia?aba=temporada', label: 'Economia e Loja › Passe do clube', keywords: 'passe temporada assinante' },
   // Fase 8.
