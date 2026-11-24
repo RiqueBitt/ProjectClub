@@ -34,6 +34,9 @@ data class StoreDecoration(
     val locked: Boolean = false,
     val exclusiveTier: String? = null,
     val description: String? = null,
+    /** Cor do filtro da Loja (roxo, azul…) e raridade (COMUM…MITICA, null = pelo preço). */
+    val color: String? = null,
+    val rarity: String? = null,
 )
 
 @Serializable
@@ -66,6 +69,9 @@ data class StoreEffect(
     val locked: Boolean = false,
     val exclusiveTier: String? = null,
     val description: String? = null,
+    /** Cor do filtro da Loja (roxo, azul…) e raridade (COMUM…MITICA, null = pelo preço). */
+    val color: String? = null,
+    val rarity: String? = null,
 )
 
 /** Oferta por tempo limitado numa coleção (desconto % no pacote). */
@@ -123,6 +129,9 @@ data class StoreShopItem(
     val locked: Boolean = false,
     val exclusiveTier: String? = null,
     val description: String? = null,
+    /** Cor do filtro da Loja (roxo, azul…) e raridade (COMUM…MITICA, null = pelo preço). */
+    val color: String? = null,
+    val rarity: String? = null,
 ) {
     val styleKey: String? get() = data?.style ?: key?.removePrefix("style:")
     /** O mesmo JSON que fica em User.profileFont (pra prévia). */

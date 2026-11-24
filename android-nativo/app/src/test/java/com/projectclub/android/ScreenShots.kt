@@ -186,4 +186,26 @@ class ScreenShots {
             }
         }
     }
+
+    // Loja igual à do site: parede perfurada, cartelas e caixinhas com a faixa da raridade.
+    @Test fun lojaParede() {
+        fun item(id: String, name: String, coins: Int?, rarity: String?, owned: Boolean = false, isNew: Boolean = false, color: String? = null) =
+            com.projectclub.android.ui.store.ShopItem(
+                id, com.projectclub.android.ui.store.Kind.Font, name, null, coins, null, owned, false, isNew, null,
+                fontJson = null, color = color, rarity = rarity,
+            )
+        val rows = listOf(
+            listOf(item("a", "Aurora Boreal", 300, null, isNew = true), item("b", "Brasa", 900, "EPICA")),
+            listOf(item("c", "Menta", 1200, "MITICA", owned = true, color = "verde"), item("d", "Noite", 7000, null)),
+        )
+        shot("loja-parede") {
+            androidx.compose.foundation.layout.Column(Modifier.padding(top = 30.dp)) {
+                rows.forEachIndexed { i, r ->
+                    com.projectclub.android.ui.store.WallRow(r, me, first = i == 0, last = i == rows.lastIndex, onOpen = {}) { it, m ->
+                        com.projectclub.android.ui.store.PackCard(it, me, m) {}
+                    }
+                }
+            }
+        }
+    }
 }
