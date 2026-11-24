@@ -56,6 +56,7 @@ import androidx.compose.material.icons.filled.Headset
 import androidx.compose.material.icons.filled.HeadsetOff
 import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.Mic
+import androidx.compose.material.icons.filled.RocketLaunch
 import androidx.compose.material.icons.filled.MicOff
 import androidx.compose.material.icons.filled.People
 import androidx.compose.material.icons.filled.ScreenShare
@@ -140,10 +141,19 @@ fun VoiceScreen(voice: VoiceManager, repo: Repository, onBack: () -> Unit) {
         )
         return
     }
+    // Atividades da call (vídeo/música juntos, dados, soundboard) — os
+    // componentes do PC numa camada web transparente (CallActivitiesWeb).
+    val activities = remember(channelName) { CallActivitiesWeb(ctx, repo, channelName).also { it.load() } }
+    DisposableEffect(activities) { onDispose { activities.destroy() } }
+    val roster = rosters[channelName].orEmpty()
+    LaunchedEffect(activities, roster, me) {
+        activities.setViewers(roster.mapNotNull { p -> if (p.userId == me?.id) me else repo.user(p.userId) })
+    }
     CallLayout(
         state = s,
         me = me,
-        participants = rosters[channelName].orEmpty(),
+        participants = roster,
+        activities = activities,
         userOf = { repo.user(it) },
         actions = CallActions(
             minimize = onBack,
@@ -187,7 +197,9 @@ fun CallLayout(
     userOf: (String) -> User?,
     actions: CallActions,
     screen: @Composable (userId: String, modifier: Modifier) -> Unit,
+    activities: CallActivitiesWeb? = null,
 ) {
+    val actLayout = activities?.layout?.value ?: ActivityLayout()
     val others = participants.filter { it.userId != me?.id }
     val sharing = others.filter { it.screenSharing && state.remoteVideo.contains(it.userId) }
     var focused by rememberSaveable { mutableStateOf<String?>(null) }
@@ -237,6 +249,10 @@ fun CallLayout(
             }
 
             Box(Modifier.weight(1f).fillMaxWidth()) {
+              Column(Modifier.fillMaxSize()) {
+                // Palco do vídeo/música da atividade (desenhado pela camada web, por cima).
+                if (actLayout.stage && !fullscreen) Spacer(Modifier.fillMaxWidth().height(actLayout.heightDp.dp))
+                Box(Modifier.weight(1f).fillMaxWidth()) {
                 if (big != null) {
                     Column(Modifier.fillMaxSize()) {
                         ScreenStage(
@@ -269,6 +285,8 @@ fun CallLayout(
                 } else {
                     PeopleGrid(people) { if (!it.isMe) personSheet = it.id }
                 }
+                }
+              }
                 FloatingReactions(state.reactions, { id -> if (id == me?.id) me else userOf(id) }, Modifier.fillMaxSize())
                 if (state.status == CallStatus.Connecting || state.status == CallStatus.Reconnecting) {
                     Box(Modifier.fillMaxSize().background(Color(0x99050506)), contentAlignment = Alignment.Center) {
@@ -279,17 +297,27 @@ fun CallLayout(
                         }
                     }
                 }
+                if (activities != null && !fullscreen) {
+                    AndroidView(
+                        factory = { activities.web.also { (it.parent as? android.view.ViewGroup)?.removeView(it) } },
+                        modifier = when {
+                            actLayout.full -> Modifier.fillMaxSize()
+                            actLayout.stage -> Modifier.fillMaxWidth().height(actLayout.heightDp.dp)
+                            // Escondida: 1 dp de altura, mas viva (ouve dados/vídeo que alguém abrir).
+                            else -> Modifier.fillMaxWidth().height(1.dp)
+                        },
+                    )
+                }
             }
 
             if (!fullscreen) {
                 AnimatedVisibility(picker, enter = expandVertically() + fadeIn(), exit = shrinkVertically() + fadeOut(), modifier = Modifier.align(Alignment.CenterHorizontally)) {
                     Column(horizontalAlignment = Alignment.CenterHorizontally) {
                         ReactionPicker { actions.react(it); picker = false }
-                        SoundboardPanel(state, actions)
                     }
                 }
                 if (state.pushToTalk) PushToTalkButton(state, actions)
-                ControlDock(state, actions, picker) { picker = !picker }
+                ControlDock(state, actions, picker, onActivities = activities?.let { a -> { picker = false; a.open() } }) { picker = !picker }
             }
         }
     }
@@ -474,11 +502,11 @@ private fun ScreenStage(
 
 /** Barra de controles embaixo (mesma ordem do PC: mic, fone, áudio, tela, sair). */
 @Composable
-private fun ControlDock(state: CallState, actions: CallActions, pickerOpen: Boolean, onReact: () -> Unit) {
+private fun ControlDock(state: CallState, actions: CallActions, pickerOpen: Boolean, onActivities: (() -> Unit)? = null, onReact: () -> Unit) {
     Row(
         Modifier.padding(horizontal = 12.dp, vertical = 10.dp).fillMaxWidth().clip(RoundedCornerShape(28.dp))
             .background(Color(0xF2121318)).border(1.dp, Color.White.copy(alpha = 0.07f), RoundedCornerShape(28.dp))
-            .padding(horizontal = 8.dp, vertical = 10.dp),
+            .padding(horizontal = 4.dp, vertical = 10.dp),
         horizontalArrangement = Arrangement.SpaceEvenly, verticalAlignment = Alignment.CenterVertically,
     ) {
         DockButton(if (state.muted) Icons.Filled.MicOff else Icons.Filled.Mic, if (state.muted) "Mudo" else "Microfone", danger = state.muted, onClick = actions.toggleMute)
@@ -486,9 +514,11 @@ private fun ControlDock(state: CallState, actions: CallActions, pickerOpen: Bool
         DockButton(if (state.speakerOn) Icons.AutoMirrored.Filled.VolumeUp else Icons.AutoMirrored.Filled.VolumeOff, if (state.speakerOn) "Viva-voz" else "Fone", active = !state.speakerOn, onClick = actions.toggleSpeaker)
         DockButton(Icons.Filled.EmojiEmotions, "Reagir", active = pickerOpen, onClick = onReact)
         DockButton(if (state.sharingScreen) Icons.Filled.StopScreenShare else Icons.Filled.ScreenShare, if (state.sharingScreen) "Parar tela" else "Tela", active = state.sharingScreen, onClick = actions.toggleScreen)
+        // Atividades (igual ao PC): YouTube, Música, Rolar dados e Soundboard.
+        if (onActivities != null) DockButton(Icons.Filled.RocketLaunch, "Atividades", onClick = onActivities)
         Column(horizontalAlignment = Alignment.CenterHorizontally) {
             Box(
-                Modifier.size(width = 58.dp, height = 46.dp).clip(RoundedCornerShape(18.dp)).background(PC.Red).clickable(onClick = actions.leave),
+                Modifier.size(width = 52.dp, height = 42.dp).clip(RoundedCornerShape(16.dp)).background(PC.Red).clickable(onClick = actions.leave),
                 contentAlignment = Alignment.Center,
             ) { Icon(Icons.Filled.CallEnd, "Sair da chamada", tint = Color.White, modifier = Modifier.size(26.dp)) }
             Spacer(Modifier.height(5.dp))
@@ -505,13 +535,13 @@ private fun DockButton(icon: ImageVector, label: String, active: Boolean = false
     val tint = when { danger -> PC.Red; active -> Color.Black; else -> PC.Header }
     Column(horizontalAlignment = Alignment.CenterHorizontally) {
         Box(
-            Modifier.size(46.dp).clip(RoundedCornerShape(16.dp)).background(bg)
+            Modifier.size(42.dp).clip(RoundedCornerShape(15.dp)).background(bg)
                 .border(1.dp, if (danger) PC.Red.copy(alpha = 0.45f) else Color.Transparent, RoundedCornerShape(18.dp))
                 .clickable(onClick = onClick),
             contentAlignment = Alignment.Center,
-        ) { Icon(icon, label, tint = tint, modifier = Modifier.size(24.dp)) }
+        ) { Icon(icon, label, tint = tint, modifier = Modifier.size(22.dp)) }
         Spacer(Modifier.height(5.dp))
-        Text(label, color = if (danger) PC.Red else PC.Muted, fontSize = 11.sp, maxLines = 1)
+        Text(label, color = if (danger) PC.Red else PC.Muted, fontSize = 10.sp, maxLines = 1)
     }
 }
 

@@ -19,7 +19,6 @@ import { useContextMenu } from '../context/ContextMenuContext.jsx';
 import { buildVoiceModerationItems } from './voice/voiceModerationMenu';
 import { useVideoViewport } from '../voice/useVideoViewport';
 import { TempVoiceRoomBar } from './voice/TempVoiceRoom.jsx';
-import { SoundboardButton } from './voice/Soundboard.jsx';
 import { RadioChip, RadioSettings } from './voice/RadioSettings.jsx';
 
 // ============================================================
@@ -566,10 +565,10 @@ function VoiceCallControls({ voice, micLocked, onActivity, screenLimitReached = 
         {/* Transmitindo: troca 720p/1080p e 15/30/60 FPS sem parar. */}
         {screenOn && <ScreenQualityMenu voice={voice} className="vc-sqm" />}
         {!micLocked && <ReactionBar voice={voice} />}
-        {!micLocked && voice?.call?.channelId && <SoundboardButton channelId={voice.call.channelId} />}
+        {/* Soundboard: agora dentro de Atividades (nov/2026). */}
         {/* Sala de estudos (Pomodoro na call) REMOVIDA da chamada (pedido do dono,
             nov/2026) — o código fica em voice/FocusRoom.jsx e server/src/sockets/focusRoom.js. */}
-        {onActivity && <ActivitiesButton onPick={onActivity} active={activeActivity} />}
+        {onActivity && <ActivitiesButton onPick={onActivity} active={activeActivity} channelId={!micLocked ? voice?.call?.channelId : null} />}
         {!micLocked && <RecordButton voice={voice} />}
         <span className="vc-dock-sep" aria-hidden="true" />
         <button type="button" className="vc-ctrl vc-leave" onClick={voice.leaveChannel} aria-label="Sair da chamada" title="Sair da chamada">

@@ -24,6 +24,7 @@ import { useLiveRefresh, sameData } from './utils/liveRefresh';
 // de divulgação, editor de interface) viram pacotes separados: quem abre
 // o app logado não baixa esse código, e quem está no login não baixa o
 // app inteiro antes de precisar.
+const CallActivitiesEmbed = lazy(() => import('./pages/embed/CallActivitiesEmbed.jsx'));
 const LoginPage = lazy(() => import('./pages/LoginPage.jsx'));
 const RegisterPage = lazy(() => import('./pages/RegisterPage.jsx'));
 const VerifyEmailPage = lazy(() => import('./pages/VerifyEmailPage.jsx'));
@@ -366,6 +367,8 @@ export default function App() {
           />
           {/* Project Club Dev: editor do código do Project Club (só admins) */}
           <Route path="/dev" element={<ProtectedRoute><DevStudioPage /></ProtectedRoute>} />
+          {/* Atividades da call dentro do app Android (WebView por cima da chamada nativa). */}
+          <Route path="/embed/atividades-call/:channelId" element={<ProtectedRoute><SocketProvider><VoiceProvider><Suspense fallback={null}><CallActivitiesEmbed /></Suspense></VoiceProvider></SocketProvider></ProtectedRoute>} />
           <Route path="/*" element={<RootGate />} />
         </Routes>
         </Suspense>

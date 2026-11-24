@@ -882,6 +882,28 @@ function initSockets(httpServer) {
     // de novo sozinha — sem precisar sair e entrar na mão.
     // Serializado com o voice:join da mesma pessoa+canal (mesma trava): um
     // sync que chegava no meio da reconexão disputava a vaga com o join.
+    // Camada de atividades do app Android (WebView com os componentes do
+    // site — vídeo/música juntos, dados, soundboard): acompanha a sala da
+    // call SEM ocupar a vaga (quem está na call é o app nativo, outra
+    // conexão da mesma pessoa). Só pra quem já está na call; recebe os
+    // eventos da sala (yt:state, dice:rolled…) e manda os comandos de
+    // atividade, que conferem a pessoa (não a conexão) na sala.
+    socket.on('activity:watch', async ({ channelId } = {}) => {
+      try {
+        if (typeof channelId !== 'string' || !channelId) return;
+        if (!(await voiceStore.hasParticipant(channelId, userId))) { socket.emit('activity:not-in-call', { channelId }); return; }
+        if (socket.data.activityWatch && socket.data.activityWatch !== channelId) socket.leave(`voice:${socket.data.activityWatch}`);
+        socket.data.activityWatch = channelId;
+        socket.join(`voice:${channelId}`);
+        ytWatch.sendState(socket, channelId);
+      } catch (err) { console.error('[socket] activity:watch falhou:', err?.message || err); }
+    });
+    socket.on('activity:unwatch', ({ channelId } = {}) => {
+      if (typeof channelId !== 'string' || socket.data.activityWatch !== channelId) return;
+      socket.data.activityWatch = null;
+      socket.leave(`voice:${channelId}`);
+    });
+
     socket.on('voice:sync', ({ channelId } = {}) => {
       if (typeof channelId !== 'string' || !channelId) return undefined;
       return voiceStore.withLock(`join:${userId}:${channelId}`, () => handleVoiceSync(channelId))
