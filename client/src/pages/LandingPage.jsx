@@ -178,18 +178,17 @@ function CommandPalette({ open, onClose, onPickApp, actions }) {
   );
 }
 
-// Texto e cor de cada personagem. O lado esquerdo da seção troca junto com a figura.
+// Cor e ficha de exemplo de cada personagem. O lado esquerdo da seção troca
+// junto com a figura. Os atributos são ilustrativos: troque pelos do compêndio.
 const BO_CHARS = [
   {
     id: 'bruxo', name: 'Bruxo', src: '/site/personagens/bruxo.webp',
     acc: '#ff3b3b', rgb: '255, 59, 59', glow: '170, 20, 24',
-    tag: 'Pacto e maldição',
     stats: [['Poder', 92], ['Sanidade', 38], ['Vida', 54]],
   },
   {
     id: 'sacerdotisa', name: 'Sacerdotisa', src: '/site/personagens/sacerdotisa.webp',
     acc: '#f2c46b', rgb: '242, 196, 107', glow: '150, 98, 22',
-    tag: 'Fé e cura',
     stats: [['Poder', 61], ['Sanidade', 88], ['Vida', 72]],
   },
 ];
@@ -235,7 +234,7 @@ function BlackoutTable() {
         <h2 id="bo-titulo" className="lp-bo-title">Blackout</h2>
         <p className="lp-copy">História, espécies, classes, itens e criação de personagem num compêndio só. A ficha fica salva, sai em PDF e as rolagens acontecem ali mesmo.</p>
         <div className="lp-bo-sheet" key={`s${hero}`} aria-live="polite">
-          <p className="lp-bo-who"><b>{ch.name}</b><span>{ch.tag}</span></p>
+          <p className="lp-bo-who"><b>{ch.name}</b><span>Ficha de exemplo</span></p>
           <ul className="lp-bo-stats">
             {ch.stats.map(([k, v], i) => (
               <li key={k} style={{ '--v': v / 100, '--i': i }}><span>{k}</span><i /><b>{v}</b></li>
