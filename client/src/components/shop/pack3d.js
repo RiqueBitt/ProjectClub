@@ -91,23 +91,37 @@ function chromeMaterial() {
 }
 
 /* ---------------------------------------------------------------- raridade
-   A faixa da raridade é uma plaquinha de verdade (extrudada, com chanfro),
-   presa no topo da frente da caixinha: gira, brilha e faz sombra junto.
-   A frente leva uma textura desenhada aqui (metal na cor da raridade + o
-   nome em branco); o chanfro e as laterais são metal liso. A Mítica é cromo
-   holográfico: arco-íris na frente e iridescência (as cores andam quando a
-   caixinha mexe). */
+   A faixa da raridade é uma plaquinha de verdade (extrudada, com chanfro
+   redondo), presa no topo da frente da caixinha: gira e faz sombra junto.
+   Estilo desenho animado: plástico de brinquedo, cor chapada, contorno
+   grosso e o nome em branco com a fonte Lilita One. */
 const RARITY = {
-  COMUM: { label: 'Comum', a: '#eef1f5', b: '#9aa3ae', c: '#5b636e', edge: 0xc9ced6 },
-  INCOMUM: { label: 'Incomum', a: '#b7ffc9', b: '#22b455', c: '#0d5a28', edge: 0x3fd170 },
-  RARA: { label: 'Rara', a: '#c4e3ff', b: '#2f80ea', c: '#123f86', edge: 0x5aa2ff },
-  EPICA: { label: 'Épica', a: '#f0d2ff', b: '#9b40ec', c: '#4a1386', edge: 0xb46cff },
-  LENDARIA: { label: 'Lendária', a: '#fff1b8', b: '#f0a91c', c: '#8a4d06', edge: 0xffc23d },
-  MITICA: { label: 'Mítica', a: '#ffffff', b: '#c9cfd8', c: '#7b8492', edge: 0xf2f4f8, holo: true },
+  COMUM: { label: 'Comum', top: '#f4f6f9', base: '#c3cad4', line: '#3d4552' },
+  INCOMUM: { label: 'Incomum', top: '#9dffb4', base: '#33cc63', line: '#0d4a22' },
+  RARA: { label: 'Rara', top: '#a9dcff', base: '#3a8dff', line: '#0f2f6e' },
+  EPICA: { label: 'Épica', top: '#f0c4ff', base: '#a64dff', line: '#3b0d6b' },
+  LENDARIA: { label: 'Lendária', top: '#ffe98a', base: '#ffad1f', line: '#6b3a00' },
+  MITICA: { label: 'Mítica', top: '#ffffff', base: '#ff7ad9', line: '#3a1260', rainbow: true },
 };
 const BAND_W = W * 0.9;
-const BAND_H = 1.02;
-const BAND_D = 0.22;
+const BAND_H = 1.16;
+const BAND_D = 0.26;
+// Fonte de desenho animado (Lilita One, licença OFL, em /fonts/cartoon).
+const BAND_FONT = 'Lilita One';
+let bandFontReady = null;
+function loadBandFont() {
+  if (bandFontReady) return bandFontReady;
+  bandFontReady = (async () => {
+    try {
+      if (![...document.fonts].some((f) => f.family.replace(/"/g, '') === BAND_FONT)) {
+        const ff = new FontFace(BAND_FONT, 'url(/fonts/cartoon/lilita-one.ttf)');
+        document.fonts.add(await ff.load());
+      }
+      await document.fonts.load(`64px "${BAND_FONT}"`);
+    } catch { /* sem a fonte: usa a reserva */ }
+  })();
+  return bandFontReady;
+}
 
 function roundRectPath(ctx, x, y, w, h, r) {
   ctx.beginPath();
@@ -115,6 +129,21 @@ function roundRectPath(ctx, x, y, w, h, r) {
   ctx.arcTo(x, y + h, x, y, r); ctx.arcTo(x, y, x + w, y, r); ctx.closePath();
 }
 
+function star(g, x, y, R, fill, line, lw) {
+  g.beginPath();
+  for (let i = 0; i < 10; i++) {
+    const rr = i % 2 ? R * 0.45 : R;
+    const a = -Math.PI / 2 + (i * Math.PI) / 5;
+    g.lineTo(x + Math.cos(a) * rr, y + Math.sin(a) * rr);
+  }
+  g.closePath();
+  g.lineJoin = 'round'; g.lineWidth = lw; g.strokeStyle = line; g.stroke();
+  g.fillStyle = fill; g.fill();
+}
+
+// Faixa estilo desenho animado: cor chapada em dois tons, contorno grosso
+// escuro, um brilho branco em cima, estrelinhas nas pontas e o nome branco
+// com contorno e sombra dura.
 function rarityTexture(key) {
   const r = RARITY[key];
   const cw = 1024;
@@ -122,49 +151,44 @@ function rarityTexture(key) {
   const cv = document.createElement('canvas');
   cv.width = cw; cv.height = ch;
   const g = cv.getContext('2d');
-  // metal escovado: degradê vertical com a "linha do horizonte" do cromo no meio
-  const v = g.createLinearGradient(0, 0, 0, ch);
-  v.addColorStop(0, r.a); v.addColorStop(0.45, r.b); v.addColorStop(0.52, r.c); v.addColorStop(0.62, r.b); v.addColorStop(1, r.a);
-  g.fillStyle = v; g.fillRect(0, 0, cw, ch);
-  if (r.holo) {
-    // holográfico: arco-íris na diagonal bem vivo e o cromo por cima (overlay)
-    const hg = g.createLinearGradient(0, 0, cw, ch * 4);
-    ['#ff3b6b', '#ff9b2e', '#ffe14a', '#4ade80', '#38bdf8', '#8b5cf6', '#ff3b6b', '#ff9b2e', '#ffe14a', '#4ade80', '#38bdf8'].forEach((c, i, arr) => hg.addColorStop(i / (arr.length - 1), c));
-    g.fillStyle = hg; g.fillRect(0, 0, cw, ch);
-    g.globalCompositeOperation = 'overlay'; g.globalAlpha = 0.75; g.fillStyle = v; g.fillRect(0, 0, cw, ch);
-    g.globalCompositeOperation = 'source-over'; g.globalAlpha = 1;
+  const ol = ch * 0.1;               // contorno
+  // fundo = cor do contorno (as bordas da textura batem com o chanfro)
+  g.fillStyle = r.line; g.fillRect(0, 0, cw, ch);
+  const ix = ol; const iy = ol; const iw = cw - ol * 2; const ih = ch - ol * 2; const rad = ih * 0.34;
+  g.save();
+  roundRectPath(g, ix, iy, iw, ih, rad); g.clip();
+  if (r.rainbow) {
+    const cols = ['#ff4d6d', '#ff9f1c', '#ffe347', '#3ee07a', '#33c3ff', '#8a5cff'];
+    const sw = iw / cols.length;
+    cols.forEach((c, i) => { g.fillStyle = c; g.beginPath(); g.moveTo(ix + i * sw - ih * 0.5, iy + ih); g.lineTo(ix + i * sw + ih * 0.5, iy); g.lineTo(ix + (i + 1) * sw + ih * 0.5 + 2, iy); g.lineTo(ix + (i + 1) * sw - ih * 0.5 + 2, iy + ih); g.fill(); });
+    g.fillStyle = cols[0]; g.fillRect(ix - ih, iy, ih * 0.6, ih);
+    g.fillStyle = cols[cols.length - 1]; g.fillRect(ix + iw - ih * 0.1, iy, ih, ih);
+  } else {
+    g.fillStyle = r.base; g.fillRect(ix, iy, iw, ih);
+    g.fillStyle = r.top; g.fillRect(ix, iy, iw, ih * 0.5);  // metade de cima mais clara (tom chapado)
   }
-  // riscos finos do metal escovado
-  g.globalAlpha = 0.07;
-  for (let x = 0; x < cw; x += 3) { g.fillStyle = Math.random() < 0.5 ? '#fff' : '#000'; g.fillRect(x, 0, 1, ch); }
-  g.globalAlpha = 1;
-  // brilho de cima e filete por dentro da borda
-  const hl = g.createLinearGradient(0, 0, 0, ch * 0.5);
-  hl.addColorStop(0, 'rgba(255,255,255,.55)'); hl.addColorStop(1, 'rgba(255,255,255,0)');
-  g.fillStyle = hl; g.fillRect(0, 0, cw, ch * 0.5);
-  roundRectPath(g, ch * 0.09, ch * 0.09, cw - ch * 0.18, ch * 0.82, ch * 0.22);
-  g.lineWidth = ch * 0.035; g.strokeStyle = 'rgba(255,255,255,.55)'; g.stroke();
-  // pedrinhas nas pontas
-  for (const x of [ch * 0.42, cw - ch * 0.42]) {
-    g.save(); g.translate(x, ch / 2); g.rotate(Math.PI / 4);
-    const d = ch * 0.17;
-    const gg = g.createLinearGradient(-d, -d, d, d);
-    gg.addColorStop(0, '#fff'); gg.addColorStop(0.5, r.holo ? '#c4b5fd' : r.b); gg.addColorStop(1, r.c);
-    g.fillStyle = gg; g.fillRect(-d, -d, d * 2, d * 2);
-    g.lineWidth = ch * 0.02; g.strokeStyle = 'rgba(0,0,0,.35)'; g.strokeRect(-d, -d, d * 2, d * 2);
-    g.restore();
-  }
-  // o nome: branco, em relevo (sombra embaixo, luz em cima)
+  // sombra chapada embaixo
+  g.fillStyle = 'rgba(0,0,0,.16)'; g.fillRect(ix, iy + ih * 0.78, iw, ih * 0.22);
+  // brilho branco em cima, em forma de pílula
+  g.fillStyle = 'rgba(255,255,255,.75)';
+  roundRectPath(g, ix + ih * 0.55, iy + ih * 0.1, iw - ih * 1.1, ih * 0.16, ih * 0.08); g.fill();
+  g.restore();
+  // estrelinhas nas pontas
+  const sr = ih * 0.3;
+  for (const x of [ix + ih * 0.52, ix + iw - ih * 0.52]) star(g, x, ch / 2 + ih * 0.02, sr, '#fff36b', r.line, ol * 0.55);
+  // nome: branco, contorno grosso e sombra dura deslocada
   const text = r.label.toUpperCase();
-  g.font = `800 ${Math.round(ch * 0.58)}px "Barlow Condensed", "Arial Narrow", "Roboto Condensed", Arial, sans-serif`;
+  let size = Math.round(ih * 0.72);
+  g.font = `${size}px "${BAND_FONT}", "Arial Black", Arial, sans-serif`;
+  if ('letterSpacing' in g) g.letterSpacing = `${Math.round(ih * 0.05)}px`;
+  while (g.measureText(text).width > iw - ih * 2.2 && size > 10) { size -= 2; g.font = `${size}px "${BAND_FONT}", "Arial Black", Arial, sans-serif`; }
   g.textAlign = 'center'; g.textBaseline = 'middle';
-  if ('letterSpacing' in g) g.letterSpacing = `${Math.round(ch * 0.1)}px`;
-  const ty = ch * 0.54;
+  const tx = cw / 2; const ty = ch / 2 + ih * 0.04;
   g.lineJoin = 'round';
-  g.lineWidth = ch * 0.09; g.strokeStyle = r.holo ? 'rgba(40,20,70,.75)' : 'rgba(0,0,0,.5)'; g.strokeText(text, cw / 2, ty);
-  g.fillStyle = 'rgba(0,0,0,.55)'; g.fillText(text, cw / 2, ty + ch * 0.045);
-  g.fillStyle = 'rgba(255,255,255,.35)'; g.fillText(text, cw / 2, ty - ch * 0.02);
-  g.fillStyle = '#ffffff'; g.fillText(text, cw / 2, ty);
+  g.fillStyle = r.line; g.strokeStyle = r.line; g.lineWidth = ol * 1.25;
+  g.strokeText(text, tx + ih * 0.03, ty + ih * 0.09); g.fillText(text, tx + ih * 0.03, ty + ih * 0.09); // sombra dura
+  g.strokeText(text, tx, ty);
+  g.fillStyle = '#ffffff'; g.fillText(text, tx, ty);
   const tex = new CanvasTexture(cv);
   tex.colorSpace = SRGBColorSpace;
   tex.minFilter = LinearFilter;
@@ -175,17 +199,11 @@ function rarityTexture(key) {
   return tex;
 }
 
+// Material de brinquedo de plástico (nada de metal): cor viva com verniz.
 function rarityMaterials(key) {
   const r = RARITY[key];
-  const face = new MeshPhysicalMaterial({
-    map: rarityTexture(key), metalness: r.holo ? 0.3 : 0.18, roughness: r.holo ? 0.2 : 0.3,
-    clearcoat: 1, clearcoatRoughness: 0.05, envMapIntensity: 1.3,
-    ...(r.holo ? { iridescence: 1, iridescenceIOR: 1.6, iridescenceThicknessRange: [180, 900] } : {}),
-  });
-  const edge = new MeshPhysicalMaterial({
-    color: r.edge, metalness: 1, roughness: 0.14, envMapIntensity: 1.7,
-    ...(r.holo ? { iridescence: 1, iridescenceIOR: 1.8, iridescenceThicknessRange: [200, 1000] } : {}),
-  });
+  const face = new MeshPhysicalMaterial({ map: rarityTexture(key), metalness: 0, roughness: 0.42, clearcoat: 0.7, clearcoatRoughness: 0.25, envMapIntensity: 0.55 });
+  const edge = new MeshPhysicalMaterial({ color: r.line, metalness: 0, roughness: 0.5, clearcoat: 0.5, clearcoatRoughness: 0.3, envMapIntensity: 0.5 });
   return [face, edge];
 }
 
@@ -242,6 +260,7 @@ export function loadPackEngine() {
 }
 
 async function createEngine() {
+  await loadBandFont();   // a faixa da raridade é desenhada com ela
   const canvas = document.createElement('canvas');
   const renderer = new WebGLRenderer({ canvas, antialias: true, alpha: true, premultipliedAlpha: true, powerPreference: 'low-power' });
   renderer.setClearColor(0x000000, 0);
@@ -301,12 +320,12 @@ async function createEngine() {
   // Faixa da raridade: plaquinha com chanfro no topo da frente (fora do filme).
   const bandShape = new Shape();
   {
-    const bw = BAND_W / 2; const bh = BAND_H / 2; const rr = 0.26;
+    const bw = BAND_W / 2; const bh = BAND_H / 2; const rr = 0.4;
     bandShape.moveTo(-bw + rr, -bh); bandShape.lineTo(bw - rr, -bh); bandShape.quadraticCurveTo(bw, -bh, bw, -bh + rr);
     bandShape.lineTo(bw, bh - rr); bandShape.quadraticCurveTo(bw, bh, bw - rr, bh); bandShape.lineTo(-bw + rr, bh);
     bandShape.quadraticCurveTo(-bw, bh, -bw, bh - rr); bandShape.lineTo(-bw, -bh + rr); bandShape.quadraticCurveTo(-bw, -bh, -bw + rr, -bh);
   }
-  const bandGeo = new ExtrudeGeometry(bandShape, { depth: BAND_D, bevelEnabled: true, bevelThickness: 0.07, bevelSize: 0.07, bevelSegments: 3, curveSegments: 8 });
+  const bandGeo = new ExtrudeGeometry(bandShape, { depth: BAND_D, bevelEnabled: true, bevelThickness: 0.1, bevelSize: 0.08, bevelSegments: 5, curveSegments: 10 });
   const band = new Mesh(bandGeo, rarityMaterials('COMUM'));
   band.position.set(0, H / 2 - 0.2 - BAND_H / 2, Z_FRONT + 0.06);
   band.castShadow = true;

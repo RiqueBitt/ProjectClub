@@ -662,6 +662,7 @@
 /* O "Pré-visualizar" do hover ficaria em cima do carimbo: no item comprado o clique já abre. */
 .shop-room .room-card.is-owned .room-card-peek { display: none; }
 
+@font-face { font-family: 'Lilita One'; src: url('/fonts/cartoon/lilita-one.ttf') format('truetype'); font-display: swap; }
 /* Com o 3D ligado a faixa é desenhada no próprio modelo (pack3d.js): a de HTML
    fica só pra quando não tem WebGL. */
 .room-pack.p3d .room-rarity { display: none; }
@@ -680,8 +681,8 @@
 }
 .room-rarity > span {
   position: relative; z-index: 2;
-  font-family: 'Barlow Condensed', 'Arial Narrow', system-ui, sans-serif; font-weight: 800; text-transform: uppercase;
-  font-size: calc(var(--sw) * .046); letter-spacing: .14em; line-height: 1; color: #fff;
+  font-family: 'Lilita One', 'Arial Black', system-ui, sans-serif; font-weight: 400; text-transform: uppercase;
+  font-size: calc(var(--sw) * .05); letter-spacing: .06em; line-height: 1; color: #fff;
   text-shadow: 0 1px 0 rgba(0, 0, 0, .55), 0 0 6px rgba(0, 0, 0, .35);
 }
 /* reflexo que passa de vez em quando (todas) */
