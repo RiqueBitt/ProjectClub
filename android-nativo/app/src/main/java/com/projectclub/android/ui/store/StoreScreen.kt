@@ -1,5 +1,8 @@
 package com.projectclub.android.ui.store
 
+import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.LazyColumn
 import android.widget.Toast
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -19,10 +22,6 @@ import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.lazy.grid.GridCells
-import androidx.compose.foundation.lazy.grid.GridItemSpan
-import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
-import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -55,6 +54,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
+import androidx.compose.foundation.layout.offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
@@ -88,7 +88,7 @@ import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.put
 
 /** Um item da loja (moldura ou efeito) num formato só, pra grade e detalhes. */
-private data class ShopItem(
+internal data class ShopItem(
     val id: String,
     val kind: Kind,
     val name: String,
@@ -109,15 +109,20 @@ private data class ShopItem(
     /** Fonte: JSON igual ao User.profileFont; estilo: a chave (win2000...). */
     val fontJson: String? = null,
     val styleKey: String? = null,
+    /** Cor (filtro da Loja) e raridade escolhida pela staff — a caixinha usa as duas. */
+    val color: String? = null,
+    val rarity: String? = null,
+    val exclusiveTier: String? = null,
 ) {
     val soldOut: Boolean get() = limited && (remaining ?: 0) <= 0
 }
 
-private enum class Kind(val label: String, val buy: String, val equip: String) {
-    Frame("Moldura", "/api/decorations/%s/buy", "/api/decorations/equip"),
-    Effect("Efeito de perfil", "/api/decorations/effects/%s/buy", "/api/decorations/effects/equip"),
-    Font("Fonte do nome", "/api/decorations/fonts/%s/buy", "/api/decorations/fonts/equip"),
-    Style("Estilo de perfil", "/api/decorations/styles/%s/buy", "/api/decorations/styles/equip"),
+/** [key]: o mesmo nome do site (deco/effect/font/style) — entra no sorteio da cor da caixinha. */
+internal enum class Kind(val label: String, val buy: String, val equip: String, val key: String) {
+    Frame("Moldura", "/api/decorations/%s/buy", "/api/decorations/equip", "deco"),
+    Effect("Efeito de perfil", "/api/decorations/effects/%s/buy", "/api/decorations/effects/equip", "effect"),
+    Font("Fonte do nome", "/api/decorations/fonts/%s/buy", "/api/decorations/fonts/equip", "font"),
+    Style("Estilo de perfil", "/api/decorations/styles/%s/buy", "/api/decorations/styles/equip", "style"),
 }
 
 private enum class StoreTab(val label: String) {
@@ -210,19 +215,23 @@ fun StoreScreen(repo: Repository, nav: AppNav, initialTab: String?) {
                 fun isNew(iso: String?) = com.projectclub.android.ui.common.instantOf(iso)?.toEpochMilli()?.let { it > newCut } == true
                 val frames = s.decorations.sortedBy { it.sortOrder }.map {
                     ShopItem(it.id, Kind.Frame, it.name, it.imageUrl, it.priceCoins, it.priceGems, it.owned, it.id == s.equippedId, isNew(it.createdAt), it.collectionId,
-                        it.limited, it.stock, it.sold, it.remaining, it.serial, it.locked, it.description)
+                        it.limited, it.stock, it.sold, it.remaining, it.serial, it.locked, it.description,
+                        color = it.color, rarity = it.rarity, exclusiveTier = it.exclusiveTier)
                 }
                 val effects = s.effects.sortedBy { it.sortOrder }.map {
                     ShopItem(it.id, Kind.Effect, it.name, it.imageUrl, it.priceCoins, it.priceGems, it.owned, it.id == s.equippedEffectId, isNew(it.createdAt), it.collectionId,
-                        it.limited, it.stock, it.sold, it.remaining, it.serial, it.locked, it.description)
+                        it.limited, it.stock, it.sold, it.remaining, it.serial, it.locked, it.description,
+                        color = it.color, rarity = it.rarity, exclusiveTier = it.exclusiveTier)
                 }
                 val fonts = s.fonts.sortedBy { it.sortOrder }.map {
                     ShopItem(it.id, Kind.Font, it.name, it.previewUrl, it.priceCoins, it.priceGems, it.owned, it.id == s.equippedFontId, isNew(it.createdAt), it.collectionId,
-                        it.limited, it.stock, it.sold, it.remaining, it.serial, it.locked, it.description, fontJson = it.fontJson)
+                        it.limited, it.stock, it.sold, it.remaining, it.serial, it.locked, it.description, fontJson = it.fontJson,
+                        color = it.color, rarity = it.rarity, exclusiveTier = it.exclusiveTier)
                 }
                 val styles = s.styles.sortedBy { it.sortOrder }.map {
                     ShopItem(it.id, Kind.Style, it.name, it.previewUrl, it.priceCoins, it.priceGems, it.owned, s.equippedStyle != null && it.styleKey == s.equippedStyle, isNew(it.createdAt), it.collectionId,
-                        it.limited, it.stock, it.sold, it.remaining, it.serial, it.locked, it.description, styleKey = it.styleKey)
+                        it.limited, it.stock, it.sold, it.remaining, it.serial, it.locked, it.description, styleKey = it.styleKey,
+                        color = it.color, rarity = it.rarity, exclusiveTier = it.exclusiveTier)
                 }
                 val everything = frames + effects + fonts + styles
                 val q = query.trim()
@@ -238,12 +247,10 @@ fun StoreScreen(repo: Repository, nav: AppNav, initialTab: String?) {
                 }
                 val items = base.filter { q.isEmpty() || it.name.contains(q, ignoreCase = true) }
                 PullToRefreshBox(refreshing, onRefresh = { scope.launch { refreshing = true; load(); refreshing = false } }, Modifier.fillMaxSize()) {
-                    LazyVerticalGrid(
-                        GridCells.Fixed(2), Modifier.fillMaxSize(),
-                        contentPadding = PaddingValues(16.dp), horizontalArrangement = Arrangement.spacedBy(12.dp), verticalArrangement = Arrangement.spacedBy(12.dp),
-                    ) {
-                        item(span = { GridItemSpan(2) }) {
-                            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                    // Igual ao site: o cabeçalho e, embaixo, a parede com as caixinhas penduradas.
+                    LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(vertical = 16.dp)) {
+                        item(key = "head") {
+                            Column(Modifier.padding(horizontal = 16.dp).padding(bottom = 14.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
                                 StoreHero(s, everything.count { it.owned })
                                 PcField(query, { query = it }, "Buscar na loja", icon = Icons.Outlined.Search)
                                 Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -254,23 +261,28 @@ fun StoreScreen(repo: Repository, nav: AppNav, initialTab: String?) {
                             }
                         }
                         if (tab == StoreTab.Collections) {
-                            if (s.collections.isEmpty()) item(span = { GridItemSpan(2) }) {
+                            if (s.collections.isEmpty()) item {
                                 EmptyState(Icons.Outlined.LocalMall, "Nenhuma coleção", "As coleções da loja aparecem aqui.")
                             }
-                            items(s.collections.sortedBy { it.sortOrder }, key = { "c-" + it.id }, span = { GridItemSpan(2) }) { c ->
-                                CollectionCard(c) { selectedCollection = c }
+                            items(s.collections.sortedBy { it.sortOrder }, key = { "c-" + it.id }) { c ->
+                                Box(Modifier.padding(horizontal = 16.dp, vertical = 6.dp)) { CollectionCard(c) { selectedCollection = c } }
                             }
                         } else {
-                            if (items.isEmpty()) item(span = { GridItemSpan(2) }) {
+                            if (items.isEmpty()) item {
                                 EmptyState(
                                     Icons.Outlined.Inventory2,
                                     if (tab == StoreTab.Mine) "Você ainda não tem itens" else "Nada encontrado",
                                     if (tab == StoreTab.Mine) "Compre molduras e efeitos para personalizar seu perfil." else "Tente outra busca.",
                                 )
                             }
-                            items(items, key = { it.kind.name + it.id }) { item -> ItemCard(item, me) { selected = item } }
+                            val rows = items.chunked(2)
+                            itemsIndexed(rows, key = { _, r -> r.joinToString("|") { it.kind.name + it.id } }) { i, row ->
+                                WallRow(row, me, first = i == 0, last = i == rows.lastIndex, onOpen = { selected = it }) { item, m ->
+                                    PackCard(item, me, m) { selected = item }
+                                }
+                            }
                         }
-                        item(span = { GridItemSpan(2) }) { Spacer(Modifier.navigationBarsPadding().height(8.dp)) }
+                        item { Spacer(Modifier.navigationBarsPadding().height(8.dp)) }
                     }
                 }
             }
@@ -340,10 +352,11 @@ private fun TabPill(text: String, on: Boolean, onClick: () -> Unit) {
 }
 
 @Composable
-private fun ItemPreview(item: ShopItem, me: com.projectclub.android.data.User?, modifier: Modifier) {
+internal fun ItemPreview(item: ShopItem, me: com.projectclub.android.data.User?, modifier: Modifier, transparent: Boolean = false, scale: Float = 1f) {
     val loader = rememberAnimatedImageLoader()
     val st = if (item.kind == Kind.Style) com.projectclub.android.ui.profile.profileStyleOf(item.styleKey) else null
-    Box(modifier.background(st?.bg ?: Brush.radialGradient(listOf(PC.Surface3, PC.Surface))), contentAlignment = Alignment.Center) {
+    val bg = st?.bg ?: if (transparent) Brush.linearGradient(listOf(Color.Transparent, Color.Transparent)) else Brush.radialGradient(listOf(PC.Surface3, PC.Surface))
+    Box(modifier.background(bg), contentAlignment = Alignment.Center) {
         if (item.kind == Kind.Font) {
             // Seu nome escrito com a fonte.
             val f = com.projectclub.android.ui.profile.rememberShopFont(item.fontJson)
@@ -369,47 +382,11 @@ private fun ItemPreview(item: ShopItem, me: com.projectclub.android.data.User?, 
             com.projectclub.android.ui.profile.StyleOverlay(st, Modifier.matchParentSize())
         } else if (item.kind == Kind.Frame) {
             // Moldura em volta do seu avatar, como fica no perfil.
-            Avatar(me, 64.dp)
-            AsyncImage(Config.media(item.imageUrl), item.name, imageLoader = loader, contentScale = ContentScale.Fit, modifier = Modifier.size(92.dp))
+            val z = if (transparent) scale * 1.22f else 1f
+            Avatar(me, (64 * z).dp)
+            AsyncImage(Config.media(item.imageUrl), item.name, imageLoader = loader, contentScale = ContentScale.Fit, modifier = Modifier.size((92 * z).dp))
         } else {
             AsyncImage(Config.media(item.imageUrl), item.name, imageLoader = loader, contentScale = ContentScale.Crop, modifier = Modifier.fillMaxSize())
-        }
-    }
-}
-
-@Composable
-private fun ItemCard(item: ShopItem, me: com.projectclub.android.data.User?, onClick: () -> Unit) {
-    val shape = RoundedCornerShape(20.dp)
-    Column(
-        Modifier.clip(shape).background(PC.Surface).border(1.dp, if (item.equipped) PC.Brand.copy(alpha = 0.6f) else PC.Line, shape).clickable(onClick = onClick),
-    ) {
-        Box {
-            ItemPreview(item, me, Modifier.fillMaxWidth().aspectRatio(1.1f))
-            Row(Modifier.align(Alignment.TopStart).padding(8.dp), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                when {
-                    item.equipped -> Chip("Equipado", PC.Brand)
-                    item.owned -> Chip(if (item.serial != null) "#${item.serial}" else "Você tem", PC.Green)
-                    item.soldOut -> Chip("Esgotado", PC.Muted)
-                    item.limited -> Chip("Limitado · ${item.remaining}", PC.Yellow)
-                    item.locked -> Chip("Apoio", PC.Purple)
-                    item.isNew -> Chip("Novo", PC.Pink)
-                }
-            }
-        }
-        Column(Modifier.padding(12.dp)) {
-            Text(item.name, color = PC.Header, style = MaterialTheme.typography.titleSmall, maxLines = 1, overflow = TextOverflow.Ellipsis)
-            Text(item.kind.label, color = PC.Muted, style = MaterialTheme.typography.bodySmall)
-            Spacer(Modifier.height(8.dp))
-            if (item.owned) Row(verticalAlignment = Alignment.CenterVertically) {
-                Icon(Icons.Outlined.CheckCircle, null, tint = PC.Green, modifier = Modifier.size(16.dp))
-                Spacer(Modifier.width(4.dp))
-                Text("No inventário", color = PC.Green, style = MaterialTheme.typography.labelMedium)
-            } else if (item.soldOut) Text("Só por troca", color = PC.Muted, style = MaterialTheme.typography.labelMedium)
-            else if (item.locked) Text("Exclusivo de apoio", color = PC.Purple, style = MaterialTheme.typography.labelMedium)
-            else Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                item.coins?.let { CurrencyAmount(false, it) }
-                item.gems?.let { CurrencyAmount(true, it) }
-            }
         }
     }
 }
@@ -447,7 +424,20 @@ private fun ItemSheet(
     var confirm by remember { mutableStateOf<Boolean?>(null) }
     ModalBottomSheet(onDismissRequest = onDismiss, containerColor = PC.Surface) {
         Column(Modifier.fillMaxWidth().padding(horizontal = 20.dp).navigationBarsPadding().padding(bottom = 16.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
-            ItemPreview(item, me, Modifier.fillMaxWidth().height(220.dp).clip(RoundedCornerShape(20.dp)))
+            // Como no site: a caixinha (sem o gancho, num fundo de estúdio) ou a prévia de como fica.
+            var showPack by remember(item.id) { mutableStateOf(true) }
+            Box(
+                Modifier.fillMaxWidth().height(260.dp).clip(RoundedCornerShape(20.dp))
+                    .background(Brush.radialGradient(listOf(packLook(item).tint.copy(alpha = 0.35f), Color(0xFF0D1014)))),
+                contentAlignment = Alignment.Center,
+            ) {
+                if (showPack) PackArt(item, me, 176.dp, hook = false, modifier = Modifier.offset(y = 6.dp))
+                else ItemPreview(item, me, Modifier.fillMaxSize())
+            }
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                TabPill("Caixinha", showPack) { showPack = true }
+                TabPill("Prévia", !showPack) { showPack = false }
+            }
             Column {
                 Text(item.name, style = MaterialTheme.typography.headlineSmall, color = PC.Header)
                 Text(item.kind.label + if (item.collectionId != null) " · faz parte de uma coleção" else "", color = PC.Muted)
