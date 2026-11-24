@@ -196,19 +196,21 @@ function BlackoutTable() {
   };
   const crit = roll === 20 ? ' is-crit' : roll === 1 ? ' is-fail' : '';
   return (
-    <section id="blackout" className="lp-bo" aria-labelledby="bo-titulo">
+    <section id="blackout" className="lp-bo is-v2" aria-labelledby="bo-titulo">
       <div className="lp-bo-bg" aria-hidden="true" />
-      <img className="lp-bo-char is-l" src="/site/personagens/bruxo.webp" alt="" loading="lazy" />
-      <img className="lp-bo-char is-r" src="/site/personagens/sacerdotisa.webp" alt="" loading="lazy" />
+      <div className="lp-bo-art" aria-hidden="true">
+        <img className="lp-bo-char is-back" src="/site/personagens/sacerdotisa.webp" alt="" loading="lazy" />
+        <img className="lp-bo-char is-front" src="/site/personagens/bruxo.webp" alt="" loading="lazy" />
+      </div>
       <div className="lp-bo-center lp-reveal">
         <p className="lp-bo-kicker">RPG de mesa dentro do clube</p>
-        <h2 id="bo-titulo" className="lp-bo-title" data-text="BLACKOUT">BLACKOUT</h2>
+        <h2 id="bo-titulo" className="lp-bo-title">Blackout</h2>
         <p className="lp-copy">História, espécies, classes, itens e criação de personagem num compêndio só. A ficha fica salva, sai em PDF e as rolagens acontecem ali mesmo.</p>
-        <ul className="lp-bo-feats">
+        <ol className="lp-bo-feats">
           <li><b>Ficha</b><span>Monta o personagem passo a passo</span></li>
           <li><b>Trilha</b><span>A classe evolui com o personagem</span></li>
           <li><b>Rolagens</b><span>Dados na hora, sem sair da mesa</span></li>
-        </ul>
+        </ol>
         <button type="button" className={`lp-d20${crit}`} onClick={doRoll} aria-label={`Rolar um d20. Último resultado: ${roll}`}>
           <svg key={spin} viewBox="0 0 100 100" aria-hidden="true">
             <path d="M50 4 92 28v44L50 96 8 72V28z" />
