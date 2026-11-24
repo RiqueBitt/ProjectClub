@@ -743,3 +743,13 @@ html .lp :focus-visible { outline: 2px solid #fff !important; outline-offset: 3p
   .lp-bo.is-v2 .lp-bo-art { order: -1; height: 360px; margin: 0 0 28px; }
   .lp-bo-name { display: none; }
 }
+
+/* Ficha do Blackout no formato da Call modo RPG: Estresse e PA em espaços */
+.lp-bo-stats li { grid-template-columns: 78px 1fr 44px; }
+.lp-bo-pips { display: flex; gap: 6px; font-style: normal; }
+.lp-bo-pips s { flex: 1; max-width: 34px; height: 10px; border-radius: 3px; background: rgba(239, 230, 218, .1); text-decoration: none; }
+.lp-bo-pips s.is-on { background: var(--acc); box-shadow: 0 0 8px rgba(var(--acc-rgb), .6); animation: lp-pip .4s var(--ease-out) both; animation-delay: calc(.2s + var(--i) * .07s + var(--n) * .05s); }
+.lp-bo-pips s.is-ar { flex: 0 0 auto; max-width: none; height: auto; padding: 0 6px; font: 800 10px/14px var(--display); letter-spacing: .06em; color: rgba(239, 230, 218, .4); }
+.lp-bo-pips s.is-ar.is-on { color: #120a08; }
+@keyframes lp-pip { from { transform: scale(.3); opacity: 0; } }
+@media (prefers-reduced-motion: reduce) { .lp-bo-pips s.is-on { animation: none; } }

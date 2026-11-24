@@ -179,17 +179,18 @@ function CommandPalette({ open, onClose, onPickApp, actions }) {
 }
 
 // Cor e ficha de exemplo de cada personagem. O lado esquerdo da seção troca
-// junto com a figura. Os atributos são ilustrativos: troque pelos do compêndio.
+// junto com a figura. Mesma ficha da Call modo RPG (PV, Estresse, PA e Ação
+// Rápida, ver components/voice/RpgTable.jsx); os valores são de exemplo.
 const BO_CHARS = [
   {
     id: 'bruxo', name: 'Bruxo', src: '/site/personagens/bruxo.webp',
     acc: '#ff3b3b', rgb: '255, 59, 59', glow: '170, 20, 24',
-    stats: [['Poder', 92], ['Sanidade', 38], ['Vida', 54]],
+    sheet: { pv: 11, pvMax: 20, stress: 4, pa: 3, ar: 1 },
   },
   {
     id: 'sacerdotisa', name: 'Sacerdotisa', src: '/site/personagens/sacerdotisa.webp',
     acc: '#f2c46b', rgb: '242, 196, 107', glow: '150, 98, 22',
-    stats: [['Poder', 61], ['Sanidade', 88], ['Vida', 72]],
+    sheet: { pv: 18, pvMax: 18, stress: 1, pa: 2, ar: 0 },
   },
 ];
 
@@ -236,9 +237,9 @@ function BlackoutTable() {
         <div className="lp-bo-sheet" key={`s${hero}`} aria-live="polite">
           <p className="lp-bo-who"><b>{ch.name}</b><span>Ficha de exemplo</span></p>
           <ul className="lp-bo-stats">
-            {ch.stats.map(([k, v], i) => (
-              <li key={k} style={{ '--v': v / 100, '--i': i }}><span>{k}</span><i /><b>{v}</b></li>
-            ))}
+            <li style={{ '--i': 0 }}><span title="Pontos de Vida">PV</span><i style={{ '--v': ch.sheet.pv / ch.sheet.pvMax }} /><b>{ch.sheet.pv}/{ch.sheet.pvMax}</b></li>
+            <li style={{ '--i': 1 }}><span title="Estresse: cheio vira BURNOUT">Estresse</span><em className="lp-bo-pips" role="img" aria-label={`Estresse ${ch.sheet.stress} de 6`}>{[1, 2, 3, 4, 5, 6].map((n) => <s key={n} className={n <= ch.sheet.stress ? 'is-on' : ''} style={{ '--n': n }} />)}</em><b>{ch.sheet.stress}/6</b></li>
+            <li style={{ '--i': 2 }}><span title="Pontos de Ação por turno e Ação Rápida">PA</span><em className="lp-bo-pips is-pa" role="img" aria-label={`Pontos de Ação ${ch.sheet.pa} de 3${ch.sheet.ar ? ', com Ação Rápida' : ''}`}>{[1, 2, 3].map((n) => <s key={n} className={n <= ch.sheet.pa ? 'is-on' : ''} style={{ '--n': n }} />)}<s className={`is-ar${ch.sheet.ar ? ' is-on' : ''}`} style={{ '--n': 4 }}>AR</s></em><b>{ch.sheet.pa}/3</b></li>
           </ul>
         </div>
         <ol className="lp-bo-feats">
