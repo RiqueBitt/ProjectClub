@@ -249,7 +249,7 @@ test('Economia nova: abas no topo, cartão com espessura, baú e missões em lin
   const card = page.locator('.wcard');
   await expect(card).toBeVisible({ timeout: 20_000 });
   // A barra de abas fica no topo (igual à Loja) e a visão geral tem o cartão e o baú.
-  await expect(page.locator('.hub-tabs-bar [role="tab"]')).toHaveCount(5);
+  await expect(page.locator('.hub-tabs-bar [role="tab"]')).toHaveCount(4);
   await expect(page.locator('.eco-top .eco-daily')).toBeVisible();
   await expect(page.locator('.eco-streak li.done')).toHaveCount(3);
   await expect(page.getByRole('button', { name: /Resgatar baú diário/ })).toBeEnabled();
@@ -264,16 +264,17 @@ test('Economia nova: abas no topo, cartão com espessura, baú e missões em lin
   const ry = await page.locator('.wcard-scene').evaluate((el) => parseFloat(el.style.getPropertyValue('--ry')));
   expect(ry).toBeGreaterThan(20);
   await page.mouse.up();
-  // Missões: uma linha cada; a pronta mostra o botão.
-  await expect(page.locator('.eco-mission')).toHaveCount(2);
-  await expect(page.locator('.eco-mission.ready .eco-mission-claim')).toBeVisible();
   // Nada vaza pros lados (PC e celular).
   const overflow = await page.locator('.pk-page.eco').evaluate((el) => el.scrollWidth - el.clientWidth);
   expect(overflow).toBeLessThanOrEqual(1);
-  // A aba Missões mostra o saldo em linha e as duas listas.
-  await page.getByRole('tab', { name: /Missões/ }).click();
-  await expect(page.locator('.eco-purse')).toContainText('12.480');
-  await expect(page.locator('.eco-panel')).toHaveCount(2);
+  // Missões saíram da Economia (nov/2026): o atalho leva pro Progresso, e o
+  // endereço antigo também.
+  await page.locator('.eco-missions-moved').click();
+  await expect(page).toHaveURL(/\/progresso\?tab=missoes/);
+  await expect(page.locator('.eco-mission')).toHaveCount(2, { timeout: 20_000 });
+  await expect(page.locator('.eco-mission.ready .eco-mission-claim')).toBeVisible();
+  await page.goto('/missoes');
+  await expect(page).toHaveURL(/\/progresso\?tab=missoes/);
 });
 
 test('Loja: estilos do cartão da carteira (Assinante usa o dourado, arco-íris bloqueado)', async ({ page }) => {

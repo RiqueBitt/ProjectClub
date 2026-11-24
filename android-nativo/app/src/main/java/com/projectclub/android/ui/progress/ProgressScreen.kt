@@ -30,6 +30,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.material.icons.outlined.TaskAlt
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
@@ -126,8 +127,9 @@ import java.util.Locale
  */
 
 private const val TAB_RANKS = 0
-private const val TAB_ACHIEVEMENTS = 1
-private const val TAB_REWARDS = 2
+private const val TAB_MISSIONS = 1 // missões diárias/semanais (vieram da Economia em nov/2026)
+private const val TAB_ACHIEVEMENTS = 2
+private const val TAB_REWARDS = 3
 
 private val ptBR: Locale = Locale.forLanguageTag("pt-BR")
 private fun fmt(n: Number?): String = NumberFormat.getIntegerInstance(ptBR).format(n ?: 0)
@@ -170,6 +172,7 @@ private fun imageUrl(url: String?): String? {
 }
 
 private fun tabFrom(initial: String?): Int = when (initial?.lowercase()) {
+    "missoes", "missions" -> TAB_MISSIONS
     "conquistas", "achievements" -> TAB_ACHIEVEMENTS
     "recompensas", "rewards" -> TAB_REWARDS
     else -> TAB_RANKS
@@ -189,6 +192,10 @@ fun ProgressScreen(repo: Repository, nav: AppNav, initialTab: String?) {
     var achievements by remember { mutableStateOf<List<ProgressAchievement>?>(null) }
     var achievementsError by remember { mutableStateOf<String?>(null) }
     var refreshing by remember { mutableStateOf(false) }
+    var missions by remember { mutableStateOf<com.projectclub.android.data.EcoMissionList?>(null) }
+    var missionsError by remember { mutableStateOf<String?>(null) }
+    var claimingMission by remember { mutableStateOf<String?>(null) }
+    val ctx = androidx.compose.ui.platform.LocalContext.current
 
     // Cada parte carrega sozinha; uma falha não apaga o que já estava na tela.
     suspend fun loadRank() {
@@ -203,11 +210,30 @@ fun ProgressScreen(repo: Repository, nav: AppNav, initialTab: String?) {
         try { achievements = repo.api.get<ProgressAchievementsResponse>("/api/achievements").achievements; achievementsError = null }
         catch (e: Exception) { if (achievements == null) achievementsError = e.message ?: "Não deu para carregar." }
     }
+    suspend fun loadMissions() {
+        try { missions = repo.api.get<com.projectclub.android.data.EcoMissionList>("/api/missions"); missionsError = null }
+        catch (e: Exception) { if (missions == null) missionsError = e.message ?: "Não deu para carregar." }
+    }
+    fun claimMission(m: com.projectclub.android.data.EcoMission) = scope.launch {
+        claimingMission = m.id
+        try {
+            val r = repo.api.post<com.projectclub.android.data.EcoMissionClaim>("/api/missions/${m.id}/claim")
+            val rw = r.reward
+            android.widget.Toast.makeText(ctx, listOfNotNull(
+                rw?.coins?.takeIf { it > 0 }?.let { "+$it moedas" },
+                rw?.gems?.takeIf { it > 0 }?.let { "+$it gemas" },
+                rw?.xp?.takeIf { it > 0 }?.let { "+$it XP" },
+            ).joinToString(" · ").ifBlank { "Recompensa resgatada!" } + if (r.levelUp?.levelUp == true) " · Subiu para o nível ${r.levelUp.newLevel}!" else "", android.widget.Toast.LENGTH_SHORT).show()
+            loadMissions(); loadRank()
+        } catch (e: Exception) { android.widget.Toast.makeText(ctx, e.message ?: "Não deu pra resgatar.", android.widget.Toast.LENGTH_SHORT).show() }
+        claimingMission = null
+    }
     suspend fun loadAll() {
+        val m = scope.async { loadMissions() }
         val a = scope.async { loadRank() }
         val b = scope.async { loadLeaderboard() }
         val c = scope.async { loadAchievements() }
-        a.await(); b.await(); c.await()
+        a.await(); b.await(); c.await(); m.await()
     }
 
     LaunchedEffect(Unit) {
@@ -219,6 +245,7 @@ fun ProgressScreen(repo: Repository, nav: AppNav, initialTab: String?) {
             tick++
             loadRank()
             loadLeaderboard()
+            if (tab == TAB_MISSIONS) loadMissions()
             if (tick % 2 == 0) loadAchievements()
         }
     }
@@ -254,6 +281,7 @@ fun ProgressScreen(repo: Repository, nav: AppNav, initialTab: String?) {
                         ProgressTabs(
                             listOf(
                                 Triple(PcArt.Ranks, "Ranking", null),
+                                Triple(androidx.compose.material.icons.Icons.Outlined.TaskAlt, "Missões", missions?.missions?.count { it.completed && !it.claimed }?.takeIf { it > 0 }?.toString()),
                                 Triple(PcArt.Achievements, "Conquistas", achievementsCount),
                                 Triple(PcArt.Gift, "Recompensas", rewardsCount),
                             ),
@@ -264,6 +292,26 @@ fun ProgressScreen(repo: Repository, nav: AppNav, initialTab: String?) {
                 }
 
                 when (tab) {
+                    TAB_MISSIONS -> {
+                        val ms = missions?.missions
+                        when {
+                            ms == null && missionsError != null -> item(key = "ms-err") { ErrorBox(missionsError!!) { scope.launch { loadMissions() } } }
+                            ms == null -> item(key = "ms-load") { ListSkeleton(4, 64.dp) }
+                            ms.isEmpty() -> item(key = "ms-empty") { EmptyState(PcArt.Gift, "Sem missões agora", "A equipe ainda não criou missões.") }
+                            else -> listOf("DAILY" to "Diárias", "WEEKLY" to "Semanais").forEach { (period, label) ->
+                                val list = ms.filter { it.period == period }
+                                if (list.isNotEmpty()) {
+                                    item(key = "mh-$period") {
+                                        val reset = com.projectclub.android.ui.store.untilText(if (period == "DAILY") missions?.resets?.daily else missions?.resets?.weekly)
+                                        Text(label + (reset?.let { " · renovam em $it" } ?: ""), color = PC.Muted, style = MaterialTheme.typography.labelLarge)
+                                    }
+                                    items(list, key = { "m-" + it.id }) { m ->
+                                        com.projectclub.android.ui.economy.MissionCard(m, claimingMission == m.id) { claimMission(m) }
+                                    }
+                                }
+                            }
+                        }
+                    }
                     TAB_RANKS -> {
                         val list = leaderboard
                         when {

@@ -13,7 +13,6 @@ import '../styles/hub-tabs.css';
 // "Loja" fica imediatamente à esquerda do Passe do clube (pedido).
 export const ECONOMY_HUB_TABS = [
   { id: 'geral', label: 'Visão geral', icon: 'grid', to: '/economia' },
-  { id: 'missoes', label: 'Missões', icon: 'bolt', to: '/missoes' },
   { id: 'loja', label: 'Loja', icon: 'store', to: '/loja' },
   // Fase 8: criações dos membros (LojaCriadoresPage.jsx).
   { id: 'criadores', label: 'Criadores', icon: 'sparkles', to: '/loja/criadores' },

@@ -236,3 +236,11 @@
 @media (prefers-reduced-motion: reduce) {
   .eco-bar span, .eco-streak::after { transition: none; }
 }
+
+/* Atalho no lugar das missões (que foram pro Progresso em nov/2026). */
+.eco-missions-moved { display: flex; align-items: center; gap: 10px; padding: 14px 16px; color: var(--text-normal); text-decoration: none; }
+.eco-missions-moved:hover { border-color: color-mix(in srgb, var(--brand) 45%, var(--eco-line)); }
+.eco-missions-moved > svg { color: var(--brand); flex-shrink: 0; }
+.eco-missions-moved .eco-quiet { margin-left: auto; white-space: nowrap; }
+/* Missões dentro do Progresso. */
+.pg-missions { display: grid; gap: 14px; }

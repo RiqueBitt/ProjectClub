@@ -10,6 +10,8 @@ import { LEVEL_REWARDS } from '../utils/levelRewards';
 import { RARITY_LABEL, RARITY_COLOR } from '../utils/achievementRarity';
 import { categoryFor, CATEGORY_ORDER } from '../utils/achievementCategory';
 import '../styles/progress.css';
+import MissionsPanel from '../components/progress/MissionsPanel.jsx';
+import { useClaimableMissions } from '../utils/missionBadge';
 import { useLiveRefresh } from '../utils/liveRefresh';
 
 // Progresso: um cabeçalho fixo com o seu nível (sempre visível) e três
@@ -17,6 +19,8 @@ import { useLiveRefresh } from '../utils/liveRefresh';
 // (?tab=), então dá pra mandar o link direto pra uma delas.
 const TABS = [
   { key: 'ranking', label: 'Ranking', icon: 'trophy' },
+  // Missões diárias e semanais (vieram da Economia em nov/2026).
+  { key: 'missoes', label: 'Missões', icon: 'bolt' },
   { key: 'conquistas', label: 'Conquistas', icon: 'medal' },
   { key: 'recompensas', label: 'Recompensas', icon: 'gift' },
 ];
@@ -79,7 +83,8 @@ export default function ProgressPage() {
   const level = user?.accountLevel ?? rank?.level ?? 1;
   const unlocked = achievements?.filter((a) => a.unlocked).length ?? 0;
   const rewardsUnlocked = LEVEL_REWARDS.filter((r) => level >= r.level).length;
-  const counts = { conquistas: achievements ? `${unlocked}/${achievements.length}` : null, recompensas: `${rewardsUnlocked}/${LEVEL_REWARDS.length}` };
+  const readyMissions = useClaimableMissions();
+  const counts = { missoes: readyMissions > 0 ? String(readyMissions) : null, conquistas: achievements ? `${unlocked}/${achievements.length}` : null, recompensas: `${rewardsUnlocked}/${LEVEL_REWARDS.length}` };
 
   return (
     <div className="pg">
@@ -99,6 +104,7 @@ export default function ProgressPage() {
       </div>
 
       {tab === 'ranking' && <Ranking leaderboard={leaderboard} me={user} rank={rank} />}
+      {tab === 'missoes' && <MissionsPanel />}
       {tab === 'conquistas' && <Achievements achievements={achievements} />}
       {tab === 'recompensas' && <Rewards level={level} rank={rank} />}
     </div>

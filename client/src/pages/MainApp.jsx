@@ -512,7 +512,8 @@ export default function MainApp() {
                 <Route path="/search" element={<SearchPage />} />
                 <Route path="/admin" element={<AdminPanel />} />
                 <Route path="/economia" element={<EconomyPage />} />
-                <Route path="/missoes" element={<EconomyPage initialTab="missoes" />} />
+                {/* Missões moram no Progresso desde nov/2026. */}
+                <Route path="/missoes" element={<Navigate to="/progresso?tab=missoes" replace />} />
                 {/* Item pedido: "Ranks e Conquistas ficam dentro da
                     mesma categoria (Progresso)... aba extra chamada
                     de recompensas" — /rank e /conquistas eram duas

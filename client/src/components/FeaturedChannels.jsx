@@ -90,7 +90,7 @@ export const FEATURED = [
   // com abas (pages/AnunciosEventosPage.jsx). A bolinha soma as novidades
   // de Anúncios e Eventos e mostra "Ao vivo" quando há evento.
   {
-    key: 'inicio', label: 'Central', icon: 'grid', to: '/inicio',
+    key: 'inicio', label: 'Central', icon: 'home', to: '/inicio',
     hint: 'Visão geral, anúncios da equipe e eventos da comunidade',
     match: (p) => p === '/inicio' || p.startsWith('/anuncios') || p.startsWith('/comunidade/eventos') || p.startsWith('/evento/') || p.startsWith('/eventos'),
     merges: ['anuncios', 'eventos'],
@@ -108,14 +108,14 @@ export const FEATURED = [
   // que a visibilidade salva por comunidade e o CSS (.featured-loja) usam.
   {
     key: 'loja', label: 'Economia', icon: 'coin', to: '/economia',
-    hint: 'Moedas, gemas, missões, Loja e Passe do clube',
-    match: (p) => p.startsWith('/economia') || p.startsWith('/missoes') || p.startsWith('/loja'),
-    count: ['missão pronta pra resgatar', 'missões prontas pra resgatar'],
+    hint: 'Moedas, gemas, Loja e Passe do clube',
+    match: (p) => p.startsWith('/economia') || p.startsWith('/loja'),
   },
   {
     key: 'progresso', label: 'Progresso', icon: 'trophy', to: '/progresso',
-    hint: 'Ranks, conquistas e recompensas',
-    match: (p) => p.startsWith('/progresso') || p.startsWith('/rank') || p.startsWith('/conquistas'),
+    count: ['missão pronta pra resgatar', 'missões prontas pra resgatar'],
+    hint: 'Missões, ranking, conquistas e recompensas',
+    match: (p) => p.startsWith('/progresso') || p.startsWith('/missoes') || p.startsWith('/rank') || p.startsWith('/conquistas'),
     n2Only: true, fixed: true,
   },
   {
@@ -211,13 +211,15 @@ export default function FeaturedChannels({ canManage }) {
       </button>
     );
   };
-  // Faixas largas em cima (Assinatura, jogos/BLACKOUT); o resto em blocos 2×N.
-  const banners = items.filter((i) => i.game || i.banner);
-  const tiles = items.filter((i) => !(i.game || i.banner));
+  // Lista limpa (modelo 1, nov/2026): Assinatura em cima, uma linha
+  // separando, e o resto (jogos/BLACKOUT primeiro) em lista.
+  const top = items.filter((i) => i.banner);
+  const rest = [...items.filter((i) => !i.banner && i.game), ...items.filter((i) => !i.banner && !i.game)];
   return (
-    <div className="featured-channels" role="group" aria-label="Canais em destaque">
-      {banners.map(renderItem)}
-      {tiles.length > 0 && <div className="featured-grid">{tiles.map(renderItem)}</div>}
+    <div className="featured-channels fc-list" role="group" aria-label="Canais em destaque">
+      {top.map(renderItem)}
+      {top.length > 0 && rest.length > 0 && <div className="fc-sep" role="separator" />}
+      {rest.map(renderItem)}
     </div>
   );
 }
