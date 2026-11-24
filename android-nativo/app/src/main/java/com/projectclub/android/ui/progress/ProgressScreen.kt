@@ -497,8 +497,11 @@ private val PODIUM_SPOTS = mapOf(1 to (0.50f to 0.2007f), 2 to (0.2113f to 0.368
 private const val PODIUM_RATIO = 1.9656f
 
 /** Mede o filho e o põe com o meio em [cx] e o pé em [bottom] (coordenadas do Box pai). */
+// Mede com a largura exata da vaga (o `width` de fora): medindo menor, o Compose
+// centralizava de novo a vaga dentro da largura e todo mundo saía deslocado pra
+// direita do bloco (as fotos ficavam "tortas" no pódio).
 private fun Modifier.standOn(cx: Dp, bottom: Dp): Modifier = layout { m, c ->
-    val p = m.measure(c.copy(minWidth = 0, minHeight = 0))
+    val p = m.measure(c.copy(minHeight = 0))
     layout(p.width, p.height) { p.place(cx.roundToPx() - p.width / 2, bottom.roundToPx() - p.height) }
 }
 
