@@ -54,6 +54,7 @@ const styleKeyOf = (it) => parseData(it.data).style || it.key || null;
 const idFromJson = (raw) => { try { return raw ? JSON.parse(raw).id || null : null; } catch { return null; } };
 
 const sup = require('../services/supporters');
+const textFx = require('../services/textEffects');
 const ledger = () => require('../services/economyLedger');
 const coupons = () => require('../services/community/coupons');
 const fail =(msg, status = 400, extra) => Object.assign(new Error(msg), { status, extra });
@@ -77,6 +78,11 @@ const KINDS = {
   },
   style: {
     label: 'estilo', item: 'shopItem', own: 'userShopItem', fk: 'itemId', rel: 'item', type: 'STYLE',
+    uniq: (userId, id) => ({ userId_itemId: { userId, itemId: id } }),
+  },
+  // Efeito de texto do nome (no lugar dos efeitos de perfil — services/textEffects.js).
+  textfx: {
+    label: 'efeito de texto', item: 'shopItem', own: 'userShopItem', fk: 'itemId', rel: 'item', type: 'TEXTFX',
     uniq: (userId, id) => ({ userId_itemId: { userId, itemId: id } }),
   },
 };
@@ -135,7 +141,7 @@ async function shop(req, res, next) {
       prisma.userAvatarDecoration.findMany({ where: { userId }, select: { decorationId: true, serial: true, expiresAt: true } }),
       prisma.userProfileEffect.findMany({ where: { userId }, select: { effectId: true, serial: true, expiresAt: true } }),
       prisma.userShopItem.findMany({ where: { userId }, select: { itemId: true, serial: true, expiresAt: true } }),
-      prisma.user.findUnique({ where: { id: userId }, select: { coins: true, gems: true, avatarDecoration: true, profileEffect: true, profileFont: true, profileStyle: true, supporterTier: true, supporterUntil: true } }),
+      prisma.user.findUnique({ where: { id: userId }, select: { coins: true, gems: true, avatarDecoration: true, profileEffect: true, profileFont: true, profileStyle: true, profileNameEffect: true, supporterTier: true, supporterUntil: true } }),
     ]);
     const tier = sup.normalizeTier(me?.supporterTier);
     // Coleções ocultas: fora da vitrine; os itens delas só aparecem pra quem
@@ -187,6 +193,7 @@ async function shop(req, res, next) {
       effects: visible(effects, oe),
       fonts: visible(shopItems.filter((i) => i.kind === 'FONT'), oi),
       styles: visible(shopItems.filter((i) => i.kind === 'STYLE'), oi),
+      textEffects: visible(shopItems.filter((i) => i.kind === 'TEXTFX'), oi).map((it) => ({ ...it, fx: textFx.fxValueOf(it) })),
       collections: collections.map((c) => {
         const col = shapeCollection(c);
         return { ...col, pricing: { coins: sup.bundlePriceFor(c, 'coins', tier, col.offer), gems: sup.bundlePriceFor(c, 'gems', tier, col.offer) } };
@@ -198,6 +205,7 @@ async function shop(req, res, next) {
       equippedEffectId: idFromJson(me?.profileEffect),
       equippedFontId: idFromJson(me?.profileFont),
       equippedStyle: me?.profileStyle || null,
+      equippedTextEffect: String(me?.profileNameEffect || '').startsWith('FX_') ? me.profileNameEffect : null,
     });
   } catch (err) { next(err); }
 }
@@ -257,6 +265,7 @@ const buyEffect = (req, res, next) => buyItem('effect', req, res, next);
 const buyDecoration = (req, res, next) => buyItem('deco', req, res, next);
 const buyFont = (req, res, next) => buyItem('font', req, res, next);
 const buyStyle = (req, res, next) => buyItem('style', req, res, next);
+const buyTextEffect = (req, res, next) => buyItem('textfx', req, res, next);
 
 // POST /decorations/checkout — a cestinha da Loja (nov/2026): compra vários
 // itens de uma vez, TUDO OU NADA. Body: { items: [{ kind, id, currency,
@@ -389,6 +398,23 @@ async function equipStyle(req, res, next) {
       value = styleKeyOf(it);
     }
     const user = await prisma.user.update({ where: { id: req.user.id }, data: { profileStyle: value }, select: SELF_USER_FIELDS });
+    await broadcastUserUpdate(req, user);
+    res.json({ user });
+  } catch (err) { next(err); }
+}
+
+// Efeito de texto do nome (null = volta pro efeito grátis Sólido).
+async function equipTextEffect(req, res, next) {
+  try {
+    const id = req.body?.id || null;
+    let value = 'SOLID';
+    if (id) {
+      const it = await usableItem('textfx', req.user.id, String(id));
+      const fx = it && textFx.fxValueOf(it);
+      if (!fx) return res.status(403).json({ error: 'Você ainda não tem esse efeito de texto.' });
+      value = fx;
+    }
+    const user = await prisma.user.update({ where: { id: req.user.id }, data: { profileNameEffect: value }, select: SELF_USER_FIELDS });
     await broadcastUserUpdate(req, user);
     res.json({ user });
   } catch (err) { next(err); }
@@ -723,7 +749,7 @@ async function giftItem(req, res, next) {
 
 module.exports = {
   purchaseHistory, giftItem, offerOf,
-  shop, checkout, buyEffect, buyDecoration, buyFont, buyStyle, equipEffect, equipFont, equipStyle, buyCollection, usableItem, KINDS,
+  shop, checkout, buyEffect, buyDecoration, buyFont, buyStyle, buyTextEffect, equipEffect, equipFont, equipStyle, equipTextEffect, buyCollection, usableItem, KINDS,
   kindOf, findItem, isLimited, claimStock, fontJson, styleKeyOf, parseData,
   adminListEffects, adminCreateEffect, adminUpdateEffect, adminRemoveEffect,
   adminListCollections, adminCreateCollection, adminUpdateCollection, adminRemoveCollection,

@@ -30,7 +30,7 @@ struct Kind {
     item: &'static str,
     own: &'static str,
     fk: &'static str,
-    /// font/style dividem a tabela `ShopItem` (`kind` = FONT/STYLE).
+    /// font/style/textfx dividem a tabela `ShopItem` (`kind` = FONT/STYLE/TEXTFX).
     shop_kind: Option<&'static str>,
 }
 
@@ -63,11 +63,21 @@ fn kind_of(key: &str) -> Option<&'static Kind> {
         fk: "itemId",
         shop_kind: Some("STYLE"),
     };
+    // Efeito de texto do nome (no lugar dos efeitos de perfil; ver
+    // server/src/services/textEffects.js).
+    const TEXTFX: Kind = Kind {
+        label: "efeito de texto",
+        item: "ShopItem",
+        own: "UserShopItem",
+        fk: "itemId",
+        shop_kind: Some("TEXTFX"),
+    };
     match key {
         "deco" => Some(&DECO),
         "effect" => Some(&EFFECT),
         "font" => Some(&FONT),
         "style" => Some(&STYLE),
+        "textfx" => Some(&TEXTFX),
         _ => None,
     }
 }

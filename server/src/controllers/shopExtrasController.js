@@ -247,7 +247,7 @@ async function adminRevoke(req, res, next) {
 async function unequipIfLost(req, userId, kind, item, db = prisma) {
   const still = await shop.usableItem(kind, userId, item.id);
   if (still) return;
-  const u = await db.user.findUnique({ where: { id: userId }, select: { avatarDecoration: true, profileEffect: true, profileFont: true, profileStyle: true } });
+  const u = await db.user.findUnique({ where: { id: userId }, select: { avatarDecoration: true, profileEffect: true, profileFont: true, profileStyle: true, profileNameEffect: true } });
   if (!u) return;
   const has = (raw) => !!raw && raw.includes(`"id":"${item.id}"`);
   const data = {};
@@ -255,6 +255,7 @@ async function unequipIfLost(req, userId, kind, item, db = prisma) {
   if (kind === 'effect' && has(u.profileEffect)) data.profileEffect = null;
   if (kind === 'font' && has(u.profileFont)) data.profileFont = null;
   if (kind === 'style' && u.profileStyle && u.profileStyle === styleKeyOf(item)) data.profileStyle = null;
+  if (kind === 'textfx' && u.profileNameEffect && u.profileNameEffect === require('../services/textEffects').fxValueOf(item)) data.profileNameEffect = 'SOLID';
   if (!Object.keys(data).length) return;
   const user = await db.user.update({ where: { id: userId }, data, select: SELF_USER_FIELDS });
   if (req) await broadcastUserUpdate(req, user).catch(() => {});
