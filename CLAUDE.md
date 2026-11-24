@@ -20,7 +20,7 @@ Responda sempre em **português do Brasil**. Dono: RiqueBitt.
 
 ## Publicar uma mudança
 
-1. Commit e push em `main` (commits como `RiqueBitt <riquebittgonz@gmail.com>`).
+1. Commit e push em `main` (commits como `RiqueBitt <193559700+RiqueBitt@users.noreply.github.com>`, o e-mail privado do GitHub).
 2. O CI (`.github/workflows/test.yml` e `deploy.yml`) testa, compila o `client/dist`
    e publica tudo pronto no branch `deploy`.
 3. O `deploy.yml` chama `POST /api/system/deploy` e o app se atualiza sozinho.
