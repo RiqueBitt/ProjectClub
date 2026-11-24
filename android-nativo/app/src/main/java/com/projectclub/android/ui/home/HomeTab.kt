@@ -1,5 +1,6 @@
 package com.projectclub.android.ui.home
 
+import com.projectclub.android.ui.common.PcArt
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -189,7 +190,7 @@ fun HomeTab(repo: Repository, actions: HomeActions, nav: com.projectclub.android
             Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                 MiniTile(Icons.Outlined.LocalMall, "Loja", PC.Store, Modifier.weight(1f)) { nav.store(null) }
                 MiniTile(Icons.Outlined.CalendarMonth, "Eventos", PC.Events, Modifier.weight(1f)) { nav.events() }
-                MiniTile(Icons.Outlined.MonetizationOn, "Economia", PC.Purple, Modifier.weight(1f)) { nav.economy() }
+                MiniTile(PcArt.Coin, "Economia", PC.Purple, Modifier.weight(1f)) { nav.economy() }
                 MiniTile(Icons.Outlined.TaskAlt, "Missões", PC.Pink, Modifier.weight(1f)) { nav.economy() }
             }
             Spacer(Modifier.height(8.dp))
@@ -224,7 +225,7 @@ private fun QuickCard(icon: ImageVector, title: String, subtitle: String, modifi
 }
 
 @Composable
-private fun MiniTile(icon: ImageVector, label: String, color: Color, modifier: Modifier, onClick: () -> Unit) {
+private fun MiniTile(icon: Any, label: String, color: Color, modifier: Modifier, onClick: () -> Unit) {
     PcCard(modifier, onClick = onClick, padding = PaddingValues(vertical = 14.dp, horizontal = 4.dp)) {
         Column(Modifier.fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally) {
             IconTile(icon, color, 40.dp)

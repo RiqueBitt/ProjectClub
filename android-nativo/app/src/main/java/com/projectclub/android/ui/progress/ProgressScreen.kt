@@ -1,5 +1,7 @@
 package com.projectclub.android.ui.progress
 
+import com.projectclub.android.ui.common.PcArt
+import com.projectclub.android.ui.common.ArtIcon
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
@@ -234,7 +236,7 @@ fun ProgressScreen(repo: Repository, nav: AppNav, initialTab: String?) {
 
     Column(Modifier.fillMaxSize().background(PC.Bg)) {
         PcTopBar(
-            "Progresso", Icons.Outlined.EmojiEvents,
+            "Progresso", PcArt.Ranks,
             navigation = { IconButton(onClick = nav::back) { Icon(Icons.AutoMirrored.Outlined.ArrowBack, "Voltar", tint = PC.Text) } },
         )
         PullToRefreshBox(
@@ -251,9 +253,9 @@ fun ProgressScreen(repo: Repository, nav: AppNav, initialTab: String?) {
                         Spacer(Modifier.height(4.dp))
                         ProgressTabs(
                             listOf(
-                                Triple(Icons.Outlined.EmojiEvents, "Ranking", null),
-                                Triple(Icons.Outlined.MilitaryTech, "Conquistas", achievementsCount),
-                                Triple(Icons.Outlined.CardGiftcard, "Recompensas", rewardsCount),
+                                Triple(PcArt.Ranks, "Ranking", null),
+                                Triple(PcArt.Achievements, "Conquistas", achievementsCount),
+                                Triple(PcArt.Gift, "Recompensas", rewardsCount),
                             ),
                             tab,
                         ) { tab = it }
@@ -270,7 +272,7 @@ fun ProgressScreen(repo: Repository, nav: AppNav, initialTab: String?) {
                             }
                             list == null -> item(key = "lb-load") { ListSkeleton(6, 40.dp) }
                             list.isEmpty() -> item(key = "lb-empty") {
-                                EmptyState(Icons.Outlined.EmojiEvents, "Ninguém no ranking ainda", "Converse e participe da comunidade para aparecer aqui.")
+                                EmptyState(PcArt.Ranks, "Ninguém no ranking ainda", "Converse e participe da comunidade para aparecer aqui.")
                             }
                             else -> {
                                 val top = list.filter { !it.outsideTop50 }
@@ -302,7 +304,7 @@ fun ProgressScreen(repo: Repository, nav: AppNav, initialTab: String?) {
                             }
                             list == null -> item(key = "ach-load") { GridSkeleton() }
                             list.isEmpty() -> item(key = "ach-empty") {
-                                EmptyState(Icons.Outlined.MilitaryTech, "Nenhuma conquista cadastrada", "Assim que a equipe criar conquistas, elas aparecem aqui.")
+                                EmptyState(PcArt.Achievements, "Nenhuma conquista cadastrada", "Assim que a equipe criar conquistas, elas aparecem aqui.")
                             }
                             else -> {
                                 item(key = "rarity") {
@@ -388,7 +390,7 @@ private fun ProgressHero(me: User?, rank: ProgressRank?, rankError: String?, lev
                         maxLines = 1, overflow = TextOverflow.Ellipsis,
                     )
                     Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                        rank?.levelTitle?.takeIf { it.isNotBlank() }?.let { HeroChip(it, Icons.Outlined.Star, highlight = true) }
+                        rank?.levelTitle?.takeIf { it.isNotBlank() }?.let { HeroChip(it, PcArt.LevelStar, highlight = true) }
                         rank?.levelName?.takeIf { it.isNotBlank() }?.let { HeroChip(it, null, highlight = false) }
                     }
                 }
@@ -428,31 +430,31 @@ private fun ProgressHero(me: User?, rank: ProgressRank?, rankError: String?, lev
 
             Spacer(Modifier.height(16.dp))
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                HeroStat(Icons.Outlined.EmojiEvents, "Posição", rank?.position?.let { "#${fmt(it)}" } ?: "—", Modifier.weight(1f))
+                HeroStat(PcArt.Ranks, "Posição", rank?.position?.let { "#${fmt(it)}" } ?: "—", Modifier.weight(1f))
                 HeroStat(Icons.Outlined.Bolt, "XP total", rank?.let { fmt(it.xp) } ?: "—", Modifier.weight(1f))
-                HeroStat(Icons.Outlined.MilitaryTech, "Conquistas", totalAchievements?.let { "$unlocked/$it" } ?: "—", Modifier.weight(1f))
+                HeroStat(PcArt.Achievements, "Conquistas", totalAchievements?.let { "$unlocked/$it" } ?: "—", Modifier.weight(1f))
             }
         }
     }
 }
 
 @Composable
-private fun HeroChip(text: String, icon: ImageVector?, highlight: Boolean) {
+private fun HeroChip(text: String, icon: Any?, highlight: Boolean) {
     Row(
         Modifier.clip(CircleShape).background(if (highlight) Color(0x33FFFFFF) else Color(0x22000000))
             .padding(horizontal = 10.dp, vertical = 4.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        if (icon != null) { Icon(icon, null, tint = Color.White, modifier = Modifier.size(14.dp)); Spacer(Modifier.width(4.dp)) }
+        if (icon != null) { ArtIcon(icon, Color.White, Modifier.size(14.dp)); Spacer(Modifier.width(4.dp)) }
         Text(text, color = Color.White, style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.SemiBold, maxLines = 1)
     }
 }
 
 @Composable
-private fun HeroStat(icon: ImageVector, label: String, value: String, modifier: Modifier) {
+private fun HeroStat(icon: Any, label: String, value: String, modifier: Modifier) {
     Column(modifier.clip(RoundedCornerShape(14.dp)).background(Color(0x33000000)).padding(horizontal = 10.dp, vertical = 10.dp)) {
         Row(verticalAlignment = Alignment.CenterVertically) {
-            Icon(icon, null, tint = Color(0xB3FFFFFF), modifier = Modifier.size(14.dp))
+            ArtIcon(icon, Color(0xB3FFFFFF), Modifier.size(14.dp))
             Spacer(Modifier.width(4.dp))
             Text(label, color = Color(0xB3FFFFFF), style = MaterialTheme.typography.labelSmall, maxLines = 1, overflow = TextOverflow.Ellipsis)
         }
@@ -464,7 +466,7 @@ private fun HeroStat(icon: ImageVector, label: String, value: String, modifier: 
 /* ---------------- Abas ---------------- */
 
 @Composable
-private fun ProgressTabs(items: List<Triple<ImageVector, String, String?>>, selected: Int, onSelect: (Int) -> Unit) {
+private fun ProgressTabs(items: List<Triple<Any, String, String?>>, selected: Int, onSelect: (Int) -> Unit) {
     val shape = RoundedCornerShape(18.dp)
     Row(Modifier.fillMaxWidth().clip(shape).background(PC.Surface).border(1.dp, PC.Line, shape).padding(5.dp)) {
         items.forEachIndexed { i, (icon, label, count) ->
@@ -475,7 +477,7 @@ private fun ProgressTabs(items: List<Triple<ImageVector, String, String?>>, sele
                 horizontalAlignment = Alignment.CenterHorizontally,
             ) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    Icon(icon, null, tint = if (on) PC.Brand else PC.Muted, modifier = Modifier.size(18.dp))
+                    ArtIcon(icon, if (on) PC.Brand else PC.Muted, Modifier.size(18.dp))
                     if (count != null) {
                         Spacer(Modifier.width(5.dp))
                         Text(count, color = if (on) PC.Brand else PC.Faint, style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Bold)
@@ -682,7 +684,7 @@ private fun AchievementIcon(a: ProgressAchievement, size: Dp) {
                 // Ícone de traço da conquista (mesmo estilo do site).
                 com.projectclub.android.ui.common.StrokeIconTile(spec.first, if (a.unlocked) spec.second else PC.Faint, size * 0.58f, tile = false)
             } else if (!loaded) {
-                Icon(Icons.Outlined.MilitaryTech, null, tint = if (a.unlocked) color else PC.Faint, modifier = Modifier.size(size * 0.55f))
+                ArtIcon(PcArt.Achievements, if (a.unlocked) color else PC.Faint, Modifier.size(size * 0.55f))
             }
             if (url != null) {
                 AsyncImage(
@@ -803,7 +805,7 @@ private fun Rewards(level: Int, rank: ProgressRank?) {
             PcCard(Modifier.fillMaxWidth(), border = PC.Brand.copy(alpha = 0.4f), background = Brush.linearGradient(listOf(PC.BrandSoft, PC.Surface))) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Box(Modifier.size(46.dp).clip(RoundedCornerShape(14.dp)).background(PC.Brand.copy(alpha = 0.2f)), contentAlignment = Alignment.Center) {
-                        Icon(Icons.Outlined.CardGiftcard, null, tint = PC.Brand, modifier = Modifier.size(24.dp))
+                        ArtIcon(PcArt.Gift, PC.Brand, Modifier.size(24.dp))
                     }
                     Spacer(Modifier.width(12.dp))
                     Column(Modifier.weight(1f)) {

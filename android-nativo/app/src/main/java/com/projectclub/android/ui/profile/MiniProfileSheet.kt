@@ -143,7 +143,7 @@ fun MiniProfileSheet(
                                         Box(Modifier.size(30.dp).clip(RoundedCornerShape(st?.corner?.coerceAtMost(8.dp) ?: 8.dp)).background(st?.base ?: PC.Surface3), contentAlignment = Alignment.Center) {
                                             val img = Config.media(b.iconUrl)
                                             if (img != null) AsyncImage(img, b.name, imageLoader = loader, modifier = Modifier.size(22.dp))
-                                            else Text(b.icon ?: "🏅")
+                                            else if (b.icon != null) Text(b.icon) else com.projectclub.android.ui.common.ArtIcon(com.projectclub.android.ui.common.PcArt.Medal, PC.Muted, Modifier.size(22.dp))
                                         }
                                     }
                                 }

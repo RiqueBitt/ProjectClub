@@ -20,6 +20,8 @@ data class EcoWallet(
     val nextDailyAt: String? = null,
     /** Estilo do cartão da carteira: DEFAULT, GOLD (Assinante) ou RAINBOW (Super). */
     val cardStyle: String? = null,
+    /** Estilos que a categoria da pessoa libera (o servidor confere de novo ao trocar). */
+    val cardStyles: List<String> = listOf("DEFAULT"),
 )
 
 @Serializable

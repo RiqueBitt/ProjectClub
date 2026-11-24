@@ -73,7 +73,8 @@ fun untilText(iso: String?, now: Long = System.currentTimeMillis()): String? {
 @Composable
 fun CurrencyAmount(gems: Boolean, amount: Int?, modifier: Modifier = Modifier, iconSize: Dp = 16.dp, color: Color? = null, bold: Boolean = true) {
     Row(modifier, verticalAlignment = Alignment.CenterVertically) {
-        Icon(if (gems) GemIcon else CoinIcon, if (gems) "Gemas" else "Moedas", tint = if (gems) GemColor else CoinColor, modifier = Modifier.size(iconSize))
+        // Moeda "PC" e gema desenhadas do site (ui/common/PcArt.kt).
+        com.projectclub.android.ui.common.CurrencyArt(gems, iconSize)
         Spacer(Modifier.width(4.dp))
         Text(
             fmtNum(amount), color = color ?: PC.Header, style = MaterialTheme.typography.labelLarge,

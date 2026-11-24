@@ -1,5 +1,6 @@
 package com.projectclub.android.ui.home
 
+import com.projectclub.android.ui.common.PcArt
 import android.content.Intent
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -87,7 +88,7 @@ import com.projectclub.android.ui.common.PcTopBar
 import com.projectclub.android.ui.theme.PC
 import kotlinx.coroutines.launch
 
-private data class Entry(val icon: ImageVector, val label: String, val color: Color, val path: String)
+private data class Entry(val icon: Any, val label: String, val color: Color, val path: String)
 
 /** Aba Você: perfil e tudo do Project Club que abre pelo site (já logado). */
 @Composable
@@ -100,10 +101,10 @@ fun MoreTab(repo: Repository, actions: HomeActions, nav: com.projectclub.android
 
     val grid = listOf(
         Entry(Icons.Outlined.LocalMall, "Loja", PC.Store, "/loja"),
-        Entry(Icons.Outlined.MonetizationOn, "Economia", PC.Purple, "/economia"),
+        Entry(PcArt.Coin, "Economia", PC.Purple, "/economia"),
         Entry(Icons.Outlined.TaskAlt, "Missões", PC.Pink, "/missoes"),
-        Entry(Icons.Outlined.EmojiEvents, "Conquistas", PC.Yellow, "/progresso?tab=conquistas"),
-        Entry(Icons.Outlined.Leaderboard, "Rank", PC.Brand, "/rank"),
+        Entry(PcArt.Achievements, "Conquistas", PC.Yellow, "/progresso?tab=conquistas"),
+        Entry(PcArt.Ranks, "Rank", PC.Brand, "/rank"),
         Entry(Icons.Outlined.Groups, "Clubes", Color(0xFFFB923C), "/clans"),
         Entry(Icons.Outlined.CalendarMonth, "Eventos", PC.Events, "/comunidade/eventos"),
         Entry(Icons.AutoMirrored.Outlined.Article, "Fórum", PC.Forum, "/comunidades"),

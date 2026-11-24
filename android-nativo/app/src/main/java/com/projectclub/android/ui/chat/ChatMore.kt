@@ -204,7 +204,13 @@ fun TipDialog(repo: Repository, m: Message, onDone: (String?) -> Unit) {
                         Box(
                             Modifier.clip(RoundedCornerShape(10.dp)).background(if (on) PC.Brand else PC.Surface2).clickable { amount = v.toString() }
                                 .padding(horizontal = 14.dp, vertical = 8.dp),
-                        ) { Text("🪙 $v", color = if (on) PC.OnBrand else PC.Text, fontWeight = FontWeight.Bold) }
+                        ) {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                com.projectclub.android.ui.common.CurrencyArt(false, 16.dp)
+                                Spacer(Modifier.width(5.dp))
+                                Text("$v", color = if (on) PC.OnBrand else PC.Text, fontWeight = FontWeight.Bold)
+                            }
+                        }
                     }
                 }
                 Spacer(Modifier.height(10.dp))
@@ -218,7 +224,7 @@ fun TipDialog(repo: Repository, m: Message, onDone: (String?) -> Unit) {
                 busy = true; error = null
                 scope.launch {
                     runCatching { repo.api.postIgnore("/api/tips", buildJsonObject { put("messageId", m.id); put("amount", amount.toInt()) }) }
-                        .onSuccess { onDone("Gorjeta de $amount moedas enviada 🪙") }
+                        .onSuccess { onDone("Gorjeta de $amount moedas enviada") }
                         .onFailure { error = errText(it, "Não deu pra mandar a gorjeta.") }
                     busy = false
                 }

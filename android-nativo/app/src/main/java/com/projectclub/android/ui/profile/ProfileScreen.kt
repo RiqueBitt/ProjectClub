@@ -1,5 +1,7 @@
 package com.projectclub.android.ui.profile
 
+import com.projectclub.android.ui.common.PcArt
+import com.projectclub.android.ui.common.ArtIcon
 import android.widget.Toast
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -416,7 +418,7 @@ fun ProfileScreen(repo: Repository, nav: AppNav, userId: String) {
                     }
 
                     if (profile.badges.isNotEmpty()) item(key = "badges") {
-                        SectionCard("Insígnias", Icons.Outlined.MilitaryTech, profile.badges.size) {
+                        SectionCard("Insígnias", PcArt.Achievements, profile.badges.size) {
                             Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                                 profile.badges.forEach { b ->
                                     IconTileLabel(b.name, b.iconUrl, b.icon ?: "🏅", spec = com.projectclub.android.ui.common.StrokeIcons.badge(b.key, b.iconUrl, b.rarity), onClick = { openBadge = b })
@@ -426,7 +428,7 @@ fun ProfileScreen(repo: Repository, nav: AppNav, userId: String) {
                     }
 
                     if (profile.displayedAchievements.isNotEmpty()) item(key = "achievements") {
-                        SectionCard("Conquistas", Icons.Outlined.EmojiEvents, profile.displayedAchievements.size) {
+                        SectionCard("Conquistas", PcArt.Ranks, profile.displayedAchievements.size) {
                             Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                                 profile.displayedAchievements.forEach { a: ProfileAchievement ->
                                     IconTileLabel(a.name, a.iconUrl, "🏆", spec = com.projectclub.android.ui.common.StrokeIcons.achievement(a.key, null, a.rarity, a.iconUrl), onClick = { a.description?.takeIf { it.isNotBlank() }?.let { toast(it) } })
@@ -686,22 +688,22 @@ private fun StatsRow(profile: ProfileData, fan: ProfileFanStatus, isMe: Boolean)
         horizontalArrangement = Arrangement.spacedBy(8.dp),
     ) {
         Stat(Icons.Outlined.ThumbUp, profile.totalUps.toString(), "Ups")
-        Stat(Icons.Outlined.Star, (u?.accountLevel ?: 1).toString(), "Nível")
+        Stat(PcArt.LevelStar, (u?.accountLevel ?: 1).toString(), "Nível")
         Stat(Icons.Outlined.Favorite, fan.count.toString(), if (fan.count == 1) "Seguidor" else "Seguidores")
-        if (profile.badges.isNotEmpty()) Stat(Icons.Outlined.MilitaryTech, profile.badges.size.toString(), "Insígnias")
+        if (profile.badges.isNotEmpty()) Stat(PcArt.Achievements, profile.badges.size.toString(), "Insígnias")
         if (!isMe && profile.mutualFriends.isNotEmpty()) Stat(Icons.Outlined.People, profile.mutualFriends.size.toString(), "Em comum")
         joinedLabel(u?.createdAt)?.let { Stat(Icons.Outlined.CalendarMonth, it, "Entrou em") }
     }
 }
 
 @Composable
-private fun Stat(icon: ImageVector, value: String, label: String) {
+private fun Stat(icon: Any, value: String, label: String) {
     Row(
         Modifier.sPanel(16.dp).padding(horizontal = 12.dp, vertical = 10.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Box(Modifier.size(32.dp).clip(RoundedCornerShape(Sx.inner(10.dp))).background(Sx.accent.copy(alpha = 0.16f)), contentAlignment = Alignment.Center) {
-            Icon(icon, null, tint = Sx.accent, modifier = Modifier.size(17.dp))
+            ArtIcon(icon, Sx.accent, Modifier.size(17.dp))
         }
         Spacer(Modifier.width(10.dp))
         Column {
@@ -717,7 +719,7 @@ private fun LevelCard(u: ProfileUser, progress: Int) {
     val barColor = parseHex(u.levelBarColor) ?: Sx.accent
     SCard(Modifier.padding(horizontal = 16.dp).fillMaxWidth(), PaddingValues(14.dp)) {
         Row(verticalAlignment = Alignment.CenterVertically) {
-            Icon(Icons.Outlined.Star, null, tint = if (LocalPS.current != null) Sx.accent else PC.Yellow, modifier = Modifier.size(18.dp))
+            ArtIcon(PcArt.LevelStar, PC.Yellow, Modifier.size(18.dp))
             Spacer(Modifier.width(6.dp))
             Text("Nível ${u.accountLevel ?: 1}", color = Sx.header, style = MaterialTheme.typography.titleSmall, fontFamily = Sx.font)
             u.accountXp?.let {
@@ -735,10 +737,10 @@ private fun LevelCard(u: ProfileUser, progress: Int) {
 }
 
 @Composable
-private fun SectionCard(title: String, icon: ImageVector, count: Int? = null, content: @Composable ColumnScope.() -> Unit) {
+private fun SectionCard(title: String, icon: Any, count: Int? = null, content: @Composable ColumnScope.() -> Unit) {
     SCard(Modifier.padding(horizontal = 16.dp).fillMaxWidth(), PaddingValues(16.dp)) {
         Row(verticalAlignment = Alignment.CenterVertically) {
-            Icon(icon, null, tint = if (LocalPS.current != null) Sx.accent else PC.Muted, modifier = Modifier.size(18.dp))
+            ArtIcon(icon, if (LocalPS.current != null) Sx.accent else PC.Muted, Modifier.size(18.dp))
             Spacer(Modifier.width(8.dp))
             Text(title.uppercase(), style = MaterialTheme.typography.labelSmall, color = Sx.muted, fontFamily = Sx.font)
             if (count != null && count > 0) {
