@@ -199,10 +199,14 @@ fun CallLayout(
     screen: @Composable (userId: String, modifier: Modifier) -> Unit,
     activities: CallActivitiesWeb? = null,
 ) {
-    val actLayout = activities?.layout?.value ?: ActivityLayout()
+    val rawLayout = activities?.layout?.value ?: ActivityLayout()
+    // Mesa de RPG: a camada é a tela da call; "ver a tela" mostra a transmissão nativa.
+    val tableScreen = activities?.screenRequest?.value
+    val actLayout = if (rawLayout.table && tableScreen != null) ActivityLayout() else rawLayout
     val others = participants.filter { it.userId != me?.id }
     val sharing = others.filter { it.screenSharing && state.remoteVideo.contains(it.userId) }
     var focused by rememberSaveable { mutableStateOf<String?>(null) }
+    LaunchedEffect(tableScreen) { if (tableScreen != null) focused = tableScreen }
     var fullscreen by rememberSaveable { mutableStateOf(false) }
     var personSheet by remember { mutableStateOf<String?>(null) }
     var picker by remember { mutableStateOf(false) }
@@ -297,11 +301,18 @@ fun CallLayout(
                         }
                     }
                 }
+                if (rawLayout.table && tableScreen != null && !fullscreen) {
+                    Box(
+                        Modifier.align(Alignment.TopCenter).padding(top = 8.dp).clip(RoundedCornerShape(999.dp)).background(Color(0xE6171A22))
+                            .border(1.dp, Color(0x55F8D77A), RoundedCornerShape(999.dp)).clickable { activities?.screenRequest?.value = null }
+                            .padding(horizontal = 14.dp, vertical = 8.dp),
+                    ) { Text("🎲 Voltar à mesa", color = Color(0xFFF8D77A), fontWeight = FontWeight.Bold, fontSize = 13.sp) }
+                }
                 if (activities != null && !fullscreen) {
                     AndroidView(
                         factory = { activities.web.also { (it.parent as? android.view.ViewGroup)?.removeView(it) } },
                         modifier = when {
-                            actLayout.full -> Modifier.fillMaxSize()
+                            actLayout.full || actLayout.table -> Modifier.fillMaxSize()
                             actLayout.stage -> Modifier.fillMaxWidth().height(actLayout.heightDp.dp)
                             // Escondida: 1 dp de altura, mas viva (ouve dados/vídeo que alguém abrir).
                             else -> Modifier.fillMaxWidth().height(1.dp)
@@ -317,7 +328,13 @@ fun CallLayout(
                     }
                 }
                 if (state.pushToTalk) PushToTalkButton(state, actions)
-                ControlDock(state, actions, picker, onActivities = activities?.let { a -> { picker = false; a.open() } }) { picker = !picker }
+                val ctx = LocalContext.current
+                ControlDock(state, actions, picker, onActivities = activities?.let { a ->
+                    {
+                        picker = false
+                        if (!a.open()) android.widget.Toast.makeText(ctx, "Carregando as atividades… abre em instantes.", android.widget.Toast.LENGTH_SHORT).show()
+                    }
+                }) { picker = !picker }
             }
         }
     }

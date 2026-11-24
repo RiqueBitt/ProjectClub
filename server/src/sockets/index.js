@@ -899,6 +899,10 @@ function initSockets(httpServer) {
         socket.data.activityWatch = channelId;
         socket.join(`voice:${channelId}`);
         ytWatch.sendState(socket, channelId);
+        // Quem está na sala agora + se é mesa de RPG (a camada do app desenha a mesa).
+        const room = await voiceStore.getRoom(channelId);
+        const participants = Object.entries(room).map(([uid, p]) => ({ userId: uid, muted: !!p.muted, deafened: !!p.deafened, screenSharing: !!p.screenSharing, video: !!p.video }));
+        socket.emit('activity:room', { channelId, rpgMode: await rpgTable.isRpgChannel(channelId), participants });
       } catch (err) { console.error('[socket] activity:watch falhou:', err?.message || err); }
     });
     socket.on('activity:unwatch', ({ channelId } = {}) => {
