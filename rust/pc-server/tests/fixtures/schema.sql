@@ -699,6 +699,7 @@ CREATE TABLE `Channel` (
     `position` INTEGER NOT NULL DEFAULT 0,
     `isPrivate` BOOLEAN NOT NULL DEFAULT false,
     `userLimit` INTEGER NULL,
+    `rpgMode` BOOLEAN NOT NULL DEFAULT false,
     `rulesContent` TEXT NULL,
     `rulesTitle` VARCHAR(191) NULL,
     `iconEmoji` VARCHAR(191) NULL,

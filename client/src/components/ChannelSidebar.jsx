@@ -577,9 +577,9 @@ function ChannelGroup({
               >
                 <ChannelIcon channel={ch} />
                 <span className="truncate">{ch.name}</span>
-                {isVoiceType && ch.userLimit > 0 && (
-                  <span className="channel-user-limit" title="Limite de usuários no canal de voz">
-                    {rosterEntries.length}/{ch.userLimit}
+                {isVoiceType && (ch.rpgMode || ch.userLimit > 0) && (
+                  <span className="channel-user-limit" title={ch.rpgMode ? 'Mesa de RPG: 1 mestre + 4 jogadores' : 'Limite de usuários no canal de voz'}>
+                    {ch.rpgMode ? '🎲 ' : ''}{rosterEntries.length}/{ch.rpgMode ? 5 : ch.userLimit}
                   </span>
                 )}
                 {isVoiceType && rosterEntries.length > 0 && (

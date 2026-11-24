@@ -40,6 +40,7 @@ export default function EditChannelModal({ channel, onClose, onDeleted }) {
   const [type, setType] = useState(channel.type);
   const [isPrivate, setIsPrivate] = useState(!!channel.isPrivate);
   const [userLimit, setUserLimit] = useState(channel.userLimit ?? '');
+  const [rpgMode, setRpgMode] = useState(!!channel.rpgMode);
   const [slowModeSeconds, setSlowModeSeconds] = useState(channel.slowModeSeconds ?? '');
   const { user } = useAuth();
   const categories = useStore((s) => s.categories);
@@ -68,7 +69,8 @@ export default function EditChannelModal({ channel, onClose, onDeleted }) {
     try {
       await updateChannel(channel.id, {
         name: cleanName, topic, type, isPrivate,
-        userLimit: isVoiceLike ? userLimit : undefined,
+        userLimit: isVoiceLike && !(rpgMode && type === 'VOICE') ? userLimit : undefined,
+        rpgMode: type === 'VOICE' ? rpgMode : false,
         slowModeSeconds: !isVoiceLike ? (slowModeSeconds || null) : undefined,
       });
       // Ícone: só manda se mudou (o socket channel:update avisa todo mundo).
@@ -122,7 +124,16 @@ export default function EditChannelModal({ channel, onClose, onDeleted }) {
           TIPO
           <ChannelTypePicker types={TYPES} value={type} onChange={setType} />
         </label>
-        {isVoiceLike && (
+        {type === 'VOICE' && (
+          <label className="channel-rpg-toggle">
+            <span className="channel-rpg-row">
+              <input type="checkbox" checked={rpgMode} onChange={(e) => setRpgMode(e.target.checked)} />
+              <strong>🎲 Call modo RPG</strong>
+            </span>
+            <span className="dim">Vira uma mesa: 1 mestre no topo (com a transmissão da mesa) e 4 jogadores embaixo, com nome de personagem e ficha do BLACKOUT (vida, estresse e pontos de ação) e histórico das rolagens. Sempre no máximo 5 pessoas.</span>
+          </label>
+        )}
+        {isVoiceLike && !(rpgMode && type === 'VOICE') && (
           <label>
             LIMITE DE USUÁRIOS (0 = sem limite)
             <input

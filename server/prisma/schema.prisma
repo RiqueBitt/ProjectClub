@@ -1203,6 +1203,9 @@ model Channel {
   position        Int       @default(0)
   isPrivate       Boolean   @default(false)
   userLimit       Int?
+  // Call modo RPG (Configurações do canal de voz): mesa com 1 mestre + 4
+  // jogadores, sempre no máximo 5 pessoas (sockets/rpgTable.js).
+  rpgMode         Boolean   @default(false)
   rulesContent    String?   @db.Text
   rulesTitle      String?
   // Ícone personalizado (opcional): um emoji OU uma imagem pequena —

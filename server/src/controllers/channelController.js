@@ -102,6 +102,9 @@ async function updateChannel(req, res, next) {
     else if (iconUrl) data.iconEmoji = null;
     if (req.body.type !== undefined && VALID_TYPES.includes(req.body.type)) data.type = req.body.type;
     if (req.body.userLimit !== undefined) data.userLimit = clampUserLimit(req.body.userLimit);
+    // Modo RPG: só em canal de voz comum (não palco).
+    if (req.body.rpgMode !== undefined) data.rpgMode = !!req.body.rpgMode && (data.type || existing.type) === 'VOICE';
+    else if (data.type && data.type !== 'VOICE' && existing.rpgMode) data.rpgMode = false;
     if (req.body.slowModeSeconds !== undefined) data.slowModeSeconds = clampSlowMode(req.body.slowModeSeconds, req.body.type || existing.type);
 
     if (req.body.isPrivate !== undefined) {
