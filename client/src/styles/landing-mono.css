@@ -352,3 +352,20 @@ html .lp-mono :focus-visible { outline: 2px solid currentColor !important; outli
 .lp-mono .lp-sheet a:hover, .lp-mono .lp-sheet a[aria-current='page'] { background: #fff; color: #000; }
 .lp-mono .lp-sheet .lp-sheet-login { border-radius: 0; border-top-color: rgba(255, 255, 255, .16); }
 .lp-mono .lp-burger { border-radius: 0 !important; }
+
+/* Versão enxuta: abertura só com o nome, uma frase e os botões; mais ar
+   entre as seções e cartões com só nome e uma linha. */
+.lm-hero-side.lm-cta { flex-direction: row; flex-wrap: wrap; justify-content: flex-end; align-self: end; padding-bottom: 8px; }
+.lm-hero .lm-hero-title { margin-top: clamp(40px, 8vh, 110px); }
+.lm-hero .lm-marquee { padding: clamp(14px, 2.4vh, 22px) 0; }
+.lm-sec { padding-block: clamp(110px, 17vh, 200px); }
+.lm-card-meta p { color: var(--ink-3); font-size: 15px; }
+.lm-principles li { min-height: 190px; }
+.lm-principles p { font-size: 15px; }
+.lm-dl-desc { font: 500 12px/1 var(--mono); text-transform: uppercase; letter-spacing: .12em; }
+.lm-more { display: inline-flex; gap: 10px; margin-top: 36px; font: 700 12px/1 var(--mono); text-transform: uppercase; letter-spacing: .16em; border-bottom: 1px solid currentColor; padding-bottom: 4px; }
+.lm-more span { transition: transform .45s var(--ease-out); }
+.lm-more:hover span { transform: translateX(6px); }
+@media (max-width: 760px) { .lm-hero-side.lm-cta { justify-content: stretch; } }
+.lm-hero .lm-hero-row { grid-template-columns: minmax(0, 1fr) auto; }
+@media (max-width: 760px) { .lm-hero .lm-hero-row { grid-template-columns: 1fr; } }

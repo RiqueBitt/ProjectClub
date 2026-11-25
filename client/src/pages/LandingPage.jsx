@@ -1,6 +1,5 @@
 import { forwardRef, useEffect, useImperativeHandle, useRef, useState } from 'react';
-import { useLocation, useNavigate } from 'react-router-dom';
-import { Ico } from '../components/PagesKit.jsx';
+import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { PublicFooter, PublicHeader, usePublicScrollChrome } from './public/PublicChrome.jsx';
 import { useAuth } from '../context/AuthContext.jsx';
 import '../styles/landing.css';
@@ -88,49 +87,6 @@ function useReveal() {
 
 // ---------- Dados ao vivo ----------
 // Pulso da comunidade (só números agregados) e versão publicada de cada app.
-function usePulse() {
-  const [pulse, setPulse] = useState(null);
-  useEffect(() => {
-    let alive = true;
-    const load = () => fetch('/api/platform/pulse').then((r) => (r.ok ? r.json() : null)).then((d) => { if (alive && d && d.members != null) setPulse(d); }).catch(() => {});
-    load();
-    const t = setInterval(load, 30000);
-    return () => { alive = false; clearInterval(t); };
-  }, []);
-  return pulse;
-}
-const fmtNum = (n) => new Intl.NumberFormat('pt-BR').format(n);
-
-// Número que conta até o valor quando aparece.
-function CountUp({ value }) {
-  const [shown, setShown] = useState(reducedMotion() ? value : 0);
-  useEffect(() => {
-    if (reducedMotion()) { setShown(value); return undefined; }
-    const from = shown; const start = performance.now(); let raf = 0;
-    const step = (now) => {
-      const k = Math.min(1, (now - start) / 900); const e = 1 - Math.pow(1 - k, 3);
-      setShown(Math.round(from + (value - from) * e));
-      if (k < 1) raf = requestAnimationFrame(step);
-    };
-    raf = requestAnimationFrame(step);
-    return () => cancelAnimationFrame(raf);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [value]);
-  return <>{fmtNum(shown)}</>;
-}
-
-function Pulse() {
-  const pulse = usePulse();
-  if (!pulse || !pulse.online) return null;
-  return (
-    <p className="lp-pulse" aria-live="polite">
-      <span className="lp-pulse-item"><i className="lp-pulse-dot" aria-hidden="true" /><b><CountUp value={pulse.online} /></b> {pulse.online === 1 ? 'pessoa online agora' : 'pessoas online agora'}</span>
-    </p>
-  );
-}
-
-// ---------- Busca rápida (Ctrl+K) ----------
-// Pula para qualquer app, seção ou ação sem rolar a página.
 function CommandPalette({ open, onClose, onPickApp, actions }) {
   const [q, setQ] = useState('');
   const [sel, setSel] = useState(0);
@@ -175,86 +131,6 @@ function CommandPalette({ open, onClose, onPickApp, actions }) {
 // Cor e ficha de exemplo de cada personagem. O lado esquerdo da seção troca
 // junto com a figura. Mesma ficha da Call modo RPG (PV, Estresse, PA e Ação
 // Rápida, ver components/voice/RpgTable.jsx); os valores são de exemplo.
-const BO_CHARS = [
-  {
-    id: 'bruxo', name: 'Bruxo', src: '/site/personagens/bruxo.webp',
-    acc: '#ff3b3b', rgb: '255, 59, 59', glow: '170, 20, 24',
-    sheet: { pv: 11, pvMax: 20, stress: 4, pa: 3, ar: 1 },
-  },
-  {
-    id: 'sacerdotisa', name: 'Sacerdotisa', src: '/site/personagens/sacerdotisa.webp',
-    acc: '#f2c46b', rgb: '242, 196, 107', glow: '150, 98, 22',
-    sheet: { pv: 18, pvMax: 18, stress: 1, pa: 2, ar: 0 },
-  },
-];
-
-function BlackoutTable() {
-  const [hero, setHero] = useState(0);
-  const [roll, setRoll] = useState(20);
-  const [spin, setSpin] = useState(0);
-  const timer = useRef(0);
-  useEffect(() => () => clearInterval(timer.current), []);
-  const doRoll = () => {
-    clearInterval(timer.current);
-    if (reducedMotion()) { setRoll(1 + Math.floor(Math.random() * 20)); return; }
-    let n = 0;
-    setSpin((x) => x + 1);
-    timer.current = setInterval(() => {
-      n += 1;
-      setRoll(1 + Math.floor(Math.random() * 20));
-      if (n > 12) clearInterval(timer.current);
-    }, 55);
-  };
-  const crit = roll === 20 ? ' is-crit' : roll === 1 ? ' is-fail' : '';
-  const ch = BO_CHARS[hero];
-  return (
-    <section id="blackout" className="lp-bo is-v2" aria-labelledby="bo-titulo" style={{ '--acc': ch.acc, '--acc-rgb': ch.rgb, '--glow-rgb': ch.glow }}>
-      <div className="lp-bo-bg" aria-hidden="true" />
-      <div className="lp-bo-glow" key={`g${hero}`} aria-hidden="true" />
-      <div className="lp-bo-art">
-        {BO_CHARS.map((c, i) => (
-          <button key={c.id} type="button" className={`lp-bo-pick ${i === hero ? 'is-on' : ''}`} onClick={() => setHero(i)} aria-pressed={i === hero} aria-label={`Mostrar ${c.name}`} tabIndex={-1}>
-            <img src={c.src} alt="" loading="lazy" />
-          </button>
-        ))}
-        <p className="lp-bo-name" key={hero} aria-hidden="true">{BO_CHARS[hero].name}</p>
-        <div className="lp-bo-tabs" role="group" aria-label="Escolher personagem">
-          {BO_CHARS.map((c, i) => (
-            <button key={c.id} type="button" className={i === hero ? 'is-on' : ''} aria-pressed={i === hero} onClick={() => setHero(i)}>{c.name}</button>
-          ))}
-        </div>
-      </div>
-      <div className="lp-bo-center lp-reveal">
-        <p className="lm-eyebrow"><b>02</b>/RPG de mesa</p>
-        <h2 id="bo-titulo" className="lp-bo-title">Blackout</h2>
-        <p className="lp-copy">História, espécies, classes, itens e criação de personagem num compêndio só. A ficha fica salva, sai em PDF e as rolagens acontecem ali mesmo.</p>
-        <div className="lp-bo-sheet" key={`s${hero}`} aria-live="polite">
-          <p className="lp-bo-who"><b>{ch.name}</b><span>Ficha de exemplo</span></p>
-          <ul className="lp-bo-stats">
-            <li style={{ '--i': 0 }}><span title="Pontos de Vida">PV</span><i style={{ '--v': ch.sheet.pv / ch.sheet.pvMax }} /><b>{ch.sheet.pv}/{ch.sheet.pvMax}</b></li>
-            <li style={{ '--i': 1 }}><span title="Estresse: cheio vira BURNOUT">Estresse</span><em className="lp-bo-pips" role="img" aria-label={`Estresse ${ch.sheet.stress} de 6`}>{[1, 2, 3, 4, 5, 6].map((n) => <s key={n} className={n <= ch.sheet.stress ? 'is-on' : ''} style={{ '--n': n }} />)}</em><b>{ch.sheet.stress}/6</b></li>
-            <li style={{ '--i': 2 }}><span title="Pontos de Ação por turno e Ação Rápida">PA</span><em className="lp-bo-pips is-pa" role="img" aria-label={`Pontos de Ação ${ch.sheet.pa} de 3${ch.sheet.ar ? ', com Ação Rápida' : ''}`}>{[1, 2, 3].map((n) => <s key={n} className={n <= ch.sheet.pa ? 'is-on' : ''} style={{ '--n': n }} />)}<s className={`is-ar${ch.sheet.ar ? ' is-on' : ''}`} style={{ '--n': 4 }}>AR</s></em><b>{ch.sheet.pa}/3</b></li>
-          </ul>
-        </div>
-        <ol className="lp-bo-feats">
-          <li><b>Ficha</b><span>Monta o personagem passo a passo</span></li>
-          <li><b>Trilha</b><span>A classe evolui com o personagem</span></li>
-          <li><b>Rolagens</b><span>Dados na hora, sem sair da mesa</span></li>
-        </ol>
-        <button type="button" className={`lp-d20${crit}`} onClick={doRoll} aria-label={`Rolar um d20. Último resultado: ${roll}`}>
-          <svg key={spin} viewBox="0 0 100 100" aria-hidden="true">
-            <path d="M50 4 92 28v44L50 96 8 72V28z" />
-            <path d="M50 4 30 40h40zM8 28l22 12M92 28 70 40M30 40 50 76 70 40M8 72l42 4 42-4M50 76v20M30 40 8 72M70 40l22 32" />
-          </svg>
-          <b aria-live="polite">{roll}</b>
-          <small>{roll === 20 ? 'Crítico!' : roll === 1 ? 'Falha crítica' : 'Clique pra rolar'}</small>
-        </button>
-      </div>
-    </section>
-  );
-}
-
-// Captura do app ou, sem captura (art: 'type'), o nome em letras grandes.
 function AppArt({ a, className = '', eager = false, alt = '' }) {
   if (a.art === 'type') {
     return (
@@ -270,11 +146,6 @@ function AppArt({ a, className = '', eager = false, alt = '' }) {
 
 // Grade dos apps (estilo portfólio): captura em preto e branco, nome,
 // o que faz e duas etiquetas. A captura entra com uma cortina ao aparecer.
-const APP_INFO = {
-  projectclub: { status: 'Disponível', platforms: 'Windows · Linux · Android · Navegador', go: 'download' },
-  modmanager: { status: 'Disponível', platforms: 'Windows · Linux', go: 'download' },
-  blackout: { status: 'Para quem está na mesa', platforms: 'Computador · Celular', go: 'blackout' },
-};
 const AppGrid = forwardRef(function AppGrid(_props, apiRef) {
   const listRef = useRef(null);
   useImperativeHandle(apiRef, () => ({
@@ -287,21 +158,14 @@ const AppGrid = forwardRef(function AppGrid(_props, apiRef) {
           <p className="lm-eyebrow lp-reveal"><b>01</b>/Apps</p>
           <h2 id="apps-titulo" className="lm-h2 lp-reveal">Três apps. Uma conta.</h2>
         </div>
-        <p className="lm-copy lp-reveal">A comunidade, o gerenciador de mods dos seus jogos e o RPG Blackout, com o mesmo login.</p>
       </div>
       <ul className="lm-grid" ref={listRef}>
         {APPS.map((a, i) => (
           <li key={a.id} className="lm-card lp-reveal" style={{ '--i': i }}>
-            <p className="lm-card-top"><span>{String(i + 1).padStart(2, '0')}</span><span>{a.verb}</span></p>
             <div className="lm-card-art"><AppArt a={a} eager={i === 0} alt={`${a.name}: ${a.what}`} /></div>
             <div className="lm-card-meta">
-              <h3><img src={`/apps/${a.id}/icon.png`} alt="" width="28" height="28" />{a.name}</h3>
-              <p>{a.line}</p>
-              <p className="lm-card-foot">
-                <span className="lm-status">{APP_INFO[a.id]?.status}</span>
-                <span className="lm-plat">{APP_INFO[a.id]?.platforms}</span>
-              </p>
-              <a className="lm-explore" href={`#${APP_INFO[a.id]?.go || 'download'}`} data-cursor="Explorar">Explorar <span aria-hidden="true">→</span></a>
+              <h3>{a.name}</h3>
+              <p>{a.what}</p>
             </div>
           </li>
         ))}
@@ -340,8 +204,8 @@ function useFitText(selector, maxWidth = Infinity) {
   }, [selector, maxWidth]);
 }
 
-// Faixa de palavras correndo (duas linhas, sentidos opostos).
-const MARQUEE = ['Chat', 'Salas de voz', 'Fórum', 'Mod Manager', 'RPG Blackout', 'Conquistas', 'Loja', 'Figurinhas', 'Amigos'];
+// Faixa de palavras correndo.
+const MARQUEE = ['Chat', 'Voz', 'Fórum', 'Mods', 'RPG'];
 function Marquee() {
   const row = (rev) => (
     <div className={`lm-marquee-row${rev ? ' is-rev' : ''}`}>
@@ -352,7 +216,7 @@ function Marquee() {
       ))}
     </div>
   );
-  return <div className="lm-marquee" role="presentation">{row(false)}{row(true)}</div>;
+  return <div className="lm-marquee" role="presentation">{row(false)}</div>;
 }
 
 // Cursor: um ponto que inverte as cores do que passa por baixo e cresce
@@ -401,7 +265,6 @@ export default function LandingPage() {
   useFitText('.lm-hero-title, .lm-end-title');
   useFitText('.lp-bo-title', 760);
   const [platform] = useState(detectPlatform);
-  const [copied, setCopied] = useState(false);
   const [cmdOpen, setCmdOpen] = useState(false);
   const stageRef = useRef(null);
   useEffect(() => {
@@ -453,7 +316,7 @@ export default function LandingPage() {
     { key: 'go-dl', label: 'Baixar o Project Club', hint: 'Windows, Linux e Android', glyph: '↓', run: () => jump('download') },
     { key: 'go-login', label: user ? 'Voltar pro app' : 'Entrar', hint: user ? 'Você já está logado' : 'Já tenho conta', glyph: '→', run: () => navigate(user ? '/inicio' : '/login') },
     ...(user ? [] : [{ key: 'go-reg', label: 'Criar conta', hint: 'Grátis, leva um minuto', glyph: '+', run: () => navigate('/register') }]),
-    { key: 'go-bo', label: 'RPG Blackout', hint: 'Fichas, classes e rolagens', glyph: '◆', run: () => jump('blackout') },
+    { key: 'go-bo', label: 'RPG Blackout', hint: 'Fichas, classes e rolagens', glyph: '◆', run: () => stageRef.current?.goTo(2) },
     { key: 'go-com', label: 'Comunidade', hint: 'Chat, voz, fórum e conquistas', glyph: '#', run: () => jump('comunidade') },
     { key: 'go-faq', label: 'Perguntas', hint: 'Preço, requisitos e atualizações', glyph: '?', run: () => jump('perguntas') },
     { key: 'go-blog', label: 'Blog', hint: 'O guia completo do Project Club', glyph: '¶', run: () => navigate('/blog') },
@@ -462,9 +325,6 @@ export default function LandingPage() {
 
   const goLogin = () => navigate(user ? '/inicio' : '/login');
   const goRegister = () => navigate(user ? '/inicio' : '/register');
-  const copyLink = async () => {
-    try { await navigator.clipboard.writeText('https://projectclub.shardweb.app'); setCopied(true); setTimeout(() => setCopied(false), 1800); } catch { /* sem área de transferência */ }
-  };
 
   return (
     <div className="lp lp-mono">
@@ -475,26 +335,20 @@ export default function LandingPage() {
 
       <main id="conteudo">
         <section className="lm-hero lm-dark" aria-labelledby="titulo">
-          <p className="lm-hero-kicker"><span className="lm-icons" aria-hidden="true">{APPS.map((a) => <img key={a.id} src={`/apps/${a.id}/icon.png`} alt="" width="26" height="26" />)}</span>Comunidade, mods e RPG de mesa</p>
           <h1 id="titulo" className="lm-hero-title" aria-label="Project Club"><Wordmark text="Project Club" /></h1>
           <div className="lm-hero-row">
-            <p className="lm-statement lm-words" aria-label="Parece Discord por fora. É nosso por dentro.">
-              {'Parece Discord por fora. É nosso por dentro.'.split(' ').map((w, i) => <span key={i} aria-hidden="true" style={{ '--i': i }}>{w} </span>)}
+            <p className="lm-statement lm-words" aria-label="Comunidade, mods e RPG. De graça.">
+              {'Comunidade, mods e RPG. De graça.'.split(' ').map((w, i) => <span key={i} aria-hidden="true" style={{ '--i': i }}>{w} </span>)}
             </p>
-            <div className="lm-hero-side">
-              <p className="lm-copy">Chat, salas de voz e fórum, com o Mod Manager para os mods dos seus jogos e o RPG Blackout. No computador, no celular e no navegador.</p>
-              <div className="lm-cta">
-                {platform ? (
-                  <a className="lm-btn is-solid lm-magnet" href={DOWNLOADS[platform]} download data-cursor="Baixar">
-                    <Mark name={platform} size={18} /> Baixar para {PLATFORM_LABEL[platform]}
-                  </a>
-                ) : (
-                  <button type="button" className="lm-btn is-solid lm-magnet" onClick={goRegister}>{user ? 'Voltar pro app' : 'Criar conta grátis'}</button>
-                )}
-                <a className="lm-btn is-line" href="#download">Outros sistemas</a>
-              </div>
-              <p className="lm-hero-plat">Windows · Linux · Android · Navegador<span>Grátis, sem assinatura e sem anúncio</span></p>
-              <Pulse />
+            <div className="lm-cta lm-hero-side">
+              {platform ? (
+                <a className="lm-btn is-solid lm-magnet" href={DOWNLOADS[platform]} download data-cursor="Baixar">
+                  <Mark name={platform} size={18} /> Baixar para {PLATFORM_LABEL[platform]}
+                </a>
+              ) : (
+                <button type="button" className="lm-btn is-solid lm-magnet" onClick={goRegister}>{user ? 'Voltar pro app' : 'Criar conta'}</button>
+              )}
+              <a className="lm-btn is-line" href="#download">Outros sistemas</a>
             </div>
           </div>
           <Marquee />
@@ -502,26 +356,20 @@ export default function LandingPage() {
 
         <AppGrid ref={stageRef} />
 
-        <BlackoutTable />
-
         <section id="comunidade" className="lm-sec lm-com" aria-labelledby="com-titulo">
           <div className="lm-sec-head">
             <div>
-              <p className="lm-eyebrow lp-reveal"><b>03</b>/Como é por dentro</p>
-              <h2 id="com-titulo" className="lm-h2 lp-reveal">Feito do jeito do clube.</h2>
+              <p className="lm-eyebrow lp-reveal"><b>02</b>/Comunidade</p>
+              <h2 id="com-titulo" className="lm-h2 lp-reveal">Do jeito do clube.</h2>
             </div>
-            <p className="lm-copy lp-reveal">Canais de texto e de voz, um fórum com temas, amigos, conquistas e uma economia com moedas, casas e figurinhas. A gente decide o que entra.</p>
           </div>
           <ul className="lm-principles">
             {[
-              ['De graça, de verdade', 'Conta, comunidade e apps gratuitos. Sem plano pago e sem anúncio.'],
-              ['Tempo real', 'Mensagens, voz e presença atualizam na hora, sem recarregar.'],
-              ['Perfil seu', 'Cor, banner, molduras, estilos e conquistas com raridade.'],
-              ['Em qualquer aparelho', 'Computador, celular e navegador com a mesma conta.'],
-              ['Atualiza sozinho', 'O app baixa a versão nova e instala quando você fecha.'],
-              ['Seguro', 'Verificação em duas etapas, sessões por aparelho e moderação ativa.'],
+              ['De graça', 'Sem plano pago e sem anúncio.'],
+              ['Tempo real', 'Chat, voz e presença na hora.'],
+              ['Em todo lugar', 'Computador, celular e navegador.'],
             ].map(([t, d], i) => (
-              <li key={t} className="lp-reveal" style={{ '--i': i }} data-spot>
+              <li key={t} className="lp-reveal" style={{ '--i': i }}>
                 <span className="lm-num">{String(i + 1).padStart(2, '0')}</span>
                 <h3>{t}</h3>
                 <p>{d}</p>
@@ -533,17 +381,16 @@ export default function LandingPage() {
         <section id="download" className="lm-sec lm-dark lm-dl" aria-labelledby="dl-titulo">
           <div className="lm-sec-head">
             <div>
-              <p className="lm-eyebrow lp-reveal"><b>04</b>/Download</p>
+              <p className="lm-eyebrow lp-reveal"><b>03</b>/Download</p>
               <h2 id="dl-titulo" className="lm-h2 lp-reveal">Escolha o seu sistema.</h2>
             </div>
-            <p className="lm-copy lp-reveal">No computador vem também o Mod Manager. No celular e no navegador você usa a comunidade.</p>
           </div>
           <ul className="lm-dl-list">
             {[
-              { key: 'windows', name: 'Windows', desc: 'Instalador .exe para Windows 10 e 11', href: DOWNLOADS.windows },
-              { key: 'linux', name: 'Linux', desc: 'AppImage para x86_64', href: DOWNLOADS.linux },
-              { key: 'android', name: 'Android', desc: 'Arquivo .apk, instalação manual', href: DOWNLOADS.android },
-              { key: 'browser', name: 'Navegador', desc: 'Sem instalar nada, em qualquer aparelho' },
+              { key: 'windows', name: 'Windows', desc: '.exe', href: DOWNLOADS.windows },
+              { key: 'linux', name: 'Linux', desc: 'AppImage', href: DOWNLOADS.linux },
+              { key: 'android', name: 'Android', desc: '.apk', href: DOWNLOADS.android },
+              { key: 'browser', name: 'Navegador', desc: 'Sem instalar' },
             ].map((d, i) => {
               const inner = (
                 <>
@@ -561,22 +408,20 @@ export default function LandingPage() {
               );
             })}
           </ul>
-          <p className="lm-fine lp-reveal">Os arquivos vêm das versões publicadas no GitHub e se atualizam sozinhos depois de instalados. No Android, permita a instalação de apps fora da loja quando o sistema pedir.</p>
         </section>
 
         <section id="perguntas" className="lm-sec lm-faq-sec" aria-labelledby="faq-titulo">
           <div className="lm-sec-head">
             <div>
-              <p className="lm-eyebrow lp-reveal"><b>05</b>/Perguntas</p>
+              <p className="lm-eyebrow lp-reveal"><b>04</b>/Perguntas</p>
               <h2 id="faq-titulo" className="lm-h2 lp-reveal">Antes de entrar.</h2>
             </div>
           </div>
           <div className="lm-faq">
             {[
-              ['Custa alguma coisa?', 'Não. A conta, a comunidade e todos os apps são gratuitos. Não tem anúncio.'],
-              ['Preciso do app para computador?', 'Só para o Mod Manager. A comunidade funciona no navegador e no Android também, inclusive com chamada de voz em segundo plano.'],
-              ['Como o app se atualiza?', 'Sozinho. O Project Club busca a versão nova ao abrir e instala quando você fecha.'],
-              ['Roda em PC fraco?', 'Sim. A comunidade abre em qualquer navegador atual e no Android, e o app para computador roda em Windows 10 ou 11 de 64 bits e em Linux.'],
+              ['Custa alguma coisa?', 'Não. A conta, a comunidade e os apps são gratuitos, sem anúncio.'],
+              ['Preciso instalar?', 'Só para o Mod Manager. A comunidade funciona no navegador e no Android.'],
+              ['Roda em PC fraco?', 'Sim. Abre em qualquer navegador atual, e o app roda em Windows 10 e 11 e em Linux.'],
             ].map(([q, a], i) => (
               <details key={q} className="lp-reveal" style={{ '--i': i }}>
                 <summary><span>{q}</span><i aria-hidden="true" /></summary>
@@ -584,14 +429,13 @@ export default function LandingPage() {
               </details>
             ))}
           </div>
+          <Link className="lm-more lp-reveal" to="/blog">Mais respostas no Blog <span aria-hidden="true">→</span></Link>
         </section>
 
         <section className="lm-end lm-dark" aria-labelledby="fim-titulo">
-          <p className="lm-eyebrow lp-reveal">Monte o clube com a gente.</p>
           <h2 id="fim-titulo" className="lm-end-title lp-reveal"><Wordmark text="Vem pro clube" /></h2>
           <div className="lm-cta lp-reveal">
             <button type="button" className="lm-btn is-solid lm-magnet" onClick={goRegister}>{user ? 'Voltar pro app' : 'Criar conta'}</button>
-            <button type="button" className="lm-btn is-line" onClick={copyLink}>{copied ? 'Link copiado' : 'Copiar o link do site'}</button>
           </div>
         </section>
       </main>
