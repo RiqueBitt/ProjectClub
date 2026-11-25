@@ -1,0 +1,344 @@
+@import url('https://fonts.googleapis.com/css2?family=Archivo:ital,wdth,wght@0,62..125,300..900;1,62..125,300..900&display=swap');
+
+/* ============================================================
+   Página inicial pública em PRETO E BRANCO (.lp.lp-mono)
+   Fusão de dois estilos:
+   - estúdio de design (Boldium): nome gigante, frases grandes, faixa de
+     palavras correndo, seções que "sobem" uma por cima da outra, cursor;
+   - catálogo de apps (ArtCraft): base quase preta (#0b0b0c), rótulos
+     numerados nas seções ("01/Apps"), cartões com número, categoria,
+     situação e plataformas, e princípios numerados de 01 a 06.
+   Seção escura = .lm-dark: troca --ink/--paper e o resto se ajusta.
+
+   Uma família só (Archivo) em duas larguras: expandida no nome e nos
+   títulos, normal no texto. Nenhuma cor além de preto, branco e cinzas.
+
+   Movimento (tudo some com "reduzir movimento"):
+   - letras do nome sobem de dentro de uma máscara, uma a uma;
+   - frase de abertura entra palavra por palavra, saindo do desfoque;
+   - a prévia do app cresce até a largura toda conforme a rolagem;
+   - faixa de palavras correndo em dois sentidos;
+   - cartões e linhas entram com cortina e atraso em cascata;
+   - linha de download enche de branco da esquerda pra direita no hover;
+   - perguntas abrem com altura animada e o "+" vira "×";
+   - cursor: ponto que inverte as cores e cresce com uma palavra.
+   As outras páginas públicas (blog, termos) continuam com landing.css.
+   ============================================================ */
+
+.lp.lp-mono {
+  --paper: #fff;
+  --ink: #000;
+  --ink-2: #4a4a4a;
+  --ink-3: #8a8a8a;
+  --rule: rgba(0, 0, 0, .12);
+  --wide: 'Archivo', 'Space Grotesk', system-ui, sans-serif;
+  --ease-out: cubic-bezier(.16, 1, .3, 1);
+  --ease-io: cubic-bezier(.65, 0, .35, 1);
+  --gutter: clamp(20px, 4.4vw, 64px);
+  --radius: clamp(24px, 3vw, 44px);
+
+  background: #0b0b0c; color: var(--ink); color-scheme: light;
+  font-family: var(--wide); font-variation-settings: 'wdth' 100;
+}
+.lp-mono ::selection { background: #000; color: #fff; }
+html .lp-mono :focus-visible { outline: 2px solid currentColor !important; outline-offset: 4px; }
+
+/* Barra de progresso da rolagem: fina e preta (inverte nas seções pretas). */
+.lp-mono .lp-progress { background: #fff; mix-blend-mode: difference; height: 3px; z-index: 41; }
+
+/* ---------- Cabeçalho: inverte sozinho sobre branco e preto ---------- */
+.lp-mono .lp-top { mix-blend-mode: difference; color: #fff; }
+.lp-mono.is-scrolled .lp-top { background: transparent; backdrop-filter: none; -webkit-backdrop-filter: none; border-bottom-color: transparent; }
+.lp-mono .lp-logo img { filter: grayscale(1) brightness(1.6); }
+.lp-mono .lp-menu a { color: #fff; opacity: .7; font-weight: 500; }
+.lp-mono .lp-menu a:hover, .lp-mono .lp-menu a.is-current { opacity: 1; }
+.lp-mono .lp-btn.is-accent { background: #fff; color: #000; box-shadow: none; }
+.lp-mono .lp-btn.is-accent::after { display: none; }
+.lp-mono .lp-link, .lp-mono .lp-search { color: #fff; }
+
+/* ---------- Botões ---------- */
+.lp-mono .lm-btn {
+  display: inline-flex; align-items: center; gap: 10px; white-space: nowrap;
+  padding: 18px 30px; border-radius: 999px; font-size: 16px; font-weight: 600; line-height: 1;
+  border: 1.5px solid currentColor; position: relative; overflow: hidden; isolation: isolate;
+  transition: color .45s var(--ease-out), transform .45s var(--ease-out);
+}
+/* Preenchimento que sobe por dentro do botão no hover. */
+.lp-mono .lm-btn::before {
+  content: ''; position: absolute; inset: -1px; z-index: -1; border-radius: inherit;
+  background: currentColor; transform: translateY(102%); transition: transform .5s var(--ease-out);
+}
+.lp-mono .lm-btn.is-solid { background: var(--ink); color: var(--paper); border-color: var(--ink); }
+.lp-mono .lm-btn.is-solid::before { background: var(--paper); }
+.lp-mono .lm-btn.is-solid:hover { color: var(--ink); }
+.lp-mono .lm-btn.is-line { color: var(--ink); }
+.lp-mono .lm-btn.is-line::before { background: var(--ink); }
+.lp-mono .lm-btn.is-line:hover { color: var(--paper); }
+.lp-mono .lm-btn:hover::before { transform: translateY(0); }
+.lm-cta { display: flex; flex-wrap: wrap; gap: 12px; }
+
+/* ---------- Abertura ---------- */
+.lm-hero { padding: clamp(40px, 7vh, 96px) var(--gutter) 0; }
+.lm-hero-kicker { font-size: clamp(14px, 1.1vw, 16px); color: var(--ink-2); margin-bottom: clamp(8px, 2vh, 20px); }
+.lm-hero-title {
+  font-weight: 800; font-variation-settings: 'wdth' 125; text-transform: uppercase;
+  font-size: clamp(44px, 11.4vw, 220px); line-height: .82; letter-spacing: -.045em;
+  margin: 0 0 clamp(28px, 5vh, 56px); white-space: nowrap; width: max-content;
+}
+.lm-word { display: inline-block; }
+.lm-word-mask { display: inline-block; overflow: hidden; vertical-align: top; padding-bottom: .04em; }
+.lm-word-ch { display: inline-block; }
+
+.lm-hero-row { display: grid; grid-template-columns: minmax(0, 1.35fr) minmax(0, 1fr); gap: clamp(28px, 5vw, 96px); align-items: end; }
+.lm-statement {
+  font-size: clamp(30px, 3.9vw, 64px); line-height: 1.02; letter-spacing: -.035em; font-weight: 500;
+  font-variation-settings: 'wdth' 92; text-wrap: balance;
+}
+.lm-statement span { display: inline-block; white-space: pre; }
+.lm-hero-side { display: flex; flex-direction: column; gap: 22px; padding-bottom: 6px; }
+.lm-copy { font-size: clamp(16px, 1.2vw, 18px); line-height: 1.6; color: var(--ink-2); max-width: 46ch; }
+.lp-mono .lp-pulse { justify-content: flex-start; color: var(--ink-3); margin: 0; }
+.lp-mono .lp-pulse b { color: var(--ink); }
+.lp-mono .lp-pulse-dot { background: #000; box-shadow: none; animation: lm-blink 1.6s var(--ease-io) infinite; }
+
+/* Prévia do app: preto e branco, cresce até a largura toda com a rolagem. */
+.lm-hero-shot {
+  --hero: 0;
+  margin: clamp(48px, 9vh, 110px) auto 0; transform-origin: 50% 0;
+  transform: scale(calc(.84 + .16 * var(--hero)));
+  border-radius: calc(var(--radius) * (1 - var(--hero) * .55)); overflow: hidden;
+  filter: grayscale(1) contrast(1.06);
+  box-shadow: 0 50px 100px -40px rgba(0, 0, 0, .45);
+}
+.lp-mono .lm-hero-shot .lp-hero-shot { border: 0; border-radius: 0; box-shadow: none; }
+.lp-mono .lm-hero-shot .lc { min-height: 520px; aspect-ratio: 16 / 9; }
+
+/* ---------- Faixa de palavras correndo ---------- */
+.lm-marquee {
+  margin-top: clamp(64px, 10vh, 120px); padding: clamp(18px, 3vh, 30px) 0;
+  border-block: 1px solid var(--rule); overflow: hidden; display: grid; gap: 6px;
+  font-weight: 700; font-variation-settings: 'wdth' 125; text-transform: uppercase; letter-spacing: -.03em;
+  font-size: clamp(34px, 5.4vw, 92px); line-height: 1;
+}
+.lm-marquee-row { display: flex; width: max-content; animation: lm-marquee 38s linear infinite; }
+.lm-marquee-row.is-rev { animation-direction: reverse; color: transparent; -webkit-text-stroke: 1.2px var(--ink); }
+.lm-marquee:hover .lm-marquee-row { animation-play-state: paused; }
+.lm-marquee-track { display: flex; }
+.lm-marquee-item { display: inline-flex; align-items: center; gap: .35em; padding-right: .35em; }
+.lm-marquee-item i { font-style: normal; font-size: .5em; -webkit-text-stroke: 0; color: var(--ink); }
+
+/* ---------- Seções ---------- */
+.lm-sec { padding: clamp(88px, 14vh, 168px) var(--gutter); position: relative; }
+.lm-sec:not(.lm-dark) { background: #fff; color: #000; }
+.lm-dark {
+  --ink: #fff; --paper: #0b0b0c; --ink-2: rgba(255, 255, 255, .66); --ink-3: rgba(255, 255, 255, .42); --rule: rgba(255, 255, 255, .13);
+  background: var(--paper); color: var(--ink); color-scheme: dark;
+  border-radius: var(--radius) var(--radius) 0 0; margin-top: calc(var(--radius) * -1); z-index: 1;
+}
+.lm-hero.lm-dark { border-radius: 0; margin-top: 0; padding-bottom: 0; }
+.lm-dark + .lm-sec:not(.lm-dark), .lp-mono .lp-bo + .lm-sec { border-radius: var(--radius) var(--radius) 0 0; margin-top: calc(var(--radius) * -1); z-index: 2; }
+.lm-sec-head { display: grid; grid-template-columns: minmax(0, 1.35fr) minmax(0, 1fr); gap: clamp(24px, 5vw, 96px); align-items: end; margin-bottom: clamp(44px, 7vh, 88px); }
+.lm-h2 {
+  font-size: clamp(44px, 6.8vw, 120px); line-height: .92; letter-spacing: -.05em; font-weight: 700;
+  font-variation-settings: 'wdth' 112; text-wrap: balance;
+}
+
+/* Apps em grade */
+.lm-grid { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: clamp(16px, 2vw, 28px); }
+.lm-card { display: flex; flex-direction: column; gap: 18px; }
+.lm-card-art {
+  aspect-ratio: 4 / 4.6; border-radius: calc(var(--radius) * .6); overflow: hidden; background: #111;
+  clip-path: inset(0 round calc(var(--radius) * .6));
+}
+.lm-card-art > img, .lm-card-art > .lp-type-art {
+  width: 100%; height: 100%; object-fit: cover; object-position: left top;
+  filter: grayscale(1) contrast(1.08); transform: scale(1.02); transition: transform 1.1s var(--ease-out), filter .6s;
+}
+.lm-card-art > .lp-type-art { --c: #fff !important; display: grid; place-content: center; text-align: center; color: #fff; background: #000; }
+.lm-card-art > .lp-type-art img { filter: grayscale(1); margin: 0 auto 12px; }
+.lm-card:hover .lm-card-art > * { transform: scale(1.07); filter: grayscale(1) contrast(1.2) brightness(1.06); }
+.lm-card-meta h3 { font-size: clamp(22px, 1.8vw, 30px); letter-spacing: -.03em; font-weight: 700; font-variation-settings: 'wdth' 110; margin-bottom: 8px; }
+.lm-card-meta p { color: var(--ink-2); font-size: 15.5px; line-height: 1.55; max-width: 44ch; }
+
+/* Download em lista */
+.lm-dl-list { list-style: none; margin: 0; padding: 0; border-top: 1px solid var(--rule); }
+.lm-dl-list li { border-bottom: 1px solid var(--rule); }
+.lp-mono .lm-dl-row {
+  width: 100%; display: grid; grid-template-columns: minmax(0, 1.1fr) minmax(0, 1fr) auto; align-items: center; gap: 24px;
+  padding: clamp(22px, 3.6vh, 38px) clamp(8px, 1.6vw, 24px); text-align: left; position: relative; isolation: isolate; color: var(--ink);
+  transition: color .5s var(--ease-out), padding .5s var(--ease-out);
+}
+.lp-mono .lm-dl-row::before {
+  content: ''; position: absolute; inset: 0; z-index: -1; background: var(--ink);
+  transform: scaleX(0); transform-origin: 0 50%; transition: transform .6s var(--ease-out);
+}
+.lp-mono .lp-mono .lm-dl-row:hover, .lp-mono .lm-dl-row:focus-visible { color: var(--paper); padding-left: clamp(20px, 3vw, 48px); }
+.lp-mono .lp-mono .lm-dl-row:hover::before, .lp-mono .lm-dl-row:focus-visible::before { transform: scaleX(1); }
+.lm-dl-name { display: inline-flex; align-items: center; gap: 18px; font-size: clamp(30px, 4.2vw, 72px); font-weight: 700; letter-spacing: -.045em; font-variation-settings: 'wdth' 118; line-height: 1; }
+.lm-dl-name svg { flex: none; }
+.lm-dl-name em { font-style: normal; font-size: 13px; letter-spacing: 0; font-weight: 600; font-variation-settings: 'wdth' 100; padding: 6px 12px; border: 1px solid currentColor; border-radius: 999px; }
+.lm-dl-desc { font-size: 15.5px; opacity: .7; }
+.lm-dl-go { font-size: clamp(26px, 2.6vw, 40px); transition: transform .5s var(--ease-out); }
+.lp-mono .lm-dl-row:hover .lm-dl-go { transform: translateY(4px); }
+.lp-mono button.lm-dl-row:hover .lm-dl-go { transform: translateX(8px); }
+.lm-fine { margin-top: 28px; font-size: 13.5px; color: var(--ink-3); max-width: 76ch; }
+
+/* Perguntas: sanfona com altura animada */
+.lm-faq { border-top: 1px solid var(--ink); }
+.lm-faq details { border-bottom: 1px solid var(--rule); }
+.lm-faq summary {
+  list-style: none; cursor: pointer; display: flex; align-items: center; justify-content: space-between; gap: 24px;
+  padding: clamp(22px, 3.4vh, 34px) 0; font-size: clamp(20px, 2.2vw, 34px); letter-spacing: -.03em; font-weight: 600; font-variation-settings: 'wdth' 108;
+}
+.lm-faq summary::-webkit-details-marker { display: none; }
+.lm-faq summary span { transition: transform .5s var(--ease-out); }
+.lm-faq summary:hover span { transform: translateX(10px); }
+.lm-faq summary i { flex: none; position: relative; width: 22px; height: 22px; transition: transform .5s var(--ease-out); }
+.lm-faq summary i::before, .lm-faq summary i::after { content: ''; position: absolute; left: 0; right: 0; top: 50%; height: 2px; margin-top: -1px; background: currentColor; }
+.lm-faq summary i::after { transform: rotate(90deg); }
+.lm-faq details[open] summary i { transform: rotate(135deg); }
+.lm-faq-a { display: grid; grid-template-rows: 0fr; transition: grid-template-rows .55s var(--ease-out); }
+.lm-faq details[open] .lm-faq-a { grid-template-rows: 1fr; }
+.lm-faq-a > p { overflow: hidden; color: var(--ink-2); font-size: 17px; line-height: 1.6; max-width: 64ch; }
+.lm-faq details[open] .lm-faq-a > p { padding-bottom: 28px; }
+
+/* Final: o convite em letras gigantes */
+.lm-end { padding: clamp(110px, 18vh, 220px) var(--gutter) clamp(90px, 14vh, 160px); display: flex; flex-direction: column; align-items: flex-start; gap: clamp(32px, 6vh, 64px); overflow: hidden; }
+.lm-end-title {
+  font-weight: 800; font-variation-settings: 'wdth' 125; text-transform: uppercase;
+  font-size: clamp(40px, 10.2vw, 200px); line-height: .82; letter-spacing: -.05em; white-space: nowrap; width: max-content;
+}
+.lp-mono .lp-foot { background: #0b0b0c; color: rgba(255, 255, 255, .5); border-top: 1px solid rgba(255, 255, 255, .14); position: relative; z-index: 1; }
+.lp-mono .lp-foot-brand img { filter: grayscale(1) brightness(1.6); }
+
+/* ---------- RPG Blackout em preto e branco ---------- */
+.lp-mono .lp-bo { --acc: #fff !important; --acc-rgb: 255, 255, 255 !important; --glow-rgb: 90, 90, 90 !important; background: #0b0b0c; border-radius: var(--radius) var(--radius) 0 0; margin-top: calc(var(--radius) * -1); position: relative; z-index: 1; overflow: hidden; color: #fff; }
+.lp-mono .lp-bo img { filter: grayscale(1) contrast(1.12); }
+.lp-mono .lp-bo-title { font-family: var(--wide); font-variation-settings: 'wdth' 125; letter-spacing: -.05em; }
+.lp-mono .lp-d20 svg { stroke: #fff; }
+
+/* ---------- Cursor ---------- */
+.lp-mono.has-cursor, .lp-mono.has-cursor a, .lp-mono.has-cursor button, .lp-mono.has-cursor summary { cursor: none; }
+.lm-cursor {
+  position: fixed; left: 0; top: 0; z-index: 70; pointer-events: none;
+  width: 14px; height: 14px; margin: -7px 0 0 -7px; border-radius: 50%;
+  background: #fff; mix-blend-mode: difference;
+  display: grid; place-items: center;
+  transition: width .45s var(--ease-out), height .45s var(--ease-out), margin .45s var(--ease-out);
+}
+.lm-cursor.is-big { width: 52px; height: 52px; margin: -26px 0 0 -26px; }
+.lm-cursor.has-label { width: 92px; height: 92px; margin: -46px 0 0 -46px; }
+.lm-cursor span { font: 600 13px var(--wide); color: #000; opacity: 0; transition: opacity .3s; }
+.lm-cursor.has-label span { opacity: 1; }
+.lm-magnet { transition: transform .5s var(--ease-out), color .45s var(--ease-out); }
+
+/* ---------- Entradas (só com JS e sem "reduzir movimento") ---------- */
+@media (prefers-reduced-motion: no-preference) {
+  .lm-word-ch { transform: translateY(105%); animation: lm-rise 1.1s var(--ease-out) forwards; animation-delay: calc(var(--i) * 45ms + 120ms); }
+  .lm-end-title .lm-word-ch { animation: none; transition: transform 1.1s var(--ease-out) calc(var(--i) * 40ms); }
+  .lm-end-title.is-in .lm-word-ch { transform: none; }
+  .lm-statement span { opacity: 0; filter: blur(10px); transform: translateY(.3em); animation: lm-word .9s var(--ease-out) forwards; animation-delay: calc(var(--i) * 70ms + 650ms); }
+  .lm-hero-kicker, .lm-hero-side { opacity: 0; animation: lm-fade 1s var(--ease-out) 1.1s forwards; }
+  .lm-hero-shot .lc { animation: lm-shot 1.4s var(--ease-out) .9s both !important; opacity: 1; }
+
+  .lp-mono.is-js .lp-reveal { opacity: 0; transform: translateY(40px); transition: opacity 1s var(--ease-out), transform 1s var(--ease-out); transition-delay: calc(var(--i, 0) * 90ms); }
+  .lp-mono.is-js .lp-reveal.is-in { opacity: 1; transform: none; }
+  .lp-mono.is-js .lm-end-title.lp-reveal { opacity: 1; transform: none; }
+  /* Cartões: a captura abre como uma cortina de baixo pra cima. */
+  .lp-mono.is-js .lm-card .lm-card-art { clip-path: inset(100% 0 0 0 round calc(var(--radius) * .6)); transition: clip-path 1.3s var(--ease-out) calc(var(--i, 0) * 120ms); }
+  .lp-mono.is-js .lm-card.is-in .lm-card-art { clip-path: inset(0 0 0 0 round calc(var(--radius) * .6)); }
+}
+@keyframes lm-rise { to { transform: translateY(0); } }
+@keyframes lm-word { to { opacity: 1; filter: blur(0); transform: none; } }
+@keyframes lm-fade { from { opacity: 0; transform: translateY(16px); } to { opacity: 1; transform: none; } }
+@keyframes lm-shot { from { opacity: 0; transform: translateY(80px); } to { opacity: 1; transform: none; } }
+@keyframes lm-marquee { to { transform: translateX(-50%); } }
+@keyframes lm-blink { 50% { opacity: .2; } }
+
+@media (prefers-reduced-motion: reduce) {
+  .lm-marquee-row { animation: none; }
+  .lm-hero-shot { transform: none; }
+  .lm-cursor { display: none; }
+}
+
+/* ---------- Telas menores ---------- */
+@media (max-width: 1000px) {
+  .lm-grid { grid-template-columns: 1fr 1fr; }
+  .lm-principles { grid-template-columns: 1fr 1fr; }
+}
+@media (max-width: 760px) {
+  .lm-hero-row, .lm-sec-head { grid-template-columns: 1fr; }
+  .lm-hero-title { font-size: 13.6vw; }
+  .lm-end-title { font-size: 11.4vw; }
+  .lm-grid, .lm-principles { grid-template-columns: 1fr; }
+  .lm-dl-row { grid-template-columns: 1fr auto; }
+  .lm-dl-desc { grid-column: 1; grid-row: 2; }
+  .lm-dl-go { grid-row: 1 / 3; grid-column: 2; }
+  .lp-mono .lm-hero-shot .lc { min-height: 380px; aspect-ratio: auto; }
+  .lp-mono .lm-cta .lm-btn { flex: 1 1 auto; justify-content: center; }
+}
+
+/* Acertos: nome do Blackout no cartão e título da seção dentro da tela. */
+.lm-card-art .lp-type-art strong { font-size: clamp(28px, 3.6vw, 56px); letter-spacing: .04em; color: #fff; text-shadow: none; }
+.lp-mono .lp-bo-title { color: #fff; font-size: clamp(56px, 9vw, 150px); }
+@media (max-width: 760px) {
+  .lp-mono .lp-bo-title { font-variation-settings: 'wdth' 100; font-size: 17vw; }
+}
+
+/* =============================================================
+   Peças do catálogo (ArtCraft)
+   ============================================================= */
+/* Rótulo numerado da seção: "01/Apps". */
+.lm-eyebrow { display: inline-flex; align-items: baseline; gap: 2px; margin-bottom: 18px; font-size: 14px; color: var(--ink-3); font-variant-numeric: tabular-nums; }
+.lm-eyebrow b { color: var(--ink); font-weight: 600; }
+.lp-mono .lp-bo .lm-eyebrow { color: rgba(255, 255, 255, .45); }
+.lp-mono .lp-bo .lm-eyebrow b { color: #fff; }
+
+/* Abertura: ícones dos apps, linha de sistemas e aviso "sem assinatura". */
+.lm-hero-kicker { display: flex; align-items: center; gap: 14px; }
+.lm-icons { display: inline-flex; }
+.lm-icons img { width: 26px; height: 26px; border-radius: 8px; filter: grayscale(1); box-shadow: 0 0 0 2px var(--paper); }
+.lm-icons img + img { margin-left: -6px; }
+.lm-hero-plat { display: flex; flex-direction: column; gap: 4px; font-size: 14px; color: var(--ink); }
+.lm-hero-plat span { color: var(--ink-3); }
+.lm-hero .lm-marquee { margin-top: clamp(64px, 10vh, 120px); }
+.lm-hero-shot { box-shadow: 0 0 0 1px var(--rule), 0 60px 120px -50px rgba(0, 0, 0, .9); }
+
+/* Cartão do app: número e categoria em cima, situação e plataformas embaixo. */
+.lm-card { gap: 14px; }
+.lm-card-top { display: flex; justify-content: space-between; font-size: 13px; color: var(--ink-3); font-variant-numeric: tabular-nums; padding-bottom: 12px; border-bottom: 1px solid var(--rule); }
+.lm-card-top span:first-child { color: var(--ink); font-weight: 600; }
+.lm-card-meta h3 { display: flex; align-items: center; gap: 12px; }
+.lm-card-meta h3 img { width: 28px; height: 28px; border-radius: 8px; filter: grayscale(1); }
+.lm-card-foot { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 14px; margin-top: 14px; font-size: 13px; color: var(--ink-3); }
+.lm-status { display: inline-flex; align-items: center; gap: 7px; padding: 6px 12px; border: 1px solid var(--rule); border-radius: 999px; color: var(--ink); }
+.lm-status::before { content: ''; width: 6px; height: 6px; border-radius: 50%; background: currentColor; }
+.lm-explore { display: inline-flex; align-items: center; gap: 8px; margin-top: 18px; font-weight: 600; font-size: 15px; border-bottom: 1px solid currentColor; padding-bottom: 3px; }
+.lm-explore span { transition: transform .45s var(--ease-out); }
+.lm-explore:hover span { transform: translateX(6px); }
+
+/* Princípios: 6 cartões numerados, com luz que segue o mouse. */
+.lm-principles { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 1px; background: var(--rule); border: 1px solid var(--rule); border-radius: calc(var(--radius) * .6); overflow: hidden; }
+.lm-principles li {
+  position: relative; padding: clamp(26px, 3vw, 44px); background: #fff; min-height: 230px;
+  display: flex; flex-direction: column; gap: 12px; transition: background .5s var(--ease-out), color .5s var(--ease-out);
+}
+.lm-principles li::after {
+  content: ''; position: absolute; inset: 0; pointer-events: none; opacity: 0; transition: opacity .4s;
+  background: radial-gradient(260px circle at var(--sx, 50%) var(--sy, 50%), rgba(0, 0, 0, .07), transparent 70%);
+}
+.lm-principles li:hover::after { opacity: 1; }
+.lm-num { font-size: 13px; font-variant-numeric: tabular-nums; color: var(--ink-3); margin-bottom: auto; padding-bottom: 32px; }
+.lm-principles h3 { font-size: clamp(22px, 1.9vw, 30px); letter-spacing: -.035em; font-weight: 700; font-variation-settings: 'wdth' 110; line-height: 1.05; }
+.lm-principles p { color: var(--ink-2); font-size: 15.5px; line-height: 1.55; max-width: 36ch; }
+.lm-principles li:hover { background: #000; color: #fff; }
+.lm-principles li:hover p, .lm-principles li:hover .lm-num { color: rgba(255, 255, 255, .6); }
+
+.lm-end .lm-eyebrow { margin-bottom: -8px; }
+.lm-hero .lm-marquee { margin-bottom: calc(var(--radius) + 56px); }
+
+/* Telas menores (depois dos princípios, pra valer por cima deles). */
+@media (max-width: 1000px) { .lm-principles { grid-template-columns: 1fr 1fr; } }
+@media (max-width: 600px) { .lm-principles { grid-template-columns: 1fr; } .lm-principles li { min-height: 0; } .lm-num { padding-bottom: 14px; } }
+/* Título do Blackout: o tamanho é ajustado pela página pra caber na largura. */
+.lp-mono .lp-bo-title { width: max-content; max-width: none; white-space: nowrap; }
