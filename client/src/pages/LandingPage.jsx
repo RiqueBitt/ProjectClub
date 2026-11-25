@@ -11,8 +11,8 @@ import '../styles/landing-mono.css';
 // Visual preto e branco, minimalista (landing-mono.css): nome gigante na
 // abertura, seções alternando branco e preto, faixa de palavras correndo,
 // apps em grade, download em lista e perguntas em sanfona. Animações:
-// letras subindo, frases entrando palavra por palavra, prévia do app que
-// cresce com a rolagem, cursor que inverte as cores e botões "magnéticos".
+// letras subindo, frases entrando palavra por palavra, cursor que inverte
+// as cores e botões "magnéticos".
 // Com "reduzir movimento" ligado, tudo aparece parado.
 
 const DOWNLOADS_BASE = 'https://github.com/RiqueBitt/ProjectClub/releases/latest/download';
@@ -392,164 +392,12 @@ function useMonoCursor() {
   }, []);
 }
 
-// Rolagem: --hero (0..1) faz a prévia do app crescer até ocupar a largura.
-function useHeroScroll() {
-  useEffect(() => {
-    const root = document.querySelector('.lp');
-    const shot = document.querySelector('.lm-hero-shot');
-    if (!root || !shot || reducedMotion()) return undefined;
-    let raf = 0;
-    const onScroll = () => {
-      cancelAnimationFrame(raf);
-      raf = requestAnimationFrame(() => {
-        const r = shot.getBoundingClientRect();
-        const p = Math.min(1, Math.max(0, 1 - (r.top - root.clientHeight * 0.25) / (root.clientHeight * 0.75)));
-        shot.style.setProperty('--hero', p.toFixed(3));
-      });
-    };
-    root.addEventListener('scroll', onScroll, { passive: true });
-    onScroll();
-    return () => { root.removeEventListener('scroll', onScroll); cancelAnimationFrame(raf); };
-  }, []);
-}
-
-// ---------- O app ao vivo (abertura) ----------
-// Réplica em HTML da tela de chat do app ATUAL (mesmo layout da captura em
-// public/apps/projectclub/shots/02-chat.jpg): barra de cima com busca, menu
-// da comunidade, canais, call com quem fala acendendo, conversa chegando com
-// "digitando" e reações somando, e a lista de membros. Roda em loop.
-const LIVE_PEOPLE = {
-  rique: { name: 'RiqueBitt', color: '#f08a3c', bg: 'linear-gradient(135deg,#c0392b,#2c0a0a)', mod: true, status: 'Quem está marcando!!!' },
-  lia: { name: 'Lia', color: '#fff', bg: 'linear-gradient(135deg,#4c9fff,#7b5cff)' },
-  kaio: { name: 'Kaio', color: '#fff', bg: 'linear-gradient(135deg,#23a55a,#0f5c32)' },
-  nina: { name: 'Nina', color: '#fff', bg: 'linear-gradient(135deg,#f39c12,#8e44ad)' },
-  loritta: { name: 'Loritta', color: '#7cb3ff', bg: 'linear-gradient(135deg,#f6a6c1,#7d3c98)', bot: true, status: 'Fan Art by Azu | Cluster 4' },
-};
-const LIVE_SCRIPT = [
-  { who: 'lia', time: '22:38', text: 'alguém pra call hoje à noite?' },
-  { who: 'rique', time: '22:40', text: 'bora! abro a sala de voz às 21h', typing: 900 },
-  { who: 'kaio', time: '22:49', text: 'baixei o modpack pelo Mod Manager, já tá rodando aqui', typing: 1400, react: ['🔥', 2, 3] },
-  { who: 'nina', time: '22:57', text: 'quem vai de mestre na mesa de RPG sexta?', typing: 1000 },
-  { who: 'rique', time: '23:00', text: 'eu levo a campanha do Blackout, já deixei as fichas prontas', typing: 1300 },
-  { who: 'loritta', time: '23:24', text: 'Lembrete: o evento de figurinhas começa amanhã 🎉', typing: 700, react: ['🎉', 13, 14] },
-];
-const LIVE_VOICE = ['rique', 'lia', 'kaio'];
-
-function LiveAvatar({ who, size = 36 }) {
-  const p = LIVE_PEOPLE[who];
-  return <i className="lc-av" style={{ background: p.bg, width: size, height: size }} aria-hidden="true">{p.name[0]}</i>;
-}
-
-// Reação que soma 1 logo depois que a mensagem aparece.
-function LiveReaction({ emoji, from, to }) {
-  const [n, setN] = useState(from);
-  useEffect(() => { const t = setTimeout(() => setN(to), 1100); return () => clearTimeout(t); }, [to]);
-  return <span className="lc2-reacts"><b className={n === to ? 'is-mine' : ''} key={n}>{emoji} {n}</b></span>;
-}
-
-const LIVE_NAV = [['Central', 'Ao vivo'], ['Amigos', '1'], ['Economia'], ['Progresso'], ['Mod Manager']];
-
-function LiveClub() {
-  const [count, setCount] = useState(0);
-  const [typing, setTyping] = useState(null);
-  const [fading, setFading] = useState(false);
-  const [talk, setTalk] = useState(0);
-  const listRef = useRef(null);
-  useEffect(() => {
-    let alive = true; const timers = [];
-    const wait = (ms) => new Promise((r) => { timers.push(setTimeout(r, ms)); });
-    (async () => {
-      await wait(600);
-      while (alive) {
-        for (let i = 0; i < LIVE_SCRIPT.length && alive; i += 1) {
-          const m = LIVE_SCRIPT[i];
-          if (m.typing) { setTyping(m.who); await wait(m.typing); setTyping(null); }
-          setCount(i + 1);
-          await wait(1700);
-        }
-        await wait(4200); if (!alive) break;
-        setFading(true); await wait(500);
-        setCount(0); setFading(false); await wait(500);
-      }
-    })();
-    // Quem fala na call vai trocando.
-    const t = setInterval(() => setTalk((x) => (x + 1) % LIVE_VOICE.length), 1800);
-    return () => { alive = false; timers.forEach(clearTimeout); clearInterval(t); };
-  }, []);
-  useEffect(() => { const el = listRef.current; if (el) el.scrollTop = el.scrollHeight; }, [count, typing]);
-
-  return (
-    <figure className="lp-hero-shot lc lc2" aria-label="Prévia do Project Club: canal chat geral com uma conversa acontecendo, três pessoas na call e a lista de membros">
-      <div className="lc2-top" aria-hidden="true">
-        <span className="lc2-crumb">▤ Comunidade</span>
-        <span className="lc2-search">⌕ Buscar em Project Club</span>
-        <span className="lc2-icons"><i /><i /><i className="has-dot" /></span>
-      </div>
-      <div className="lc2-body" aria-hidden="true">
-        <aside className="lc2-side">
-          <p className="lc2-club">Project Club <span>⚙</span></p>
-          <p className="lc2-sub">♛ Assinatura</p>
-          <ul className="lc2-nav">
-            {LIVE_NAV.map(([n, tag]) => <li key={n}><i />{n}{tag && <em className={tag === 'Ao vivo' ? 'is-live' : ''}>{tag}</em>}</li>)}
-          </ul>
-          <p className="lc2-cat">Informações</p>
-          <p className="lc2-ch"># 📣 | Anúncios</p>
-          <p className="lc2-cat">Comunidade</p>
-          <p className="lc2-ch is-on"># 🌎 | chat geral</p>
-          <p className="lc2-ch"># 🔧 | comandos</p>
-          <p className="lc2-ch"># 📸 | mídias</p>
-          <p className="lc2-cat">Canais de voz</p>
-          <p className="lc2-ch">🔊 ☕ | Call</p>
-          <ul className="lc2-voice">
-            {LIVE_VOICE.map((w, i) => (
-              <li key={w} className={i === talk ? 'is-talking' : ''}><LiveAvatar who={w} size={20} />{LIVE_PEOPLE[w].name}</li>
-            ))}
-          </ul>
-          <div className="lc2-me"><LiveAvatar who="rique" size={30} /><span><b>RiqueBitt</b><small>Quem está marcando!!!</small></span></div>
-        </aside>
-        <div className="lc2-main">
-          <div className="lc2-head"><span className="lc2-hash">#</span> 🌎 | chat geral</div>
-          <div className={`lc2-chat ${fading ? 'is-fading' : ''}`} ref={listRef}>
-            <div className="lc2-welcome"><span className="lc2-hash is-big">#</span><b>Bem-vindo(a) a #🌎 | chat geral</b><small>Este é o início do canal. Diga oi e comece a conversa!</small></div>
-            <p className="lc-day"><span>Hoje</span></p>
-            {LIVE_SCRIPT.slice(0, count).map((m) => {
-              const p = LIVE_PEOPLE[m.who];
-              return (
-                <div className="lc-msg lc2-msg" key={m.who + m.time}>
-                  <LiveAvatar who={m.who} />
-                  <div>
-                    <p className="lc-meta"><b style={{ color: p.color }}>{p.name}</b>{p.mod && <span className="lc2-shield">⛨</span>}{p.bot && <span className="lc-badge is-bot">BOT</span>}<time>{m.time}</time></p>
-                    <p className="lc-text">{m.text}</p>
-                    {m.react && <LiveReaction emoji={m.react[0]} from={m.react[1]} to={m.react[2]} />}
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-          <p className={`lc-typing ${typing ? 'is-on' : ''}`}>{typing && <><span className="lc-dots"><i /><i /><i /></span><b>{LIVE_PEOPLE[typing].name}</b> está digitando…</>}</p>
-          <div className="lc2-input"><span>＋</span>Conversar em #🌎 | chat geral<span className="lc2-send">➤</span></div>
-        </div>
-        <aside className="lc2-members">
-          <p className="lc2-mt">Membros — 5</p>
-          <p className="lc2-cat">RiqueBitt — 1</p>
-          <div className="lc2-mem is-hl"><LiveAvatar who="rique" size={26} /><span><b style={{ color: '#f08a3c' }}>RiqueBitt</b><small>Quem está marcando!!!</small></span></div>
-          <p className="lc2-cat">Online — 3</p>
-          {['lia', 'kaio', 'nina'].map((w) => <div key={w} className="lc2-mem"><LiveAvatar who={w} size={26} /><span><b>{LIVE_PEOPLE[w].name}</b></span></div>)}
-          <p className="lc2-cat">Bots — 1</p>
-          <div className="lc2-mem"><LiveAvatar who="loritta" size={26} /><span><b style={{ color: '#7cb3ff' }}>Loritta</b><small>Fan Art by Azu | Cluster 4</small></span></div>
-        </aside>
-      </div>
-    </figure>
-  );
-}
-
 export default function LandingPage() {
   const navigate = useNavigate();
   const location = useLocation();
   useReveal();
   usePublicScrollChrome();
   useMonoCursor();
-  useHeroScroll();
   useFitText('.lm-hero-title, .lm-end-title');
   useFitText('.lp-bo-title', 760);
   const [platform] = useState(detectPlatform);
@@ -649,7 +497,6 @@ export default function LandingPage() {
               <Pulse />
             </div>
           </div>
-          <div className="lm-hero-shot"><LiveClub /></div>
           <Marquee />
         </section>
 
