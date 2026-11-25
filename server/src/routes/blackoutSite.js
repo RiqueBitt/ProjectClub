@@ -22,7 +22,6 @@ const jwt = require('jsonwebtoken');
 const env = require('../config/env');
 const db = () => require('../config/prisma');
 const { requireAuth } = require('../middleware/auth');
-const instances = require('../services/instances');
 
 const INSTANCE_ID = 'blackout';
 const sync = require('../services/blackoutSync');
@@ -54,8 +53,9 @@ async function userMayOpen(userId) {
     select: { id: true, platformRole: true, isPlatformBanned: true, accountDisabledAt: true, suspendedUntil: true },
   }).catch(() => null);
   const ok = !!user && !user.isPlatformBanned && !user.accountDisabledAt
-    && !(user.suspendedUntil && new Date(user.suspendedUntil) > new Date())
-    && await instances.canAccess(user, INSTANCE_ID);
+    && !(user.suspendedUntil && new Date(user.suspendedUntil) > new Date());
+  // Nov/2026: o BLACKOUT ficou público (canal em destaque Jogos) — não
+  // depende mais da instância BLACKOUT; basta estar logado e sem bloqueio.
   allowCache.set(userId, { at: Date.now(), ok });
   if (allowCache.size > 2000) allowCache.clear();
   return ok;

@@ -125,35 +125,23 @@ test('barra do topo: só a barra de busca, sem lupa solta e sem "Ctrl K"', async
   }
 });
 
-test('BLACKOUT: botão só nos destaques da instância BLACKOUT e abre o compêndio', async ({ page }) => {
-  let current = 'publica';
-  const list = [...INSTANCES, { id: 'blackout', name: 'BLACKOUT', icon: '🎲', isPublic: false }];
-  await page.route('**/api/bootstrap**', (r) => r.fulfill({ status: 404, contentType: 'application/json', body: '{}' }));
-  await page.route('**/api/community', async (route) => {
-    let raw;
-    await handler({ request: () => route.request(), fulfill: (o) => { raw = o.body; } });
-    const body = JSON.parse(raw);
-    return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ ...body, community: { ...body.community, instance: current, instances: list } }) });
-  });
-  await page.route('**/api/community/instance', async (route) => {
-    current = route.request().postDataJSON().instanceId;
-    return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ instance: current }) });
-  });
+test('Jogos: canal em destaque com o BLACKOUT público (sem instância) e o Mod Manager dentro', async ({ page }) => {
   let sessions = 0;
   await page.route('**/api/blackout/session', (r) => { sessions += 1; return r.fulfill({ status: 200, contentType: 'application/json', body: '{"ok":true,"url":"/blackout/"}' }); });
   await page.route(/\/blackout\/$/, (r) => r.fulfill({ status: 200, contentType: 'text/html', body: '<!DOCTYPE html><title>BLACKOUT</title><h1 id="bo">Compêndio BLACKOUT</h1>' }));
 
   await page.goto('/');
-  const btn = page.locator('.instance-switcher-btn');
-  await expect(btn).toBeVisible({ timeout: 20_000 });
-  await expect(page.locator('.featured-channels')).toBeVisible();
+  await expect(page.locator('.featured-channels')).toBeVisible({ timeout: 20_000 });
+  // BLACKOUT e Mod Manager não são mais itens soltos: ficam dentro de Jogos.
   await expect(page.locator('.featured-blackout')).toHaveCount(0);
-
-  await btn.click();
-  await page.getByRole('listbox', { name: 'Escolher instância' }).getByRole('option', { name: /BLACKOUT/ }).click();
-  const bo = page.locator('.featured-blackout');
-  await expect(bo).toBeVisible();
-  await bo.click();
+  await expect(page.locator('.featured-mods')).toHaveCount(0);
+  const jogos = page.locator('.featured-jogos');
+  await expect(jogos).toBeVisible();
+  await jogos.click();
+  await expect(page).toHaveURL(/\/jogos$/);
+  await expect(page.locator('.jh-hero')).toBeVisible();
+  await expect(page.locator('.jh-tool.t-mods')).toBeVisible();
+  await page.locator('.jh-tool.t-blackout').click();
   await expect(page).toHaveURL(/\/compendio-blackout$/);
   await expect.poll(() => sessions).toBe(1);
   await expect(page.frameLocator('iframe.blackout-frame').locator('#bo')).toHaveText('Compêndio BLACKOUT');

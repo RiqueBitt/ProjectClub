@@ -13,3 +13,8 @@
 .blackout-msg p { margin: 0; max-width: 360px; }
 .blackout-spin { width: 26px; height: 26px; border-radius: 50%; border: 3px solid rgba(255, 255, 255, .15); border-top-color: #fff; animation: blackout-spin .8s linear infinite; }
 @keyframes blackout-spin { to { transform: rotate(360deg); } }
+.blackout-back {
+  position: absolute; left: 14px; bottom: 14px; z-index: 2; padding: 6px 12px; border-radius: 999px; cursor: pointer; font: inherit;
+  background: rgba(0, 0, 0, .72); border: 1px solid rgba(255, 255, 255, .16); color: #fff; font-size: 12px; opacity: .55; transition: opacity .15s;
+}
+.blackout-back:hover, .blackout-back:focus-visible { opacity: 1; }

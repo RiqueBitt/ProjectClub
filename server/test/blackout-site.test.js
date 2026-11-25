@@ -22,11 +22,9 @@ fs.writeFileSync(path.join(siteDir, 'vendor', 'pdf-lib.min.js'), '// js');
 fs.writeFileSync(path.join(siteDir, '.pc-sha'), 'abc');
 const env = require(src('config/env.js'));
 
-const members = new Set(['ana']);
 stub('config/prisma.js', {
-  user: { findUnique: async ({ where }) => (['ana', 'bia'].includes(where.id) ? { id: where.id, platformRole: 'USER' } : null) },
+  user: { findUnique: async ({ where }) => (['ana', 'bia'].includes(where.id) ? { id: where.id, platformRole: 'USER' } : where.id === 'ban' ? { id: 'ban', platformRole: 'USER', isPlatformBanned: true } : null) },
 });
-stub('services/instances.js', { canAccess: async (u, id) => id === 'blackout' && members.has(u.id) });
 stub('middleware/auth.js', {
   requireAuth: (req, res, next) => { const u = req.headers['x-test-user']; if (!u) return res.status(401).end(); req.user = { id: u }; next(); },
 });
@@ -68,12 +66,19 @@ test('quem tem a instância ganha o cookie e abre o site; /blackout redireciona 
   assert.equal(red.headers.get('location'), '/blackout/');
 }));
 
-test('sem a instância: nem ganha cookie; e perder o acesso derruba o cookie', async () => withServer(async (base) => {
+test('público (nov/2026): qualquer conta logada abre, sem precisar da instância', async () => withServer(async (base) => {
   const s = await fetch(`${base}/api/blackout/session`, { method: 'POST', headers: { 'x-test-user': 'bia' } });
-  assert.equal(s.status, 403);
-  const token = jwt.sign({ sub: 'bia', typ: 'site' }, site.siteSecret(), { algorithm: 'HS256', expiresIn: 60 });
-  const r = await fetch(`${base}/blackout/`, { headers: { cookie: `${site.COOKIE}=${token}` } });
-  assert.equal(r.status, 403);
+  assert.equal(s.status, 200);
+}));
+
+test('conta banida ou que não existe: nem ganha cookie; e o cookie dela não abre', async () => withServer(async (base) => {
+  for (const u of ['ban', 'zed']) {
+    const s = await fetch(`${base}/api/blackout/session`, { method: 'POST', headers: { 'x-test-user': u } });
+    assert.equal(s.status, 403);
+    const token = jwt.sign({ sub: u, typ: 'site' }, site.siteSecret(), { algorithm: 'HS256', expiresIn: 60 });
+    const r = await fetch(`${base}/blackout/`, { headers: { cookie: `${site.COOKIE}=${token}` } });
+    assert.equal(r.status, 403);
+  }
 }));
 
 test('cookie do site não serve como access token (chave diferente)', () => {

@@ -8,6 +8,7 @@ import { listAppCatalog } from '../api/endpoints';
 import PageIcon from '../components/PageIcons.jsx';
 import { proxyImage } from '../utils/imageProxy';
 import '../styles/jogos-page.css';
+import JogosHub from '../components/games/JogosHub.jsx';
 
 // Ícones locais (traço) no lugar dos símbolos ▶ ⬇ 🔍 que viravam caixinha no Linux.
 const JP_ICONS = {
@@ -94,39 +95,18 @@ export default function JogosPage() {
 
   return (
     <div className="jogos-page">
-      <div className="jogos-page-header">
-        <span className="jogos-page-header-icon"><PageIcon name="grid" size={26} /></span>
+      {/* Canal em destaque Jogos (nov/2026): vitrine, BLACKOUT, Mod Manager e biblioteca. */}
+      <JogosHub />
+      <div className="jogos-page-header jh-apps-head">
+        <span className="jogos-page-header-icon"><PageIcon name="grid" size={22} /></span>
         <div className="jogos-page-header-text">
-          <h1>Apps</h1>
+          <h2>Apps do clube</h2>
           <p className="dim">Módulos opcionais que rodam dentro da instalação do Project Club — instale só o que você usa.</p>
         </div>
         {catalog && catalog.length > 0 && (
           <span className="jogos-page-header-count">{catalog.length} {catalog.length === 1 ? 'app disponível' : 'apps disponíveis'}</span>
         )}
       </div>
-
-      {/* Item pedido: "Project Club → Apps → Mods... não crie uma nova
-          categoria principal Jogos" — Mods é uma FERRAMENTA dentro de
-          Apps (não um item da barra lateral, não uma aba de catálogo
-          baixável como os cards abaixo), por isso vira um cartão
-          destacado próprio, separado da grade de apps/módulos. */}
-      <button type="button" className="jogos-page-mods-entry" onClick={() => navigate('/jogos/mods')}>
-        <span className="jogos-page-mods-entry-icon"><PageIcon name="bolt" size={22} /></span>
-        <span className="jogos-page-mods-entry-text">
-          <strong>Mods</strong>
-          <span className="dim">Descubra e gerencie mods dos seus jogos da Steam</span>
-        </span>
-        <span className="jogos-page-mods-entry-arrow" style={{ transform: 'scaleX(-1)', display: 'inline-flex' }}><PageIcon name="back" size={20} /></span>
-      </button>
-      {/* Biblioteca de jogos (tempo de jogo, estilo Steam). */}
-      <button type="button" className="jogos-page-mods-entry" onClick={() => navigate('/jogos/biblioteca')}>
-        <span className="jogos-page-mods-entry-icon"><PageIcon name="gamepad" size={22} /></span>
-        <span className="jogos-page-mods-entry-text">
-          <strong>Biblioteca de jogos</strong>
-          <span className="dim">Seu tempo de jogo, jogos recentes e o que está jogando agora</span>
-        </span>
-        <span className="jogos-page-mods-entry-arrow" style={{ transform: 'scaleX(-1)', display: 'inline-flex' }}><PageIcon name="back" size={20} /></span>
-      </button>
 
       {catalog === null ? (
         // Item pedido: "melhore as partes vazias da tela" — enquanto
