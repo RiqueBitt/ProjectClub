@@ -452,7 +452,8 @@ async function createEngine() {
     key.target.updateMatrixWorld();
     pose(s);
     // faixa da raridade (some se o item não tem)
-    if (s.rarity && RARITY[s.rarity]) { band.material = bandFor(s.rarity); band.visible = true; } else band.visible = false;
+    // Faixa com o nome da raridade tirada em nov/2026 (pedido do dono).
+    band.visible = false;
     // "Foto" pro arraste (snapshot): só a caixinha, sem o gancho e sem a sombra na cartela.
     hook.visible = !s.noHook && !s.hideHook;   // hideHook: o 360° mostra a caixinha sem o gancho
     // Caixinha fora do gancho (sendo arrastada pra cestinha): fica só o gancho.
