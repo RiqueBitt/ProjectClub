@@ -78,8 +78,8 @@
 .bl-crumb { display: flex; align-items: center; gap: 10px; margin-bottom: 26px; font: 700 12px/1 var(--mono); text-transform: uppercase; letter-spacing: .14em; color: var(--ink-3); }
 .lp-blog .bl-crumb a, .lp-blog .bl-crumb button { color: var(--ink); }
 .lp-blog .bl-crumb a:hover, .lp-blog .bl-crumb button:hover { text-decoration: underline; }
-.bl-post-title { max-width: 20ch; font: 700 clamp(40px, 6vw, 104px)/.95 var(--wide); font-variation-settings: 'wdth' 112; letter-spacing: -.05em; text-wrap: balance; }
-.bl-post-lede { margin-top: 30px; max-width: 52ch; font-size: clamp(18px, 1.5vw, 21px); line-height: 1.55; color: var(--ink-2); }
+.bl-post-title { max-width: 20ch; font: 700 clamp(40px, 6vw, 104px)/1 var(--wide); padding-bottom: .06em; font-variation-settings: 'wdth' 112; letter-spacing: -.05em; text-wrap: balance; }
+.bl-post-lede { margin-top: 44px; max-width: 52ch; font-size: clamp(18px, 1.5vw, 21px); line-height: 1.55; color: var(--ink-2); }
 .bl-post-meta { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 22px; margin: 30px 0 clamp(32px, 5vh, 56px); font: 500 12px/1 var(--mono); text-transform: uppercase; letter-spacing: .1em; color: var(--ink-3); }
 .bl-post-meta > span:first-child { color: var(--ink); font-weight: 700; }
 .lp-mono .bl-copy { padding: 13px 16px; font-size: 11px; margin-left: auto; }
