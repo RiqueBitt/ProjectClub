@@ -18,7 +18,7 @@ const SECTIONS = [
 ];
 const PAGES = [
   { to: '/blog', label: 'Blog', key: 'blog' },
-  { to: '/termos', label: 'Termos de privacidade', key: 'termos' },
+  { to: '/blog/politica-de-privacidade', label: 'Privacidade', key: 'termos' },
 ];
 
 // Topo com vidro depois de rolar + barra de progresso.
@@ -135,7 +135,8 @@ export function PublicFooter({ page = 'inicio' }) {
       <nav className="lp-foot-nav" aria-label="Rodapé">
         {SECTIONS.map((s) => <SectionLink key={s.id} {...s} onLanding={onLanding} home={home} />)}
         <Link to="/blog">Blog</Link>
-        <Link to="/termos">Termos de privacidade</Link>
+        <Link to="/blog/politica-de-privacidade">Privacidade</Link>
+        <Link to="/blog/termos-de-uso">Termos de uso</Link>
         <a href="https://github.com/RiqueBitt/ProjectClub" target="_blank" rel="noreferrer">GitHub</a>
       </nav>
       <div className="lp-foot-meta">

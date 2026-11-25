@@ -1,10 +1,9 @@
 import { test, expect } from '@playwright/test';
 import { handler, imageHandler } from './mock-api.mjs';
 
-// Páginas públicas novas: Blog (/blog) e Termos de privacidade (/termos,
-// com o endereço antigo /privacidade). Precisam abrir sem erro de
-// JavaScript, mostrar o título, o índice e todas as seções, e não vazar
-// para os lados. No Blog, o filtro esconde as seções que não citam o termo.
+// Páginas públicas: Blog (/blog e /blog/:slug) e os termos/privacidade, que
+// agora são artigos do Blog (/termos e /privacidade levam pra lá). Precisam
+// abrir sem erro de JavaScript, mostrar o título e não vazar para os lados.
 
 function watchErrors(page) {
   const errors = [];
@@ -30,71 +29,73 @@ test.beforeEach(async ({ page }) => {
   await page.route(/fonts\.(googleapis|gstatic)\.com/, (r) => r.abort());
 });
 
-const PAGES = [
-  { path: '/blog', title: 'Tudo sobre o Project Club', minSections: 15 },
-  { path: '/termos', title: 'Termos de privacidade', minSections: 10 },
-  { path: '/privacidade', title: 'Termos de privacidade', minSections: 10 },
-];
-
-for (const { path, title, minSections } of PAGES) {
-  test(`abre ${path}`, async ({ page }) => {
-    const errors = watchErrors(page);
-    await page.goto(path);
-    await expect(page.getByRole('heading', { level: 1, name: title })).toBeVisible({ timeout: 20_000 });
-    await expect(page.getByText('Algo deu errado')).toHaveCount(0);
-
-    const sections = page.locator('.wk-sec');
-    expect(await sections.count()).toBeGreaterThanOrEqual(minSections);
-    // Cada item do índice aponta para uma seção que existe.
-    const targets = await page.locator('.wk-toc-list a').evaluateAll((as) => as.map((a) => a.getAttribute('href')));
-    expect(targets.length).toBe(await sections.count());
-    for (const href of targets) await expect(page.locator(href)).toHaveCount(1);
-
-    // Topo com os links novos.
-    await expect(page.locator('a[href="/blog"]').first()).toBeAttached();
-    await expect(page.locator('a[href="/termos"]').first()).toBeAttached();
-
-    expect(await sideOverflow(page), 'a página não pode ter rolagem lateral').toBeLessThanOrEqual(1);
-    expect(errors, 'erros de JavaScript na página').toEqual([]);
-  });
-}
-
-test('termos: data de atualização e seções principais', async ({ page }) => {
-  await page.goto('/termos');
-  await expect(page.getByText('Atualizado em 12 de outubro de 2026')).toBeVisible({ timeout: 20_000 });
-  for (const id of ['dados', 'retencao', 'direitos', 'cookies', 'terceiros', 'seguranca', 'menores', 'contato']) {
-    await expect(page.locator(`section#${id}`)).toHaveCount(1);
-  }
-});
-
-test('blog: o filtro esconde as seções que não falam do termo', async ({ page }) => {
+test('blog: lista com destaque, categorias e cartões com link próprio', async ({ page }) => {
   const errors = watchErrors(page);
   await page.goto('/blog');
-  const input = page.locator('#wk-filter');
-  await expect(input).toBeVisible({ timeout: 20_000 });
-  const total = await page.locator('.wk-sec').count();
+  await expect(page.getByRole('heading', { level: 1, name: /Novidades, tutoriais/ })).toBeVisible({ timeout: 20_000 });
+  const cards = page.locator('.bl-card a');
+  expect(await cards.count()).toBeGreaterThanOrEqual(20);
+  // Todo cartão leva a /blog/<nome>.
+  const hrefs = await cards.evaluateAll((as) => as.map((a) => a.getAttribute('href')));
+  for (const h of hrefs) expect(h).toMatch(/^\/blog\/[a-z0-9-]+$/);
+  expect(new Set(hrefs).size).toBe(hrefs.length);
 
-  await input.fill('gemas');
-  await expect(page.locator('section#economia')).toBeVisible();
-  await expect(page.locator('section#voz')).toBeHidden();
-  const shown = await page.locator('.wk-sec:visible').count();
-  expect(shown).toBeGreaterThan(0);
-  expect(shown).toBeLessThan(total);
+  // Filtro por categoria e busca.
+  await page.getByRole('tab', { name: 'Segurança e privacidade' }).click();
+  await expect(page.locator('.bl-card a[href="/blog/politica-de-privacidade"]')).toHaveCount(1);
+  await expect(page.locator('.bl-card a[href="/blog/chat"]')).toHaveCount(0);
+  await page.getByRole('tab', { name: 'Todos' }).click();
+  await page.getByPlaceholder(/Buscar/).fill('xyzsemresultado');
+  await expect(page.locator('.bl-empty')).toBeVisible();
+  await page.getByRole('button', { name: 'Ver todos' }).click();
+  expect(await cards.count()).toBeGreaterThanOrEqual(20);
 
-  await input.fill('xyzsemresultado');
-  await expect(page.locator('.wk-empty')).toBeVisible();
-  await page.getByRole('button', { name: 'Limpar o filtro' }).click();
-  await expect(page.locator('.wk-sec:visible')).toHaveCount(total);
+  expect(await sideOverflow(page), 'a página não pode ter rolagem lateral').toBeLessThanOrEqual(1);
   expect(errors).toEqual([]);
 });
 
-test('blog: abrir com âncora leva até a seção', async ({ page }) => {
-  await page.goto('/blog#apps');
-  await expect(page.locator('section#apps')).toBeInViewport({ timeout: 20_000 });
-  await expect(page.locator('#app-canvasproject')).toHaveCount(1);
+test('blog: artigo abre no endereço próprio, com anterior/próximo e relacionados', async ({ page }) => {
+  const errors = watchErrors(page);
+  await page.goto('/blog/efeitos-de-texto-na-loja');
+  await expect(page.getByRole('heading', { level: 1, name: 'Efeitos de texto chegaram na Loja' })).toBeVisible({ timeout: 20_000 });
+  await expect(page.locator('.bl-pager a')).not.toHaveCount(0);
+  await expect(page.locator('.bl-related .bl-card')).toHaveCount(3);
+  await page.locator('.bl-pager a.is-next').click();
+  await expect(page).toHaveURL(/\/blog\/[a-z0-9-]+$/);
+  await expect(page.getByRole('heading', { level: 1 })).not.toHaveText('Efeitos de texto chegaram na Loja');
+  expect(await sideOverflow(page)).toBeLessThanOrEqual(1);
+  expect(errors).toEqual([]);
 });
 
-test('início: perguntas sem a de privacidade e topo com Blog e Termos', async ({ page }) => {
+test('blog: artigo que não existe volta pra lista', async ({ page }) => {
+  await page.goto('/blog/nao-existe-esse-artigo');
+  await expect(page).toHaveURL(/\/blog$/, { timeout: 20_000 });
+});
+
+for (const path of ['/termos', '/privacidade']) {
+  test(`${path} leva à política de privacidade no Blog`, async ({ page }) => {
+    const errors = watchErrors(page);
+    await page.goto(path);
+    await expect(page).toHaveURL(/\/blog\/politica-de-privacidade/, { timeout: 20_000 });
+    await expect(page.getByRole('heading', { level: 1, name: 'Política de privacidade' })).toBeVisible();
+    for (const id of ['dados', 'retencao', 'direitos', 'cookies', 'terceiros', 'seguranca', 'menores']) {
+      await expect(page.locator(`section#${id}`)).toHaveCount(1);
+    }
+    // Índice lateral aponta pra partes que existem.
+    const targets = await page.locator('.bl-toc a').evaluateAll((as) => as.map((a) => a.getAttribute('href')));
+    expect(targets.length).toBeGreaterThanOrEqual(8);
+    for (const href of targets) await expect(page.locator(href)).toHaveCount(1);
+    expect(errors).toEqual([]);
+  });
+}
+
+test('/termos#contato leva aos termos de uso, na parte certa', async ({ page }) => {
+  await page.goto('/termos#contato');
+  await expect(page).toHaveURL(/\/blog\/termos-de-uso#contato/, { timeout: 20_000 });
+  await expect(page.locator('section#contato')).toBeInViewport();
+});
+
+test('início: perguntas e topo com Blog e Privacidade', async ({ page }) => {
   // Sem sessão: a raiz mostra a página inicial pública.
   await page.route('**/api/**', (r) => {
     const u = r.request().url();
@@ -106,8 +107,7 @@ test('início: perguntas sem a de privacidade e topo com Blog e Termos', async (
   await page.goto('/');
   await expect(page.locator('#perguntas')).toBeAttached({ timeout: 20_000 });
   await expect(page.locator('#perguntas summary', { hasText: 'Roda em PC fraco?' })).toHaveCount(1);
-  await expect(page.locator('#perguntas summary', { hasText: 'E os meus dados?' })).toHaveCount(0);
   await expect(page.locator('a[href="/blog"]').first()).toBeAttached();
-  await expect(page.locator('a[href="/termos"]').first()).toBeAttached();
+  await expect(page.locator('a[href="/blog/politica-de-privacidade"]').first()).toBeAttached();
   expect(errors).toEqual([]);
 });

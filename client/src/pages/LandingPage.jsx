@@ -4,17 +4,16 @@ import { Ico } from '../components/PagesKit.jsx';
 import { PublicFooter, PublicHeader, usePublicScrollChrome } from './public/PublicChrome.jsx';
 import { useAuth } from '../context/AuthContext.jsx';
 import '../styles/landing.css';
+import '../styles/landing-mono.css';
 
 // Página inicial pública (vitrine + download).
 //
-// Duas peças carregam a página, o resto fica quieto de propósito:
-//  1. Abertura: os apps giram numa órbita 3D em volta do nome,
-//     passando por trás e pela frente das letras; a órbita inclina com
-//     o mouse.
-//  2. Palco dos apps: enquanto a pessoa rola, um app por vez toma a tela
-//     (nome gigante, banner, o que faz) e o fundo muda para a cor dele.
-// Com "reduzir movimento" ligado, a órbita fica parada e o palco vira
-// uma lista comum.
+// Visual preto e branco, minimalista (landing-mono.css): nome gigante na
+// abertura, seções alternando branco e preto, faixa de palavras correndo,
+// apps em grade, download em lista e perguntas em sanfona. Animações:
+// letras subindo, frases entrando palavra por palavra, prévia do app que
+// cresce com a rolagem, cursor que inverte as cores e botões "magnéticos".
+// Com "reduzir movimento" ligado, tudo aparece parado.
 
 const DOWNLOADS_BASE = 'https://github.com/RiqueBitt/ProjectClub/releases/latest/download';
 const DOWNLOADS = {
@@ -28,7 +27,7 @@ const DOWNLOADS = {
 // Manager e o RPG Blackout. `note` é a linha de baixo; `art: 'type'` desenha
 // o nome em letras (sem print) no lugar da captura.
 const APPS = [
-  { id: 'projectclub', verb: 'Comunidade', shot: '01-comunidade', name: 'Project Club', what: 'Comunidade com chat, voz e fórum', color: '#5b8cff', line: 'Canais de texto e de voz, amigos, conquistas, loja e economia, no computador, no celular e no navegador.', note: 'Grátis para Windows, Linux, Android e navegador.' },
+  { id: 'projectclub', verb: 'Comunidade', shot: '02-chat', name: 'Project Club', what: 'Comunidade com chat, voz e fórum', color: '#5b8cff', line: 'Canais de texto e de voz, amigos, conquistas, loja e economia, no computador, no celular e no navegador.', note: 'Grátis para Windows, Linux, Android e navegador.' },
   { id: 'modmanager', verb: 'Mods', shot: '01-biblioteca', name: 'Mod Manager', what: 'Gerenciador de mods', color: '#ff5c93', line: 'Um lugar só para os mods dos seus jogos da Steam, Epic Games e GOG, do Minecraft e do Hytale, com modpacks que entram quando o jogo abre e saem quando ele fecha.', note: 'Vem no app para computador.' },
   { id: 'blackout', verb: 'RPG', art: 'type', name: 'RPG Blackout', what: 'RPG de mesa', color: '#ff3b3b', line: 'O compêndio do BLACKOUT abre direto no Project Club, no computador e no celular, para quem está na mesa.', note: 'Para quem participa da instância BLACKOUT.' },
 ];
@@ -99,11 +98,6 @@ function usePulse() {
     return () => { alive = false; clearInterval(t); };
   }, []);
   return pulse;
-}
-function useVersions() {
-  const [v, setV] = useState({});
-  useEffect(() => { fetch('/api/app-catalog/versions').then((r) => (r.ok ? r.json() : {})).then(setV).catch(() => {}); }, []);
-  return v;
 }
 const fmtNum = (n) => new Intl.NumberFormat('pt-BR').format(n);
 
@@ -231,7 +225,7 @@ function BlackoutTable() {
         </div>
       </div>
       <div className="lp-bo-center lp-reveal">
-        <p className="lp-bo-kicker">RPG de mesa dentro do clube</p>
+        <p className="lm-eyebrow"><b>02</b>/RPG de mesa</p>
         <h2 id="bo-titulo" className="lp-bo-title">Blackout</h2>
         <p className="lp-copy">História, espécies, classes, itens e criação de personagem num compêndio só. A ficha fica salva, sai em PDF e as rolagens acontecem ali mesmo.</p>
         <div className="lp-bo-sheet" key={`s${hero}`} aria-live="polite">
@@ -274,212 +268,276 @@ function AppArt({ a, className = '', eager = false, alt = '' }) {
   return <img className={className} src={a.shot ? `/apps/${a.id}/shots/${a.shot}.jpg` : `/apps/${a.id}/banner.jpg`} alt={alt} loading={eager ? 'eager' : 'lazy'} />;
 }
 
-const AppStage = forwardRef(function AppStage({ versions }, apiRef) {
-  const sectionRef = useRef(null);
-  const artRef = useRef(null);
-  const [index, setIndex] = useState(0);
-  const [pinned, setPinned] = useState(true);
+// Grade dos apps (estilo portfólio): captura em preto e branco, nome,
+// o que faz e duas etiquetas. A captura entra com uma cortina ao aparecer.
+const APP_INFO = {
+  projectclub: { status: 'Disponível', platforms: 'Windows · Linux · Android · Navegador', go: 'download' },
+  modmanager: { status: 'Disponível', platforms: 'Windows · Linux', go: 'download' },
+  blackout: { status: 'Para quem está na mesa', platforms: 'Computador · Celular', go: 'blackout' },
+};
+const AppGrid = forwardRef(function AppGrid(_props, apiRef) {
+  const listRef = useRef(null);
+  useImperativeHandle(apiRef, () => ({
+    goTo: (i) => listRef.current?.children[i]?.scrollIntoView({ behavior: reducedMotion() ? 'auto' : 'smooth', block: 'center' }),
+  }));
+  return (
+    <section id="apps" className="lm-sec lm-apps" aria-labelledby="apps-titulo">
+      <div className="lm-sec-head">
+        <div>
+          <p className="lm-eyebrow lp-reveal"><b>01</b>/Apps</p>
+          <h2 id="apps-titulo" className="lm-h2 lp-reveal">Três apps. Uma conta.</h2>
+        </div>
+        <p className="lm-copy lp-reveal">A comunidade, o gerenciador de mods dos seus jogos e o RPG Blackout, com o mesmo login.</p>
+      </div>
+      <ul className="lm-grid" ref={listRef}>
+        {APPS.map((a, i) => (
+          <li key={a.id} className="lm-card lp-reveal" style={{ '--i': i }}>
+            <p className="lm-card-top"><span>{String(i + 1).padStart(2, '0')}</span><span>{a.verb}</span></p>
+            <div className="lm-card-art"><AppArt a={a} eager={i === 0} alt={`${a.name}: ${a.what}`} /></div>
+            <div className="lm-card-meta">
+              <h3><img src={`/apps/${a.id}/icon.png`} alt="" width="28" height="28" />{a.name}</h3>
+              <p>{a.line}</p>
+              <p className="lm-card-foot">
+                <span className="lm-status">{APP_INFO[a.id]?.status}</span>
+                <span className="lm-plat">{APP_INFO[a.id]?.platforms}</span>
+              </p>
+              <a className="lm-explore" href={`#${APP_INFO[a.id]?.go || 'download'}`} data-cursor="Explorar">Explorar <span aria-hidden="true">→</span></a>
+            </div>
+          </li>
+        ))}
+      </ul>
+    </section>
+  );
+});
 
-  useEffect(() => {
-    const mq = window.matchMedia('(max-width: 900px)');
-    const sync = () => setPinned(!mq.matches);
-    sync();
-    mq.addEventListener('change', sync);
-    return () => mq.removeEventListener('change', sync);
-  }, []);
+// Nome gigante: cada letra sobe de dentro de uma máscara, uma depois da outra.
+function Wordmark({ text, className = '' }) {
+  return (
+    <span className={`lm-word ${className}`} aria-hidden="true">
+      {text.split('').map((ch, i) => (
+        <span key={i} className="lm-word-mask"><span className="lm-word-ch" style={{ '--i': i }}>{ch === ' ' ? '\u00a0' : ch}</span></span>
+      ))}
+    </span>
+  );
+}
 
+// Ajusta o tamanho das letras pra o nome ocupar a largura toda, sem vazar
+// (recalcula quando a fonte carrega e quando a janela muda de tamanho).
+function useFitText(selector, maxWidth = Infinity) {
   useEffect(() => {
-    if (!pinned) return undefined;
+    const fit = () => document.querySelectorAll(selector).forEach((el) => {
+      el.style.fontSize = '';
+      if (window.innerWidth > maxWidth) return;
+      const ps = getComputedStyle(el.parentElement);
+      const box = el.parentElement.clientWidth - parseFloat(ps.paddingLeft) - parseFloat(ps.paddingRight);
+      const w = el.scrollWidth;
+      if (w > 0 && box > 0) el.style.fontSize = `${parseFloat(getComputedStyle(el).fontSize) * (box / w) * 0.995}px`;
+    });
+    fit();
+    document.fonts?.ready?.then(fit);
+    window.addEventListener('resize', fit);
+    return () => window.removeEventListener('resize', fit);
+  }, [selector, maxWidth]);
+}
+
+// Faixa de palavras correndo (duas linhas, sentidos opostos).
+const MARQUEE = ['Chat', 'Salas de voz', 'Fórum', 'Mod Manager', 'RPG Blackout', 'Conquistas', 'Loja', 'Figurinhas', 'Amigos'];
+function Marquee() {
+  const row = (rev) => (
+    <div className={`lm-marquee-row${rev ? ' is-rev' : ''}`}>
+      {[0, 1].map((k) => (
+        <span key={k} className="lm-marquee-track" aria-hidden={k === 1}>
+          {MARQUEE.map((w) => <span key={w} className="lm-marquee-item">{w}<i aria-hidden="true">✳</i></span>)}
+        </span>
+      ))}
+    </div>
+  );
+  return <div className="lm-marquee" role="presentation">{row(false)}{row(true)}</div>;
+}
+
+// Cursor: um ponto que inverte as cores do que passa por baixo e cresce
+// (com uma palavra) em cima de links, botões e cards. Só com mouse.
+function useMonoCursor() {
+  useEffect(() => {
+    if (reducedMotion() || !window.matchMedia('(pointer: fine)').matches) return undefined;
     const root = document.querySelector('.lp');
-    const sec = sectionRef.current;
+    const dot = document.createElement('div');
+    dot.className = 'lm-cursor'; dot.setAttribute('aria-hidden', 'true');
+    const label = document.createElement('span'); dot.appendChild(label);
+    root.appendChild(dot); root.classList.add('has-cursor');
+    let x = -100; let y = -100; let cx = x; let cy = y; let raf = 0;
+    const tick = () => {
+      cx += (x - cx) * 0.22; cy += (y - cy) * 0.22;
+      dot.style.transform = `translate3d(${cx}px, ${cy}px, 0)`;
+      raf = requestAnimationFrame(tick);
+    };
+    raf = requestAnimationFrame(tick);
+    const onMove = (e) => {
+      x = e.clientX; y = e.clientY;
+      const hit = e.target.closest?.('[data-cursor], a, button, summary');
+      dot.classList.toggle('is-big', !!hit);
+      label.textContent = hit?.getAttribute?.('data-cursor') || '';
+      dot.classList.toggle('has-label', !!label.textContent);
+      // Botão "magnético": puxa um pouquinho na direção do mouse.
+      root.querySelectorAll('.lm-magnet').forEach((b) => {
+        const r = b.getBoundingClientRect(); const dx = e.clientX - (r.left + r.width / 2); const dy = e.clientY - (r.top + r.height / 2);
+        const near = Math.hypot(dx, dy) < Math.max(r.width, r.height);
+        b.style.transform = near ? `translate(${dx * 0.18}px, ${dy * 0.28}px)` : '';
+      });
+    };
+    const onLeave = () => { x = -100; y = -100; };
+    root.addEventListener('pointermove', onMove, { passive: true });
+    root.addEventListener('pointerleave', onLeave);
+    return () => { cancelAnimationFrame(raf); root.removeEventListener('pointermove', onMove); root.removeEventListener('pointerleave', onLeave); dot.remove(); root.classList.remove('has-cursor'); };
+  }, []);
+}
+
+// Rolagem: --hero (0..1) faz a prévia do app crescer até ocupar a largura.
+function useHeroScroll() {
+  useEffect(() => {
+    const root = document.querySelector('.lp');
+    const shot = document.querySelector('.lm-hero-shot');
+    if (!root || !shot || reducedMotion()) return undefined;
     let raf = 0;
     const onScroll = () => {
       cancelAnimationFrame(raf);
       raf = requestAnimationFrame(() => {
-        const top = sec.offsetTop; const span = sec.offsetHeight - root.clientHeight;
-        const p = Math.min(1, Math.max(0, (root.scrollTop - top) / Math.max(1, span)));
-        sec.style.setProperty('--stage', p.toFixed(4));
-        setIndex(Math.min(APPS.length - 1, Math.floor(p * APPS.length)));
+        const r = shot.getBoundingClientRect();
+        const p = Math.min(1, Math.max(0, 1 - (r.top - root.clientHeight * 0.25) / (root.clientHeight * 0.75)));
+        shot.style.setProperty('--hero', p.toFixed(3));
       });
     };
     root.addEventListener('scroll', onScroll, { passive: true });
     onScroll();
     return () => { root.removeEventListener('scroll', onScroll); cancelAnimationFrame(raf); };
-  }, [pinned]);
-
-  const goTo = (i) => {
-    const root = document.querySelector('.lp'); const sec = sectionRef.current;
-    if (!sec) return;
-    if (!pinned) { sec.querySelectorAll('li')[i]?.scrollIntoView({ behavior: reducedMotion() ? 'auto' : 'smooth', block: 'center' }); return; }
-    const span = sec.offsetHeight - root.clientHeight;
-    root.scrollTo({ top: sec.offsetTop + span * ((i + 0.5) / APPS.length), behavior: reducedMotion() ? 'auto' : 'smooth' });
-  };
-  useImperativeHandle(apiRef, () => ({ goTo }));
-
-  // Banner inclina na direção do mouse.
-  const onArtMove = (e) => {
-    if (reducedMotion()) return;
-    const el = artRef.current; const r = el.getBoundingClientRect();
-    el.style.setProperty('--rx', `${(((e.clientY - r.top) / r.height) - 0.5) * -10}deg`);
-    el.style.setProperty('--ry', `${(((e.clientX - r.left) / r.width) - 0.5) * 14}deg`);
-  };
-  const onArtLeave = () => { const el = artRef.current; el.style.setProperty('--rx', '0deg'); el.style.setProperty('--ry', '0deg'); };
-
-  if (!pinned) {
-    return (
-      <section id="apps" ref={sectionRef} className="lp-apps-list" aria-labelledby="apps-titulo">
-        <h2 id="apps-titulo" className="lp-display is-md">Tudo numa conta só</h2>
-        <p className="lp-copy">A comunidade, o gerenciador de mods dos seus jogos e o RPG Blackout, com o mesmo login.</p>
-        <ul>
-          {APPS.map((a) => (
-            <li key={a.id} style={{ '--c': a.color }}>
-              <AppArt a={a} />
-              <div><strong>{a.name}</strong><span>{a.what}</span><p>{a.line}</p><small>{a.note}</small></div>
-            </li>
-          ))}
-        </ul>
-      </section>
-    );
-  }
-
-  const app = APPS[index];
-  return (
-    <section id="apps" ref={sectionRef} className="lp-stage" style={{ '--c': app.color, height: `${APPS.length * 75 + 100}vh` }} aria-labelledby="apps-titulo">
-      <div className="lp-stage-pin">
-        <div className="lp-stage-bg" aria-hidden="true" />
-        <div className="lp-stage-head">
-          <h2 id="apps-titulo" className="lp-stage-kicker">O que tem no clube</h2>
-          <div className="lp-stage-chips" role="tablist" aria-label="Escolher app">
-            {APPS.map((a, i) => (
-              <button key={a.id} type="button" role="tab" aria-selected={i === index} className={i === index ? 'is-on' : ''} style={{ '--c': a.color }} onClick={() => goTo(i)}>{a.verb}</button>
-            ))}
-          </div>
-        </div>
-
-        <div className="lp-stage-copy" key={app.id}>
-          <span className="lp-stage-count" aria-hidden="true">{index + 1}<i>/{APPS.length}</i></span>
-          <h3 className="lp-stage-name">{app.name}</h3>
-          <p className="lp-stage-what">{app.what}</p>
-          <p className="lp-stage-line">{app.line}</p>
-          <p className="lp-stage-base">{app.note}</p>
-        </div>
-
-        <div className="lp-stage-art" ref={artRef} onPointerMove={onArtMove} onPointerLeave={onArtLeave}>
-          {APPS.map((a, i) => (
-            <figure key={a.id} className={`lp-window ${i === index ? 'is-on' : ''}`} aria-hidden={i !== index}>
-              <div className="lp-window-bar">
-                <img src={`/apps/${a.id}/icon.png`} alt="" width="18" height="18" />
-                <span>{a.name}</span>
-                <i /><i /><i />
-              </div>
-              <AppArt a={a} className={`lp-window-shot ${a.shot || a.art ? '' : 'is-banner'}`} alt={i === index ? `${a.name} aberto` : ''} eager={i < 2} />
-            </figure>
-          ))}
-        </div>
-
-        <div className="lp-stage-rail" aria-hidden="true"><span /></div>
-      </div>
-    </section>
-  );
-});
+  }, []);
+}
 
 // ---------- O app ao vivo (abertura) ----------
-// Réplica em HTML da tela de chat do app: a conversa acontece sozinha, com
-// "digitando", reação somando e quem fala na call acendendo. Sem
-// movimento reduzido a conversa continua, só sem deslizar.
+// Réplica em HTML da tela de chat do app ATUAL (mesmo layout da captura em
+// public/apps/projectclub/shots/02-chat.jpg): barra de cima com busca, menu
+// da comunidade, canais, call com quem fala acendendo, conversa chegando com
+// "digitando" e reações somando, e a lista de membros. Roda em loop.
 const LIVE_PEOPLE = {
-  rique: { name: 'RiqueBitt', color: '#f08a3c', bg: 'linear-gradient(135deg,#8a1c1c,#4a0d0d)', mod: true },
-  lia: { name: 'Lia', color: '#fff', bg: 'linear-gradient(135deg,#7c8cff,#4C9FFF)' },
+  rique: { name: 'RiqueBitt', color: '#f08a3c', bg: 'linear-gradient(135deg,#c0392b,#2c0a0a)', mod: true, status: 'Quem está marcando!!!' },
+  lia: { name: 'Lia', color: '#fff', bg: 'linear-gradient(135deg,#4c9fff,#7b5cff)' },
   kaio: { name: 'Kaio', color: '#fff', bg: 'linear-gradient(135deg,#23a55a,#0f5c32)' },
-  loritta: { name: 'Loritta', color: '#7cb3ff', bg: 'linear-gradient(135deg,#f0a6d8,#b05fc0)', bot: true },
+  nina: { name: 'Nina', color: '#fff', bg: 'linear-gradient(135deg,#f39c12,#8e44ad)' },
+  loritta: { name: 'Loritta', color: '#7cb3ff', bg: 'linear-gradient(135deg,#f6a6c1,#7d3c98)', bot: true, status: 'Fan Art by Azu | Cluster 4' },
 };
 const LIVE_SCRIPT = [
-  { who: 'lia', time: '18:14', text: 'alguém pra call hoje à noite?' },
-  { who: 'rique', time: '18:15', text: 'bora! abro a sala de voz às 21h', typing: 900 },
-  { who: 'kaio', time: '18:16', text: 'baixei o modpack pelo Mod Manager, já tá rodando aqui', typing: 1500 },
-  { who: 'loritta', time: '18:20', text: 'Lembrete: o evento de figurinhas começa amanhã 🎉', typing: 700, reactions: true },
+  { who: 'lia', time: '22:38', text: 'alguém pra call hoje à noite?' },
+  { who: 'rique', time: '22:40', text: 'bora! abro a sala de voz às 21h', typing: 900 },
+  { who: 'kaio', time: '22:49', text: 'baixei o modpack pelo Mod Manager, já tá rodando aqui', typing: 1400, react: ['🔥', 2, 3] },
+  { who: 'nina', time: '22:57', text: 'quem vai de mestre na mesa de RPG sexta?', typing: 1000 },
+  { who: 'rique', time: '23:00', text: 'eu levo a campanha do Blackout, já deixei as fichas prontas', typing: 1300 },
+  { who: 'loritta', time: '23:24', text: 'Lembrete: o evento de figurinhas começa amanhã 🎉', typing: 700, react: ['🎉', 13, 14] },
 ];
+const LIVE_VOICE = ['rique', 'lia', 'kaio'];
 
 function LiveAvatar({ who, size = 36 }) {
   const p = LIVE_PEOPLE[who];
   return <i className="lc-av" style={{ background: p.bg, width: size, height: size }} aria-hidden="true">{p.name[0]}</i>;
 }
 
-function LiveReactions() {
-  const [party, setParty] = useState(14);
-  const [like, setLike] = useState(2);
-  useEffect(() => {
-    const a = setTimeout(() => setParty(15), 900);
-    const b = setTimeout(() => setLike(3), 1700);
-    return () => { clearTimeout(a); clearTimeout(b); };
-  }, []);
-  return (
-    <span className="lc-reacts">
-      <b className={like > 2 ? 'is-mine' : ''} key={`l${like}`}>👍 {like}</b>
-      <b key={`p${party}`}>🎉 {party}</b>
-    </span>
-  );
+// Reação que soma 1 logo depois que a mensagem aparece.
+function LiveReaction({ emoji, from, to }) {
+  const [n, setN] = useState(from);
+  useEffect(() => { const t = setTimeout(() => setN(to), 1100); return () => clearTimeout(t); }, [to]);
+  return <span className="lc2-reacts"><b className={n === to ? 'is-mine' : ''} key={n}>{emoji} {n}</b></span>;
 }
+
+const LIVE_NAV = [['Central', 'Ao vivo'], ['Amigos', '1'], ['Economia'], ['Progresso'], ['Mod Manager']];
 
 function LiveClub() {
   const [count, setCount] = useState(0);
   const [typing, setTyping] = useState(null);
   const [fading, setFading] = useState(false);
+  const [talk, setTalk] = useState(0);
+  const listRef = useRef(null);
   useEffect(() => {
     let alive = true; const timers = [];
     const wait = (ms) => new Promise((r) => { timers.push(setTimeout(r, ms)); });
     (async () => {
-      await wait(700);
+      await wait(600);
       while (alive) {
         for (let i = 0; i < LIVE_SCRIPT.length && alive; i += 1) {
           const m = LIVE_SCRIPT[i];
           if (m.typing) { setTyping(m.who); await wait(m.typing); setTyping(null); }
           setCount(i + 1);
-          await wait(1500);
+          await wait(1700);
         }
         await wait(4200); if (!alive) break;
         setFading(true); await wait(500);
-        setCount(0); setFading(false); await wait(600);
+        setCount(0); setFading(false); await wait(500);
       }
     })();
-    return () => { alive = false; timers.forEach(clearTimeout); };
+    // Quem fala na call vai trocando.
+    const t = setInterval(() => setTalk((x) => (x + 1) % LIVE_VOICE.length), 1800);
+    return () => { alive = false; timers.forEach(clearTimeout); clearInterval(t); };
   }, []);
+  useEffect(() => { const el = listRef.current; if (el) el.scrollTop = el.scrollHeight; }, [count, typing]);
 
   return (
-    <figure className="lp-hero-shot lc" aria-label="Prévia do Project Club: canal chat geral com uma conversa acontecendo e três pessoas na sala de voz">
-      <div className="lc-top" aria-hidden="true"><span className="lc-hash">#</span> 🌎 | chat geral<span className="lc-online"><i />4 online</span></div>
-      <div className="lc-body" aria-hidden="true">
-        <aside className="lc-side">
-          <p className="lc-cat">Comunidade</p>
-          <p className="lc-ch is-on"># 🌎 | chat geral</p>
-          <p className="lc-ch"># 🔧 | comandos</p>
-          <p className="lc-ch"># 📸 | mídias</p>
-          <p className="lc-cat">Canais de voz</p>
-          <p className="lc-ch">🔊 ☕ | Call</p>
-          <ul className="lc-voice">
-            {['rique', 'lia', 'kaio'].map((w, i) => (
-              <li key={w} style={{ '--d': `${i * 1.6}s` }}><LiveAvatar who={w} size={22} />{LIVE_PEOPLE[w].name}</li>
+    <figure className="lp-hero-shot lc lc2" aria-label="Prévia do Project Club: canal chat geral com uma conversa acontecendo, três pessoas na call e a lista de membros">
+      <div className="lc2-top" aria-hidden="true">
+        <span className="lc2-crumb">▤ Comunidade</span>
+        <span className="lc2-search">⌕ Buscar em Project Club</span>
+        <span className="lc2-icons"><i /><i /><i className="has-dot" /></span>
+      </div>
+      <div className="lc2-body" aria-hidden="true">
+        <aside className="lc2-side">
+          <p className="lc2-club">Project Club <span>⚙</span></p>
+          <p className="lc2-sub">♛ Assinatura</p>
+          <ul className="lc2-nav">
+            {LIVE_NAV.map(([n, tag]) => <li key={n}><i />{n}{tag && <em className={tag === 'Ao vivo' ? 'is-live' : ''}>{tag}</em>}</li>)}
+          </ul>
+          <p className="lc2-cat">Informações</p>
+          <p className="lc2-ch"># 📣 | Anúncios</p>
+          <p className="lc2-cat">Comunidade</p>
+          <p className="lc2-ch is-on"># 🌎 | chat geral</p>
+          <p className="lc2-ch"># 🔧 | comandos</p>
+          <p className="lc2-ch"># 📸 | mídias</p>
+          <p className="lc2-cat">Canais de voz</p>
+          <p className="lc2-ch">🔊 ☕ | Call</p>
+          <ul className="lc2-voice">
+            {LIVE_VOICE.map((w, i) => (
+              <li key={w} className={i === talk ? 'is-talking' : ''}><LiveAvatar who={w} size={20} />{LIVE_PEOPLE[w].name}</li>
             ))}
           </ul>
+          <div className="lc2-me"><LiveAvatar who="rique" size={30} /><span><b>RiqueBitt</b><small>Quem está marcando!!!</small></span></div>
         </aside>
-        <div className={`lc-chat ${fading ? 'is-fading' : ''}`}>
-          <p className="lc-day"><span>Hoje</span></p>
-          {LIVE_SCRIPT.slice(0, count).map((m) => {
-            const p = LIVE_PEOPLE[m.who];
-            return (
-              <div className="lc-msg" key={m.who + m.time}>
-                <LiveAvatar who={m.who} />
-                <div>
-                  <p className="lc-meta"><b style={{ color: p.color }}>{p.name}</b>{p.mod && <span className="lc-badge">MOD</span>}{p.bot && <span className="lc-badge is-bot">BOT</span>}<time>{m.time}</time></p>
-                  <p className="lc-text">{m.text}</p>
-                  {m.reactions && <LiveReactions />}
+        <div className="lc2-main">
+          <div className="lc2-head"><span className="lc2-hash">#</span> 🌎 | chat geral</div>
+          <div className={`lc2-chat ${fading ? 'is-fading' : ''}`} ref={listRef}>
+            <div className="lc2-welcome"><span className="lc2-hash is-big">#</span><b>Bem-vindo(a) a #🌎 | chat geral</b><small>Este é o início do canal. Diga oi e comece a conversa!</small></div>
+            <p className="lc-day"><span>Hoje</span></p>
+            {LIVE_SCRIPT.slice(0, count).map((m) => {
+              const p = LIVE_PEOPLE[m.who];
+              return (
+                <div className="lc-msg lc2-msg" key={m.who + m.time}>
+                  <LiveAvatar who={m.who} />
+                  <div>
+                    <p className="lc-meta"><b style={{ color: p.color }}>{p.name}</b>{p.mod && <span className="lc2-shield">⛨</span>}{p.bot && <span className="lc-badge is-bot">BOT</span>}<time>{m.time}</time></p>
+                    <p className="lc-text">{m.text}</p>
+                    {m.react && <LiveReaction emoji={m.react[0]} from={m.react[1]} to={m.react[2]} />}
+                  </div>
                 </div>
-              </div>
-            );
-          })}
+              );
+            })}
+          </div>
           <p className={`lc-typing ${typing ? 'is-on' : ''}`}>{typing && <><span className="lc-dots"><i /><i /><i /></span><b>{LIVE_PEOPLE[typing].name}</b> está digitando…</>}</p>
-          <div className="lc-input">Conversar em # 🌎 | chat geral</div>
+          <div className="lc2-input"><span>＋</span>Conversar em #🌎 | chat geral<span className="lc2-send">➤</span></div>
         </div>
+        <aside className="lc2-members">
+          <p className="lc2-mt">Membros — 5</p>
+          <p className="lc2-cat">RiqueBitt — 1</p>
+          <div className="lc2-mem is-hl"><LiveAvatar who="rique" size={26} /><span><b style={{ color: '#f08a3c' }}>RiqueBitt</b><small>Quem está marcando!!!</small></span></div>
+          <p className="lc2-cat">Online — 3</p>
+          {['lia', 'kaio', 'nina'].map((w) => <div key={w} className="lc2-mem"><LiveAvatar who={w} size={26} /><span><b>{LIVE_PEOPLE[w].name}</b></span></div>)}
+          <p className="lc2-cat">Bots — 1</p>
+          <div className="lc2-mem"><LiveAvatar who="loritta" size={26} /><span><b style={{ color: '#7cb3ff' }}>Loritta</b><small>Fan Art by Azu | Cluster 4</small></span></div>
+        </aside>
       </div>
     </figure>
   );
@@ -490,11 +548,14 @@ export default function LandingPage() {
   const location = useLocation();
   useReveal();
   usePublicScrollChrome();
+  useMonoCursor();
+  useHeroScroll();
+  useFitText('.lm-hero-title, .lm-end-title');
+  useFitText('.lp-bo-title', 760);
   const [platform] = useState(detectPlatform);
   const [copied, setCopied] = useState(false);
   const [cmdOpen, setCmdOpen] = useState(false);
   const stageRef = useRef(null);
-  const versions = useVersions();
   useEffect(() => {
     const onKey = (e) => {
       if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'k') { e.preventDefault(); setCmdOpen((o) => !o); }
@@ -548,7 +609,7 @@ export default function LandingPage() {
     { key: 'go-com', label: 'Comunidade', hint: 'Chat, voz, fórum e conquistas', glyph: '#', run: () => jump('comunidade') },
     { key: 'go-faq', label: 'Perguntas', hint: 'Preço, requisitos e atualizações', glyph: '?', run: () => jump('perguntas') },
     { key: 'go-blog', label: 'Blog', hint: 'O guia completo do Project Club', glyph: '¶', run: () => navigate('/blog') },
-    { key: 'go-terms', label: 'Termos de privacidade', hint: 'Termos de uso e dados', glyph: '§', run: () => navigate('/termos') },
+    { key: 'go-terms', label: 'Política de privacidade', hint: 'Termos de uso e dados', glyph: '§', run: () => navigate('/blog/politica-de-privacidade') },
   ];
 
   const goLogin = () => navigate(user ? '/inicio' : '/login');
@@ -558,133 +619,132 @@ export default function LandingPage() {
   };
 
   return (
-    <div className="lp">
+    <div className="lp lp-mono">
       <a className="lp-skip" href="#conteudo">Pular para o conteúdo</a>
       <div className="lp-progress" aria-hidden="true" />
-      <div className="lp-grain" aria-hidden="true" />
 
       <PublicHeader page="inicio" onSearch={() => setCmdOpen(true)} />
 
       <main id="conteudo">
-        <section className="lp-hero" aria-labelledby="titulo">
-          <div className="lp-hero-text">
-            <h1 id="titulo" className="lp-display lp-words" aria-label="Parece Discord por fora. É nosso por dentro."><span aria-hidden="true" style={{ '--i': 0 }}>Parece</span> <span aria-hidden="true" style={{ '--i': 1 }}>Discord</span> <span aria-hidden="true" style={{ '--i': 2 }}>por</span> <span aria-hidden="true" style={{ '--i': 3 }}>fora.</span> <span aria-hidden="true" style={{ '--i': 4 }}>É</span> <span aria-hidden="true" style={{ '--i': 5 }}>nosso</span> <span aria-hidden="true" style={{ '--i': 6 }}>por</span> <span aria-hidden="true" style={{ '--i': 7 }}>dentro.</span></h1>
-            <p className="lp-lede">
-              O Project Club junta chat, salas de voz e fórum com o Mod Manager para os mods dos seus jogos e o RPG Blackout. Tudo de graça, no computador, no celular e no navegador.
+        <section className="lm-hero lm-dark" aria-labelledby="titulo">
+          <p className="lm-hero-kicker"><span className="lm-icons" aria-hidden="true">{APPS.map((a) => <img key={a.id} src={`/apps/${a.id}/icon.png`} alt="" width="26" height="26" />)}</span>Comunidade, mods e RPG de mesa</p>
+          <h1 id="titulo" className="lm-hero-title" aria-label="Project Club"><Wordmark text="Project Club" /></h1>
+          <div className="lm-hero-row">
+            <p className="lm-statement lm-words" aria-label="Parece Discord por fora. É nosso por dentro.">
+              {'Parece Discord por fora. É nosso por dentro.'.split(' ').map((w, i) => <span key={i} aria-hidden="true" style={{ '--i': i }}>{w} </span>)}
             </p>
-            <div className="lp-hero-cta">
-              {platform ? (
-                <a className="lp-btn is-accent is-lg" href={DOWNLOADS[platform]} download>
-                  <Mark name={platform} size={20} /> Baixar para {PLATFORM_LABEL[platform]}
-                </a>
-              ) : (
-                <button type="button" className="lp-btn is-accent is-lg" onClick={goRegister}>{user ? 'Voltar pro app' : 'Criar conta grátis'}</button>
-              )}
-              <a className="lp-btn is-ghost is-lg" href="#download">Outros sistemas</a>
+            <div className="lm-hero-side">
+              <p className="lm-copy">Chat, salas de voz e fórum, com o Mod Manager para os mods dos seus jogos e o RPG Blackout. No computador, no celular e no navegador.</p>
+              <div className="lm-cta">
+                {platform ? (
+                  <a className="lm-btn is-solid lm-magnet" href={DOWNLOADS[platform]} download data-cursor="Baixar">
+                    <Mark name={platform} size={18} /> Baixar para {PLATFORM_LABEL[platform]}
+                  </a>
+                ) : (
+                  <button type="button" className="lm-btn is-solid lm-magnet" onClick={goRegister}>{user ? 'Voltar pro app' : 'Criar conta grátis'}</button>
+                )}
+                <a className="lm-btn is-line" href="#download">Outros sistemas</a>
+              </div>
+              <p className="lm-hero-plat">Windows · Linux · Android · Navegador<span>Grátis, sem assinatura e sem anúncio</span></p>
+              <Pulse />
             </div>
-            <Pulse />
           </div>
-          <LiveClub />
+          <div className="lm-hero-shot"><LiveClub /></div>
+          <Marquee />
         </section>
 
-        <AppStage ref={stageRef} versions={versions} />
+        <AppGrid ref={stageRef} />
 
         <BlackoutTable />
 
-        <section id="comunidade" className="lp-band" aria-labelledby="com-titulo">
-          <div className="lp-split">
-            <h2 id="com-titulo" className="lp-display is-md lp-reveal">Conversa de verdade</h2>
-            <div className="lp-reveal">
-              <p className="lp-copy">
-                Canais de texto e de voz, um fórum com temas, amigos, conquistas e uma economia com moedas, casas e figurinhas. Parece Discord por fora, mas é nosso por dentro: a gente decide o que entra.
-              </p>
-              <ul className="lp-perks">
-                <li data-spot>
-                  <div className="lp-perk-demo is-typing" aria-hidden="true"><span className="lp-perk-dots"><i /><i /><i /></span>Rique está digitando</div>
-                  <b>Tempo real</b><p>Mensagens, voz e presença atualizam na hora, sem recarregar.</p>
+        <section id="comunidade" className="lm-sec lm-com" aria-labelledby="com-titulo">
+          <div className="lm-sec-head">
+            <div>
+              <p className="lm-eyebrow lp-reveal"><b>03</b>/Como é por dentro</p>
+              <h2 id="com-titulo" className="lm-h2 lp-reveal">Feito do jeito do clube.</h2>
+            </div>
+            <p className="lm-copy lp-reveal">Canais de texto e de voz, um fórum com temas, amigos, conquistas e uma economia com moedas, casas e figurinhas. A gente decide o que entra.</p>
+          </div>
+          <ul className="lm-principles">
+            {[
+              ['De graça, de verdade', 'Conta, comunidade e apps gratuitos. Sem plano pago e sem anúncio.'],
+              ['Tempo real', 'Mensagens, voz e presença atualizam na hora, sem recarregar.'],
+              ['Perfil seu', 'Cor, banner, molduras, estilos e conquistas com raridade.'],
+              ['Em qualquer aparelho', 'Computador, celular e navegador com a mesma conta.'],
+              ['Atualiza sozinho', 'O app baixa a versão nova e instala quando você fecha.'],
+              ['Seguro', 'Verificação em duas etapas, sessões por aparelho e moderação ativa.'],
+            ].map(([t, d], i) => (
+              <li key={t} className="lp-reveal" style={{ '--i': i }} data-spot>
+                <span className="lm-num">{String(i + 1).padStart(2, '0')}</span>
+                <h3>{t}</h3>
+                <p>{d}</p>
+              </li>
+            ))}
+          </ul>
+        </section>
+
+        <section id="download" className="lm-sec lm-dark lm-dl" aria-labelledby="dl-titulo">
+          <div className="lm-sec-head">
+            <div>
+              <p className="lm-eyebrow lp-reveal"><b>04</b>/Download</p>
+              <h2 id="dl-titulo" className="lm-h2 lp-reveal">Escolha o seu sistema.</h2>
+            </div>
+            <p className="lm-copy lp-reveal">No computador vem também o Mod Manager. No celular e no navegador você usa a comunidade.</p>
+          </div>
+          <ul className="lm-dl-list">
+            {[
+              { key: 'windows', name: 'Windows', desc: 'Instalador .exe para Windows 10 e 11', href: DOWNLOADS.windows },
+              { key: 'linux', name: 'Linux', desc: 'AppImage para x86_64', href: DOWNLOADS.linux },
+              { key: 'android', name: 'Android', desc: 'Arquivo .apk, instalação manual', href: DOWNLOADS.android },
+              { key: 'browser', name: 'Navegador', desc: 'Sem instalar nada, em qualquer aparelho' },
+            ].map((d, i) => {
+              const inner = (
+                <>
+                  <span className="lm-dl-name"><Mark name={d.key} size={26} />{d.name}{platform === d.key && <em>seu sistema</em>}</span>
+                  <span className="lm-dl-desc">{d.desc}</span>
+                  <span className="lm-dl-go" aria-hidden="true">{d.href ? '↓' : '→'}</span>
+                </>
+              );
+              return (
+                <li key={d.key} className="lp-reveal" style={{ '--i': i }}>
+                  {d.href
+                    ? <a className="lm-dl-row" href={d.href} download data-cursor="Baixar">{inner}</a>
+                    : <button type="button" className="lm-dl-row" onClick={goLogin} data-cursor={user ? 'Abrir' : 'Entrar'}>{inner}</button>}
                 </li>
-                <li data-spot>
-                  <div className="lp-perk-demo is-trophy" aria-hidden="true"><span className="lp-perk-ring">18</span>conquistas, com raridades</div>
-                  <b>Conquistas</b><p>18 para desbloquear, com raridades e destaque no perfil.</p>
-                </li>
-                <li data-spot>
-                  <div className="lp-perk-demo is-profile" aria-hidden="true"><span className="lp-perk-avatar" /><span className="lp-perk-swatches"><i /><i /><i /><i /></span></div>
-                  <b>Perfil seu</b><p>Cor, banner, conexões e o que você quiser mostrar.</p>
-                </li>
-                <li data-spot>
-                  <div className="lp-perk-demo is-code" aria-hidden="true">{'482913'.split('').map((d, i) => <i key={i} style={{ '--i': i }}>{d}</i>)}</div>
-                  <b>Segurança</b><p>Verificação em duas etapas, sessões por aparelho e moderação ativa.</p>
-                </li>
-              </ul>
+              );
+            })}
+          </ul>
+          <p className="lm-fine lp-reveal">Os arquivos vêm das versões publicadas no GitHub e se atualizam sozinhos depois de instalados. No Android, permita a instalação de apps fora da loja quando o sistema pedir.</p>
+        </section>
+
+        <section id="perguntas" className="lm-sec lm-faq-sec" aria-labelledby="faq-titulo">
+          <div className="lm-sec-head">
+            <div>
+              <p className="lm-eyebrow lp-reveal"><b>05</b>/Perguntas</p>
+              <h2 id="faq-titulo" className="lm-h2 lp-reveal">Antes de entrar.</h2>
             </div>
           </div>
-        </section>
-
-        <section id="download" className="lp-band is-tint" aria-labelledby="dl-titulo">
-          <div className="lp-band-head lp-reveal">
-            <h2 id="dl-titulo" className="lp-display is-md">Escolha o seu sistema</h2>
-            <p className="lp-copy">No computador vem também o Mod Manager. No celular e no navegador você usa a comunidade.</p>
-          </div>
-          <div className="lp-dl lp-reveal">
-            <a data-spot className={`lp-dl-card ${platform === 'windows' ? 'is-you' : ''}`} href={DOWNLOADS.windows} download>
-              <Mark name="windows" size={28} />
-              <strong>Windows</strong>
-              <span>Instalador .exe para Windows 10 e 11</span>
-              <em>Baixar <Ico name="download" size={15} /></em>
-            </a>
-            <a data-spot className={`lp-dl-card ${platform === 'linux' ? 'is-you' : ''}`} href={DOWNLOADS.linux} download>
-              <Mark name="linux" size={28} />
-              <strong>Linux</strong>
-              <span>AppImage para x86_64</span>
-              <em>Baixar <Ico name="download" size={15} /></em>
-            </a>
-            <a data-spot className={`lp-dl-card ${platform === 'android' ? 'is-you' : ''}`} href={DOWNLOADS.android} download>
-              <Mark name="android" size={28} />
-              <strong>Android</strong>
-              <span>Arquivo .apk, instalação manual</span>
-              <em>Baixar <Ico name="download" size={15} /></em>
-            </a>
-            <button type="button" data-spot className="lp-dl-card" onClick={goLogin}>
-              <Mark name="browser" size={28} />
-              <strong>Navegador</strong>
-              <span>Sem instalar nada, em qualquer aparelho</span>
-              <em>{user ? 'Abrir' : 'Entrar'}</em>
-            </button>
-          </div>
-          <p className="lp-fine lp-reveal">
-            Os arquivos vêm das versões publicadas no GitHub e se atualizam sozinhos depois de instalados. No Android, permita a instalação de apps fora da loja quando o sistema pedir.
-          </p>
-        </section>
-
-        <section id="perguntas" className="lp-band" aria-labelledby="faq-titulo">
-          <div className="lp-split">
-            <h2 id="faq-titulo" className="lp-display is-md lp-reveal">Antes de entrar</h2>
-            <div className="lp-faq lp-reveal">
-              <details>
-                <summary>Custa alguma coisa?</summary>
-                <p>Não. A conta, a comunidade e todos os apps são gratuitos. Não tem plano pago nem anúncio.</p>
+          <div className="lm-faq">
+            {[
+              ['Custa alguma coisa?', 'Não. A conta, a comunidade e todos os apps são gratuitos. Não tem anúncio.'],
+              ['Preciso do app para computador?', 'Só para o Mod Manager. A comunidade funciona no navegador e no Android também, inclusive com chamada de voz em segundo plano.'],
+              ['Como o app se atualiza?', 'Sozinho. O Project Club busca a versão nova ao abrir e instala quando você fecha.'],
+              ['Roda em PC fraco?', 'Sim. A comunidade abre em qualquer navegador atual e no Android, e o app para computador roda em Windows 10 ou 11 de 64 bits e em Linux.'],
+            ].map(([q, a], i) => (
+              <details key={q} className="lp-reveal" style={{ '--i': i }}>
+                <summary><span>{q}</span><i aria-hidden="true" /></summary>
+                <div className="lm-faq-a"><p>{a}</p></div>
               </details>
-              <details>
-                <summary>Preciso do app para computador?</summary>
-                <p>Só para o Mod Manager. A comunidade funciona no navegador e no Android também, inclusive com chamada de voz em segundo plano.</p>
-              </details>
-              <details>
-                <summary>Como o app se atualiza?</summary>
-                <p>Sozinho. O Project Club busca a versão nova ao abrir e instala quando você fecha.</p>
-              </details>
-              <details>
-                <summary>Roda em PC fraco?</summary>
-                <p>Sim. A comunidade abre em qualquer navegador atual e no Android, e o app para computador roda em Windows 10 ou 11 de 64 bits e em Linux.</p>
-              </details>
-            </div>
+            ))}
           </div>
         </section>
 
-        <section className="lp-end" aria-labelledby="fim-titulo">
-          <h2 id="fim-titulo" className="lp-display is-lg lp-reveal">Vem pro clube</h2>
-          <div className="lp-hero-cta lp-reveal">
-            <button type="button" className="lp-btn is-accent is-lg" onClick={goRegister}>{user ? 'Voltar pro app' : 'Criar conta'}</button>
-            <button type="button" className="lp-btn is-ghost is-lg" onClick={copyLink}>{copied ? 'Link copiado' : 'Copiar o link do site'}</button>
+        <section className="lm-end lm-dark" aria-labelledby="fim-titulo">
+          <p className="lm-eyebrow lp-reveal">Monte o clube com a gente.</p>
+          <h2 id="fim-titulo" className="lm-end-title lp-reveal"><Wordmark text="Vem pro clube" /></h2>
+          <div className="lm-cta lp-reveal">
+            <button type="button" className="lm-btn is-solid lm-magnet" onClick={goRegister}>{user ? 'Voltar pro app' : 'Criar conta'}</button>
+            <button type="button" className="lm-btn is-line" onClick={copyLink}>{copied ? 'Link copiado' : 'Copiar o link do site'}</button>
           </div>
         </section>
       </main>

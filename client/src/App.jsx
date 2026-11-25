@@ -359,6 +359,7 @@ export default function App() {
           <Route path="/privacidade" element={<PrivacyPage />} />
           <Route path="/termos" element={<PrivacyPage />} />
           <Route path="/blog" element={<BlogPage />} />
+          <Route path="/blog/:slug" element={<BlogPage />} />
           {/* Página inicial (vitrine + downloads) mesmo logado: o "/" de quem tem
               sessão entra direto no app, então ela ganha este endereço próprio. */}
           <Route path="/site" element={<LandingPage />} />
