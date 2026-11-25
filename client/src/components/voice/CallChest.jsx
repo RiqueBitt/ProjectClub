@@ -164,3 +164,105 @@ export function CallTips({ channelId, meId, notice, onNoticeDone }) {
     </div>
   );
 }
+
+// ---------- Duelo de dados valendo moedas (services/callDuel.js) ----------
+export const DUEL_STAKES = [10, 25, 50];
+
+function emitAck(socket, event, payload) {
+  return new Promise((resolve) => {
+    if (!socket) { resolve({ ok: false, reason: 'Sem conexão.' }); return; }
+    const t = setTimeout(() => resolve({ ok: false, reason: 'O servidor não respondeu.' }), 8000);
+    socket.emit(event, payload, (r) => { clearTimeout(t); resolve(r || { ok: false }); });
+  });
+}
+export const challengeDuel = (socket, { channelId, toUserId, stake }) => emitAck(socket, 'voice:duel-challenge', { channelId, toUserId, stake });
+
+export function CallDuels({ channelId, meId }) {
+  const { socket } = useSocket() || {};
+  const [duel, setDuel] = useState(null);
+  const [result, setResult] = useState(null);
+  const [error, setError] = useState('');
+  const [now, setNow] = useState(Date.now());
+
+  useEffect(() => {
+    if (!socket || !channelId) return undefined;
+    const onDuel = (d) => { if (d?.channelId === channelId) { setDuel(d); setError(''); } };
+    const onGone = (d) => { if (d?.channelId === channelId) setDuel((cur) => (cur?.id === d.id ? null : cur)); };
+    const onResult = (r) => {
+      if (r?.channelId !== channelId) return;
+      setDuel((cur) => (cur?.id === r.id ? null : cur));
+      setResult(r);
+    };
+    socket.on('voice:duel', onDuel);
+    socket.on('voice:duel-gone', onGone);
+    socket.on('voice:duel-result', onResult);
+    return () => { socket.off('voice:duel', onDuel); socket.off('voice:duel-gone', onGone); socket.off('voice:duel-result', onResult); };
+  }, [socket, channelId]);
+  useEffect(() => {
+    if (!duel) return undefined;
+    const t = setInterval(() => setNow(Date.now()), 1000);
+    return () => clearInterval(t);
+  }, [duel]);
+  useEffect(() => {
+    if (!result) return undefined;
+    const t = setTimeout(() => setResult(null), 6000);
+    return () => clearTimeout(t);
+  }, [result]);
+  useEffect(() => {
+    if (!error) return undefined;
+    const t = setTimeout(() => setError(''), 3500);
+    return () => clearTimeout(t);
+  }, [error]);
+
+  const act = async (event) => {
+    const r = await emitAck(socket, event, { duelId: duel?.id });
+    if (!r?.ok && r?.reason) setError(r.reason);
+  };
+
+  if (!duel && !result && !error) return null;
+  const who = (u) => (u?.id === meId ? 'Você' : nameOf(u));
+  return (
+    <div className="cc-wrap cc-duels" role="status">
+      {duel && (
+        <div className="cc-result cc-duel">
+          <span className="cc-duel-die" aria-hidden="true">d20</span>
+          <div>
+            {duel.toId === meId ? (
+              <>
+                <strong>{nameOf(duel.from)} te desafiou</strong>
+                <span className="cc-tip-to">Duelo de dados valendo {duel.stake} moedas · {Math.max(0, Math.ceil((duel.expiresAt - now) / 1000))}s</span>
+                <span className="cc-duel-actions">
+                  <button type="button" className="cc-btn primary" onClick={() => act('voice:duel-accept')}>Aceitar</button>
+                  <button type="button" className="cc-btn" onClick={() => act('voice:duel-decline')}>Recusar</button>
+                </span>
+              </>
+            ) : duel.fromId === meId ? (
+              <>
+                <strong>Esperando {nameOf(duel.to)} aceitar</strong>
+                <span className="cc-tip-to">Duelo valendo {duel.stake} moedas</span>
+                <span className="cc-duel-actions"><button type="button" className="cc-btn" onClick={() => act('voice:duel-decline')}>Cancelar</button></span>
+              </>
+            ) : (
+              <>
+                <strong>{nameOf(duel.from)} desafiou {nameOf(duel.to)}</strong>
+                <span className="cc-tip-to">Duelo de dados valendo {duel.stake} moedas</span>
+              </>
+            )}
+          </div>
+        </div>
+      )}
+      {result && (
+        <div className={`cc-result cc-duel${result.winnerId === meId ? ' is-mine' : ''}`}>
+          <span className="cc-duel-die" aria-hidden="true">d20</span>
+          <div>
+            <strong>{who(result.from)} {result.rolls[result.from.id]} × {result.rolls[result.to.id]} {who(result.to)}</strong>
+            <span className="cc-tip-to">
+              {result.tie ? 'Empate! Ninguém perdeu nada.' : `${who(result.winnerId === result.from.id ? result.from : result.to)} levou ${result.stake} moedas`}
+            </span>
+          </div>
+        </div>
+      )}
+      {error && <p className="cc-error">{error}</p>}
+    </div>
+  );
+}

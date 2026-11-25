@@ -115,6 +115,8 @@ fun CallPersonSheet(
     user: User?, userId: String, volume: Int, onVolume: (Int) -> Unit, onProfile: () -> Unit, onDismiss: () -> Unit,
     /** Gorjeta (null = não mostra: é você ou a call não aceita). Recebe o valor e o aviso de erro. */
     onTip: ((Int, (String) -> Unit) -> Unit)? = null,
+    /** Duelo de dados valendo moedas (null = não mostra). */
+    onDuel: ((Int, (String) -> Unit) -> Unit)? = null,
 ) {
     val sheet = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     var v by remember(userId) { mutableFloatStateOf(volume.toFloat()) }
@@ -161,6 +163,25 @@ fun CallPersonSheet(
                     }
                 }
                 tipMsg?.let { Text(it, color = PC.Yellow, style = MaterialTheme.typography.bodySmall, modifier = Modifier.padding(top = 6.dp)) }
+            }
+            if (onDuel != null) {
+                var duelMsg by remember(userId) { mutableStateOf<String?>(null) }
+                Spacer(Modifier.height(14.dp))
+                Text("Duelo de dados (d20)", color = PC.Header, fontWeight = FontWeight.SemiBold)
+                Spacer(Modifier.height(6.dp))
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    listOf(10, 25, 50).forEach { stake ->
+                        Box(
+                            Modifier.weight(1f).clip(RoundedCornerShape(12.dp)).background(PC.Surface2)
+                                .border(1.dp, PC.Line, RoundedCornerShape(12.dp))
+                                .clickable { duelMsg = null; onDuel(stake) { duelMsg = it } }
+                                .padding(vertical = 10.dp),
+                            contentAlignment = Alignment.Center,
+                        ) { Text("Valendo $stake", color = PC.Header, fontWeight = FontWeight.Bold, style = MaterialTheme.typography.labelLarge) }
+                    }
+                }
+                Text("Quem tirar mais no dado leva a aposta. Empate devolve.", color = PC.Faint, style = MaterialTheme.typography.bodySmall, modifier = Modifier.padding(top = 4.dp))
+                duelMsg?.let { Text(it, color = PC.Yellow, style = MaterialTheme.typography.bodySmall, modifier = Modifier.padding(top = 4.dp)) }
             }
             Spacer(Modifier.height(10.dp))
             GhostButton("Ver perfil", onProfile, Modifier.fillMaxWidth(), icon = Icons.Outlined.Person)

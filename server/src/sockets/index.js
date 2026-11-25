@@ -1339,6 +1339,22 @@ function initSockets(httpServer) {
       }
     });
 
+    // Duelo de dados valendo moedas (services/callDuel.js).
+    const duelReply = (ack) => (r) => { if (typeof ack === 'function') ack(r); };
+    const duelSafe = (name, fn) => async (payload = {}, ack) => {
+      const reply = duelReply(ack);
+      try { reply(await fn(payload || {})); } catch (err) {
+        console.error(`[duelo] ${name} falhou:`, err?.message || err);
+        reply({ ok: false, reason: 'Não deu certo agora. Tente de novo.' });
+      }
+    };
+    socket.on('voice:duel-challenge', duelSafe('desafio', ({ channelId, toUserId, stake }) => {
+      if (!tipBucket()) return { ok: false, reason: 'Calma! Espere um instante.' };
+      return require('../services/callDuel').challenge(io, { channelId: String(channelId || ''), fromId: userId, toId: String(toUserId || ''), stake });
+    }));
+    socket.on('voice:duel-accept', duelSafe('aceite', ({ duelId }) => require('../services/callDuel').accept(io, { duelId: String(duelId || ''), userId })));
+    socket.on('voice:duel-decline', duelSafe('recusa', ({ duelId }) => require('../services/callDuel').decline(io, { duelId: String(duelId || ''), userId })));
+
     // Soundboard: toca um som curto pra todo mundo da call (ver
     // services/soundboard.js). Precisa estar na sala e ter USE_SOUNDBOARD.
     socket.on('soundboard:play', async ({ channelId, soundId } = {}, ack) => {

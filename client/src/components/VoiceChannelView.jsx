@@ -17,7 +17,7 @@ import { useYouTubeWatch, YouTubeStage, YouTubePicker, ActivitiesButton, YouTube
 import { CallMusicPicker } from '../music/MusicPlayer.jsx';
 import { DicePicker, CallDicePopup, useCallDice } from './activities/Dice.jsx';
 import RpgTable from './voice/RpgTable.jsx';
-import { CallChest, CallTips, TIP_AMOUNTS, sendCallTip } from './voice/CallChest.jsx';
+import { CallChest, CallTips, CallDuels, TIP_AMOUNTS, DUEL_STAKES, sendCallTip, challengeDuel } from './voice/CallChest.jsx';
 import { useSocket } from '../context/SocketContext.jsx';
 import { getCommunityGoals } from '../api/community';
 import { RecordingBanner, RecordButton, LiveCaptions } from './voice/CallExtras.jsx';
@@ -238,6 +238,15 @@ export default function VoiceChannelView({ channel }) {
         if (!r?.ok) setTipNotice(r?.reason || 'Não deu pra mandar a gorjeta.');
       },
     })),
+  }, {
+    label: 'Duelo de dados',
+    submenu: DUEL_STAKES.map((v) => ({
+      label: `Valendo ${v} moedas`,
+      onClick: async () => {
+        const r = await challengeDuel(socket, { channelId: channel.id, toUserId: uid, stake: v });
+        if (!r?.ok) setTipNotice(r?.reason || 'Não deu pra desafiar.');
+      },
+    })),
   }]);
   const modItemsFor = (uid, st) => {
     const mod = buildVoiceModerationItems({ voice, channelId: channel.id, target: { userId: uid, ...(st || {}) }, myPerms: modPerms, myUserId: user.id });
@@ -371,6 +380,7 @@ export default function VoiceChannelView({ channel }) {
         {/* Baú da call: aparece de vez em quando, quem abrir primeiro leva. */}
         {inThisCall && <CallChest channelId={channel.id} meId={user?.id} />}
         {inThisCall && <CallTips channelId={channel.id} meId={user?.id} notice={tipNotice} onNoticeDone={clearTipNotice} />}
+        {inThisCall && <CallDuels channelId={channel.id} meId={user?.id} />}
       </div>
       <MicSilentWarning voice={voice} />
       <YouTubeToast yt={yt} />

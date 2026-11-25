@@ -124,6 +124,8 @@ class CallActions(
     val pushToTalk: (Boolean) -> Unit = {},
     val claimChest: ((String) -> Unit) -> Unit = {},
     val tip: ((String, Int, (String) -> Unit) -> Unit)? = null,
+    val duel: ((String, Int, (String) -> Unit) -> Unit)? = null,
+    val answerDuel: (Boolean, (String) -> Unit) -> Unit = { _, _ -> },
 )
 
 @Composable
@@ -183,6 +185,8 @@ fun VoiceScreen(voice: VoiceManager, repo: Repository, onBack: () -> Unit) {
             pushToTalk = voice::pushToTalk,
             claimChest = { onFail -> voice.claimChest(onFail) },
             tip = if (channelName.startsWith("dm:")) null else { to, amount, onFail -> voice.sendTip(to, amount, onFail) },
+            duel = if (channelName.startsWith("dm:")) null else { to, stake, onFail -> voice.challengeDuel(to, stake, onFail) },
+            answerDuel = { accept, onFail -> voice.answerDuel(accept, onFail) },
         ),
         screen = { userId, modifier ->
             Box(modifier) {
@@ -342,7 +346,7 @@ fun CallLayout(
         }
         // Baú da call: canto de baixo, acima dos controles.
         if (!fullscreen) CallChestOverlay(
-            state, me?.id, actions.claimChest,
+            state, me?.id, actions.claimChest, actions.answerDuel,
             Modifier.align(Alignment.BottomEnd).navigationBarsPadding().padding(end = 14.dp, bottom = 120.dp),
         )
     }
@@ -351,6 +355,7 @@ fun CallLayout(
             userOf(id), id, actions.volumeOf(id), { actions.setVolume(id, it) },
             onProfile = { personSheet = null; actions.openProfile(id) }, onDismiss = { personSheet = null },
             onTip = actions.tip?.takeIf { id != me?.id }?.let { t -> { amount, onFail -> t(id, amount, onFail) } },
+            onDuel = actions.duel?.takeIf { id != me?.id }?.let { t -> { stake, onFail -> t(id, stake, onFail) } },
         )
     }
 }

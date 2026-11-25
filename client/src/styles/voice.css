@@ -515,3 +515,17 @@
 .vc-goal-bar { position: absolute; inset: auto auto 0 0; height: 2px; width: var(--p, 0%); background: #e8b93c; }
 .vc-goal.is-done { color: #e8b93c; }
 @media (max-width: 640px) { .vc-goal { display: none; } }
+.cc-duels { bottom: auto; top: 76px; }
+.cc-duels .cc-result { pointer-events: auto; max-width: 320px; }
+.cc-duel-die {
+  flex-shrink: 0; display: grid; place-items: center; width: 36px; height: 36px; border-radius: 8px;
+  background: #e8b93c; color: #3b2410; font-weight: 800; font-size: 12px;
+  clip-path: polygon(50% 0, 100% 25%, 100% 75%, 50% 100%, 0 75%, 0 25%);
+}
+.cc-duel-actions { display: flex; gap: 6px; margin-top: 6px; }
+.cc-btn {
+  font: inherit; font-size: 12px; font-weight: 700; padding: 5px 12px; border-radius: 8px; cursor: pointer;
+  border: 1px solid rgba(255, 255, 255, .2); background: transparent; color: inherit;
+}
+.cc-btn.primary { background: #e8b93c; border-color: #e8b93c; color: #3b2410; }
+.cc-btn:focus-visible { outline: 2px solid #e8b93c; outline-offset: 2px; }

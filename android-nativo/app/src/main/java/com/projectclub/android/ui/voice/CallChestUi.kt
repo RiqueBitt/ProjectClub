@@ -17,6 +17,7 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -80,7 +81,10 @@ private fun ChestArt(open: Boolean, modifier: Modifier = Modifier) {
  * O servidor sorteia e decide quem ganhou — aqui só mostra.
  */
 @Composable
-fun CallChestOverlay(state: CallState, meId: String?, claim: ((String) -> Unit) -> Unit, modifier: Modifier = Modifier) {
+fun CallChestOverlay(
+    state: CallState, meId: String?, claim: ((String) -> Unit) -> Unit,
+    answerDuel: (Boolean, (String) -> Unit) -> Unit = { _, _ -> }, modifier: Modifier = Modifier,
+) {
     val chest = state.chest
     val result = state.chestResult
     var error by remember { mutableStateOf<String?>(null) }
@@ -107,6 +111,45 @@ fun CallChestOverlay(state: CallState, meId: String?, claim: ((String) -> Unit) 
         }
         error?.let {
             Text(it, color = Color.White, fontSize = 12.sp, modifier = Modifier.width(220.dp).clip(RoundedCornerShape(8.dp)).background(Color(0xE618191C)).padding(8.dp))
+        }
+        state.duel?.let { d ->
+            val left = ((d.expiresAt - now).coerceAtLeast(0L)) / 1000
+            LaunchedEffect(d.id) { while (true) { now = System.currentTimeMillis(); delay(1000) } }
+            Column(
+                Modifier.width(260.dp).clip(RoundedCornerShape(14.dp)).background(Color(0xEB18191C))
+                    .border(1.dp, Gold.copy(alpha = 0.6f), RoundedCornerShape(14.dp)).padding(12.dp),
+            ) {
+                val title = when (meId) {
+                    d.toId -> "${d.fromName} te desafiou"
+                    d.fromId -> "Esperando ${d.toName} aceitar"
+                    else -> "${d.fromName} desafiou ${d.toName}"
+                }
+                Text(title, color = Color.White, fontWeight = FontWeight.Bold, fontSize = 13.sp)
+                Text("Duelo de dados valendo ${d.stake} moedas · ${left}s", color = Gold, fontSize = 12.sp)
+                if (meId == d.toId || meId == d.fromId) {
+                    Spacer(Modifier.height(8.dp))
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        if (meId == d.toId) {
+                            Text("Aceitar", color = Ink, fontWeight = FontWeight.Bold, fontSize = 13.sp,
+                                modifier = Modifier.clip(RoundedCornerShape(8.dp)).background(Gold).clickable { answerDuel(true) { error = it } }.padding(horizontal = 14.dp, vertical = 7.dp))
+                        }
+                        Text(if (meId == d.toId) "Recusar" else "Cancelar", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 13.sp,
+                            modifier = Modifier.clip(RoundedCornerShape(8.dp)).border(1.dp, Color.White.copy(alpha = 0.25f), RoundedCornerShape(8.dp)).clickable { answerDuel(false) { error = it } }.padding(horizontal = 14.dp, vertical = 7.dp))
+                    }
+                }
+            }
+        }
+        state.duelResult?.let { r ->
+            fun who(id: String, name: String) = if (id == meId) "Você" else name
+            val winner = when (r.winnerId) { null -> null; r.fromId -> who(r.fromId, r.fromName); else -> who(r.toId, r.toName) }
+            Column(
+                Modifier.clip(RoundedCornerShape(14.dp)).background(Color(0xEB18191C))
+                    .then(if (r.winnerId != null && r.winnerId == meId) Modifier.border(1.dp, Gold, RoundedCornerShape(14.dp)) else Modifier)
+                    .padding(horizontal = 12.dp, vertical = 8.dp),
+            ) {
+                Text("${who(r.fromId, r.fromName)} ${r.fromRoll} × ${r.toRoll} ${who(r.toId, r.toName)}", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 13.sp)
+                Text(if (winner == null) "Empate! Ninguém perdeu nada." else "$winner levou ${r.stake} moedas", color = Gold, fontSize = 12.sp)
+            }
         }
         state.tips.forEach { t ->
             val mineTip = t.toId != null && t.toId == meId
