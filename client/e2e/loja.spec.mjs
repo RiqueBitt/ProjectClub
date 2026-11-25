@@ -41,8 +41,8 @@ test('loja segue o tema, com vitrine, filtros, detalhe e confirmação', async (
   await shot(page, 'inicio', info);
 
   // Categoria + filtro de disponibilidade.
-  await page.locator('.room-nav-item', { hasText: 'Molduras de avatar' }).click();
-  await expect(page.getByRole('heading', { level: 1, name: 'Molduras de avatar' })).toBeVisible();
+  await page.locator('.room-nav-item', { hasText: 'Efeitos de texto' }).click();
+  await expect(page.getByRole('heading', { level: 1, name: 'Efeitos de texto' })).toBeVisible();
   await page.locator('.room-chip', { hasText: 'Adquiridos' }).click();
   await expect(page.locator('.room-card')).toHaveCount(1);
   // Já comprado: continua na caixinha (com o gancho) e o carimbo "Comprado"
@@ -117,7 +117,7 @@ test('painel: gerenciamento de apoio pede motivo e confirma antes de remover', a
 
 test('parede em 3D: gancho, caixinha e painel carregam e a caixinha cabe na cartela', async ({ page }) => {
   await page.goto('/loja');
-  await page.locator('.room-nav-item', { hasText: 'Molduras de avatar' }).click();
+  await page.locator('.room-nav-item', { hasText: 'Efeitos de texto' }).click();
   const card = page.locator('.room-card', { hasText: 'Brasa' });
   await expect(card.locator('.room-pack-plastic')).toHaveCount(1);
   // os renders (tools/loja-3d) vão junto com o site
@@ -149,10 +149,10 @@ test('loja de conveniência: pega do gancho, cestinha e paga passando o cartão'
   let paidWith = null;
   await page.route('**/api/decorations/checkout', async (r) => {
     paidWith = r.request().postDataJSON();
-    await r.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ ok: true, bought: [{ kind: 'deco', id: paidWith.items[0].id, name: 'Brasa', paid: 450, currency: 'coins' }], coins: 2030, gems: 12 }) });
+    await r.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ ok: true, bought: [{ kind: 'textfx', id: paidWith.items[0].id, name: 'Brasa', paid: 450, currency: 'coins' }], coins: 2030, gems: 12 }) });
   });
   await page.goto('/loja');
-  await page.locator('.room-nav-item', { hasText: 'Molduras de avatar' }).click();
+  await page.locator('.room-nav-item', { hasText: 'Efeitos de texto' }).click();
   const card = page.locator('.room-card', { hasText: 'Brasa' });
   await expect(card.locator('.room-hook')).toHaveCount(1); // pendurado no gancho
   await card.getByRole('button', { name: /Pôr Brasa na cestinha/ }).click();
@@ -168,7 +168,7 @@ test('loja de conveniência: pega do gancho, cestinha e paga passando o cartão'
   await page.keyboard.press('Enter');
   await expect(page.locator('.shop-pos-screen')).toContainText('APROVADO', { timeout: 10_000 });
   expect(paidWith.items).toHaveLength(1);
-  expect(paidWith.items[0]).toMatchObject({ kind: 'deco', currency: 'coins', expectedPrice: 450 });
+  expect(paidWith.items[0]).toMatchObject({ kind: 'textfx', currency: 'coins', expectedPrice: 450 });
   await expect(page.getByRole('heading', { level: 1, name: 'Meus itens' })).toBeVisible({ timeout: 5000 });
   await expect(page.locator('.shop-basket-count')).toHaveCount(0);
 });
@@ -177,7 +177,7 @@ test('loja de conveniência: o pacote sai do gancho e vai arrastado até a cesti
   test.skip(info.project.name === 'celular', 'no celular é segurar e arrastar (toque); aqui testa o mouse');
   await page.addInitScript(() => { try { localStorage.removeItem('shopBasket:v1'); } catch { /* ok */ } });
   await page.goto('/loja');
-  await page.locator('.room-nav-item', { hasText: 'Molduras de avatar' }).click();
+  await page.locator('.room-nav-item', { hasText: 'Efeitos de texto' }).click();
   const card = page.locator('.room-grid .room-card', { hasText: 'Brasa' }); // o do gancho (não o que voa)
   await card.scrollIntoViewIfNeeded();
   const from = await card.locator('.room-card-art').boundingBox();

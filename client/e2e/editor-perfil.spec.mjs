@@ -33,9 +33,15 @@ test('abre pela foto lá embaixo, mostra a prévia ao vivo e fecha com Esc', asy
 
   // Organizado em grupos; sem pinguins, sem "Itens da Loja", sem cor do miniperfil.
   const side = page.locator('.pe-side');
-  for (const g of ['Avatar e decorações', 'Nome exibido', 'Banners e cor', 'Estilo do perfil', 'Sobre você', 'Conexões']) {
-    await expect(side.locator('.pe-group-title', { hasText: g })).toBeVisible();
-  }
+  // Ordem: Foto, Banner logo embaixo, Nome… (sem molduras de avatar).
+  const titles = side.locator('.pe-group-title');
+  await expect(titles.nth(0)).toHaveText('Foto');
+  await expect(titles.nth(1)).toHaveText('Banner');
+  await expect(titles.nth(2)).toHaveText('Nome exibido');
+  for (const g of ['Estilo do perfil', 'Sobre você', 'Conexões']) await expect(side.locator('.pe-group-title', { hasText: g })).toBeVisible();
+  await expect(side.getByText('Moldura do avatar')).toHaveCount(0);
+  // Cor do perfil só aparece com o visual padrão (sem estilo da Loja).
+  await expect(side.getByRole('heading', { name: 'Cor do perfil' })).toBeVisible();
   await expect(side.locator('.penguin-avatar-picker')).toHaveCount(0);
   await expect(side.getByText('Itens da Loja')).toHaveCount(0);
   await expect(side.getByText('Cor do miniperfil')).toHaveCount(0);

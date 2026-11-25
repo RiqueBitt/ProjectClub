@@ -59,7 +59,7 @@ test('loja: coração da lista de desejos, presentes e códigos, comparar planos
   page.on('pageerror', (e) => errors.push(e.message));
   await page.goto('/loja');
   await expect(page.locator('.shop-room .room-card').first()).toBeVisible();
-  await page.getByRole('button', { name: /Molduras de avatar/ }).first().click();
+  await page.getByRole('button', { name: /Efeitos de texto/ }).first().click();
   await expect(page.locator('.room-wish').first()).toBeVisible();
   await expect(page.getByRole('button', { name: /Embaralhar/ })).toBeVisible();
   await shot(page, 'loja-catalogo', info);

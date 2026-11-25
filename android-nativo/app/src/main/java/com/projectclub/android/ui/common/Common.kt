@@ -127,7 +127,8 @@ fun Avatar(user: User?, size: Dp = 40.dp, status: String? = null, modifier: Modi
         }
         // Moldura da Loja (User.avatarDecoration = JSON {url, s, x, y}): por
         // cima do avatar, maior que ele (s = escala) e deslocada (x/y em %).
-        if (decoration) avatarDecorationOf(user?.avatarDecoration)?.let { d ->
+        // Molduras desligadas em nov/2026 (pedido do dono): não desenha mais.
+        if (false && decoration) avatarDecorationOf(user?.avatarDecoration)?.let { d ->
             val decoSize = size * d.scale
             AsyncImage(
                 model = Config.media(d.url), contentDescription = null,
