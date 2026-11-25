@@ -113,3 +113,54 @@ export function CallChest({ channelId, meId }) {
   }
   return null;
 }
+
+// ---------- Gorjeta na call (services/callTips.js) ----------
+export const TIP_AMOUNTS = [10, 25, 50];
+
+/** Manda uma gorjeta; devolve { ok, reason?, coins? }. */
+export function sendCallTip(socket, { channelId, toUserId, amount }) {
+  return new Promise((resolve) => {
+    if (!socket) { resolve({ ok: false, reason: 'Sem conexão.' }); return; }
+    const t = setTimeout(() => resolve({ ok: false, reason: 'O servidor não respondeu.' }), 8000);
+    socket.emit('voice:tip', { channelId, toUserId, amount }, (r) => { clearTimeout(t); resolve(r || { ok: false }); });
+  });
+}
+
+const nameOf = (u) => u?.displayName || u?.username || 'Alguém';
+
+/** Avisos de gorjeta na call ("Ana deu 25 moedas pra Bia") + erro de quem mandou. */
+export function CallTips({ channelId, meId, notice, onNoticeDone }) {
+  const { socket } = useSocket() || {};
+  const [list, setList] = useState([]);
+  useEffect(() => {
+    if (!socket || !channelId) return undefined;
+    const on = (t) => {
+      if (t?.channelId !== channelId) return;
+      const id = `${t.at}-${t.from?.id}`;
+      setList((l) => [...l.slice(-2), { ...t, id }]);
+      setTimeout(() => setList((l) => l.filter((x) => x.id !== id)), 4000);
+    };
+    socket.on('voice:tip', on);
+    return () => socket.off('voice:tip', on);
+  }, [socket, channelId]);
+  useEffect(() => {
+    if (!notice) return undefined;
+    const t = setTimeout(onNoticeDone, 3500);
+    return () => clearTimeout(t);
+  }, [notice, onNoticeDone]);
+  if (!list.length && !notice) return null;
+  return (
+    <div className="cc-wrap cc-tips" role="status">
+      {list.map((t) => (
+        <div key={t.id} className={`cc-result cc-tip${t.to?.id === meId ? ' is-mine' : ''}`}>
+          <CoinIcon size={18} />
+          <div>
+            <strong>{t.from?.id === meId ? 'Você' : nameOf(t.from)} deu {t.amount} moedas</strong>
+            <span className="cc-tip-to">pra {t.to?.id === meId ? 'você' : nameOf(t.to)}</span>
+          </div>
+        </div>
+      ))}
+      {notice && <p className="cc-error">{notice}</p>}
+    </div>
+  );
+}

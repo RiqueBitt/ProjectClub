@@ -57,7 +57,11 @@ data class CallState(
     val chest: CallChest? = null,
     /** Último baú aberto ("Fulano abriu o baú: +25"), some sozinho. */
     val chestResult: CallChestResult? = null,
+    /** Gorjetas que acabaram de acontecer na call (somem sozinhas). */
+    val tips: List<CallTip> = emptyList(),
 )
+
+data class CallTip(val id: Long, val fromId: String?, val fromName: String, val toId: String?, val toName: String, val amount: Int)
 
 data class CallChest(val id: String, val expiresAt: Long)
 data class CallChestResult(val userId: String?, val name: String, val coins: Int, val gems: Int)
@@ -239,6 +243,18 @@ class VoiceManager(context: Context, private val repo: Repository, private val s
                         )
                         _state.update { it.copy(chest = if (it.chest?.id == f("id")) null else it.chest, chestResult = res) }
                         main.postDelayed({ _state.update { st -> if (st.chestResult === res) st.copy(chestResult = null) else st } }, 4500)
+                    }
+                    "voice:tip" -> {
+                        val o = e.data as? JsonObject ?: return@collect
+                        if ((o["channelId"] as? JsonPrimitive)?.content != ch) return@collect
+                        fun u(k: String, f: String) = ((o[k] as? JsonObject)?.get(f) as? JsonPrimitive)?.content
+                        val t = CallTip(
+                            System.nanoTime(), u("from", "id"), u("from", "displayName") ?: u("from", "username") ?: "Alguém",
+                            u("to", "id"), u("to", "displayName") ?: u("to", "username") ?: "alguém",
+                            (o["amount"] as? JsonPrimitive)?.content?.toIntOrNull() ?: 0,
+                        )
+                        _state.update { it.copy(tips = (it.tips + t).takeLast(3)) }
+                        main.postDelayed({ _state.update { st -> st.copy(tips = st.tips.filter { it.id != t.id }) } }, 4000)
                     }
                     "voice:reaction" -> {
                         val o = e.data as? JsonObject ?: return@collect
@@ -689,6 +705,14 @@ class VoiceManager(context: Context, private val repo: Repository, private val s
         val c = _state.value.chest ?: return
         repo.realtime.emitObjectWithAck("voice:chest-claim", JSONObject().put("channelId", ch).put("chestId", c.id)) { r ->
             if (r?.optBoolean("ok") != true) main.post { onFail(r?.optString("reason")?.takeIf { it.isNotBlank() } ?: "Não deu pra abrir.") }
+        }
+    }
+
+    /** Gorjeta pra alguém da mesma call; [onFail] recebe o motivo quando não deu. */
+    fun sendTip(toUserId: String, amount: Int, onFail: (String) -> Unit = {}) {
+        val ch = _state.value.channelName ?: return
+        repo.realtime.emitObjectWithAck("voice:tip", JSONObject().put("channelId", ch).put("toUserId", toUserId).put("amount", amount)) { r ->
+            if (r?.optBoolean("ok") != true) main.post { onFail(r?.optString("reason")?.takeIf { it.isNotBlank() } ?: "Não deu pra mandar a gorjeta.") }
         }
     }
 

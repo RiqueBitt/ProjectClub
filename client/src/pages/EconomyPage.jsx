@@ -181,6 +181,7 @@ export default function EconomyPage({ initialTab = 'geral' }) {
       setWonChest({
         name: r.chestName, imageOpened: r.chestImageOpened,
         coins: r.coins, megaAwarded: r.megaAwarded, megaGems: r.megaGems,
+        streakBonus: r.streakBonus || 0, streak: r.megaAwarded ? r.streakRequired : r.streak, streakRequired: r.streakRequired,
       });
       if (!r.chestImageOpened) pushNotice(`Baú ${r.chestName}: +${fmt(r.coins)} moedas${r.megaAwarded ? ` e +${r.megaGems} gemas` : ''}!`);
       refresh();
@@ -355,6 +356,7 @@ export default function EconomyPage({ initialTab = 'geral' }) {
             <h3>Baú {wonChest.name}!</h3>
             <div className="chest-reveal-rewards eco-reveal-rewards">
               <span className="pk-chip tint" style={{ '--tint': 'var(--yellow)' }}><Ico name="coin" size={14} /> +{fmt(wonChest.coins)} moedas</span>
+              {wonChest.streakBonus > 0 && <span className="pk-chip tint" style={{ '--tint': 'var(--green, #3ba55d)' }}>+{fmt(wonChest.streakBonus)} pela sequência de {wonChest.streak} dias</span>}
               {wonChest.megaAwarded && <span className="pk-chip tint eco-mega"><Ico name="gem" size={14} /> Sequência completa: +{wonChest.megaGems} gemas!</span>}
             </div>
             <button className="pk-btn primary lg" onClick={() => setWonChest(null)}>Show!</button>

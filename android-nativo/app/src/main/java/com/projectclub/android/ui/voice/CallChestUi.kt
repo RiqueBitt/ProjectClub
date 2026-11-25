@@ -108,6 +108,17 @@ fun CallChestOverlay(state: CallState, meId: String?, claim: ((String) -> Unit) 
         error?.let {
             Text(it, color = Color.White, fontSize = 12.sp, modifier = Modifier.width(220.dp).clip(RoundedCornerShape(8.dp)).background(Color(0xE618191C)).padding(8.dp))
         }
+        state.tips.forEach { t ->
+            val mineTip = t.toId != null && t.toId == meId
+            Column(
+                Modifier.clip(RoundedCornerShape(14.dp)).background(Color(0xEB18191C))
+                    .then(if (mineTip) Modifier.border(1.dp, Gold, RoundedCornerShape(14.dp)) else Modifier)
+                    .padding(horizontal = 12.dp, vertical = 8.dp),
+            ) {
+                Text("${if (t.fromId == meId) "Você" else t.fromName} deu ${t.amount} moedas", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 13.sp)
+                Text("pra ${if (mineTip) "você" else t.toName}", color = Gold, fontSize = 12.sp)
+            }
+        }
         AnimatedVisibility(chest == null && result != null, enter = fadeIn(), exit = fadeOut()) {
             val r = result ?: return@AnimatedVisibility
             val mine = r.userId != null && r.userId == meId

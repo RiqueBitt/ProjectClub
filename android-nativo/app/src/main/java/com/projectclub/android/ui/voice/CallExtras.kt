@@ -38,6 +38,7 @@ import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -110,7 +111,11 @@ fun FloatingReactions(reactions: List<CallReaction>, userOf: (String) -> User?, 
 /** Folha de uma pessoa na chamada: volume só pra você e atalho pro perfil. */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun CallPersonSheet(user: User?, userId: String, volume: Int, onVolume: (Int) -> Unit, onProfile: () -> Unit, onDismiss: () -> Unit) {
+fun CallPersonSheet(
+    user: User?, userId: String, volume: Int, onVolume: (Int) -> Unit, onProfile: () -> Unit, onDismiss: () -> Unit,
+    /** Gorjeta (null = não mostra: é você ou a call não aceita). Recebe o valor e o aviso de erro. */
+    onTip: ((Int, (String) -> Unit) -> Unit)? = null,
+) {
     val sheet = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     var v by remember(userId) { mutableFloatStateOf(volume.toFloat()) }
     ModalBottomSheet(onDismissRequest = onDismiss, sheetState = sheet, containerColor = PC.Surface) {
@@ -139,6 +144,24 @@ fun CallPersonSheet(user: User?, userId: String, volume: Int, onVolume: (Int) ->
             }
             Text("Só muda o que você ouve. Ninguém fica sabendo.", color = PC.Faint, style = MaterialTheme.typography.bodySmall)
             if (v.toInt() != 100) TextButton(onClick = { v = 100f; onVolume(100) }) { Text("Voltar pra 100%", color = PC.Brand) }
+            if (onTip != null) {
+                var tipMsg by remember(userId) { mutableStateOf<String?>(null) }
+                Spacer(Modifier.height(14.dp))
+                Text("Dar gorjeta", color = PC.Header, fontWeight = FontWeight.SemiBold)
+                Spacer(Modifier.height(6.dp))
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    listOf(10, 25, 50).forEach { amount ->
+                        Box(
+                            Modifier.weight(1f).clip(RoundedCornerShape(12.dp)).background(PC.Surface2)
+                                .border(1.dp, PC.Line, RoundedCornerShape(12.dp))
+                                .clickable { tipMsg = null; onTip(amount) { tipMsg = it } }
+                                .padding(vertical = 10.dp),
+                            contentAlignment = Alignment.Center,
+                        ) { Text("$amount moedas", color = PC.Header, fontWeight = FontWeight.Bold, style = MaterialTheme.typography.labelLarge) }
+                    }
+                }
+                tipMsg?.let { Text(it, color = PC.Yellow, style = MaterialTheme.typography.bodySmall, modifier = Modifier.padding(top = 6.dp)) }
+            }
             Spacer(Modifier.height(10.dp))
             GhostButton("Ver perfil", onProfile, Modifier.fillMaxWidth(), icon = Icons.Outlined.Person)
         }

@@ -123,6 +123,7 @@ class CallActions(
     val setPushToTalk: (Boolean) -> Unit = {},
     val pushToTalk: (Boolean) -> Unit = {},
     val claimChest: ((String) -> Unit) -> Unit = {},
+    val tip: ((String, Int, (String) -> Unit) -> Unit)? = null,
 )
 
 @Composable
@@ -181,6 +182,7 @@ fun VoiceScreen(voice: VoiceManager, repo: Repository, onBack: () -> Unit) {
             setPushToTalk = voice::setPushToTalk,
             pushToTalk = voice::pushToTalk,
             claimChest = { onFail -> voice.claimChest(onFail) },
+            tip = if (channelName.startsWith("dm:")) null else { to, amount, onFail -> voice.sendTip(to, amount, onFail) },
         ),
         screen = { userId, modifier ->
             Box(modifier) {
@@ -348,6 +350,7 @@ fun CallLayout(
         CallPersonSheet(
             userOf(id), id, actions.volumeOf(id), { actions.setVolume(id, it) },
             onProfile = { personSheet = null; actions.openProfile(id) }, onDismiss = { personSheet = null },
+            onTip = actions.tip?.takeIf { id != me?.id }?.let { t -> { amount, onFail -> t(id, amount, onFail) } },
         )
     }
 }

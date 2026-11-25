@@ -1326,6 +1326,19 @@ function initSockets(httpServer) {
       }
     });
 
+    // Gorjeta na call (services/callTips.js): algumas moedas pra quem está na mesma call.
+    const tipBucket = (() => { let last = 0; return () => { const n = Date.now(); if (n - last < 1500) return false; last = n; return true; }; })();
+    socket.on('voice:tip', async ({ channelId, toUserId, amount } = {}, ack) => {
+      const reply = (r) => { if (typeof ack === 'function') ack(r); };
+      try {
+        if (!tipBucket()) return reply({ ok: false, reason: 'Calma! Espere um instante.' });
+        reply(await require('../services/callTips').tip(io, { channelId: String(channelId || ''), fromId: userId, toId: String(toUserId || ''), amount }));
+      } catch (err) {
+        console.error('[gorjeta] falhou:', err?.message || err);
+        reply({ ok: false, reason: 'Não consegui mandar a gorjeta agora.' });
+      }
+    });
+
     // Soundboard: toca um som curto pra todo mundo da call (ver
     // services/soundboard.js). Precisa estar na sala e ter USE_SOUNDBOARD.
     socket.on('soundboard:play', async ({ channelId, soundId } = {}, ack) => {

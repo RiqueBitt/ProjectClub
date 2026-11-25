@@ -357,6 +357,12 @@ fn pick_chest(chests: &[mysql_async::Row], roll: f64) -> db::DbResult<Option<&my
 }
 
 /// O que muda na sequência com este resgate: `(nova sequência, ganhou o Mega Baú)`.
+/// Sequência que cresce (`streakBonus` do economy.js): dia 1 +0, dia 2 +5…
+/// até o dia do Mega Baú.
+fn streak_bonus(day: i64) -> i64 {
+    (day.min(*levels::MEGA_CHEST_STREAK_REQUIRED) - 1).max(0) * 5
+}
+
 fn next_streak(streak: i64, last: Option<NaiveDateTime>, now: NaiveDateTime) -> (i64, bool) {
     let next = match last {
         Some(l) if now - l <= STREAK_GRACE => streak + 1,
@@ -415,10 +421,14 @@ pub async fn claim_daily(State(state): State<AppState>, parts: Parts, body: Byte
             return Ok(err(StatusCode::BAD_REQUEST, "Nenhum baú diário configurado."));
         };
         let chest_name: String = db::get(chest, "name")?;
-        let coins = rand_int(db::get(chest, "coinsMin")?, db::get(chest, "coinsMax")?);
-
         let streak_before: i64 = db::get::<Option<i64>>(&row, "dailyStreak")?.unwrap_or(0);
         let (streak, mega) = next_streak(streak_before, last, now);
+        let bonus = streak_bonus(if mega {
+            *levels::MEGA_CHEST_STREAK_REQUIRED
+        } else {
+            streak
+        });
+        let coins = rand_int(db::get(chest, "coinsMin")?, db::get(chest, "coinsMax")?) + bonus;
         let mega_gems = if mega {
             rand_int(levels::MEGA_CHEST_GEMS.0, levels::MEGA_CHEST_GEMS.1)
         } else {
@@ -445,7 +455,12 @@ pub async fn claim_daily(State(state): State<AppState>, parts: Parts, body: Byte
         .await?
         .ok_or_else(|| anyhow::anyhow!("Record to update not found."))?;
 
-        ledger_daily(&c.db, me, &format!("Baú diário: {chest_name}"), coins, 0).await;
+        let label = if bonus > 0 {
+            format!("Baú diário: {chest_name} (+{bonus} da sequência)")
+        } else {
+            format!("Baú diário: {chest_name}")
+        };
+        ledger_daily(&c.db, me, &label, coins, 0).await;
         if mega {
             ledger_daily(&c.db, me, "Mega Baú (sequência completa)", 0, mega_gems).await;
         }
@@ -458,6 +473,7 @@ pub async fn claim_daily(State(state): State<AppState>, parts: Parts, body: Byte
                 "chestImageClosed": db::col(chest, "imageClosed", Ty::Str)?,
                 "chestImageOpened": db::col(chest, "imageOpened", Ty::Str)?,
                 "coins": coins,
+                "streakBonus": bonus,
                 "streak": streak,
                 "streakRequired": *levels::MEGA_CHEST_STREAK_REQUIRED,
                 "megaAwarded": mega,
@@ -847,6 +863,13 @@ mod tests {
             effective_tier(&u(Some("SUPER"), Some(now), None), now),
             "NONE"
         );
+    }
+
+    #[test]
+    fn bonus_da_sequencia() {
+        assert_eq!(streak_bonus(1), 0);
+        assert_eq!(streak_bonus(2), 5);
+        assert_eq!(streak_bonus(*levels::MEGA_CHEST_STREAK_REQUIRED + 3), 20);
     }
 
     #[test]

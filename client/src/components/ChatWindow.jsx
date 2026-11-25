@@ -209,8 +209,16 @@ export default function ChatWindow({ kind, channelId: propChannelId, conversatio
   return <ChatWindowMemo conversationId={conversationId || null} channelId={channelId || null} />;
 }
 
-function ChatWindowInner({ conversationId, channelId }) {
+function ChatWindowInner({ conversationId, channelId, callChat = false }) {
   const roomKey = roomKeyFor({ conversationId, channelId });
+  // Chat da call: o canal de voz também tem mensagens, num painel ao lado da call.
+  const [callChatOpen, setCallChatOpen] = useState(() => {
+    try { return localStorage.getItem('pc.callChat') === '1'; } catch { return false; }
+  });
+  const toggleCallChat = () => setCallChatOpen((v) => {
+    try { localStorage.setItem('pc.callChat', v ? '0' : '1'); } catch { /* sem storage */ }
+    return !v;
+  });
   const navigate = useNavigate();
 
   const { user } = useAuth();
@@ -595,7 +603,7 @@ function ChatWindowInner({ conversationId, channelId }) {
     }
   };
 
-  const isCallChannel = channel && (channel.type === 'VOICE' || channel.type === 'STAGE');
+  const isCallChannel = !callChat && channel && (channel.type === 'VOICE' || channel.type === 'STAGE');
   // Item pedido: "deixando mais rápido pra entrar em canais de voz,
   // principalmente no mobile" — adianta o download do SDK de voz do
   // servidor próprio (mediasoup-client) em segundo plano. Antes isso rodava em
@@ -1430,11 +1438,28 @@ function ChatWindowInner({ conversationId, channelId }) {
           <div className="chat-title-block">
             <ChatTitleOrCategoryChannels title={channel?.name || title} currentChannelId={channelId} />
           </div>
+          <button
+            type="button" className={`icon-btn chat-header-btn${callChatOpen ? ' active' : ''}`} onClick={toggleCallChat}
+            title={callChatOpen ? 'Fechar o chat da call' : 'Abrir o chat da call'} aria-pressed={callChatOpen}
+          ><ChatIcon name="message" /></button>
           <MembersToggleButton />
         </header>
-        <ErrorBoundary compact resetKey={channel?.id}>
-          <Suspense fallback={null}><VoiceChannelView channel={channel} /></Suspense>
-        </ErrorBoundary>
+        <div className={`vc-with-chat${callChatOpen ? ' is-open' : ''}`}>
+          <ErrorBoundary compact resetKey={channel?.id}>
+            <Suspense fallback={null}><VoiceChannelView channel={channel} /></Suspense>
+          </ErrorBoundary>
+          {callChatOpen && channelId && (
+            <aside className="vc-side-chat" aria-label="Chat da call">
+              <div className="vc-side-chat-head">
+                <strong>Chat da call</strong>
+                <button type="button" className="icon-btn" onClick={toggleCallChat} aria-label="Fechar o chat da call"><ChatIcon name="close" /></button>
+              </div>
+              <ErrorBoundary compact resetKey={`chat:${channel?.id}`}>
+                <ChatWindowInner channelId={channelId} conversationId={null} callChat />
+              </ErrorBoundary>
+            </aside>
+          )}
+        </div>
       </section>
     );
   }
@@ -1478,9 +1503,9 @@ function ChatWindowInner({ conversationId, channelId }) {
         : 'Várias pessoas estão digitando…';
 
   return (
-    <section className="chat-window chat-v2">
+    <section className={`chat-window chat-v2${callChat ? ' is-call-chat' : ''}`}>
       {dropActive && <div className="chat-drop-overlay" aria-hidden="true"><div className="chat-drop-box">Solte para enviar no chat</div></div>}
-      {channelId && <ChannelSwitcher currentChannelId={channelId} />}
+      {channelId && !callChat && <ChannelSwitcher currentChannelId={channelId} />}
       {conversationId && <DMSwitcher currentId={conversationId} />}
       <header className={`chat-header ${dmOther ? 'is-dm' : ''}`}>
         {channelHeaderIcon}
