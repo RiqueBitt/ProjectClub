@@ -54,6 +54,7 @@ const styleKeyOf = (it) => parseData(it.data).style || it.key || null;
 const idFromJson = (raw) => { try { return raw ? JSON.parse(raw).id || null : null; } catch { return null; } };
 
 const sup = require('../services/supporters');
+const deals = require('../services/shopDeals');
 const textFx = require('../services/textEffects');
 const ledger = () => require('../services/economyLedger');
 const coupons = () => require('../services/community/coupons');
@@ -148,6 +149,7 @@ async function shop(req, res, next) {
       prisma.user.findUnique({ where: { id: userId }, select: { coins: true, gems: true, avatarDecoration: true, profileEffect: true, profileFont: true, profileStyle: true, profileNameEffect: true, supporterTier: true, supporterUntil: true } }),
     ]);
     const tier = sup.normalizeTier(me?.supporterTier);
+    const dealCtx = await deals.context(prisma, userId).catch(() => null);
     // Coleções ocultas ou desativadas: fora da vitrine; os itens delas só
     // aparecem pra quem já tem (pra continuar equipando), com inShop: false.
     const hiddenIds = new Set(hiddenCols.map((c) => c.id));
@@ -186,7 +188,8 @@ async function shop(req, res, next) {
         popularity: _count?.owners || 0,
         trending: trending.get(it.id) || 0,
         tags: it.tags ? String(it.tags).split(',').filter(Boolean) : [],
-        pricing: exclusive ? null : sup.pricing(it, tier),
+        pricing: exclusive ? null : deals.pricing(it, tier, dealCtx),
+        deal: !exclusive && !!dealCtx?.dealIds?.has(it.id),
         inShop: it.active !== false && !hiddenIds.has(it.collectionId),
       };
     };
@@ -205,6 +208,7 @@ async function shop(req, res, next) {
       coins: me?.coins ?? 0, gems: me?.gems ?? 0,
       supporter: { ...sup.supporterInfo(tier), until: me?.supporterUntil || null },
       banners,
+      deals: deals.summary(dealCtx),
       equippedId: idFromJson(me?.avatarDecoration),
       equippedEffectId: idFromJson(me?.profileEffect),
       equippedFontId: idFromJson(me?.profileFont),
@@ -229,7 +233,7 @@ async function buyItem(kind, req, res, next) {
     let coupon = null;
     try {
       await prisma.$transaction(async (tx) => {
-        const p = sup.priceFor(item, currency, await tierOf(tx, userId));
+        const p = deals.priceFor(item, currency, await tierOf(tx, userId), await deals.context(tx, userId));
         if (p.final === null) throw fail(`Esse ${K.label} não é vendido nessa moeda.`);
         const already = await tx[K.own].findUnique({ where: K.uniq(userId, item.id) });
         if (already && !already.expiresAt) throw fail(`Você já tem esse ${K.label}.`, 400, { code: 'ALREADY_OWNED' });
@@ -259,10 +263,10 @@ async function buyItem(kind, req, res, next) {
       if (e.code === 'P2002') return res.status(400).json({ error: `Você já tem esse ${K.label}.`, code: 'ALREADY_OWNED' });
       throw e;
     }
-    const label = `Loja: ${K.label} ${item.name || ''}`.trim() + (price.discount ? ` (-${price.discount}% Assinante)` : '') + (coupon ? ` (cupom ${coupon.code})` : '');
+    const label = `Loja: ${K.label} ${item.name || ''}`.trim() + deals.discountLabel(price) + (coupon ? ` (cupom ${coupon.code})` : '');
     if (price.final > 0) ledger().recordTransaction(userId, { kind: 'SHOP', label, [currency]: -price.final });
     const me = await prisma.user.findUnique({ where: { id: userId }, select: { coins: true, gems: true } });
-    res.json({ ok: true, paid: price.final, currency, base: price.base, discount: price.discount, coupon: coupon ? { code: coupon.code, discount: coupon.discount } : null, ...me });
+    res.json({ ok: true, paid: price.final, currency, base: price.base, discount: price.discount, source: price.source || null, coupon: coupon ? { code: coupon.code, discount: coupon.discount } : null, ...me });
   } catch (err) { next(err); }
 }
 const buyEffect = (req, res, next) => buyItem('effect', req, res, next);
@@ -297,6 +301,7 @@ async function checkout(req, res, next) {
     try {
       await prisma.$transaction(async (tx) => {
         const tier = await tierOf(tx, userId);
+        const dealCtx = await deals.context(tx, userId);
         const totals = { coins: 0, gems: 0 };
         const ready = [];
         for (const [i, l] of lines.entries()) {
@@ -308,7 +313,7 @@ async function checkout(req, res, next) {
           // eslint-disable-next-line no-await-in-loop
           if (await hiddenFromShop(tx, item)) throw at(fail(`"${item.name}" não está à venda na Loja.`, 403, { code: 'NOT_FOR_SALE' }));
           if (sup.exclusiveOf(item)) throw at(fail(`"${item.name}" é exclusivo de ${sup.TIER_LABEL[sup.exclusiveOf(item)]}: não é vendido.`, 403, { code: 'EXCLUSIVE' }));
-          const p = sup.priceFor(item, l.currency, tier);
+          const p = deals.priceFor(item, l.currency, tier, dealCtx);
           if (p.final === null) throw at(fail(`"${item.name}" não é vendido nessa moeda.`));
           // eslint-disable-next-line no-await-in-loop
           const already = await tx[K.own].findUnique({ where: K.uniq(userId, item.id) });
@@ -333,7 +338,7 @@ async function checkout(req, res, next) {
             // eslint-disable-next-line no-await-in-loop
             await tx[K.own].create({ data: { userId, [K.fk]: item.id, serial } });
           }
-          bought.push({ kind: l.kind, id: item.id, name: item.name, label: K.label, currency: l.currency, paid: price.final, discount: price.discount });
+          bought.push({ kind: l.kind, id: item.id, name: item.name, label: K.label, currency: l.currency, paid: price.final, discount: price.discount, source: price.source || null });
         }
       });
     } catch (e) {
@@ -342,7 +347,7 @@ async function checkout(req, res, next) {
       throw e;
     }
     for (const b of bought) {
-      if (b.paid > 0) ledger().recordTransaction(userId, { kind: 'SHOP', label: `Loja (cestinha): ${b.label} ${b.name || ''}`.trim() + (b.discount ? ` (-${b.discount}% Assinante)` : ''), [b.currency]: -b.paid });
+      if (b.paid > 0) ledger().recordTransaction(userId, { kind: 'SHOP', label: `Loja (cestinha): ${b.label} ${b.name || ''}`.trim() + deals.discountLabel(b), [b.currency]: -b.paid });
     }
     const me = await prisma.user.findUnique({ where: { id: userId }, select: { coins: true, gems: true } });
     res.json({ ok: true, bought, ...me });
@@ -718,7 +723,7 @@ async function giftItem(req, res, next) {
         const already = await tx[K.own].findUnique({ where: K.uniq(toUserId, item.id) });
         if (already && !already.expiresAt) throw fail(`${recipient.displayName} já tem esse item.`, 400, { code: 'ALREADY_OWNED' });
         // Quem paga é quem dá: o desconto de Assinante dele vale aqui.
-        const p = sup.priceFor(item, currency, await tierOf(tx, fromId));
+        const p = deals.priceFor(item, currency, await tierOf(tx, fromId), await deals.context(tx, fromId));
         if (p.final === null) throw fail('Esse item não é vendido nessa moeda.');
         checkExpected(req.body, p.final);
         price = p.final;

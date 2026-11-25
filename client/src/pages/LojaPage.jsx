@@ -135,6 +135,9 @@ const CURRENCIES = [
   { id: 'gems', label: 'Gemas' },
 ];
 
+// De onde veio o desconto (texto curto pros preços).
+const sourceLabel = (p, tier) => (p?.source === 'DEAL' ? 'Oferta da semana' : p?.source === 'FIRST' ? 'Primeira compra' : p?.source === 'OFFER' ? 'Oferta da coleção' : (TIER_LABEL[tier] || 'Assinante'));
+
 // Preço que a pessoa paga numa moeda: { base, final, discount } ou null.
 function priceOf(item, currency) {
   const p = item.pricing?.[currency];
@@ -615,6 +618,8 @@ function Home({ items, collections, go, ctx }) {
   const popular = [...forSale].filter((i) => i.popularity > 0).sort((a, b) => b.popularity - a.popularity).slice(0, 8);
   const exclusives = items.filter((i) => i.exclusiveTier).slice(0, 8);
   const limited = items.filter((i) => i.limited && i.remaining > 0).sort((a, b) => a.remaining - b.remaining).slice(0, 8);
+  const deals = ctx.data?.deals;
+  const weekly = items.filter((i) => i.deal);
   return (
     <div className="room-stack">
       {featuredCols.length > 0 ? <HeroCarousel list={featuredCols} items={items} go={go} now={ctx.now} /> : (
@@ -637,6 +642,19 @@ function Home({ items, collections, go, ctx }) {
             </button>
           ))}
         </div>
+      )}
+      {deals?.firstPurchase && (
+        <div className="room-first-buy" role="note">
+          <Ico name="sparkles" size={16} />
+          <span><strong>Sua primeira compra sai pela metade.</strong> Vale pra tudo que você levar em moedas na primeira compra.</span>
+        </div>
+      )}
+      {weekly.length > 0 && (
+        <Shelf
+          title="Oferta da semana"
+          hint={`-${deals?.pct || 50}% em moedas · troca ${deals?.endsAt ? `em ${Math.max(1, Math.ceil((new Date(deals.endsAt) - ctx.now) / 86400000))} dia(s)` : 'toda segunda'}`}
+          list={weekly} ctx={ctx}
+        />
       )}
       {ctx.supporter.tier !== 'NONE' && <SupporterCard supporter={ctx.supporter} />}
       <Shelf title={featured.length ? 'Em destaque' : 'Os favoritos da comunidade'} list={spotlight} ctx={ctx} />
@@ -1145,7 +1163,7 @@ function ItemCard({ item: base, ctx }) {
           <span className="room-card-flags">
             {item.exclusiveTier && <span className={`room-flag excl t-${item.exclusiveTier.toLowerCase()}`}><Ico name="crown" size={11} strokeWidth={2.2} /> {TIER_LABEL[item.exclusiveTier]}</span>}
             {!item.exclusiveTier && !item.owned && isNew(item, now) && <span className="room-flag new">Novo</span>}
-            {discount > 0 && !item.owned && <span className="room-flag off">-{discount}%</span>}
+            {discount > 0 && !item.owned && <span className="room-flag off">{item.deal ? 'Oferta ' : ''}-{discount}%</span>}
             {item.limited && <LimitedFlag item={item} />}
           </span>
           {/* Já é seu: a caixinha continua no gancho, com o carimbo colado no plástico da frente. */}
@@ -1315,7 +1333,7 @@ function ItemDetail({ initial, items, collections, onClose, openCollection, ctx 
                     <span className="room-detail-price-val">
                       {p.final !== p.base && <s>{fmt(p.base)}</s>}
                       <b>{p.final === 0 ? 'Grátis' : fmt(p.final)}</b>
-                      {p.final !== p.base && <em>-{p.discount}% {TIER_LABEL[supporter.tier] || 'Assinante'}</em>}
+                      {p.final !== p.base && <em>-{p.discount}% {sourceLabel(p, supporter.tier)}</em>}
                     </span>
                     <button type="button" className="room-btn primary" disabled={busy !== ''} onClick={() => askBuy(item, cur)}>Comprar</button>
                   </div>
@@ -1377,7 +1395,7 @@ function ConfirmPurchase({ req, data, busy, onCancel, onConfirm }) {
   const balance = currency === 'gems' ? data?.gems ?? 0 : data?.coins ?? 0;
   const short = final > balance;
   const cname = currency === 'gems' ? 'gemas' : 'moedas';
-  const discountLabel = p.source === 'OFFER' ? 'Oferta da coleção' : 'Desconto Assinante';
+  const discountLabel = p.source === 'SUBSCRIBER' || !p.source ? 'Desconto Assinante' : sourceLabel(p);
   const canCoupon = currency === 'coins' && item?.kind !== 'back' && baseFinal > 0;
   const applyCoupon = async () => {
     if (!couponCode.trim()) return;

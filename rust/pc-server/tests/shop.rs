@@ -4,7 +4,7 @@ mod common;
 
 use std::time::Duration;
 
-use common::{Env, SECRET, add_user, setup};
+use common::{Calls, Env, SECRET, add_user, fake_node, setup, setup_with};
 use pc_server::auth::Tokens;
 use serde_json::{Value, json};
 use sqlx::Executor;
@@ -297,4 +297,36 @@ async fn cestinha() {
             .await
             .unwrap();
     assert!(exp.is_none());
+}
+
+/// Preço de oferta (oferta da semana / primeira compra) só o Node calcula:
+/// quando o preço confirmado não bate, nada é cobrado aqui e a cestinha vai
+/// pro Node (o de mentira responde 418).
+#[tokio::test]
+async fn preco_de_oferta_vai_pro_node() {
+    let calls: Calls = Default::default();
+    let node = fake_node(calls.clone()).await;
+    let Some(env) = setup_with(|c| pc_server::config::Config {
+        node_upstream: format!("http://{node}"),
+        ..c
+    })
+    .await
+    else {
+        return;
+    };
+    let me = uid("eu");
+    add_user(&env.db, &me, ", coins|, 300").await;
+    env.db
+        .execute("INSERT INTO AvatarDecoration (id, name, imageUrl, priceCoins) VALUES ('o1', 'Oferta', 'x', 100)")
+        .await
+        .unwrap();
+    let (st, _) = call(
+        &env,
+        &me,
+        json!({ "items": [{ "kind": "deco", "id": "o1", "expectedPrice": 50 }] }),
+    )
+    .await;
+    assert_eq!(st, 418, "repassou pro Node");
+    assert_eq!(coins(&env, &me).await.0, 300, "o Rust não cobrou nada");
+    assert_eq!(owned(&env, &me).await, 0);
 }
