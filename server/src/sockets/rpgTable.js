@@ -176,4 +176,4 @@ function register(io, socket, userId) {
   }));
 }
 
-module.exports = { register, onRoll, broadcast, isRpgChannel, cleanChar, defaultChar, RPG_LIMIT, _rpgCache: rpgCache };
+module.exports = { register, onRoll, broadcast, isRpgChannel, cleanChar, defaultChar, getTable, RPG_LIMIT, _rpgCache: rpgCache };

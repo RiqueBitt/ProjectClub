@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useSocket } from '../../context/SocketContext.jsx';
 import UserAvatar from '../UserAvatar.jsx';
+import RpgTools from './RpgTools.jsx';
 import '../../styles/rpg-table.css';
 
 // Call modo RPG (canal com rpgMode): a mesa. Mestre no topo, com o escudo
@@ -164,6 +165,7 @@ export default function RpgTable({ channelId, me, memberFor, participants, local
   return (
     <div className="rpg" data-testid="rpg-table">
       <div className="rpg-board">
+        <RpgTools channelId={channelId} iAmMaster={iAmMaster} players={s?.players || []} personOf={personOf} />
         <section className="rpg-top">
           <div className={`rpg-master${master ? '' : ' is-empty'}`}>
             {master ? (

@@ -22,7 +22,12 @@ fs.writeFileSync(path.join(siteDir, 'vendor', 'pdf-lib.min.js'), '// js');
 fs.writeFileSync(path.join(siteDir, '.pc-sha'), 'abc');
 const env = require(src('config/env.js'));
 
+const sheets = new Map();
 stub('config/prisma.js', {
+  blackoutSheets: {
+    findUnique: async ({ where }) => sheets.get(where.userId) || null,
+    upsert: async ({ where, create, update }) => { const row = { ...(sheets.get(where.userId) || create), ...update, updatedAt: new Date() }; sheets.set(where.userId, row); return row; },
+  },
   user: { findUnique: async ({ where }) => (['ana', 'bia'].includes(where.id) ? { id: where.id, platformRole: 'USER' } : where.id === 'ban' ? { id: 'ban', platformRole: 'USER', isPlatformBanned: true } : null) },
 });
 stub('middleware/auth.js', {
@@ -133,4 +138,27 @@ test('passe não serve como cookie (nem o cookie como passe)', async () => withS
 test('atualizar o compêndio: só ADMIN', async () => withServer(async (base) => {
   const r = await fetch(`${base}/api/blackout/sync`, { method: 'POST', headers: { 'x-test-user': 'ana' } });
   assert.equal(r.status, 403);
+}));
+
+test('fichas na conta: o site ganha o script, grava e lê as fichas da pessoa; o mestre vê só com a mesa', async () => withServer(async (base) => {
+  const s = await fetch(`${base}/api/blackout/session`, { method: 'POST', headers: { 'x-test-user': 'ana' } });
+  const cookie = (s.headers.get('set-cookie') || '').split(';')[0];
+  const html = await (await fetch(`${base}/blackout/`, { headers: { cookie } })).text();
+  assert.match(html, /<script src="__conta.js"><\/script>/);
+  assert.equal((await fetch(`${base}/blackout/__conta.js`, { headers: { cookie } })).status, 200);
+  let g = await (await fetch(`${base}/blackout/__fichas`, { headers: { cookie } })).json();
+  assert.equal(g.userId, 'ana');
+  assert.equal(g.fichas, null);
+  const fichas = JSON.stringify([{ id: 'f1', nome: 'Kael', mesaP: { lv: 3 } }]);
+  const put = await fetch(`${base}/blackout/__fichas`, { method: 'PUT', headers: { cookie, 'content-type': 'application/json' }, body: JSON.stringify({ fichas, atual: 'f1' }) });
+  assert.equal(put.status, 200);
+  const bad = await fetch(`${base}/blackout/__fichas`, { method: 'PUT', headers: { cookie, 'content-type': 'application/json' }, body: JSON.stringify({ fichas: '{"x":1}' }) });
+  assert.equal(bad.status, 400);
+  g = await (await fetch(`${base}/blackout/__fichas`, { headers: { cookie } })).json();
+  assert.equal(g.fichas, fichas);
+  assert.equal(g.atual, 'f1');
+  const me = await (await fetch(`${base}/api/blackout/fichas/me`, { headers: { 'x-test-user': 'ana' } })).json();
+  assert.equal(me.fichas[0].nome, 'Kael');
+  // Outra pessoa sem ser mestre da mesa: não vê.
+  assert.equal((await fetch(`${base}/api/blackout/fichas/ana`, { headers: { 'x-test-user': 'bia' } })).status, 403);
 }));
