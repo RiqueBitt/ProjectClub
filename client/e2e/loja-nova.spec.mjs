@@ -28,12 +28,12 @@ test('Loja: logo volta pro início, a pílula acompanha a categoria e o Cartão 
   const antes = await pillBox();
 
   // Trocar de categoria: o item fica ativo e a pílula vai até ele.
-  const molduras = page.locator('.room-nav-item', { hasText: 'Molduras de avatar' });
-  await molduras.click();
-  await expect(molduras).toHaveAttribute('aria-current', 'page');
+  const efeitos = page.locator('.room-nav-item', { hasText: 'Efeitos de texto' });
+  await efeitos.click();
+  await expect(efeitos).toHaveAttribute('aria-current', 'page');
   await expect.poll(async () => { const b = await pillBox(); return b.x !== antes.x || b.y !== antes.y; }).toBe(true);
   await expect.poll(async () => {
-    const [p, m] = [await pill.boundingBox(), await molduras.boundingBox()];
+    const [p, m] = [await pill.boundingBox(), await efeitos.boundingBox()];
     return Math.abs(p.x - m.x) < 3 && Math.abs(p.y - m.y) < 3;
   }).toBe(true);
 
@@ -50,7 +50,7 @@ test('Loja: logo volta pro início, a pílula acompanha a categoria e o Cartão 
 
 test('Loja: a caixinha é o modelo 3D do Blender desenhado ao vivo e gira com o mouse', async ({ page }, testInfo) => {
   await page.goto('/loja');
-  await page.locator('.room-nav-item', { hasText: 'Molduras de avatar' }).click();
+  await page.locator('.room-nav-item', { hasText: 'Efeitos de texto' }).click();
   const card = page.locator('.room-card', { hasText: 'Brasa' });
   await expect(card).toBeVisible({ timeout: 20_000 });
   // o motor 3D liga (canvas com o modelo) e o item ganha a matriz da pose
@@ -71,7 +71,7 @@ test('Loja: a caixinha é o modelo 3D do Blender desenhado ao vivo e gira com o 
 
 test('Loja: todos os botões da cartela seguem o mesmo padrão', async ({ page }) => {
   await page.goto('/loja');
-  await page.locator('.room-nav-item', { hasText: 'Molduras de avatar' }).click();
+  await page.locator('.room-nav-item', { hasText: 'Efeitos de texto' }).click();
   await expect(page.locator('.room-card').first()).toBeVisible({ timeout: 20_000 });
   const estilos = await page.locator('.room-card .room-card-foot .room-btn').evaluateAll((els) => els.map((el) => {
     const st = getComputedStyle(el);
@@ -87,7 +87,7 @@ test('Loja: todos os botões da cartela seguem o mesmo padrão', async ({ page }
 test('Checkout: etapas acompanham o que acontece e a linha some com animação ao tirar', async ({ page }) => {
   await page.addInitScript(() => { try { localStorage.removeItem('shopBasket:v1'); } catch { /* ok */ } });
   await page.goto('/loja');
-  await page.locator('.room-nav-item', { hasText: 'Molduras de avatar' }).click();
+  await page.locator('.room-nav-item', { hasText: 'Efeitos de texto' }).click();
   for (const nome of ['Brasa', 'Aurora Boreal']) {
     await page.locator('.room-card', { hasText: nome }).getByRole('button', { name: new RegExp(`Pôr ${nome} na cestinha`) }).click();
   }

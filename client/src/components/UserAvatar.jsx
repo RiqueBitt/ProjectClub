@@ -49,7 +49,8 @@ export function DecorationOverlay({ deco, size, avatarSize = size }) {
 const OUTER_KEYS = ['margin', 'marginLeft', 'marginRight', 'marginTop', 'marginBottom', 'position', 'top', 'left', 'right', 'bottom', 'alignSelf', 'gridArea', 'order'];
 
 export default function UserAvatar({ user, size = 32, className = '', style = {}, noDecoration = false }) {
-  const deco = noDecoration ? null : parseDecoration(user?.avatarDecoration);
+  // Molduras de avatar desligadas em nov/2026 (pedido do dono): só a foto.
+  const deco = noDecoration || true ? null : parseDecoration(user?.avatarDecoration);
   if (!deco) return <BaseAvatar user={user} size={size} className={className} style={style} />;
   const scale = Math.min(2.8, Math.max(1, Number(deco.s) || 1.2));
   // A caixa (layout) continua com o tamanho do avatar; só a moldura cresce.

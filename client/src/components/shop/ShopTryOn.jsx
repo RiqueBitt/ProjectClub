@@ -6,7 +6,7 @@ import { nameStyleProps, nameStyleClassName } from '../../utils/nameStyle';
 // Provador da Loja (igual ao "Painel de estilos de perfil" do Discord):
 // combine moldura, efeito de texto, estilo e fonte e veja no seu perfil antes de
 // comprar. Mostra o que falta comprar e quanto custa tudo junto.
-const KINDS = [['deco', 'Moldura'], ['textfx', 'Efeito de texto'], ['style', 'Estilo de perfil'], ['font', 'Fonte do nome']];
+const KINDS = [['textfx', 'Efeito de texto'], ['style', 'Estilo de perfil'], ['font', 'Fonte do nome']];
 const styleKey = (i) => i?.data?.style || (i?.key || '').replace(/^style:/, '') || null;
 const fontRaw = (i) => (i?.data?.family ? JSON.stringify({ id: i.id, family: i.data.family, url: i.data.url || null }) : null);
 const fmt = (n) => Number(n || 0).toLocaleString('pt-BR');
@@ -19,7 +19,7 @@ export default function ShopTryOn({ items, user, data, ctx }) {
     font: items.find((i) => i.kind === 'font' && i.id === data?.equippedFontId) || null,
   }), [items, data]);
   const [pick, setPick] = useState(equipped);
-  const [tab, setTab] = useState('deco');
+  const [tab, setTab] = useState('textfx');
   const [mode, setMode] = useState('full');
 
   const previewUser = { ...user, profileFont: pick.font ? fontRaw(pick.font) : null, ...(pick.textfx ? { profileNameEffect: pick.textfx.fx } : {}) };

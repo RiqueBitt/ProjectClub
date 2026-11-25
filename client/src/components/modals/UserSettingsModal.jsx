@@ -1014,7 +1014,7 @@ export default function UserSettingsModal({ onClose, mode = 'settings', initialT
       {tab === 'PROFILE' && (
         <div className="pe-groups">
           <section className="pe-group" aria-labelledby="pe-g-avatar">
-            <h3 className="pe-group-title" id="pe-g-avatar">Avatar e decorações</h3>
+            <h3 className="pe-group-title" id="pe-g-avatar">Foto</h3>
             <div className="pe-card pe-avatar-card">
               <span className="pe-avatar-thumb"><UserAvatar user={user} size={72} /></span>
               <div className="pe-avatar-side">
@@ -1022,8 +1022,33 @@ export default function UserSettingsModal({ onClose, mode = 'settings', initialT
                 <span className="dim settings-upload-hint">PNG, JPG ou GIF animado (até 25 MB)</span>
               </div>
             </div>
-            <h4 className="pe-sub">Moldura do avatar</h4>
-            <ShopTileGrid kind="deco" shop={shop} user={previewUser} />
+          </section>
+          <section className="pe-group" aria-labelledby="pe-g-banners">
+            <h3 className="pe-group-title" id="pe-g-banners">Banner</h3>
+            <div className="pe-banners">
+              <div className="pe-banner">
+                <span className="pe-banner-label">Perfil completo</span>
+                <div className="pe-banner-art" style={{ background: form.profileColor }}>
+                  {(user.bannerUrl) ? <BannerImage url={user.bannerUrl} framing={user.bannerFraming} /> : <span className="pe-banner-empty">Sem imagem · usa a cor do perfil</span>}
+                </div>
+                <div className="pe-banner-actions">
+                  <label className="btn-secondary">{user.bannerUrl ? 'Trocar' : 'Enviar imagem'}<input type="file" accept="image/png,image/jpeg,image/webp,image/gif" hidden onChange={onBanner} /></label>
+                  {user.bannerUrl && <button type="button" className="btn-secondary pb-adjust-btn" onClick={() => adjustCurrentBanner('profile')}>Ajustar enquadramento</button>}
+                </div>
+                <span className="dim settings-upload-hint">Aceita GIF animado (até 25 MB)</span>
+              </div>
+              <div className="pe-banner">
+                <span className="pe-banner-label">Miniperfil</span>
+                <div className="pe-banner-art is-mini" style={{ background: form.profileColor }}>
+                  {(user.miniProfileBannerUrl || user.bannerUrl) ? <BannerImage url={user.miniProfileBannerUrl || user.bannerUrl} framing={user.miniProfileBannerUrl ? user.miniProfileBannerFraming : user.bannerFraming} /> : <span className="pe-banner-empty">Sem imagem · usa a cor do perfil</span>}
+                </div>
+                <div className="pe-banner-actions">
+                  <label className="btn-secondary">{user.miniProfileBannerUrl ? 'Trocar' : 'Enviar imagem'}<input type="file" accept="image/png,image/jpeg,image/webp,image/gif" hidden onChange={onMiniProfileBanner} /></label>
+                  {user.miniProfileBannerUrl && <button type="button" className="btn-secondary pb-adjust-btn" onClick={() => adjustCurrentBanner('mini')}>Ajustar enquadramento</button>}
+                </div>
+                <span className="dim settings-upload-hint">Sem escolher, usa o banner do perfil completo</span>
+              </div>
+            </div>
           </section>
           <section className="pe-group" aria-labelledby="pe-g-nome">
             <h3 className="pe-group-title" id="pe-g-nome">Nome exibido</h3>
@@ -1096,33 +1121,12 @@ export default function UserSettingsModal({ onClose, mode = 'settings', initialT
             </div>
             )}
           </section>
-          <section className="pe-group" aria-labelledby="pe-g-banners">
-            <h3 className="pe-group-title" id="pe-g-banners">Banners e cor</h3>
-            <div className="pe-banners">
-              <div className="pe-banner">
-                <span className="pe-banner-label">Perfil completo</span>
-                <div className="pe-banner-art" style={{ background: form.profileColor }}>
-                  {(user.bannerUrl) ? <BannerImage url={user.bannerUrl} framing={user.bannerFraming} /> : <span className="pe-banner-empty">Sem imagem · usa a cor do perfil</span>}
-                </div>
-                <div className="pe-banner-actions">
-                  <label className="btn-secondary">{user.bannerUrl ? 'Trocar' : 'Enviar imagem'}<input type="file" accept="image/png,image/jpeg,image/webp,image/gif" hidden onChange={onBanner} /></label>
-                  {user.bannerUrl && <button type="button" className="btn-secondary pb-adjust-btn" onClick={() => adjustCurrentBanner('profile')}>Ajustar enquadramento</button>}
-                </div>
-                <span className="dim settings-upload-hint">Aceita GIF animado (até 25 MB)</span>
-              </div>
-              <div className="pe-banner">
-                <span className="pe-banner-label">Miniperfil</span>
-                <div className="pe-banner-art is-mini" style={{ background: form.profileColor }}>
-                  {(user.miniProfileBannerUrl || user.bannerUrl) ? <BannerImage url={user.miniProfileBannerUrl || user.bannerUrl} framing={user.miniProfileBannerUrl ? user.miniProfileBannerFraming : user.bannerFraming} /> : <span className="pe-banner-empty">Sem imagem · usa a cor do perfil</span>}
-                </div>
-                <div className="pe-banner-actions">
-                  <label className="btn-secondary">{user.miniProfileBannerUrl ? 'Trocar' : 'Enviar imagem'}<input type="file" accept="image/png,image/jpeg,image/webp,image/gif" hidden onChange={onMiniProfileBanner} /></label>
-                  {user.miniProfileBannerUrl && <button type="button" className="btn-secondary pb-adjust-btn" onClick={() => adjustCurrentBanner('mini')}>Ajustar enquadramento</button>}
-                </div>
-                <span className="dim settings-upload-hint">Sem escolher, usa o banner do perfil completo</span>
-              </div>
-            </div>
-            {profileColorEditEnabled && (
+          <section className="pe-group" aria-labelledby="pe-g-efeitos">
+            <h3 className="pe-group-title" id="pe-g-efeitos">Estilo do perfil</h3>
+            <p className="pe-group-desc">Visual padrão (com a sua cor) ou um estilo que você tem da Loja.</p>
+            <ShopTileGrid kind="style" shop={shop} user={previewUser} />
+            {/* Cor do perfil só com o visual padrão (os estilos da Loja têm cores próprias). */}
+            {profileColorEditEnabled && shop.isOn('style', null) && (
             <div className="settings-block">
               <h4>Cor do perfil</h4>
               <p className="dim">A cor (ou degradê) do seu perfil completo e do miniperfil — os dois usam a mesma. Aparece no fundo do banner e do avatar quando não tem imagem.</p>
@@ -1171,11 +1175,6 @@ export default function UserSettingsModal({ onClose, mode = 'settings', initialT
               </div>
             </div>
             )}
-          </section>
-          <section className="pe-group" aria-labelledby="pe-g-efeitos">
-            <h3 className="pe-group-title" id="pe-g-efeitos">Estilo do perfil</h3>
-            <p className="pe-group-desc">Itens que você tem da Loja.</p>
-            <ShopTileGrid kind="style" shop={shop} user={previewUser} />
             {shop.msg && <p className={`pe-shop-msg${shop.msg.bad ? ' is-bad' : ''}`} role="status">{shop.msg.text}</p>}
           </section>
           <section className="pe-group" aria-labelledby="pe-g-sobre">

@@ -160,7 +160,7 @@ function allItems(data) {
       priceGems: c.source === 'SHOP' ? c.priceGems : null, owned: !!c.owned, createdAt: c.createdAt || 0, popularity: 0,
     }));
   return [
-    ...(data?.decorations || []).map((d) => ({ ...d, kind: 'deco' })),
+    // Molduras de avatar saíram do Project Club (nov/2026).
     ...(data?.textEffects || []).map((e) => ({ ...e, kind: 'textfx' })),
     ...(data?.fonts || []).map((f) => ({ ...f, kind: 'font' })),
     ...(data?.styles || []).map((st) => ({ ...st, kind: 'style' })),
@@ -392,7 +392,6 @@ export default function LojaPage() {
       { id: 'tryon', label: 'Provador', icon: 'user' },
     ] },
     { group: 'Categorias', items: [
-      { id: 'deco', label: KIND.deco.plural, icon: 'frame', n: count('deco') },
       { id: 'textfx', label: KIND.textfx.plural, icon: 'sparkles', n: count('textfx') },
       ...(count('font') > 0 ? [{ id: 'font', label: KIND.font.plural, icon: 'font', n: count('font') }] : []),
       ...(count('style') > 0 ? [{ id: 'style', label: KIND.style.plural, icon: 'palette', n: count('style') }] : []),
@@ -622,8 +621,8 @@ function Home({ items, collections, go, ctx }) {
         <section className="room-hero-plain">
           <span className="room-kicker"><Ico name="sparkles" size={14} /> Loja do Project Club</span>
           <h1>Deixe seu perfil com a sua cara</h1>
-          <p>Molduras para o avatar, efeitos animados no perfil e coleções completas. Veja como fica antes de comprar.</p>
-          <button type="button" className="room-btn primary" onClick={() => go('deco')}>Explorar a loja</button>
+          <p>Efeitos no nome, fontes, estilos de perfil e coleções completas. Veja como fica antes de comprar.</p>
+          <button type="button" className="room-btn primary" onClick={() => go('textfx')}>Explorar a loja</button>
         </section>
       )}
       {(ctx.data?.banners || []).length > 0 && (
@@ -642,7 +641,7 @@ function Home({ items, collections, go, ctx }) {
       {ctx.supporter.tier !== 'NONE' && <SupporterCard supporter={ctx.supporter} />}
       <Shelf title={featured.length ? 'Em destaque' : 'Os favoritos da comunidade'} list={spotlight} ctx={ctx} />
       {limited.length > 0 && <Shelf title="Limitados — enquanto durar o estoque" hint="Acabou, só por troca" list={limited} onMore={() => go('limited')} ctx={ctx} />}
-      <Shelf title="Novidades" list={newest} onMore={() => go('deco')} moreLabel="Ver catálogo" ctx={ctx} />
+      <Shelf title="Novidades" list={newest} onMore={() => go('textfx')} moreLabel="Ver catálogo" ctx={ctx} />
       {collections.filter((c) => c.featured).slice(0, 4).map((c) => {
         const colItems = items.filter((i) => i.collectionId === c.id).slice(0, 8);
         return colItems.length > 0 && <Shelf key={c.id} title={c.name} list={colItems} onMore={() => go(`col:${c.id}`)} moreLabel={`Página da loja – ${c.name}`} ctx={ctx} />;
@@ -658,7 +657,7 @@ function Home({ items, collections, go, ctx }) {
       <section className="room-section">
         <SectionHead title="Categorias" />
         <div className="room-cats">
-          {['deco', 'textfx', ...['font', 'style'].filter((k) => items.some((i) => i.kind === k)), ...(CARDS_WAR_ON && items.some((i) => i.kind === 'back') ? ['back'] : [])].map((k) => (
+          {['textfx', ...['font', 'style'].filter((k) => items.some((i) => i.kind === k)), ...(CARDS_WAR_ON && items.some((i) => i.kind === 'back') ? ['back'] : [])].map((k) => (
             <button key={k} type="button" className={`room-cat k-${k}`} onClick={() => go(k)}>
               <span className="room-cat-ico"><Ico name={KIND[k].icon} size={22} /></span>
               <strong>{KIND[k].plural}</strong>
@@ -936,7 +935,7 @@ function OwnedPage({ list, go, ctx }) {
       {list.length === 0 ? <Empty title="Inventário vazio" text="O que você comprar ou ganhar aparece aqui." action={{ label: 'Ir para a loja', onClick: () => go('home') }} /> : (
         <>
           {equipped.length > 0 && <Shelf title="Em uso agora" list={equipped} ctx={ctx} />}
-          {['deco', 'textfx', 'font', 'style', 'back'].map((k) => <Shelf key={k} title={KIND[k].plural} list={list.filter((i) => i.kind === k)} ctx={ctx} />)}
+          {['textfx', 'font', 'style', 'back'].map((k) => <Shelf key={k} title={KIND[k].plural} list={list.filter((i) => i.kind === k)} ctx={ctx} />)}
         </>
       )}
     </div>

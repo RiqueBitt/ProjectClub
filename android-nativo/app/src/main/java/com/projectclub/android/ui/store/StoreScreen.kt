@@ -145,7 +145,7 @@ fun StoreScreen(repo: Repository, nav: AppNav, initialTab: String?) {
     var error by remember { mutableStateOf<String?>(null) }
     var refreshing by remember { mutableStateOf(false) }
     var tab by rememberSaveable {
-        mutableStateOf(when (if (initialTab?.startsWith("colecao:") == true) "colecoes" else initialTab) { "molduras" -> StoreTab.Frames; "efeitos" -> StoreTab.Effects; "fontes" -> StoreTab.Fonts; "estilos" -> StoreTab.Styles; "limitados" -> StoreTab.Limited; "colecoes" -> StoreTab.Collections; "cartao" -> StoreTab.Card; "meus" -> StoreTab.Mine; "trocas" -> StoreTab.Trades; else -> StoreTab.All })
+        mutableStateOf(when (if (initialTab?.startsWith("colecao:") == true) "colecoes" else initialTab) { "molduras" -> StoreTab.All; "efeitos" -> StoreTab.Effects; "fontes" -> StoreTab.Fonts; "estilos" -> StoreTab.Styles; "limitados" -> StoreTab.Limited; "colecoes" -> StoreTab.Collections; "cartao" -> StoreTab.Card; "meus" -> StoreTab.Mine; "trocas" -> StoreTab.Trades; else -> StoreTab.All })
     }
     var query by rememberSaveable { mutableStateOf("") }
     var selected by remember { mutableStateOf<ShopItem?>(null) }
@@ -217,7 +217,8 @@ fun StoreScreen(repo: Repository, nav: AppNav, initialTab: String?) {
             else -> {
                 val newCut = System.currentTimeMillis() - 14L * 86_400_000L
                 fun isNew(iso: String?) = com.projectclub.android.ui.common.instantOf(iso)?.toEpochMilli()?.let { it > newCut } == true
-                val frames = s.decorations.sortedBy { it.sortOrder }.map {
+                // Molduras de avatar saíram do Project Club (nov/2026): a Loja não mostra mais.
+                val frames = s.decorations.take(0).map {
                     ShopItem(it.id, Kind.Frame, it.name, it.imageUrl, it.priceCoins, it.priceGems, it.owned, it.id == s.equippedId, isNew(it.createdAt), it.collectionId,
                         it.limited, it.stock, it.sold, it.remaining, it.serial, it.locked, it.description,
                         color = it.color, rarity = it.rarity, exclusiveTier = it.exclusiveTier)
@@ -260,7 +261,7 @@ fun StoreScreen(repo: Repository, nav: AppNav, initialTab: String?) {
                                 PcField(query, { query = it }, "Buscar na loja", icon = Icons.Outlined.Search)
                                 Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                                     StoreTab.entries.filter { t ->
-                                        when (t) { StoreTab.Fonts -> fonts.isNotEmpty(); StoreTab.Styles -> styles.isNotEmpty(); StoreTab.Limited -> everything.any { it.limited }; else -> true }
+                                        when (t) { StoreTab.Frames -> false; StoreTab.Fonts -> fonts.isNotEmpty(); StoreTab.Styles -> styles.isNotEmpty(); StoreTab.Limited -> everything.any { it.limited }; else -> true }
                                     }.forEach { t -> TabPill(t.label, t == tab) { if (t == StoreTab.Trades) nav.trades() else tab = t } }
                                 }
                             }
@@ -309,7 +310,7 @@ fun StoreScreen(repo: Repository, nav: AppNav, initialTab: String?) {
             text = {
                 Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
                     c.description?.takeIf { it.isNotBlank() }?.let { Text(it, color = PC.Muted) }
-                    val inCol = s?.let { it.decorations.count { d -> d.collectionId == c.id } + it.textEffects.count { e -> e.collectionId == c.id } } ?: 0
+                    val inCol = s?.let { it.textEffects.count { e -> e.collectionId == c.id } } ?: 0
                     Text("$inCol itens no pacote", color = PC.Text)
                     if (c.offer?.active == true) Chip("-${c.offer.discount}% por tempo limitado", PC.Green)
                     confirmGems?.let { g -> Text("Confirmar compra por ${fmtNum(if (g) c.finalBundleGems else c.finalBundleCoins)} ${if (g) "gemas" else "moedas"}?", color = PC.Header, fontWeight = FontWeight.Bold) }

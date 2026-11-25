@@ -105,8 +105,8 @@ for (const vp of VIEWPORTS) {
       await page.screenshot({ path: `${SHOTS}/bau-modal-${vp.name}.png` });
     });
 
-    test('Avatar com moldura: foto do mesmo tamanho que sem moldura', async ({ page }) => {
-      // Mensagens: uma do usuário COM moldura e uma de outro SEM.
+    test('Molduras de avatar desligadas: quem tinha moldura aparece só com a foto', async ({ page }) => {
+      // Mensagens: uma do usuário que tinha moldura e uma de outro sem.
       const now = Date.now();
       const other = { ...ME, id: '5', displayName: 'Lia', username: 'lia', avatarDecoration: null };
       await page.route(/\/api\/messages(\?|$)/, (r) => json(r, { messages: [
@@ -117,30 +117,23 @@ for (const vp of VIEWPORTS) {
       await page.goto('/channels/ch2');
       const avatars = page.locator('.message .avatar.clickable');
       await expect(avatars.nth(1)).toBeVisible({ timeout: 20_000 });
-      await expect(page.locator('.message .avatar-decoration').first()).toBeVisible();
-      const withDeco = await avatars.nth(0).locator('img:not(.avatar-decoration)').boundingBox();
+      await expect(page.locator('.avatar-decoration')).toHaveCount(0);
+      const withDeco = await avatars.nth(0).locator('img').first().boundingBox();
       const without = await avatars.nth(1).locator('img').first().boundingBox();
       expect(Math.round(withDeco.width)).toBe(Math.round(without.width));
-      expect(Math.round(withDeco.height)).toBe(Math.round(without.height));
-      // A moldura fica maior que a foto, centralizada, sem mudar o layout.
-      const deco = await page.locator('.message .avatar-decoration').first().boundingBox();
-      expect(deco.width).toBeGreaterThan(withDeco.width);
-      expect(Math.abs((deco.x + deco.width / 2) - (withDeco.x + withDeco.width / 2))).toBeLessThan(1.5);
-      expect(Math.abs((deco.y + deco.height / 2) - (withDeco.y + withDeco.height / 2))).toBeLessThan(1.5);
       const wrap = await avatars.nth(0).boundingBox();
       const wrap2 = await avatars.nth(1).boundingBox();
       expect(Math.round(wrap.width)).toBe(Math.round(wrap2.width));
-      await page.locator('.messages, .message-list, .chat-messages').first().screenshot({ path: `${SHOTS}/avatar-moldura-chat-${vp.name}.png` }).catch(() => page.screenshot({ path: `${SHOTS}/avatar-moldura-chat-${vp.name}.png` }));
-      await page.screenshot({ path: `${SHOTS}/avatar-moldura-tela-${vp.name}.png` });
 
       // Miniperfil (avatar 84px) com moldura: foto continua com 84px (x zoom da interface).
       await avatars.nth(0).click();
       const mini = page.locator('.mini-profile-card');
       await expect(mini).toBeVisible();
       await page.waitForTimeout(500);
-      const miniImg = await mini.locator('.mini-profile-avatar img:not(.avatar-decoration)').first().evaluate((el) => ({ w: el.offsetWidth, h: el.offsetHeight }));
+      await expect(mini.locator('.avatar-decoration')).toHaveCount(0);
+      const miniImg = await mini.locator('.mini-profile-avatar img').first().evaluate((el) => ({ w: el.offsetWidth, h: el.offsetHeight }));
       expect(miniImg).toEqual({ w: 84, h: 84 });
-      await page.screenshot({ path: `${SHOTS}/miniperfil-moldura-${vp.name}.png` });
+      await page.screenshot({ path: `${SHOTS}/miniperfil-sem-moldura-${vp.name}.png` });
     });
   });
 }
