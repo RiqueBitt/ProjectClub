@@ -1,8 +1,9 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useStore } from '../store/useStore';
 import { useSocket } from '../context/SocketContext.jsx';
-import { listUpdates, listEvents, listYoutubeVideos, getPlatformStats, getUserProfile } from '../api/endpoints';
+import { listUpdates, listEvents, listYoutubeVideos, getUserProfile } from '../api/endpoints';
+import CentralCarousel from '../components/home/CentralCarousel.jsx';
 import { useAuth } from '../context/AuthContext.jsx';
 import { useVoice } from '../context/VoiceContext.jsx';
 import UserAvatar from '../components/UserAvatar.jsx';
@@ -10,14 +11,12 @@ import AnunciosPage from './AnunciosPage.jsx';
 import EventsCalendar from '../components/EventsCalendar.jsx';
 import { useMarkSectionSeen } from '../utils/sectionBadges';
 import { renderRichContent } from '../utils/richTextRender.jsx';
-import { proxyImage } from '../utils/imageProxy';
-import inicioIcon from '../assets/icons/logo-project-club.png';
 import { useLiveRefresh, sameData } from '../utils/liveRefresh';
 import { bootSection, onBootSection, bootstrapActive } from '../utils/bootstrap';
 import ArenaPromo from '../cards/ArenaPromo.jsx';
 import MinecraftStatusCard from '../components/MinecraftStatusCard.jsx';
 import { isFeatureEnabled } from '../utils/features';
-import { channelPath, eventPath } from '../utils/prettyLinks';
+import { channelPath } from '../utils/prettyLinks';
 import { useCommunityHome, HomeCommunityMain } from '../components/community/HomeCommunity.jsx';
 
 // Item pedido: mostra só os 4 vídeos mais recentes do canal.
@@ -96,8 +95,6 @@ function greeting() {
   return 'Boa noite';
 }
 
-const fmtNum = (n) => (typeof n === 'number' ? n.toLocaleString('pt-BR') : '—');
-
 // Ícones SVG (traço) das seções e atalhos — sem emoji.
 const HOME_ICONS = {
   chat: 'M4 5h16v11H8l-4 4V5Z',
@@ -141,7 +138,6 @@ function Empty({ children }) {
 export default function InicioPage() {
   const navigate = useNavigate();
   const { user } = useAuth();
-  const community = useStore((s) => s.community);
   const members = useStore((s) => s.members);
   const presence = useStore((s) => s.presence);
   const categories = useStore((s) => s.categories);
@@ -152,7 +148,11 @@ export default function InicioPage() {
   const [updates, setUpdates] = useState(null);
   const [events, setEvents] = useState(null);
   const [videos, setVideos] = useState(null);
-  const [stats, setStats] = useState(null);
+  const [news, setNews] = useState(null);
+  const [focusNews, setFocusNews] = useState(null);
+  const openNews = useCallback((key) => {
+    setFocusNews({ key, at: Date.now() });
+  }, []);
   const [me, setMe] = useState(null);
   // A Central mostra as Novidades (anúncios) e o calendário de eventos: abrir
   // a página apaga a bolinha "novo" das duas.
@@ -165,7 +165,6 @@ export default function InicioPage() {
     // Eventos: reaproveita o pacote de abertura se ele acabou de chegar (utils/bootstrap.js).
     (bootSection('events') || listEvents()).then((d) => setEvents(d.events)).catch(() => setEvents([]));
     listYoutubeVideos().then((d) => setVideos(d.videos)).catch(() => setVideos([]));
-    getPlatformStats().then(setStats).catch(() => setStats(null));
     // Perfil completo traz o progresso do nível (levelProgress).
     if (user?.id) getUserProfile(user.id).then((d) => setMe(d)).catch(() => setMe(null));
   }, [user?.id]);
@@ -179,9 +178,6 @@ export default function InicioPage() {
       user?.id ? getUserProfile(user.id).then(put(setMe)) : null,
     ]);
   }, { interval: 22000 });
-  // Números da plataforma (4 contagens no banco, incluindo TODAS as
-  // mensagens): mudam devagar e ninguém precisa deles ao segundo — 2 min.
-  useLiveRefresh(({ put }) => getPlatformStats().then(put(setStats)), { interval: 120000 });
   useLiveRefresh(async (ctx) => {
     const { put } = ctx;
     await Promise.allSettled([
@@ -233,35 +229,13 @@ export default function InicioPage() {
 
   const level = me?.user?.accountLevel ?? user?.accountLevel ?? 1;
   const progress = me?.levelProgress ?? 0;
-  const upcomingEvents = (events || []).filter((e) => e.status !== 'ENDED')
-    .sort((a, b) => new Date(a.startsAt || 0) - new Date(b.startsAt || 0));
-  // "Acontecendo agora": só quando tem evento ao vivo.
-  const liveEvent = upcomingEvents.find((e) => e.status === 'ACTIVE');
-  const peopleInCalls = liveCalls.reduce((n, c) => n + c.people.length, 0);
 
   const disabledSystems = useStore((st) => st.disabledSystems) || [];
 
   return (
     <div className="home">
-      <header
-        className={`home-hero${community.bannerUrl ? ' has-banner' : ''}`}
-        style={community.bannerUrl ? { '--home-banner': `url(${JSON.stringify(proxyImage(community.bannerUrl))})` } : undefined}
-      >
-        <div className="home-hero-inner">
-          <img className="home-hero-icon" src={community.iconUrl ? proxyImage(community.iconUrl) : inicioIcon} alt="" />
-          <div className="home-hero-text">
-            <p className="home-hero-hello">{greeting()}, {user?.displayName || 'membro'}</p>
-            <h1>{community.name || 'Project Club'}</h1>
-          </div>
-          {stats && (
-            <dl className="home-hero-stats">
-              <div><dt>membros</dt><dd>{fmtNum(stats.memberCount)}</dd></div>
-              <div><dt>online</dt><dd>{fmtNum(online.length)}</dd></div>
-              <div><dt>em call</dt><dd>{fmtNum(peopleInCalls)}</dd></div>
-            </dl>
-          )}
-        </div>
-      </header>
+      {/* Topo (nov/2026): carrossel com evento, novidades, coleções da Loja e Assinatura. */}
+      <CentralCarousel events={events} news={news} greeting={`${greeting()}, ${user?.displayName || 'membro'}`} onOpenNews={openNews} />
 
 
 
@@ -271,25 +245,9 @@ export default function InicioPage() {
 
       <div className="home-grid">
         <div className="home-main">
-          {/* Evento ao vivo: só aparece enquanto um evento está acontecendo, em cima das Novidades. */}
-          {liveEvent && (
-            <section className="home-now" aria-label="Acontecendo agora">
-              <p className="home-label">Acontecendo agora</p>
-              <button type="button" className="home-now-card home-now-event is-live" onClick={() => navigate(eventPath(liveEvent))}>
-                <span className="home-now-top">
-                  <span className="home-now-live">Ao vivo</span>
-                  <strong className="truncate">{liveEvent.title}</strong>
-                </span>
-                <span className="home-now-sub">
-                  {(liveEvent.rsvp?.counts?.GOING || 0)} confirmado{(liveEvent.rsvp?.counts?.GOING || 0) === 1 ? '' : 's'}
-                </span>
-                <span className="home-now-cta">Entrar</span>
-              </button>
-            </section>
-          )}
-          {/* Novidades da staff com banner e texto, direto aqui (antes era uma aba). */}
+          {/* Novidade/evento em destaque no topo e o resto em caixinhas (nov/2026). */}
           <section className="home-section home-news">
-            <AnunciosPage embedded />
+            <AnunciosPage embedded events={events} onLoaded={setNews} focus={focusNews} />
           </section>
           <HomeCommunityMain home={communityHome} />
 

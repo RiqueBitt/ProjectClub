@@ -79,9 +79,9 @@ function rarityOf(item) {
   return r;
 }
 // Faixa cromada no topo da caixinha, na cor da raridade (a Mítica tem borda arco-íris).
-function RarityBand({ item }) {
-  const r = rarityOf(item);
-  return <span className={`room-rarity r-${r.toLowerCase()}`}><span>{RARITY_LABEL[r]}</span></span>;
+// Tirada a pedido do dono (nov/2026): a caixinha não mostra mais o texto da raridade.
+function RarityBand() {
+  return null;
 }
 const SORTS = [
   { id: 'foryou', label: 'Para você' },

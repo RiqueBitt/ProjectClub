@@ -4,7 +4,8 @@ import { useSocket } from '../../context/SocketContext.jsx';
 import { useStore } from '../../store/useStore';
 import { useLiveRefresh } from '../../utils/liveRefresh';
 import { Ico } from '../PagesKit.jsx';
-import { Countdown, ProgressBar, fmt } from './CommunityBits.jsx';
+import { Countdown, fmt } from './CommunityBits.jsx';
+import '../../styles/community-goals.css';
 
 // Seções da Fase 4 no Início: temporada temática, metas coletivas da
 // semana, Post da semana, pódio dos Clubes e atalhos de participação.
@@ -51,28 +52,58 @@ function SeasonBanner({ season, onClaimed }) {
   );
 }
 
+// Metas da comunidade no estilo dos desafios comunitários do PvZ Garden
+// Warfare 2 (nov/2026): placa grossa com contorno, barra listrada enorme,
+// marcos a cada 25% e o baú de recompensa na ponta.
+const METRIC_ICON = { MESSAGES: 'chat', VOICE_MINUTES: 'volume', FORUM_POSTS: 'doc' };
+const MARKS = [25, 50, 75];
+
+function GoalRow({ g }) {
+  const pct = g.reached ? 100 : Math.max(0, Math.min(100, g.percent || 0));
+  return (
+    <div className={`gw-goal${g.reached ? ' is-done' : ''}`}>
+      <span className="gw-medal" aria-hidden="true"><Ico name={METRIC_ICON[g.metric] || 'flame'} size={24} /></span>
+      <div className="gw-goal-main">
+        <div className="gw-goal-head">
+          <strong className="gw-goal-title">{g.title || g.label}</strong>
+          <span className="gw-goal-num">{fmt(g.rawValue)} / {fmt(g.target)} {g.label}<b className="gw-goal-pct">{pct}%</b></span>
+        </div>
+        <div className="gw-bar" role="progressbar" aria-valuenow={pct} aria-valuemin={0} aria-valuemax={100} aria-label={g.title || g.label}>
+          <span className="gw-fill" style={{ width: `${pct}%` }} />
+          {MARKS.map((m) => (
+            <span key={m} className={`gw-mark${pct >= m ? ' on' : ''}`} style={{ left: `${m}%` }} aria-hidden="true"><Ico name="star" size={14} /></span>
+          ))}
+        </div>
+      </div>
+      <span className={`gw-chest${g.reached ? ' open' : ''}`} title={g.rewardCoins ? `${g.rewardCoins} moedas pra quem participar` : 'Recompensa'}>
+        <Ico name={g.reached ? 'check' : 'chest'} size={22} />
+        {g.rewardCoins ? <b>+{g.rewardCoins}</b> : null}
+      </span>
+    </div>
+  );
+}
+
 function GoalsCard({ goals }) {
   if (!goals?.goals?.length) return null;
-  const participated = goals.myPoints >= goals.minContribution;
+  const min = goals.minContribution || 1;
+  const mine = Math.min(min, goals.myPoints || 0);
+  const participated = (goals.myPoints || 0) >= min;
+  const done = goals.goals.filter((g) => g.reached).length;
   return (
-    <section className="home-section c4-home-goals">
-      <header className="home-section-head">
-        <h2><Ico name="flame" size={17} /> Metas da comunidade</h2>
-        <Countdown to={goals.endsAt} prefix="semana termina em" />
+    <section className="home-section gw-board" aria-label="Desafios da comunidade">
+      <header className="gw-head">
+        <span className="gw-ribbon"><Ico name="trophy" size={20} /> Desafios da comunidade</span>
+        <span className="gw-timer"><Countdown to={goals.endsAt} prefix="termina em" /></span>
       </header>
-      <div className="c4-goals">
-        {goals.goals.map((g) => (
-          <div key={g.id} className={`c4-goal ${g.reached ? 'is-done' : ''}`}>
-            <div className="c4-goal-top">
-              <strong>{g.title || g.label}</strong>
-              {g.reached ? <span className="pk-chip green"><Ico name="check" size={13} /> Batida!</span> : <span className="c4-goal-pct">{g.percent}%</span>}
-            </div>
-            <ProgressBar value={g.value} max={g.target} label={g.title || g.label} tone={g.reached ? 'green' : 'brand'} />
-            <small>{fmt(g.rawValue)} / {fmt(g.target)} {g.label}{g.rewardCoins ? ` · ${g.rewardCoins} moedas pra quem participar` : ''}</small>
-          </div>
-        ))}
+      <p className="gw-intro">Todo mundo junto! Batam as metas da semana e quem participar leva as moedas. <strong>{done}/{goals.goals.length}</strong> batidas.</p>
+      <div className="gw-goals">
+        {goals.goals.map((g) => <GoalRow key={g.id} g={g} />)}
       </div>
-      <p className="c4-small">{participated ? 'Você já está participando desta semana. Valeu!' : 'Mande mensagens e entre em call pra participar das recompensas.'}</p>
+      <footer className={`gw-me${participated ? ' ok' : ''}`}>
+        <span className="gw-me-label">{participated ? <><Ico name="check" size={15} /> Você está participando!</> : 'Sua parte'}</span>
+        <span className="gw-me-bar" aria-hidden="true"><span style={{ width: `${Math.round((mine / min) * 100)}%` }} /></span>
+        <small>{participated ? 'Valeu por ajudar a comunidade.' : 'Mande mensagens e entre em call pra entrar nas recompensas.'}</small>
+      </footer>
     </section>
   );
 }

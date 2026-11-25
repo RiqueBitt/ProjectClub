@@ -1,4 +1,6 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
+import { eventPath } from '../utils/prettyLinks';
 import { api } from '../api/client';
 import { useSocket } from '../context/SocketContext.jsx';
 import UserAvatar from '../components/UserAvatar.jsx';
@@ -89,9 +91,25 @@ function Editor({ initial, onClose, onSaved }) {
   );
 }
 
-// `embedded`: mostrado direto na Central (InicioPage.jsx), sem a moldura de
-// página inteira — os anúncios aparecem com banner e texto completos.
-export default function AnunciosPage({ embedded = false }) {
+// Texto corrido curto pra caixinha (sem **, __, links…).
+export function shortText(text, max = 120) {
+  const t = String(text || '').replace(/\[([^\]]*)\]\([^)]*\)/g, '$1').replace(/[*_~`>#|]+/g, '').replace(/^\s*-\s+/gm, '').replace(/\s+/g, ' ').trim();
+  return t.length > max ? `${t.slice(0, max - 1).trimEnd()}…` : t;
+}
+const fmtShort = (d) => (d ? new Date(d).toLocaleDateString('pt-BR', { day: '2-digit', month: 'short' }) : '');
+
+// `embedded`: Central (InicioPage.jsx) — a novidade/evento em destaque no
+// topo (banner, título e texto completos) e o resto em caixinhas (nov/2026).
+export default function AnunciosPage({ embedded = false, events = null, onLoaded, focus = null }) {
+  const navigate = useNavigate();
+  const [selected, setSelected] = useState(null);
+  const featuredRef = useRef(null);
+  // O carrossel da Central pediu pra abrir uma novidade: ela vira o destaque.
+  useEffect(() => {
+    if (!focus?.key) return;
+    setSelected(focus.key);
+    requestAnimationFrame(() => featuredRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }));
+  }, [focus]);
   const socket = useSocket()?.socket || null;
   useMarkSectionSeen('anuncios'); // abriu Novidades: apaga a bolinha "novo"
   const [data, setData] = useState(null);
@@ -101,6 +119,7 @@ export default function AnunciosPage({ embedded = false }) {
     api.get('/anuncios').then((r) => setData(r.data)).catch(() => setData((d) => d || { announcements: [], canManage: false }));
   }, []);
   useEffect(() => { load(); }, [load]);
+  useEffect(() => { if (data && onLoaded) onLoaded(data.announcements || []); }, [data, onLoaded]);
   useEffect(() => {
     if (!socket) return undefined;
     socket.on('announcements:update', load);
@@ -114,6 +133,102 @@ export default function AnunciosPage({ embedded = false }) {
   };
 
   const list = data?.announcements || [];
+  // Central: junta novidades e eventos (que não acabaram).
+  const items = useMemo(() => {
+    const news = list.map((a) => ({ type: 'news', key: `a-${a.id}`, a, title: a.title, body: a.body, bannerUrl: a.bannerUrl, date: a.createdAt, pinned: a.pinned }));
+    const evs = (events || []).filter((e) => e.status !== 'ENDED')
+      .sort((x, y) => new Date(x.startsAt || 0) - new Date(y.startsAt || 0))
+      .map((e) => ({ type: 'event', key: `e-${e.id}`, ev: e, title: e.title, body: e.description, bannerUrl: e.bannerUrl, date: e.startsAt || e.createdAt, live: e.status === 'ACTIVE' }));
+    return { news, evs };
+  }, [list, events]);
+  const all = [...items.evs, ...items.news];
+  const featured = all.find((i) => i.key === selected)
+    || items.evs.find((i) => i.live) || items.news.find((i) => i.pinned) || items.news[0] || items.evs[0] || null;
+  const rest = [...items.news, ...items.evs].filter((i) => i !== featured);
+  const pick = (it) => {
+    if (it.type === 'event' && !it.live) { navigate(eventPath(it.ev)); return; }
+    setSelected(it.key);
+    requestAnimationFrame(() => featuredRef.current?.scrollIntoView({ behavior: 'smooth', block: 'nearest' }));
+  };
+  const tools = (a) => data?.canManage && (
+    <span className="an-tools">
+      <button type="button" title="Editar" aria-label="Editar" onClick={() => setEditing(a)}><Ico d={I.edit} size={16} /></button>
+      <button type="button" title="Apagar" aria-label="Apagar" className="danger" onClick={() => remove(a)}><Ico d={I.trash} size={16} /></button>
+    </span>
+  );
+
+  if (embedded) {
+    return (
+      <div className="an-embedded">
+        <div className="an-embedded-inner">
+          <header className="an-head an-head-embedded">
+            <span className="an-head-icon"><Ico d={I.megaphone} size={18} /></span>
+            <div><h2>Novidades e eventos</h2></div>
+            {data?.canManage && <button type="button" className="an-btn primary" onClick={() => setEditing({})}><Ico d={I.plus} /> Novo anúncio</button>}
+          </header>
+          {!data ? (
+            <div className="an-feature an-skeleton" />
+          ) : !featured ? (
+            <div className="an-empty">
+              <Ico d={I.megaphone} size={34} />
+              <strong>Nenhuma novidade por enquanto</strong>
+              <span>Quando a staff publicar algo, aparece aqui.</span>
+            </div>
+          ) : (
+            <article ref={featuredRef} className={`an-feature ${featured.type === 'event' ? 'is-event' : ''}${featured.live ? ' is-live' : ''}`}>
+              {featured.bannerUrl
+                ? <img className="an-feature-banner" src={proxyImage(featured.bannerUrl)} alt="" />
+                : <div className="an-feature-banner an-noart" aria-hidden="true"><Ico d={I.megaphone} size={40} /></div>}
+              <div className="an-feature-body">
+                <div className="an-meta">
+                  {featured.live ? <span className="an-tag live">Ao vivo</span> : <span className={`an-tag ${featured.type}`}>{featured.type === 'event' ? 'Evento' : 'Novidade'}</span>}
+                  {featured.pinned && <span className="an-pin"><Ico d={I.pin} size={13} /> Fixado</span>}
+                  {featured.a?.published === false && <span className="an-pin">Agendado · {new Date(featured.a.publishAt).toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' })}</span>}
+                  {featured.a && <span className="an-author">{featured.a.author?.displayName || 'Staff'}</span>}
+                  <span className="an-date">{featured.type === 'event' && featured.ev.startsAt ? new Date(featured.ev.startsAt).toLocaleString('pt-BR', { dateStyle: 'medium', timeStyle: 'short' }) : fmtDate(featured.date)}</span>
+                  {featured.a && tools(featured.a)}
+                </div>
+                <h2>{featured.title}</h2>
+                {featured.body && <RichText text={featured.body} />}
+                <div className="an-feature-actions">
+                  {featured.type === 'event' && (
+                    <button type="button" className="an-btn primary" onClick={() => navigate(eventPath(featured.ev))}>{featured.live ? 'Entrar no evento' : 'Ver evento'}</button>
+                  )}
+                  {featured.a?.linkUrl && (
+                    <a className="an-btn primary" href={featured.a.linkUrl} target={featured.a.linkUrl.startsWith('/') ? undefined : '_blank'} rel="noreferrer">
+                      <Ico d={I.link} size={15} /> {featured.a.linkLabel || 'Saiba mais'}
+                    </a>
+                  )}
+                </div>
+              </div>
+            </article>
+          )}
+          {rest.length > 0 && (
+            <div className="an-tiles" aria-label="Mais novidades e eventos">
+              {rest.map((it, i) => (
+                <button key={it.key} type="button" className={`an-tile ${i % 2 ? 'tone-b' : 'tone-a'}${it.live ? ' is-live' : ''}`} onClick={() => pick(it)}>
+                  <span className="an-tile-art">
+                    {it.bannerUrl ? <img src={proxyImage(it.bannerUrl)} alt="" loading="lazy" /> : <span className="an-noart"><Ico d={I.megaphone} size={26} /></span>}
+                  </span>
+                  <span className="an-tile-body">
+                    <span className="an-tile-tags">
+                      <span className={`an-tag ${it.live ? 'live' : it.type}`}>{it.live ? 'Ao vivo' : it.type === 'event' ? 'Evento' : 'Novidade'}</span>
+                      {it.pinned && <span className="an-tag pin">Fixado</span>}
+                    </span>
+                    <strong className="an-tile-title">{it.title}</strong>
+                    {it.body && <span className="an-tile-desc">{shortText(it.body, 90)}</span>}
+                    <small className="an-tile-date">{it.a ? `${it.a.author?.displayName || 'Staff'} · ` : ''}{fmtShort(it.date)}</small>
+                  </span>
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+        {editing && <Editor initial={editing} onClose={() => setEditing(null)} onSaved={() => { setEditing(null); load(); }} />}
+      </div>
+    );
+  }
+
   return (
     <div className={embedded ? 'an-embedded' : 'an-page'}>
       <div className={embedded ? 'an-embedded-inner' : 'an-inner'}>
