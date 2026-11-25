@@ -1,4 +1,5 @@
 import '../styles/profile-styles.css';
+import '../styles/profile-styles-detalhes.css';
 
 // Estilos de perfil da Loja (User.profileStyle). A chave vem do servidor;
 // só as conhecidas viram classe (chave desconhecida = visual padrão).
