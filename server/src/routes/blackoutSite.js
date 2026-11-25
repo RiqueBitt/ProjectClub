@@ -17,6 +17,7 @@
 // baixa do repo privado do BLACKOUT pra server/data/blackout-site.
 const express = require('express');
 const path = require('path');
+const fs = require('fs');
 const crypto = require('crypto');
 const jwt = require('jsonwebtoken');
 const env = require('../config/env');
@@ -100,6 +101,24 @@ api.post('/sync', requireAuth, async (req, res) => {
   res.json(await sync.sync());
 });
 // Pra equipe conferir se o download do GitHub está funcionando.
+// Fichas guardadas na conta: a própria pessoa sempre; o mestre de uma mesa
+// de RPG vê as de quem está sentado na mesa dele (?channel=<canal>).
+api.get('/fichas/:userId', requireAuth, async (req, res) => {
+  const target = req.params.userId === 'me' ? req.user.id : String(req.params.userId);
+  if (target !== req.user.id) {
+    const channelId = String(req.query.channel || '');
+    let ok = false;
+    if (channelId) {
+      try {
+        const t = await require('../sockets/rpgTable').getTable(channelId);
+        ok = t.master === req.user.id && t.players.includes(target);
+      } catch { ok = false; }
+    }
+    if (!ok) return res.status(403).json({ error: 'Só o mestre da mesa vê a ficha dos jogadores.' });
+  }
+  res.json(await sheetsFor(target));
+});
+
 api.get('/status', requireAuth, (req, res) => {
   if (req.user.platformRole !== 'ADMIN') return res.status(403).json({ error: 'Só a administração.' });
   res.json(sync.getStatus());
@@ -146,7 +165,41 @@ async function gate(req, res, next) {
     res.clearCookie(COOKIE, { path: COOKIE_PATH });
     return res.status(403).type('html').send(DENIED_HTML);
   }
+  req.blackoutUserId = userId;
   next();
+}
+
+// ===== Fichas na conta (nov/2026) =====
+// O index.html do site ganha um <script src="__conta.js"> logo no <head>:
+// antes do site ler o localStorage, ele busca as fichas da conta; depois,
+// toda vez que o site grava as fichas, manda pra conta.
+const SHEETS_MAX = 1_500_000; // ~1,5 MB de fichas por conta
+const CONTA_JS = `(function(){
+var K='bo_gh_fichas',A='bo_gh_atual',D='bo_gh_dono',ls=window.localStorage,set=Storage.prototype.setItem,rm=Storage.prototype.removeItem;
+function req(m,b){var x=new XMLHttpRequest();x.open(m,'__fichas',false);x.setRequestHeader('Content-Type','application/json');x.send(b||null);return x.status===200?JSON.parse(x.responseText||'null'):null}
+var me=null;try{me=req('GET')}catch(e){}
+if(me&&me.userId){
+  var dono=ls.getItem(D);
+  if(me.fichas!=null){set.call(ls,K,me.fichas);if(me.atual)set.call(ls,A,me.atual);else rm.call(ls,A)}
+  else if(!dono||dono===me.userId){var lf=ls.getItem(K);if(lf&&lf!=='[]'){try{req('PUT',JSON.stringify({fichas:lf,atual:ls.getItem(A)}))}catch(e){}}}
+  else{rm.call(ls,K);rm.call(ls,A)}
+  set.call(ls,D,me.userId);
+  var t=null;function enviar(){t=null;try{fetch('__fichas',{method:'PUT',keepalive:true,headers:{'Content-Type':'application/json'},body:JSON.stringify({fichas:ls.getItem(K)||'[]',atual:ls.getItem(A)})})}catch(e){}}
+  function mudou(k){if((k===K||k===A)&&this===ls){clearTimeout(t);t=setTimeout(enviar,700)}}
+  Storage.prototype.setItem=function(k,v){set.call(this,k,v);mudou.call(this,k)};
+  Storage.prototype.removeItem=function(k){rm.call(this,k);mudou.call(this,k)};
+  window.addEventListener('pagehide',function(){if(t){clearTimeout(t);enviar()}});
+}
+})();`;
+
+async function readSheets(userId) {
+  try { return await db().blackoutSheets.findUnique({ where: { userId } }); } catch { return null; }
+}
+async function sheetsFor(userId) {
+  const row = await readSheets(userId);
+  let fichas = [];
+  try { fichas = row ? JSON.parse(row.fichas) : []; } catch { fichas = []; }
+  return { fichas: Array.isArray(fichas) ? fichas : [], atual: row?.atual || null, updatedAt: row?.updatedAt || null };
 }
 
 const site = express.Router();
@@ -156,7 +209,38 @@ site.use((req, res, next) => {
   next();
 });
 site.use(gate);
+site.get('/__conta.js', (req, res) => res.type('application/javascript').send(CONTA_JS));
+site.get('/__fichas', async (req, res) => {
+  const row = await readSheets(req.blackoutUserId);
+  res.json({ userId: req.blackoutUserId, fichas: row ? row.fichas : null, atual: row?.atual || null });
+});
+site.put('/__fichas', express.json({ limit: '2mb' }), async (req, res) => {
+  const fichas = typeof req.body?.fichas === 'string' ? req.body.fichas : '[]';
+  if (fichas.length > SHEETS_MAX) return res.status(413).json({ error: 'Fichas grandes demais.' });
+  try { if (!Array.isArray(JSON.parse(fichas))) throw new Error('x'); } catch { return res.status(400).json({ error: 'Fichas inválidas.' }); }
+  const atual = typeof req.body?.atual === 'string' ? req.body.atual.slice(0, 120) : null;
+  await db().blackoutSheets.upsert({
+    where: { userId: req.blackoutUserId },
+    create: { userId: req.blackoutUserId, fichas, atual },
+    update: { fichas, atual },
+  });
+  res.json({ ok: true });
+});
 site.use((req, res, next) => (sync.hasSite() ? next() : res.status(503).type('html').send(NOT_READY_HTML)));
+// index.html com o script das fichas na conta.
+let indexCache = { mtime: 0, html: '' };
+site.get(['/', '/index.html'], (req, res, next) => {
+  const file = path.join(sync.SITE_DIR, 'index.html');
+  fs.stat(file, (err, st) => {
+    if (err) return next();
+    if (st.mtimeMs !== indexCache.mtime) {
+      const raw = fs.readFileSync(file, 'utf8');
+      const tag = '<script src="__conta.js"></script>';
+      indexCache = { mtime: st.mtimeMs, html: /<head[^>]*>/i.test(raw) ? raw.replace(/<head[^>]*>/i, (h) => h + tag) : tag + raw };
+    }
+    res.type('html').send(indexCache.html);
+  });
+});
 site.use(express.static(sync.SITE_DIR, { index: 'index.html', dotfiles: 'ignore', redirect: true, extensions: false }));
 site.use((req, res) => res.status(404).type('text/plain').send('Não encontrado.'));
 

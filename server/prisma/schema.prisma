@@ -5008,3 +5008,13 @@ model MusicAccount {
 
   @@id([userId, service])
 }
+
+// Fichas do BLACKOUT guardadas na conta (nov/2026). O site do compêndio
+// guarda no localStorage (bo_gh_fichas / bo_gh_atual); o Project Club
+// espelha aqui pra ficha acompanhar a conta em qualquer aparelho.
+model BlackoutSheets {
+  userId    String   @id
+  fichas    String   @db.LongText
+  atual     String?
+  updatedAt DateTime @updatedAt
+}

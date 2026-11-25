@@ -909,3 +909,6 @@ export const saveUserNote = (userId, text) => api.put(`/users/${userId}/note`, {
 export const deactivateAccount = (password) => api.post('/auth/deactivate', { password }).then((r) => r.data);
 export const setConversationInbox = (id, action) => api.patch(`/conversations/${id}/inbox`, { action }).then((r) => r.data);
 export const setConversationPinned = (id, pinned) => api.patch(`/conversations/${id}/pin`, { pinned }).then((r) => r.data);
+// Fichas do BLACKOUT guardadas na conta ('me' ou, pro mestre da mesa, um jogador).
+export const getBlackoutSheets = (userId = 'me', channelId) =>
+  api.get(`/blackout/fichas/${encodeURIComponent(userId)}`, { params: channelId ? { channel: channelId } : undefined }).then((r) => r.data);
