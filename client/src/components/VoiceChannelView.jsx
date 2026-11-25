@@ -6,6 +6,9 @@ import { useStore } from '../store/useStore';
 import { getMyCommunityPermissions, hasPermission } from '../utils/permissions';
 import ScreenShareModal from './modals/ScreenShareModal.jsx';
 import UserAvatar from './UserAvatar.jsx';
+import { idCardFramingVars } from './ProfileBanner.jsx';
+import { hasCustomNameStyle, nameStyleClassName, nameStyleProps } from '../utils/nameStyle';
+import { proxyImage } from '../utils/imageProxy';
 import { CustomIcon, hasCustomIcon } from './ChannelIcon.jsx';
 import { usePopoverCoordination } from '../utils/popoverCoordinator';
 import { MicTest, MicSilentWarning, QualityDot } from './voice/VoiceExtras.jsx';
@@ -14,6 +17,7 @@ import { useYouTubeWatch, YouTubeStage, YouTubePicker, ActivitiesButton, YouTube
 import { CallMusicPicker } from '../music/MusicPlayer.jsx';
 import { DicePicker, CallDicePopup, useCallDice } from './activities/Dice.jsx';
 import RpgTable from './voice/RpgTable.jsx';
+import { CallChest } from './voice/CallChest.jsx';
 import { RecordingBanner, RecordButton, LiveCaptions } from './voice/CallExtras.jsx';
 import { getVoicePref, setVoicePref, onVoicePrefsChange } from '../utils/voicePrefs';
 import { useContextMenu } from '../context/ContextMenuContext.jsx';
@@ -315,6 +319,8 @@ export default function VoiceChannelView({ channel }) {
         {callDice.current && <CallDicePopup key={`${callDice.current.user?.id}-${callDice.current.at}`} event={callDice.current} onDone={callDice.done} />}
         {/* Legendas ao vivo do seu microfone (K). */}
         <LiveCaptions active={inThisCall} />
+        {/* Baú da call: aparece de vez em quando, quem abrir primeiro leva. */}
+        {inThisCall && <CallChest channelId={channel.id} meId={user?.id} />}
       </div>
       <MicSilentWarning voice={voice} />
       <YouTubeToast yt={yt} />
@@ -414,8 +420,8 @@ function PersonTile({ uid, person, isMe, state, connecting, cameraStream, volume
   const modState = state.serverDeafened ? 'Ensurdecido no servidor' : state.serverMuted ? 'Silenciado no servidor' : null;
   return (
     <div
-      className={`vc-tile${state.speaking && !state.muted ? ' is-speaking' : ''}${cameraStream ? ' has-video' : ''}${connecting ? ' is-connecting' : ''}`}
-      style={{ '--tile-color': color }}
+      className={`vc-tile${state.speaking && !state.muted ? ' is-speaking' : ''}${cameraStream ? ' has-video' : ''}${connecting ? ' is-connecting' : ''}${person?.bannerUrl && !cameraStream ? ' has-banner' : ''}`}
+      style={{ '--tile-color': color, ...(person?.bannerUrl && !cameraStream ? { '--tile-banner': `url(${JSON.stringify(proxyImage(person.bannerUrl))})` } : {}) }}
       onContextMenu={hasMenu ? (e) => openMenu(e, menuItems) : undefined}
     >
       {cameraStream && !connecting ? (
@@ -427,11 +433,15 @@ function PersonTile({ uid, person, isMe, state, connecting, cameraStream, volume
       )}
       {connecting && <span className="vc-tile-connecting">Conectando…</span>}
 
-      <span className="vc-label">
+      <span
+        className={`vc-label${person?.idCardUrl ? ' has-id-card' : ''}`}
+        style={person?.idCardUrl ? { '--id-card': `url(${JSON.stringify(proxyImage(person.idCardUrl))})`, ...idCardFramingVars(person.idCardFraming) } : undefined}
+      >
         {modState ? (
           <span className="vc-label-muted vc-label-servermuted" title={modState} aria-label={modState}><Icon name="micOff" size={14} /></span>
         ) : state.muted ? <span className="vc-label-muted"><Icon name="micOff" size={14} /></span> : null}
-        <span className="truncate">{person?.displayName || uid}{isMe ? ' (você)' : ''}</span>
+        <span className={`truncate ${person && hasCustomNameStyle(person) ? nameStyleClassName(person, { fullEffect: true }) : ''}`} style={person && hasCustomNameStyle(person) ? nameStyleProps(person, { fullEffect: true }) : undefined}>{person?.displayName || uid}</span>
+        {isMe && <span className="vc-label-me">(você)</span>}
         {state.screenSharing && <Icon name="screen" size={14} />}
         {!connecting && <QualityDot quality={quality} />}
       </span>
@@ -507,7 +517,8 @@ function StageView({ roles, members, channel, memberFor }) {
             return (
               <li key={uid} className={handsRaised[uid] ? 'has-hand' : ''}>
                 <UserAvatar user={person || { displayName: uid }} size={32} />
-                <span className="truncate">{person?.displayName || uid}{isMe ? ' (você)' : ''}</span>
+                <span className={`truncate ${person && hasCustomNameStyle(person) ? nameStyleClassName(person, { fullEffect: true }) : ''}`} style={person && hasCustomNameStyle(person) ? nameStyleProps(person, { fullEffect: true }) : undefined}>{person?.displayName || uid}</span>
+        {isMe && <span className="vc-label-me">(você)</span>}
                 {handsRaised[uid] && <span className="vc-hand" title="Pediu para falar"><Icon name="hand" size={15} /></span>}
                 {isModerator && !isMe && (
                   <button type="button" className="vc-link" onClick={() => voice.setParticipantRole(uid, 'speaker')}>Convidar</button>

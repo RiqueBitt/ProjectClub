@@ -349,20 +349,26 @@ function startVoiceMinutesTicker(io) {
   voiceTimer = setInterval(async () => {
     try {
       const counted = new Set();
+      const perRoom = new Map(); // channelId -> quantas pessoas contam (baú da call)
       for (const channelId of await voiceStore.getActiveRoomIds()) {
         // eslint-disable-next-line no-await-in-loop
         const room = await voiceStore.getRoom(channelId);
         const entries = Object.entries(room);
         if (entries.length < 2) continue;
+        let live = 0;
         for (const [uid, p] of entries) {
           if (counted.has(uid) || p?.deafened) continue;
           if (!p?.socketId || !io?.sockets?.sockets?.has?.(p.socketId)) continue;
           counted.add(uid);
+          live += 1;
         }
+        perRoom.set(channelId, live);
       }
       for (const uid of counted) track(uid, 'VOICE_MINUTES', 1, io);
       // XP e moedas por tempo em call (mesma lista: só quem está de verdade).
       require('./voiceRewards').tick(counted, io).catch((e) => console.error('[voz-xp]', e?.message || e));
+      // De vez em quando aparece um baú na call (services/callChest.js).
+      require('./callChest').tick(perRoom, io).catch((e) => console.error('[baú-call]', e?.message || e));
     } catch (err) {
       console.error('[missões] contagem de minutos em call falhou:', err?.message || err);
     }

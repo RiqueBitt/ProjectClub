@@ -91,4 +91,4 @@ async function minutesToday(uid, { redis = getRedis(), now = new Date() } = {}) 
 
 function _resetForTests() { mem.clear(); memDay = null; economyOffCache = { at: 0, off: false }; }
 
-module.exports = { tick, rewardFor, minutesToday, dayKey, BLOCK_MIN, XP_PER_BLOCK, COINS_PER_BLOCK, DAILY_CAP_MIN, _resetForTests };
+module.exports = { tick, rewardFor, minutesToday, economyDisabled, dayKey, BLOCK_MIN, XP_PER_BLOCK, COINS_PER_BLOCK, DAILY_CAP_MIN, _resetForTests };

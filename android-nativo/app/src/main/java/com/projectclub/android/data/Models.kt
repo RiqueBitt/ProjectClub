@@ -28,6 +28,8 @@ data class User(
     /** Estilo de perfil da Loja (win2000, anime, terror, bugado, nostalgia). */
     val profileStyle: String? = null,
     val bannerUrl: String? = null,
+    /** Placa de identificação (imagem larga que aparece atrás do nome). */
+    val idCardUrl: String? = null,
     val bio: String? = null,
     val pronouns: String? = null,
     val status: String? = null,

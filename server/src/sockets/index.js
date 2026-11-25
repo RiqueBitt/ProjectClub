@@ -1309,6 +1309,23 @@ function initSockets(httpServer) {
       io.to(`voice:${channelId}`).emit('voice:reaction', { channelId, userId, emoji });
     });
 
+    // Baú da call (services/callChest.js): ver se tem um aberto ao entrar, e abrir.
+    socket.on('voice:chest-get', async ({ channelId } = {}, ack) => {
+      if (typeof ack !== 'function') return;
+      if (!channelId || !(await voiceStore.hasParticipant(channelId, userId))) return ack({ chest: null });
+      ack({ chest: require('../services/callChest').get(channelId) });
+    });
+    socket.on('voice:chest-claim', async ({ channelId, chestId } = {}, ack) => {
+      const reply = (r) => { if (typeof ack === 'function') ack(r); };
+      try {
+        if (!channelId || !(await voiceStore.hasParticipant(channelId, userId))) return reply({ ok: false, reason: 'Entre na call para abrir o baú.' });
+        reply(await require('../services/callChest').claim(io, { channelId, chestId, userId }));
+      } catch (err) {
+        console.error('[baú-call] abrir falhou:', err?.message || err);
+        reply({ ok: false, reason: 'Não consegui abrir o baú agora.' });
+      }
+    });
+
     // Soundboard: toca um som curto pra todo mundo da call (ver
     // services/soundboard.js). Precisa estar na sala e ter USE_SOUNDBOARD.
     socket.on('soundboard:play', async ({ channelId, soundId } = {}, ack) => {
