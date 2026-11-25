@@ -22,11 +22,16 @@ const decoJson = (d) => JSON.stringify({ id: d.id, url: d.imageUrl, s: d.scale, 
 async function list(req, res, next) {
   try {
     const sup = require('../services/supporters');
-    const [items, owned, me] = await Promise.all([
-      prisma.avatarDecoration.findMany({ where: { active: true }, orderBy: [{ sortOrder: 'asc' }, { createdAt: 'desc' }] }),
+    const [owned, me] = await Promise.all([
       prisma.userAvatarDecoration.findMany({ where: { userId: req.user.id }, select: { decorationId: true } }),
       prisma.user.findUnique({ where: { id: req.user.id }, select: { coins: true, gems: true, avatarDecoration: true, supporterTier: true } }),
     ]);
+    // Moldura desativada (ou de coleção desativada) continua pra quem já tem.
+    const ownedIds = owned.map((o) => o.decorationId);
+    const items = await prisma.avatarDecoration.findMany({
+      where: ownedIds.length ? { OR: [{ active: true }, { id: { in: ownedIds } }] } : { active: true },
+      orderBy: [{ sortOrder: 'asc' }, { createdAt: 'desc' }],
+    });
     const ownedSet = new Set(owned.map((o) => o.decorationId));
     const tier = sup.normalizeTier(me?.supporterTier);
     let equippedId = null;

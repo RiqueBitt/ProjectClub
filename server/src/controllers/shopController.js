@@ -96,12 +96,12 @@ async function findItem(db, kind, id) {
 }
 const isLimited = (item) => item?.stock !== null && item?.stock !== undefined;
 
-// Item de coleção oculta (showInShop = false): não é vendido nem presenteado
-// pela Loja, mas quem já tem continua usando e a staff pode dar normalmente.
+// Item de coleção oculta (showInShop = false) ou desativada: não é vendido nem
+// presenteado pela Loja, mas quem já tem continua usando e a staff pode dar normalmente.
 async function hiddenFromShop(db, item) {
   if (!item?.collectionId) return false;
-  const col = await db.shopCollection.findUnique({ where: { id: item.collectionId }, select: { showInShop: true } });
-  return !!col && col.showInShop === false;
+  const col = await db.shopCollection.findUnique({ where: { id: item.collectionId }, select: { showInShop: true, active: true } });
+  return !!col && (col.showInShop === false || col.active === false);
 }
 
 // Item limitado: reserva uma cópia do estoque dentro da transação e devolve
@@ -132,20 +132,24 @@ async function shop(req, res, next) {
     const userId = req.user.id;
     const order = [{ sortOrder: 'asc' }, { createdAt: 'desc' }];
     const count = { _count: { select: { owners: true } } };
-    const [decorations, effects, shopItems, allCollections, hiddenCols, ownedD, ownedE, ownedI, me] = await Promise.all([
-      prisma.avatarDecoration.findMany({ where: { active: true }, orderBy: order, include: count }),
-      prisma.profileEffect.findMany({ where: { active: true }, orderBy: order, include: count }),
-      prisma.shopItem.findMany({ where: { active: true }, orderBy: order, include: count }),
-      prisma.shopCollection.findMany({ where: { active: true }, orderBy: order }),
-      prisma.shopCollection.findMany({ where: { showInShop: false }, select: { id: true } }),
+    const [ownedD, ownedE, ownedI] = await Promise.all([
       prisma.userAvatarDecoration.findMany({ where: { userId }, select: { decorationId: true, serial: true, expiresAt: true } }),
       prisma.userProfileEffect.findMany({ where: { userId }, select: { effectId: true, serial: true, expiresAt: true } }),
       prisma.userShopItem.findMany({ where: { userId }, select: { itemId: true, serial: true, expiresAt: true } }),
+    ]);
+    // Item desativado continua aparecendo (fora da vitrine) pra quem já tem.
+    const activeOr = (ids) => (ids.length ? { OR: [{ active: true }, { id: { in: ids } }] } : { active: true });
+    const [decorations, effects, shopItems, allCollections, hiddenCols, me] = await Promise.all([
+      prisma.avatarDecoration.findMany({ where: activeOr(ownedD.map((o) => o.decorationId)), orderBy: order, include: count }),
+      prisma.profileEffect.findMany({ where: activeOr(ownedE.map((o) => o.effectId)), orderBy: order, include: count }),
+      prisma.shopItem.findMany({ where: activeOr(ownedI.map((o) => o.itemId)), orderBy: order, include: count }),
+      prisma.shopCollection.findMany({ where: { active: true }, orderBy: order }),
+      prisma.shopCollection.findMany({ where: { OR: [{ showInShop: false }, { active: false }] }, select: { id: true } }),
       prisma.user.findUnique({ where: { id: userId }, select: { coins: true, gems: true, avatarDecoration: true, profileEffect: true, profileFont: true, profileStyle: true, profileNameEffect: true, supporterTier: true, supporterUntil: true } }),
     ]);
     const tier = sup.normalizeTier(me?.supporterTier);
-    // Coleções ocultas: fora da vitrine; os itens delas só aparecem pra quem
-    // já tem (pra continuar equipando), marcados com inShop: false.
+    // Coleções ocultas ou desativadas: fora da vitrine; os itens delas só
+    // aparecem pra quem já tem (pra continuar equipando), com inShop: false.
     const hiddenIds = new Set(hiddenCols.map((c) => c.id));
     const collections = allCollections.filter((c) => !hiddenIds.has(c.id));
     // "Em alta": quantas cópias saíram nos últimos 7 dias (compras, presentes, prêmios).
@@ -183,7 +187,7 @@ async function shop(req, res, next) {
         trending: trending.get(it.id) || 0,
         tags: it.tags ? String(it.tags).split(',').filter(Boolean) : [],
         pricing: exclusive ? null : sup.pricing(it, tier),
-        inShop: !hiddenIds.has(it.collectionId),
+        inShop: it.active !== false && !hiddenIds.has(it.collectionId),
       };
     };
     // Itens de coleção oculta só voltam pra quem já tem (ou libera pelo apoio).

@@ -358,13 +358,14 @@ async fn buy_all(
         let item_id: String = db::get(&row, "id")?;
         let name: String = db::get(&row, "name")?;
         if let Some(col) = db::get::<Option<String>>(&row, "collectionId")? {
-            let show: Option<bool> = tx
+            // Coleção oculta ou desativada: fora da venda (quem já tem continua usando).
+            let flags: Option<(bool, bool)> = tx
                 .exec_first(
-                    "SELECT showInShop FROM ShopCollection WHERE id = ?",
+                    "SELECT showInShop, active FROM ShopCollection WHERE id = ?",
                     (col.as_str(),),
                 )
                 .await?;
-            if show == Some(false) {
+            if matches!(flags, Some((show, active)) if !show || !active) {
                 return Err(at(
                     fail(
                         StatusCode::FORBIDDEN,
