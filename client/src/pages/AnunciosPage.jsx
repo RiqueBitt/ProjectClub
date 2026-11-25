@@ -103,12 +103,14 @@ const fmtShort = (d) => (d ? new Date(d).toLocaleDateString('pt-BR', { day: '2-d
 export default function AnunciosPage({ embedded = false, events = null, onLoaded, focus = null }) {
   const navigate = useNavigate();
   const [selected, setSelected] = useState(null);
+  const [reading, setReading] = useState(null); // novidade aberta por inteiro
+  const [openKey, setOpenKey] = useState(null);
   const featuredRef = useRef(null);
   // O carrossel da Central pediu pra abrir uma novidade: ela vira o destaque.
   useEffect(() => {
     if (!focus?.key) return;
-    setSelected(focus.key);
-    requestAnimationFrame(() => featuredRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }));
+    setSelected(focus.key); // vira o destaque e abre inteira (o item chega no próximo render)
+    setOpenKey(focus.key);
   }, [focus]);
   const socket = useSocket()?.socket || null;
   useMarkSectionSeen('anuncios'); // abriu Novidades: apaga a bolinha "novo"
@@ -147,9 +149,13 @@ export default function AnunciosPage({ embedded = false, events = null, onLoaded
   const rest = [...items.news, ...items.evs].filter((i) => i !== featured);
   const pick = (it) => {
     if (it.type === 'event' && !it.live) { navigate(eventPath(it.ev)); return; }
-    setSelected(it.key);
-    requestAnimationFrame(() => featuredRef.current?.scrollIntoView({ behavior: 'smooth', block: 'nearest' }));
+    setReading(it); // abre a novidade inteira
   };
+  useEffect(() => {
+    if (!openKey) return;
+    const it = all.find((i) => i.key === openKey);
+    if (it) { setReading(it); setOpenKey(null); }
+  }, [openKey, all]);
   const tools = (a) => data?.canManage && (
     <span className="an-tools">
       <button type="button" title="Editar" aria-label="Editar" onClick={() => setEditing(a)}><Ico d={I.edit} size={16} /></button>
@@ -175,10 +181,17 @@ export default function AnunciosPage({ embedded = false, events = null, onLoaded
               <span>Quando a staff publicar algo, aparece aqui.</span>
             </div>
           ) : (
-            <article ref={featuredRef} className={`an-feature ${featured.type === 'event' ? 'is-event' : ''}${featured.live ? ' is-live' : ''}`}>
-              {featured.bannerUrl
-                ? <img className="an-feature-banner" src={proxyImage(featured.bannerUrl)} alt="" />
-                : <div className="an-feature-banner an-noart" aria-hidden="true"><Ico d={I.megaphone} size={40} /></div>}
+            <article
+              ref={featuredRef} className={`an-feature ${featured.type === 'event' ? 'is-event' : ''}${featured.live ? ' is-live' : ''}`}
+              role="button" tabIndex={0} aria-label={`Abrir: ${featured.title}`}
+              onClick={(e) => { if (!e.target.closest('a,button')) setReading(featured); }}
+              onKeyDown={(e) => { if (e.key === 'Enter' && e.target === e.currentTarget) setReading(featured); }}
+            >
+              {featured.bannerUrl ? (
+                <div className="an-feature-art" style={{ '--an-art': `url(${JSON.stringify(proxyImage(featured.bannerUrl))})` }}>
+                  <img src={proxyImage(featured.bannerUrl)} alt="" />
+                </div>
+              ) : <div className="an-feature-art an-noart" aria-hidden="true"><Ico d={I.megaphone} size={34} /></div>}
               <div className="an-feature-body">
                 <div className="an-meta">
                   {featured.live ? <span className="an-tag live">Ao vivo</span> : <span className={`an-tag ${featured.type}`}>{featured.type === 'event' ? 'Evento' : 'Novidade'}</span>}
@@ -189,17 +202,8 @@ export default function AnunciosPage({ embedded = false, events = null, onLoaded
                   {featured.a && tools(featured.a)}
                 </div>
                 <h2>{featured.title}</h2>
-                {featured.body && <RichText text={featured.body} />}
-                <div className="an-feature-actions">
-                  {featured.type === 'event' && (
-                    <button type="button" className="an-btn primary" onClick={() => navigate(eventPath(featured.ev))}>{featured.live ? 'Entrar no evento' : 'Ver evento'}</button>
-                  )}
-                  {featured.a?.linkUrl && (
-                    <a className="an-btn primary" href={featured.a.linkUrl} target={featured.a.linkUrl.startsWith('/') ? undefined : '_blank'} rel="noreferrer">
-                      <Ico d={I.link} size={15} /> {featured.a.linkLabel || 'Saiba mais'}
-                    </a>
-                  )}
-                </div>
+                {featured.body && <p className="an-feature-desc">{shortText(featured.body, 180)}</p>}
+                <span className="an-feature-more">{featured.type === 'event' ? 'Ver detalhes' : 'Ler novidade completa'} ›</span>
               </div>
             </article>
           )}
@@ -224,6 +228,33 @@ export default function AnunciosPage({ embedded = false, events = null, onLoaded
             </div>
           )}
         </div>
+        {reading && (
+          <div className="an-modal-overlay" onMouseDown={(e) => { if (e.target === e.currentTarget) setReading(null); }} onKeyDown={(e) => { if (e.key === 'Escape') setReading(null); }}>
+            <article className="an-reader" role="dialog" aria-modal="true" aria-label={reading.title}>
+              <button type="button" className="an-reader-close" aria-label="Fechar" autoFocus onClick={() => setReading(null)}>×</button>
+              {reading.bannerUrl && <img className="an-reader-banner" src={proxyImage(reading.bannerUrl)} alt="" />}
+              <div className="an-feature-body">
+                <div className="an-meta">
+                  {reading.live ? <span className="an-tag live">Ao vivo</span> : <span className={`an-tag ${reading.type}`}>{reading.type === 'event' ? 'Evento' : 'Novidade'}</span>}
+                  {reading.a && <span className="an-author">{reading.a.author?.displayName || 'Staff'}</span>}
+                  <span className="an-date">{reading.type === 'event' && reading.ev.startsAt ? new Date(reading.ev.startsAt).toLocaleString('pt-BR', { dateStyle: 'medium', timeStyle: 'short' }) : fmtDate(reading.date)}</span>
+                </div>
+                <h2>{reading.title}</h2>
+                {reading.body && <RichText text={reading.body} />}
+                <div className="an-feature-actions">
+                  {reading.type === 'event' && (
+                    <button type="button" className="an-btn primary" onClick={() => navigate(eventPath(reading.ev))}>{reading.live ? 'Entrar no evento' : 'Ver evento'}</button>
+                  )}
+                  {reading.a?.linkUrl && (
+                    <a className="an-btn primary" href={reading.a.linkUrl} target={reading.a.linkUrl.startsWith('/') ? undefined : '_blank'} rel="noreferrer">
+                      <Ico d={I.link} size={15} /> {reading.a.linkLabel || 'Saiba mais'}
+                    </a>
+                  )}
+                </div>
+              </div>
+            </article>
+          </div>
+        )}
         {editing && <Editor initial={editing} onClose={() => setEditing(null)} onSaved={() => { setEditing(null); load(); }} />}
       </div>
     );

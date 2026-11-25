@@ -25,7 +25,7 @@ function Svg({ d, size = 18 }) {
 
 const cheapest = PLANS.reduce((m, p) => (!m || Number(p.price.replace(',', '.')) < Number(m.price.replace(',', '.')) ? p : m), null);
 
-export default function CentralCarousel({ events, news, greeting, onOpenNews }) {
+export default function CentralCarousel({ events, news, onOpenNews }) {
   const navigate = useNavigate();
   const [collections, setCollections] = useState([]);
   useEffect(() => {
@@ -111,7 +111,6 @@ export default function CentralCarousel({ events, news, greeting, onOpenNews }) 
           </section>
         ))}
       </div>
-      {greeting && <p className="hc-hello">{greeting}</p>}
       {n > 1 && (
         <>
           <button type="button" className="hc-arrow prev" aria-label="Anterior" onClick={() => go(cur - 1)}><Svg d={ICON.left} size={22} /></button>

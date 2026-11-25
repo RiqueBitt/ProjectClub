@@ -235,7 +235,30 @@ export default function InicioPage() {
   return (
     <div className="home">
       {/* Topo (nov/2026): carrossel com evento, novidades, coleções da Loja e Assinatura. */}
-      <CentralCarousel events={events} news={news} greeting={`${greeting()}, ${user?.displayName || 'membro'}`} onOpenNews={openNews} />
+      <div className="home-top">
+        <CentralCarousel events={events} news={news} onOpenNews={openNews} />
+        {/* Ao lado do carrossel: saudação, quem está por aí, nível e atalhos. */}
+        <aside className="home-top-side" aria-label="Resumo">
+          <div>
+            <p className="hts-hello">{greeting()},</p>
+            <p className="hts-name">{user?.displayName || 'membro'}</p>
+          </div>
+          <div className="hts-stats">
+            <div className="hts-stat"><b>{online.length}</b><small><span className="hts-dot" /> online</small></div>
+            <div className="hts-stat"><b>{liveCalls.reduce((n, c) => n + c.people.length, 0)}</b><small><span className="hts-dot call" /> em call</small></div>
+          </div>
+          <button type="button" className="hts-level" onClick={() => navigate('/progresso')}>
+            <span className="hts-level-top"><strong>Nível {level}</strong><span>{progress}%</span></span>
+            <span className="hts-bar"><span style={{ width: `${progress}%` }} /></span>
+          </button>
+          <div className="hts-links">
+            <button type="button" onClick={() => navigate('/progresso?tab=missoes')}>Missões</button>
+            <button type="button" onClick={() => navigate('/loja')}>Loja</button>
+            <button type="button" onClick={() => navigate('/comunidade/eventos')}>Eventos</button>
+            <button type="button" onClick={() => navigate('/assinatura')}>Assinatura</button>
+          </div>
+        </aside>
+      </div>
 
 
 
