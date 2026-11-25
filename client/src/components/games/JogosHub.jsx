@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useStore } from '../../store/useStore';
 import { getGameLibrary } from '../../api/games';
+import { api } from '../../api/client';
 import { isFeatureEnabled } from '../../utils/features';
 import { steamCoverCandidates, steamAppIdFromActivity } from '../../utils/activityArt';
 import UserAvatar from '../UserAvatar.jsx';
@@ -91,6 +92,16 @@ export default function JogosHub() {
     return () => { alive = false; };
   }, []);
 
+  // Os 5 jogos mais jogados pelos membros (soma das horas; respeita quem
+  // deixa a biblioteca privada — services/gameRanking.js).
+  const [top, setTop] = useState(null);
+  useEffect(() => {
+    let alive = true;
+    api.get('/games/ranking').then((r) => { if (alive) setTop((r.data?.games || []).slice(0, 5)); }).catch(() => { if (alive) setTop([]); });
+    return () => { alive = false; };
+  }, []);
+  const horas = (sec) => { const h = Math.round((sec || 0) / 3600); return h >= 1 ? `${h.toLocaleString('pt-BR')} h` : `${Math.max(1, Math.round((sec || 0) / 60))} min`; };
+
   const s = slides[cur];
   return (
     <div className="jh">
@@ -145,6 +156,24 @@ export default function JogosHub() {
           <button type="button" className="jh-promo-btn" onClick={() => navigate('/compendio-blackout')}>Abrir o BLACKOUT</button>
         </section>
       </div>
+
+      {top && top.length > 0 && (
+        <section className="jh-block">
+          <h2 className="jh-h2">Mais jogados no clube</h2>
+          <ol className="jh-top">
+            {top.map((g, i) => (
+              <li key={g.gameKey} className={`jh-top-item p${i + 1}`}>
+                <span className="jh-top-pos">{i + 1}</span>
+                <span className="jh-top-art"><GameCover appId={g.steamAppId} name={g.name} /></span>
+                <span className="jh-top-text">
+                  <strong className="truncate">{g.name}</strong>
+                  <small>{horas(g.totalSeconds)} · {g.players} {g.players === 1 ? 'membro' : 'membros'}</small>
+                </span>
+              </li>
+            ))}
+          </ol>
+        </section>
+      )}
 
       <section className="jh-block">
         <div className="jh-head">
