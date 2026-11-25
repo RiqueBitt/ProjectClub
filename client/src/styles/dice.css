@@ -298,3 +298,13 @@
   .dice-sparks { display: none; }
   .dice-type-face .die { transition: none; }
 }
+
+/* Teste BLACKOUT (rolador 3D do compêndio dentro da call). */
+.dice-modes { display: flex; gap: 6px; padding: 4px; border-radius: 12px; background: var(--bg-tertiary, rgba(0, 0, 0, .25)); }
+.dice-modes button { flex: 1; min-height: 32px; border: 0; border-radius: 9px; cursor: pointer; font: inherit; font-size: 13px; font-weight: 700; color: var(--text-muted); background: transparent; }
+.dice-modes button.on { color: var(--header-primary); background: var(--bg-secondary); box-shadow: 0 1px 3px rgba(0, 0, 0, .25); }
+.dice-picker.is-bo { width: min(1100px, calc(100vw - 24px)); max-width: none; }
+.dice-bo { display: flex; flex-direction: column; gap: 8px; min-height: 0; }
+.dice-bo-frame { width: 100%; height: min(72vh, 680px); border: 0; border-radius: 12px; background: #0b0b0d; }
+.dice-bo-wait, .dice-bo-foot { margin: 0; font-size: 12.5px; color: var(--text-muted); }
+.dice-bo-foot b { color: var(--header-primary); }

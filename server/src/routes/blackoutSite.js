@@ -177,6 +177,24 @@ async function gate(req, res, next) {
 // toda vez que o site grava as fichas, manda pra conta.
 const SHEETS_MAX = 1_500_000; // ~1,5 MB de fichas por conta
 const CONTA_JS = `(function(){
+// Modo "rolador" (?pc=dados): só o rolador 3D do capítulo Rolagem, dentro da
+// call do Project Club; cada resultado vai pro app (postMessage).
+if(location.search.indexOf('pc=dados')>=0){
+  var st=document.createElement('style');
+  st.textContent='body>*:not(#rolagem):not(script):not(style){display:none!important}#rolagem{display:block!important}#rolagem .cap,#rolagem .roleta{display:none!important}#rolagem .wrap{padding-top:6px!important}html,body{background:#0b0b0d!important;margin:0}';
+  document.head.appendChild(st);
+  document.addEventListener('DOMContentLoaded',function(){
+    var r=document.getElementById('rolagem');if(!r)return;
+    r.hidden=false;r.removeAttribute('aria-hidden');if(r.parentNode!==document.body)document.body.appendChild(r);
+    setTimeout(function(){window.dispatchEvent(new Event('resize'))},60);
+    var v=document.getElementById('veredito'),ult='';
+    function g(id){var e=document.getElementById(id);return e?e.textContent:''}
+    function dado(t,val){var p=t.split(' · D');return {name:p[0]||'',sides:parseInt(p[1],10)||0,value:parseInt(val,10)||0}}
+    if(v)new MutationObserver(function(){var t=(v.textContent||'').trim();if(!t)return;var k=t+g('r1')+g('r2')+g('n1')+Date.now();if(k===ult)return;ult=k;
+      try{parent.postMessage({type:'bo-roll',dice:[dado(g('n1'),g('r1')),dado(g('n2'),g('r2'))],dif:parseInt((document.getElementById('dif')||{}).value,10)||4,verdict:t},location.origin)}catch(e){}
+    }).observe(v,{childList:true,characterData:true,subtree:true});
+  });
+}
 var K='bo_gh_fichas',A='bo_gh_atual',D='bo_gh_dono',ls=window.localStorage,set=Storage.prototype.setItem,rm=Storage.prototype.removeItem;
 function req(m,b){var x=new XMLHttpRequest();x.open(m,'__fichas',false);x.setRequestHeader('Content-Type','application/json');x.send(b||null);return x.status===200?JSON.parse(x.responseText||'null'):null}
 var me=null;try{me=req('GET')}catch(e){}

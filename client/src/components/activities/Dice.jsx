@@ -347,7 +347,41 @@ function notationOf(counts, modifier) {
 
 // Escolher os dados: tipo (D2…D100 ou qualquer número de 2 a 100),
 // quantidade, bônus e um nome opcional ("Ataque").
+// Rolador do BLACKOUT dentro da call (nov/2026): o próprio rolador 3D do
+// compêndio (mesma física, fichas da conta, dificuldade e os 2 dados do
+// teste), num iframe em modo ?pc=dados. Cada resultado vai pra call toda.
+function BlackoutRoller({ onRoll }) {
+  const [src, setSrc] = useState(null);
+  const [err, setErr] = useState('');
+  const [last, setLast] = useState(null);
+  useEffect(() => {
+    let alive = true;
+    import('../../api/endpoints').then(({ openBlackoutSession }) => openBlackoutSession())
+      .then(() => { if (alive) setSrc('/blackout/?pc=dados'); })
+      .catch(() => { if (alive) setErr('Não deu pra abrir o rolador do BLACKOUT.'); });
+    return () => { alive = false; };
+  }, []);
+  useEffect(() => {
+    const on = (e) => {
+      if (e.origin !== window.location.origin || e.data?.type !== 'bo-roll') return;
+      const { dice, dif, verdict } = e.data;
+      setLast({ verdict, total: (dice?.[0]?.value || 0) + (dice?.[1]?.value || 0) });
+      onRoll({ blackout: { dice, dif } }).catch((x) => setErr(x?.message || 'Não deu pra mandar a rolagem pra call.'));
+    };
+    window.addEventListener('message', on);
+    return () => window.removeEventListener('message', on);
+  }, [onRoll]);
+  return (
+    <div className="dice-bo">
+      {err ? <p className="dice-error" role="alert">{err}</p> : null}
+      {src ? <iframe className="dice-bo-frame" src={src} title="Rolador do BLACKOUT" /> : !err && <p className="dice-bo-wait">Abrindo o rolador…</p>}
+      <p className="dice-bo-foot">{last ? <>Último: <b>{last.total}</b> · {last.verdict} — enviado pra call</> : 'Escolha a ficha, a dificuldade e role: o resultado aparece pra todo mundo da call.'}</p>
+    </div>
+  );
+}
+
 export function DicePicker({ onRoll, onClose, where = 'chat' }) {
+  const [mode, setMode] = useState('livre'); // 'livre' | 'blackout' (só na call)
   const [counts, setCounts] = useState({ 20: 1 });
   const [custom, setCustom] = useState('');
   const [modifier, setModifier] = useState(0);
@@ -379,7 +413,7 @@ export function DicePicker({ onRoll, onClose, where = 'chat' }) {
   const hand = Object.entries(counts).sort((a, b) => a[0] - b[0]).flatMap(([s, c]) => Array.from({ length: c }, () => Number(s)));
   const submit = async (e) => {
     e?.preventDefault();
-    if (!total || busy) return;
+    if (mode === 'blackout' || !total || busy) return;
     if (total > 30) { setError('No máximo 30 dados por rolagem.'); return; }
     setBusy(true); setError('');
     try {
@@ -394,7 +428,7 @@ export function DicePicker({ onRoll, onClose, where = 'chat' }) {
 
   return (
     <div className="dice-overlay" onMouseDown={(e) => { if (e.target === e.currentTarget) onClose(); }}>
-      <form className="dice-picker" role="dialog" aria-label="Rolar dados" onSubmit={submit}>
+      <form className={`dice-picker${mode === 'blackout' ? ' is-bo' : ''}`} role="dialog" aria-label="Rolar dados" onSubmit={submit}>
         <div className="dice-picker-head">
           <span className="dice-picker-icon" aria-hidden="true"><DieFace sides={20} value={20} size={34} /></span>
           <span className="dice-picker-title">
@@ -404,6 +438,13 @@ export function DicePicker({ onRoll, onClose, where = 'chat' }) {
           <button type="button" className="dice-x" onClick={onClose} aria-label="Fechar">×</button>
         </div>
 
+        {where === 'call' && (
+          <div className="dice-modes" role="tablist" aria-label="Tipo de rolagem">
+            <button type="button" role="tab" aria-selected={mode === 'livre'} className={mode === 'livre' ? 'on' : ''} onClick={() => setMode('livre')}>Dados livres</button>
+            <button type="button" role="tab" aria-selected={mode === 'blackout'} className={mode === 'blackout' ? 'on' : ''} onClick={() => setMode('blackout')}>Teste BLACKOUT</button>
+          </div>
+        )}
+        {mode === 'blackout' ? <BlackoutRoller onRoll={onRoll} /> : (<>
         <div className="dice-presets" role="group" aria-label="Rolagens rápidas">
           {PRESETS.map((p) => (
             <button key={p.name} type="button" className={`dice-preset${isPreset(p) ? ' is-on' : ''}`} onClick={() => { setCounts(p.counts); setModifier(0); setError(''); }}>
@@ -483,6 +524,7 @@ export function DicePicker({ onRoll, onClose, where = 'chat' }) {
             {busy ? 'Rolando…' : 'Rolar'}
           </button>
         </div>
+        </>)}
       </form>
     </div>
   );
