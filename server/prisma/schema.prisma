@@ -5016,5 +5016,7 @@ model BlackoutSheets {
   userId    String   @id
   fichas    String   @db.LongText
   atual     String?
+  // [{ id, nome, classe, pv, lv }] calculado pelo próprio site (PV da classe).
+  resumo    String?  @db.LongText
   updatedAt DateTime @updatedAt
 }

@@ -50,6 +50,7 @@ export function useRpgTable(channelId, rosterKey = '') {
     sit: (seat) => send('rpg:sit', { seat }),
     setChar: (userId, patch) => send('rpg:char', { userId, patch }),
     clearLog: () => send('rpg:log-clear', {}),
+    pickFicha: (fichaId) => send('rpg:ficha', { fichaId }),
   };
 }
 
@@ -126,7 +127,7 @@ function CharName({ c, person, canEdit, onPatch, master = false }) {
         type="button" className="rpg-char" disabled={!canEdit} onClick={() => { setVal(c?.name || ''); setEditing(true); }}
         title={canEdit ? 'Trocar o nome do personagem' : undefined}
       >{shown}{canEdit && !c?.name && !master && <small> ✎</small>}</button>
-      {(c?.name || master) && <span className="rpg-player">{personName}</span>}
+      {(c?.name || master) && <span className="rpg-player">{personName}{c?.classe ? ` · ${c.classe}${c.lv ? ` Nv ${c.lv}` : ''}` : ''}</span>}
     </div>
   );
 }
@@ -165,7 +166,7 @@ export default function RpgTable({ channelId, me, memberFor, participants, local
   return (
     <div className="rpg" data-testid="rpg-table">
       <div className="rpg-board">
-        <RpgTools channelId={channelId} iAmMaster={iAmMaster} players={s?.players || []} personOf={personOf} />
+        <RpgTools channelId={channelId} iAmMaster={iAmMaster} seated={seated} mySeat={mySeat} myChar={s?.chars?.[me.id]} players={s?.players || []} personOf={personOf} onPick={rpg.pickFicha} charOf={(u) => s?.chars?.[u]} />
         <section className="rpg-top">
           <div className={`rpg-master${master ? '' : ' is-empty'}`}>
             {master ? (

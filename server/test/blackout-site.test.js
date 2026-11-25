@@ -150,7 +150,7 @@ test('fichas na conta: o site ganha o script, grava e lê as fichas da pessoa; o
   assert.equal(g.userId, 'ana');
   assert.equal(g.fichas, null);
   const fichas = JSON.stringify([{ id: 'f1', nome: 'Kael', mesaP: { lv: 3 } }]);
-  const put = await fetch(`${base}/blackout/__fichas`, { method: 'PUT', headers: { cookie, 'content-type': 'application/json' }, body: JSON.stringify({ fichas, atual: 'f1' }) });
+  const put = await fetch(`${base}/blackout/__fichas`, { method: 'PUT', headers: { cookie, 'content-type': 'application/json' }, body: JSON.stringify({ fichas, atual: 'f1', resumo: [{ id: 'f1', nome: 'Kael', classe: 'Pistoleiro', pv: 12, lv: 3 }] }) });
   assert.equal(put.status, 200);
   const bad = await fetch(`${base}/blackout/__fichas`, { method: 'PUT', headers: { cookie, 'content-type': 'application/json' }, body: JSON.stringify({ fichas: '{"x":1}' }) });
   assert.equal(bad.status, 400);
@@ -159,6 +159,8 @@ test('fichas na conta: o site ganha o script, grava e lê as fichas da pessoa; o
   assert.equal(g.atual, 'f1');
   const me = await (await fetch(`${base}/api/blackout/fichas/me`, { headers: { 'x-test-user': 'ana' } })).json();
   assert.equal(me.fichas[0].nome, 'Kael');
+  assert.equal(me.fichas[0]._pv, 12);
+  assert.equal(me.fichas[0]._classe, 'Pistoleiro');
   // Outra pessoa sem ser mestre da mesa: não vê.
   assert.equal((await fetch(`${base}/api/blackout/fichas/ana`, { headers: { 'x-test-user': 'bia' } })).status, 403);
 }));

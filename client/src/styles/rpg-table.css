@@ -158,3 +158,14 @@
 .rpg-ficha-campos div { min-width: 0; }
 .rpg-ficha-campos dt { font-size: 10.5px; font-weight: 800; text-transform: uppercase; letter-spacing: .04em; color: var(--text-muted); }
 .rpg-ficha-campos dd { margin: 0; font-size: 13px; color: var(--text-normal); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.rpg-fichas-wrap { flex: 1; overflow-y: auto; display: flex; flex-direction: column; }
+.rpg-fichas-wrap .rpg-fichas { overflow: visible; flex: none; }
+.rpg-ficha-sub { margin-top: 2px; font-size: 12px; font-weight: 700; color: #ff6b7a; }
+.rpg-pick { padding: 12px 12px 0; display: flex; flex-direction: column; gap: 8px; }
+.rpg-pick-title { font-size: 13px; color: var(--header-primary); }
+.rpg-pick-list { display: flex; gap: 8px; flex-wrap: wrap; }
+.rpg-pick-item { display: flex; flex-direction: column; align-items: flex-start; gap: 1px; padding: 8px 12px; border-radius: 10px; cursor: pointer; font: inherit; text-align: left; color: var(--text-normal); background: var(--bg-secondary); border: 1px solid var(--border); }
+.rpg-pick-item strong { font-size: 13.5px; color: var(--header-primary); }
+.rpg-pick-item small { font-size: 11.5px; color: var(--text-muted); }
+.rpg-pick-item:hover { border-color: color-mix(in srgb, #d7263d 50%, var(--border)); }
+.rpg-pick-item.on { border-color: #d7263d; background: color-mix(in srgb, #d7263d 16%, var(--bg-secondary)); }

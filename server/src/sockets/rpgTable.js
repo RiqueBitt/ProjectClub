@@ -39,6 +39,10 @@ function cleanChar(prev, patch = {}) {
   if (patch.stress !== undefined) c.stress = clampInt(patch.stress, 0, 6, c.stress);
   if (patch.pa !== undefined) c.pa = clampInt(patch.pa, 0, 3, c.pa);
   if (patch.ar !== undefined) c.ar = clampInt(patch.ar, 0, 1, c.ar);
+  // Ficha do BLACKOUT ligada ao lugar (rpg:ficha).
+  if (patch.fichaId !== undefined) c.fichaId = patch.fichaId ? String(patch.fichaId).slice(0, 60) : null;
+  if (patch.classe !== undefined) c.classe = patch.classe ? cleanName(patch.classe) : null;
+  if (patch.lv !== undefined) c.lv = clampInt(patch.lv, 1, 99, 1);
   return c;
 }
 
@@ -162,6 +166,25 @@ function register(io, socket, userId) {
     if (![t.master, ...t.players].includes(who)) return { error: 'Essa pessoa não está sentada à mesa.' };
     const chars = await getChars(id);
     chars[who] = cleanChar(chars[who], patch && typeof patch === 'object' ? patch : {});
+    await saveChars(id, chars);
+    return {};
+  }));
+
+  // Escolher uma das fichas do BLACKOUT guardadas na conta: nome, classe,
+  // nível e os PV da classe vão pro lugar na mesa.
+  socket.on('rpg:ficha', guard(async (id, { fichaId }) => {
+    const t = await getTable(id);
+    if (!t.players.includes(userId)) return { error: 'Sente num lugar de jogador primeiro.' };
+    const { fichas } = await require('../routes/blackoutSite').sheetsFor(userId);
+    const chars = await getChars(id);
+    if (!fichaId) {
+      chars[userId] = cleanChar(chars[userId], { fichaId: null, classe: null });
+    } else {
+      const f = fichas.find((x) => x?.id === fichaId);
+      if (!f) return { error: 'Ficha não encontrada na sua conta. Abra o compêndio pra sincronizar.' };
+      const pv = f._pv || defaultChar().pvMax;
+      chars[userId] = cleanChar(chars[userId], { name: f.nome || '', pvMax: pv, pv, fichaId: f.id, classe: f._classe, lv: f.mesaP?.lv || 1 });
+    }
     await saveChars(id, chars);
     return {};
   }));
