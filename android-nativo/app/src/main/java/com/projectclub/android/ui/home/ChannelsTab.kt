@@ -25,9 +25,9 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.outlined.VolumeUp
 import androidx.compose.material.icons.outlined.Campaign
-import androidx.compose.material.icons.outlined.Casino
 import androidx.compose.material.icons.outlined.EmojiEvents
 import androidx.compose.material.icons.outlined.Home
+import androidx.compose.material.icons.outlined.SportsEsports
 import androidx.compose.material.icons.outlined.People
 import androidx.compose.material.icons.outlined.ChatBubbleOutline
 import androidx.compose.material.icons.outlined.Forum
@@ -121,15 +121,12 @@ fun ChannelsTab(repo: Repository, actions: HomeActions) {
                     // Assinatura dourada em cima, uma linha, e o resto em lista com ícone colorido.
                     FeaturedBanner(Icons.Outlined.WorkspacePremium, "Assinatura", "", gold = true) { actions.openWeb("/assinatura") }
                     Box(Modifier.padding(horizontal = 6.dp, vertical = 4.dp).fillMaxWidth().height(1.dp).background(PC.Line))
-                    // BLACKOUT: só dentro da instância BLACKOUT; abre o compêndio em tela cheia.
-                    if (c.community?.instance == "blackout") {
-                        val ctx = androidx.compose.ui.platform.LocalContext.current
-                        FeaturedBanner(Icons.Outlined.Casino, "BLACKOUT", "") { com.projectclub.android.ui.praca.BlackoutActivity.open(ctx) }
-                    }
                     Featured(Icons.Outlined.Home, "Central", Color(0xFF4F8CFF)) { actions.openWeb("/inicio") }
                     Featured(Icons.Outlined.People, "Amigos", Color(0xFFFF8A3D)) { actions.openWeb("/dms") }
                     Featured(Icons.Outlined.MonetizationOn, "Economia", PC.Store) { actions.openWeb("/economia") }
                     Featured(Icons.Outlined.EmojiEvents, "Progresso", Color(0xFFF5C518)) { actions.openWeb("/progresso") }
+                    // Jogos (nov/2026): BLACKOUT (público), Mod Manager e biblioteca.
+                    Featured(Icons.Outlined.SportsEsports, "Jogos", Color(0xFFA970FF)) { actions.openWeb("/jogos") }
                 }
                 Box(Modifier.padding(horizontal = 14.dp).fillMaxWidth().height(1.dp).background(PC.Line))
             }

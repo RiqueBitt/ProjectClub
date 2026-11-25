@@ -1,6 +1,5 @@
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { useStore } from '../store/useStore';
 import { openBlackoutSession } from '../api/endpoints';
 import '../styles/blackout-page.css';
 
@@ -9,7 +8,6 @@ import '../styles/blackout-page.css';
 // (cookie só de /blackout), depois abre em tela cheia aqui dentro.
 export default function BlackoutPage() {
   const navigate = useNavigate();
-  const instance = useStore((s) => s.community?.instance) || 'publica';
   const [state, setState] = useState({ status: 'loading', error: '' });
 
   useEffect(() => {
@@ -21,8 +19,6 @@ export default function BlackoutPage() {
     return () => { alive = false; };
   }, []);
 
-  // Saiu da instância BLACKOUT: o botão some da lista; a página volta pro início.
-  useEffect(() => { if (instance !== 'blackout' && state.status !== 'loading') navigate('/inicio', { replace: true }); }, [instance]); // eslint-disable-line react-hooks/exhaustive-deps
 
   if (state.status !== 'ready') {
     return (
@@ -36,6 +32,7 @@ export default function BlackoutPage() {
   }
   return (
     <div className="blackout-page">
+      <button type="button" className="blackout-back" onClick={() => navigate('/jogos')} title="Voltar pra Jogos">‹ Jogos</button>
       <iframe className="blackout-frame" src="/blackout/" title="Compêndio BLACKOUT" allow="fullscreen; clipboard-write" />
       <a className="blackout-newtab" href="/blackout/" target="_blank" rel="noopener" title="Abrir o compêndio numa aba só pra ele">Abrir em nova aba ↗</a>
     </div>

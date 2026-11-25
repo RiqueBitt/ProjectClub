@@ -52,6 +52,7 @@ const PATHS = {
   // BLACKOUT: dado de 6 faces
   // Peça de quebra-cabeça: Mod Manager.
   puzzle: 'M10 4a2 2 0 1 1 4 0v1h3a1 1 0 0 1 1 1v3h1a2 2 0 1 1 0 4h-1v3a1 1 0 0 1-1 1h-3v-1a2 2 0 1 0-4 0v1H7a1 1 0 0 1-1-1v-3h1a2 2 0 1 0 0-4H6V6a1 1 0 0 1 1-1h3z',
+  gamepad: 'M6 9h12a4 4 0 0 1 3.9 4.9l-.9 3.6a2 2 0 0 1-3.4.9L15 16H9l-2.6 2.4a2 2 0 0 1-3.4-.9l-.9-3.6A4 4 0 0 1 6 9zM8 11v3M6.5 12.5h3M15 12h.01M17 13.5h.01',
   dice: 'M5 3h14a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2zM8.5 8.5h.01M15.5 8.5h.01M8.5 15.5h.01M15.5 15.5h.01M12 12h.01',
   cards: 'M8 4h9a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2zM4 7.5 6 7M4 7.5v10.2a2 2 0 0 0 1.6 2L6 20M12.5 9l1.3 2.6 2.7.4-2 1.9.5 2.7-2.5-1.3-2.5 1.3.5-2.7-2-1.9 2.7-.4z',
 };
@@ -78,13 +79,6 @@ export const FEATURED = [
     key: 'arena', label: 'Guerra das Cartas', icon: 'cards', to: '/cartas',
     hint: 'Jogo de cartas: colecione, monte seu baralho e batalhe', match: (p) => p.startsWith('/cartas'),
     feature: 'cardsWar', game: true, // interruptor em utils/features.js
-  },
-  // BLACKOUT: só aparece na instância BLACKOUT (o site em si é protegido no
-  // servidor — routes/blackoutSite.js). Não dá pra esconder.
-  {
-    key: 'blackout', label: 'BLACKOUT', icon: 'dice', to: '/compendio-blackout', sub: 'Compêndio do RPG',
-    hint: 'Compêndio do RPG BLACKOUT', match: (p) => p.startsWith('/compendio-blackout'),
-    instance: 'blackout', game: true, fixed: true,
   },
   // Central (nov/2026): o antigo Início + Novidades (Anúncios e Eventos),
   // com abas (pages/AnunciosEventosPage.jsx). A bolinha soma as novidades
@@ -119,10 +113,11 @@ export const FEATURED = [
     n2Only: true, fixed: true,
   },
   {
-    // Mod Manager único (Steam, Epic, GOG, Minecraft, Hytale e modpacks).
-    key: 'mods', label: 'Mod Manager', icon: 'puzzle', to: '/jogos/mods',
-    hint: 'Instale, organize e jogue com mods e modpacks',
-    match: (p) => p.startsWith('/jogos/mods') || p.startsWith('/mod/') || p.startsWith('/modpack/'),
+    // Jogos (nov/2026): BLACKOUT (agora público), Mod Manager, biblioteca e
+    // apps do clube numa página só (pages/JogosPage.jsx).
+    key: 'jogos', label: 'Jogos', icon: 'gamepad', to: '/jogos',
+    hint: 'BLACKOUT, Mod Manager, seus jogos e apps do clube',
+    match: (p) => p.startsWith('/jogos') || p.startsWith('/mod/') || p.startsWith('/modpack/') || p.startsWith('/compendio-blackout'),
     fixed: true,
   },
 ].filter((f) => !f.feature || isFeatureEnabled(f.feature));

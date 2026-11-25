@@ -390,7 +390,7 @@ function createApp() {
   app.use('/api/ui-layout', uiEditorRoutes);
   app.use('/api/platform', platformRoutes);
   app.use('/api/admin/instances', require('./routes/instancesAdmin'));
-  // Compêndio BLACKOUT: só pra quem tem a instância BLACKOUT (ver routes/blackoutSite.js).
+  // Compêndio BLACKOUT: público pra quem está logado (ver routes/blackoutSite.js).
   app.use('/api/blackout', require('./routes/blackoutSite').api);
   app.use('/blackout', require('./routes/blackoutSite').site);
   // Atividades do chat (dados, cartões de YouTube/Música).
