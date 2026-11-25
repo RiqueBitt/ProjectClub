@@ -609,7 +609,7 @@ export default function LandingPage() {
     { key: 'go-com', label: 'Comunidade', hint: 'Chat, voz, fórum e conquistas', glyph: '#', run: () => jump('comunidade') },
     { key: 'go-faq', label: 'Perguntas', hint: 'Preço, requisitos e atualizações', glyph: '?', run: () => jump('perguntas') },
     { key: 'go-blog', label: 'Blog', hint: 'O guia completo do Project Club', glyph: '¶', run: () => navigate('/blog') },
-    { key: 'go-terms', label: 'Termos de privacidade', hint: 'Termos de uso e dados', glyph: '§', run: () => navigate('/termos') },
+    { key: 'go-terms', label: 'Política de privacidade', hint: 'Termos de uso e dados', glyph: '§', run: () => navigate('/blog/politica-de-privacidade') },
   ];
 
   const goLogin = () => navigate(user ? '/inicio' : '/login');
