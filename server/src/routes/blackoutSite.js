@@ -111,7 +111,9 @@ api.get('/fichas/:userId', requireAuth, async (req, res) => {
     if (channelId) {
       try {
         const t = await require('../sockets/rpgTable').getTable(channelId);
-        ok = t.master === req.user.id && t.players.includes(target);
+        // Quem está sentado à mesa (mestre ou jogador) vê a ficha de quem também está.
+        const seated = [t.master, ...t.players].filter(Boolean);
+        ok = seated.includes(req.user.id) && seated.includes(target);
       } catch { ok = false; }
     }
     if (!ok) return res.status(403).json({ error: 'Só o mestre da mesa vê a ficha dos jogadores.' });
@@ -184,7 +186,9 @@ if(me&&me.userId){
   else if(!dono||dono===me.userId){var lf=ls.getItem(K);if(lf&&lf!=='[]'){try{req('PUT',JSON.stringify({fichas:lf,atual:ls.getItem(A)}))}catch(e){}}}
   else{rm.call(ls,K);rm.call(ls,A)}
   set.call(ls,D,me.userId);
-  var t=null;function enviar(){t=null;try{fetch('__fichas',{method:'PUT',keepalive:true,headers:{'Content-Type':'application/json'},body:JSON.stringify({fichas:ls.getItem(K)||'[]',atual:ls.getItem(A)})})}catch(e){}}
+  function resumo(f){var r=[];try{JSON.parse(f).forEach(function(x){var pv=null;try{pv=typeof window.pvPadrao==='function'?window.pvPadrao(x):null}catch(e){}r.push({id:x.id,nome:x.nome||'',classe:(x.classe&&x.classe[0])||null,pv:pv,lv:(x.mesaP&&x.mesaP.lv)||1})})}catch(e){}return r}
+  var t=null;function enviar(){t=null;var f=ls.getItem(K)||'[]';try{fetch('__fichas',{method:'PUT',keepalive:true,headers:{'Content-Type':'application/json'},body:JSON.stringify({fichas:f,atual:ls.getItem(A),resumo:resumo(f)})})}catch(e){}}
+  window.addEventListener('load',function(){setTimeout(enviar,1500)});
   function mudou(k){if((k===K||k===A)&&this===ls){clearTimeout(t);t=setTimeout(enviar,700)}}
   Storage.prototype.setItem=function(k,v){set.call(this,k,v);mudou.call(this,k)};
   Storage.prototype.removeItem=function(k){rm.call(this,k);mudou.call(this,k)};
@@ -199,7 +203,11 @@ async function sheetsFor(userId) {
   const row = await readSheets(userId);
   let fichas = [];
   try { fichas = row ? JSON.parse(row.fichas) : []; } catch { fichas = []; }
-  return { fichas: Array.isArray(fichas) ? fichas : [], atual: row?.atual || null, updatedAt: row?.updatedAt || null };
+  let resumo = [];
+  try { resumo = row?.resumo ? JSON.parse(row.resumo) : []; } catch { resumo = []; }
+  const byId = new Map((Array.isArray(resumo) ? resumo : []).map((r) => [r.id, r]));
+  const list = (Array.isArray(fichas) ? fichas : []).map((f) => ({ ...f, _pv: byId.get(f?.id)?.pv ?? null, _classe: byId.get(f?.id)?.classe ?? null }));
+  return { fichas: list, atual: row?.atual || null, updatedAt: row?.updatedAt || null };
 }
 
 const site = express.Router();
@@ -219,10 +227,15 @@ site.put('/__fichas', express.json({ limit: '2mb' }), async (req, res) => {
   if (fichas.length > SHEETS_MAX) return res.status(413).json({ error: 'Fichas grandes demais.' });
   try { if (!Array.isArray(JSON.parse(fichas))) throw new Error('x'); } catch { return res.status(400).json({ error: 'Fichas inválidas.' }); }
   const atual = typeof req.body?.atual === 'string' ? req.body.atual.slice(0, 120) : null;
+  // Resumo que o site calculou (PV vem da classe: pvPadrao do compêndio).
+  const resumo = Array.isArray(req.body?.resumo) ? JSON.stringify(req.body.resumo.slice(0, 200).map((r) => ({
+    id: String(r?.id || '').slice(0, 60), nome: String(r?.nome || '').slice(0, 60), classe: r?.classe ? String(r.classe).slice(0, 60) : null,
+    pv: Number.isFinite(+r?.pv) && r?.pv !== null ? Math.max(1, Math.min(99, Math.round(+r.pv))) : null, lv: Math.max(1, Math.min(99, Math.round(+r?.lv) || 1)),
+  }))) : undefined;
   await db().blackoutSheets.upsert({
     where: { userId: req.blackoutUserId },
-    create: { userId: req.blackoutUserId, fichas, atual },
-    update: { fichas, atual },
+    create: { userId: req.blackoutUserId, fichas, atual, resumo: resumo || null },
+    update: { fichas, atual, ...(resumo ? { resumo } : {}) },
   });
   res.json({ ok: true });
 });
@@ -244,4 +257,4 @@ site.get(['/', '/index.html'], (req, res, next) => {
 site.use(express.static(sync.SITE_DIR, { index: 'index.html', dotfiles: 'ignore', redirect: true, extensions: false }));
 site.use((req, res) => res.status(404).type('text/plain').send('Não encontrado.'));
 
-module.exports = { api, site, gate, siteSecret, COOKIE, COOKIE_PATH, INSTANCE_ID, _allowCache: allowCache };
+module.exports = { sheetsFor, api, site, gate, siteSecret, COOKIE, COOKIE_PATH, INSTANCE_ID, _allowCache: allowCache };

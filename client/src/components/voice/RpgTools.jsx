@@ -5,10 +5,10 @@ import UserAvatar from '../UserAvatar.jsx';
 // Ferramentas da mesa de RPG (nov/2026):
 // - Compêndio: o site do BLACKOUT inteiro (poderes, trilhas, níveis, fichas)
 //   num painel por cima da mesa, pra todo mundo consultar sem sair da call.
-// - Fichas (só o mestre): a ficha atual de cada jogador sentado, guardada
-//   na conta dele.
+// - Fichas da mesa (quem está sentado): escolher a própria ficha (nome,
+//   classe e PV da classe vão pro lugar) e ver as fichas dos aliados.
 
-const SKIP = new Set(['id', '_id', 'mesaP', 'nome']);
+const SKIP = new Set(['id', '_id', 'mesaP', 'nome', '_pv', '_classe']);
 function FichaResumo({ f }) {
   if (!f) return <p className="rpg-tools-empty">Ainda não escolheu uma ficha no compêndio.</p>;
   const campos = Object.entries(f)
@@ -17,6 +17,7 @@ function FichaResumo({ f }) {
   return (
     <div className="rpg-ficha">
       <div className="rpg-ficha-top"><strong>{f.nome || 'Sem nome'}</strong>{f.mesaP?.lv ? <span className="rpg-ficha-lv">Nível {f.mesaP.lv}</span> : null}</div>
+      {(f._classe || f._pv) && <div className="rpg-ficha-sub">{f._classe || 'Sem classe'}{f._pv ? ` · ${f._pv} PV` : ''}</div>}
       {campos.length > 0 && (
         <dl className="rpg-ficha-campos">
           {campos.map(([k, v]) => (<div key={k}><dt>{k}</dt><dd>{String(v)}</dd></div>))}
@@ -26,24 +27,26 @@ function FichaResumo({ f }) {
   );
 }
 
-function FichasDoMestre({ channelId, players, personOf }) {
+function FichasDaMesa({ channelId, players, personOf, pinned }) {
   const [data, setData] = useState({});
+  const key = players.filter(Boolean).join(',');
   useEffect(() => {
     let alive = true;
-    players.filter(Boolean).forEach((uid) => {
+    key.split(',').filter(Boolean).forEach((uid) => {
       getBlackoutSheets(uid, channelId)
         .then((d) => { if (alive) setData((m) => ({ ...m, [uid]: d })); })
         .catch(() => { if (alive) setData((m) => ({ ...m, [uid]: { error: true } })); });
     });
     return () => { alive = false; };
-  }, [channelId, players]);
+  }, [channelId, key]);
   const seated = players.filter(Boolean);
   if (!seated.length) return <p className="rpg-tools-empty">Nenhum jogador sentado ainda.</p>;
   return (
     <div className="rpg-fichas">
       {seated.map((uid) => {
         const d = data[uid];
-        const atual = d?.fichas?.find((f) => f.id === d.atual) || d?.fichas?.[0] || null;
+        const pin = pinned(uid);
+        const atual = d?.fichas?.find((f) => f.id === (pin || d.atual)) || d?.fichas?.[0] || null;
         const u = personOf(uid) || { id: uid };
         return (
           <section key={uid} className="rpg-fichas-item">
@@ -56,7 +59,32 @@ function FichasDoMestre({ channelId, players, personOf }) {
   );
 }
 
-export default function RpgTools({ channelId, iAmMaster, players, personOf }) {
+// O jogador escolhe qual das fichas dele vai pra mesa (nome, classe e PV).
+function MinhaFicha({ myChar, onPick }) {
+  const [d, setD] = useState(null);
+  const [busy, setBusy] = useState(null);
+  useEffect(() => { getBlackoutSheets('me').then(setD).catch(() => setD({ fichas: [] })); }, []);
+  if (!d) return <p className="rpg-tools-empty">Carregando suas fichas…</p>;
+  if (!d.fichas.length) return <p className="rpg-tools-empty">Você ainda não tem fichas. Crie uma no Compêndio (Personagem) e ela aparece aqui.</p>;
+  return (
+    <div className="rpg-pick">
+      <strong className="rpg-pick-title">Sua ficha na mesa</strong>
+      <div className="rpg-pick-list">
+        {d.fichas.map((f) => (
+          <button
+            key={f.id} type="button" className={`rpg-pick-item${myChar?.fichaId === f.id ? ' on' : ''}`} disabled={busy === f.id}
+            onClick={async () => { setBusy(f.id); await onPick(myChar?.fichaId === f.id ? null : f.id); setBusy(null); }}
+          >
+            <strong>{f.nome || 'Sem nome'}</strong>
+            <small>{f._classe || 'Sem classe'} · Nv {f.mesaP?.lv || 1}{f._pv ? ` · ${f._pv} PV` : ''}</small>
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+export default function RpgTools({ channelId, iAmMaster, seated, mySeat, myChar, players, personOf, onPick, charOf }) {
   const [open, setOpen] = useState(null); // 'compendio' | 'fichas' | null
   const [src, setSrc] = useState(null);
   const [err, setErr] = useState('');
@@ -68,17 +96,22 @@ export default function RpgTools({ channelId, iAmMaster, players, personOf }) {
     <>
       <div className="rpg-tools" role="toolbar" aria-label="Ferramentas da mesa">
         <button type="button" className={open === 'compendio' ? 'on' : ''} onClick={() => setOpen(open === 'compendio' ? null : 'compendio')}>📖 Compêndio</button>
-        {iAmMaster && <button type="button" className={open === 'fichas' ? 'on' : ''} onClick={() => setOpen(open === 'fichas' ? null : 'fichas')}>📋 Fichas dos jogadores</button>}
+        {seated && <button type="button" className={open === 'fichas' ? 'on' : ''} onClick={() => setOpen(open === 'fichas' ? null : 'fichas')}>📋 Fichas da mesa</button>}
       </div>
       {open && (
-        <div className={`rpg-drawer is-${open}`} role="dialog" aria-label={open === 'compendio' ? 'Compêndio BLACKOUT' : 'Fichas dos jogadores'}>
+        <div className={`rpg-drawer is-${open}`} role="dialog" aria-label={open === 'compendio' ? 'Compêndio BLACKOUT' : 'Fichas da mesa'}>
           <div className="rpg-drawer-head">
-            <strong>{open === 'compendio' ? 'Compêndio BLACKOUT' : 'Fichas dos jogadores'}</strong>
+            <strong>{open === 'compendio' ? 'Compêndio BLACKOUT' : 'Fichas da mesa'}</strong>
             <button type="button" className="rpg-link" onClick={() => setOpen(null)}>Fechar</button>
           </div>
           {open === 'compendio'
             ? (err ? <p className="rpg-tools-empty">{err}</p> : src ? <iframe className="rpg-drawer-frame" src={src} title="Compêndio BLACKOUT" /> : <p className="rpg-tools-empty">Abrindo…</p>)
-            : <FichasDoMestre channelId={channelId} players={players} personOf={personOf} />}
+            : (
+              <div className="rpg-fichas-wrap">
+                {typeof mySeat === 'number' && mySeat >= 0 && <MinhaFicha myChar={myChar} onPick={onPick} />}
+                <FichasDaMesa channelId={channelId} players={players} personOf={personOf} pinned={(uid) => charOf?.(uid)?.fichaId || null} />
+              </div>
+            )}
         </div>
       )}
     </>
