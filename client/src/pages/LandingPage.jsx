@@ -85,8 +85,7 @@ function useReveal() {
   }, []);
 }
 
-// ---------- Dados ao vivo ----------
-// Pulso da comunidade (só números agregados) e versão publicada de cada app.
+// Busca rápida (Ctrl+K ou "/"): apps, seções e ações da página.
 function CommandPalette({ open, onClose, onPickApp, actions }) {
   const [q, setQ] = useState('');
   const [sel, setSel] = useState(0);
@@ -128,9 +127,7 @@ function CommandPalette({ open, onClose, onPickApp, actions }) {
   );
 }
 
-// Cor e ficha de exemplo de cada personagem. O lado esquerdo da seção troca
-// junto com a figura. Mesma ficha da Call modo RPG (PV, Estresse, PA e Ação
-// Rápida, ver components/voice/RpgTable.jsx); os valores são de exemplo.
+// Arte do cartão: a captura do app ou, com `art: 'type'`, o nome em letras.
 function AppArt({ a, className = '', eager = false, alt = '' }) {
   if (a.art === 'type') {
     return (
@@ -263,7 +260,6 @@ export default function LandingPage() {
   usePublicScrollChrome();
   useMonoCursor();
   useFitText('.lm-hero-title, .lm-end-title');
-  useFitText('.lp-bo-title', 760);
   const [platform] = useState(detectPlatform);
   const [cmdOpen, setCmdOpen] = useState(false);
   const stageRef = useRef(null);
@@ -274,32 +270,6 @@ export default function LandingPage() {
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, []);
-  // Mouse: --mx/--my (-1..1) na página inteira (paralaxe dos personagens) e
-  // --sx/--sy (px) dentro de cada cartão com [data-spot] (luz que segue).
-  useEffect(() => {
-    const root = document.querySelector('.lp');
-    if (!root || reducedMotion()) return undefined;
-    let raf = 0; let ev = null;
-    const apply = () => {
-      raf = 0;
-      const e = ev;
-      root.style.setProperty('--mx', ((e.clientX / window.innerWidth) * 2 - 1).toFixed(3));
-      root.style.setProperty('--my', ((e.clientY / window.innerHeight) * 2 - 1).toFixed(3));
-      const card = e.target?.closest?.('[data-spot]');
-      if (card) {
-        const r = card.getBoundingClientRect();
-        card.style.setProperty('--sx', `${e.clientX - r.left}px`);
-        card.style.setProperty('--sy', `${e.clientY - r.top}px`);
-        card.style.setProperty('--tx', `${(((e.clientY - r.top) / r.height) - 0.5) * -8}deg`);
-        card.style.setProperty('--ty', `${(((e.clientX - r.left) / r.width) - 0.5) * 10}deg`);
-      }
-    };
-    const onMove = (e) => { ev = e; if (!raf) raf = requestAnimationFrame(apply); };
-    const onLeave = (e) => { const c = e.target?.closest?.('[data-spot]'); if (c && !c.contains(e.relatedTarget)) { c.style.setProperty('--tx', '0deg'); c.style.setProperty('--ty', '0deg'); } };
-    root.addEventListener('pointermove', onMove, { passive: true });
-    root.addEventListener('pointerout', onLeave, { passive: true });
-    return () => { root.removeEventListener('pointermove', onMove); root.removeEventListener('pointerout', onLeave); cancelAnimationFrame(raf); };
   }, []);
   const jump = (id) => document.getElementById(id)?.scrollIntoView({ behavior: reducedMotion() ? 'auto' : 'smooth' });
   // Vindo de outra página pública com "/#secao": rola até a seção.

@@ -81,7 +81,6 @@ html .lp-mono :focus-visible { outline: 2px solid currentColor !important; outli
 
 /* ---------- Abertura ---------- */
 .lm-hero { padding: clamp(40px, 7vh, 96px) var(--gutter) 0; }
-.lm-hero-kicker { font-size: clamp(14px, 1.1vw, 16px); color: var(--ink-2); margin-bottom: clamp(8px, 2vh, 20px); }
 .lm-hero-title {
   font-weight: 800; font-variation-settings: 'wdth' 125; text-transform: uppercase;
   font-size: clamp(44px, 11.4vw, 220px); line-height: .82; letter-spacing: -.045em;
@@ -98,11 +97,6 @@ html .lp-mono :focus-visible { outline: 2px solid currentColor !important; outli
 }
 .lm-statement span { display: inline-block; white-space: pre; }
 .lm-hero-side { display: flex; flex-direction: column; gap: 22px; padding-bottom: 6px; }
-.lm-copy { font-size: clamp(16px, 1.2vw, 18px); line-height: 1.6; color: var(--ink-2); max-width: 46ch; }
-.lp-mono .lp-pulse { justify-content: flex-start; color: var(--ink-3); margin: 0; }
-.lp-mono .lp-pulse b { color: var(--ink); }
-.lp-mono .lp-pulse-dot { background: #000; box-shadow: none; animation: lm-blink 1.6s var(--ease-io) infinite; }
-
 
 /* ---------- Faixa de palavras correndo ---------- */
 .lm-marquee {
@@ -127,7 +121,7 @@ html .lp-mono :focus-visible { outline: 2px solid currentColor !important; outli
   border-radius: var(--radius) var(--radius) 0 0; margin-top: calc(var(--radius) * -1); z-index: 1;
 }
 .lm-hero.lm-dark { border-radius: 0; margin-top: 0; padding-bottom: 0; }
-.lm-dark + .lm-sec:not(.lm-dark), .lp-mono .lp-bo + .lm-sec { border-radius: var(--radius) var(--radius) 0 0; margin-top: calc(var(--radius) * -1); z-index: 2; }
+.lm-dark + .lm-sec:not(.lm-dark) { border-radius: var(--radius) var(--radius) 0 0; margin-top: calc(var(--radius) * -1); z-index: 2; }
 .lm-sec-head { display: grid; grid-template-columns: minmax(0, 1.35fr) minmax(0, 1fr); gap: clamp(24px, 5vw, 96px); align-items: end; margin-bottom: clamp(44px, 7vh, 88px); }
 .lm-h2 {
   font-size: clamp(44px, 6.8vw, 120px); line-height: .92; letter-spacing: -.05em; font-weight: 700;
@@ -163,16 +157,15 @@ html .lp-mono :focus-visible { outline: 2px solid currentColor !important; outli
   content: ''; position: absolute; inset: 0; z-index: -1; background: var(--ink);
   transform: scaleX(0); transform-origin: 0 50%; transition: transform .6s var(--ease-out);
 }
-.lp-mono .lp-mono .lm-dl-row:hover, .lp-mono .lm-dl-row:focus-visible { color: var(--paper); padding-left: clamp(20px, 3vw, 48px); }
-.lp-mono .lp-mono .lm-dl-row:hover::before, .lp-mono .lm-dl-row:focus-visible::before { transform: scaleX(1); }
+.lp-mono .lm-dl-row:hover, .lp-mono .lm-dl-row:focus-visible { color: var(--paper); padding-left: clamp(20px, 3vw, 48px); }
+.lp-mono .lm-dl-row:hover::before, .lp-mono .lm-dl-row:focus-visible::before { transform: scaleX(1); }
 .lm-dl-name { display: inline-flex; align-items: center; gap: 18px; font-size: clamp(30px, 4.2vw, 72px); font-weight: 700; letter-spacing: -.045em; font-variation-settings: 'wdth' 118; line-height: 1; }
 .lm-dl-name svg { flex: none; }
-.lm-dl-name em { font-style: normal; font-size: 13px; letter-spacing: 0; font-weight: 600; font-variation-settings: 'wdth' 100; padding: 6px 12px; border: 1px solid currentColor; border-radius: 0; font-family: var(--mono); text-transform: uppercase; letter-spacing: .12em; font-size: 11px; }
+.lm-dl-name em { font-style: normal; font-size: 13px; letter-spacing: 0; font-weight: 600; font-variation-settings: 'wdth' 100; padding: 6px 12px; border: 1px solid currentColor; border-radius: 0; font-family: var(--mono); text-transform: uppercase; letter-spacing: .12em; font-size: 11px; white-space: nowrap; }
 .lm-dl-desc { font-size: 15.5px; opacity: .7; }
 .lm-dl-go { font-size: clamp(26px, 2.6vw, 40px); transition: transform .5s var(--ease-out); }
 .lp-mono .lm-dl-row:hover .lm-dl-go { transform: translateY(4px); }
 .lp-mono button.lm-dl-row:hover .lm-dl-go { transform: translateX(8px); }
-.lm-fine { margin-top: 28px; font-size: 13.5px; color: var(--ink-3); max-width: 76ch; }
 
 /* Perguntas: sanfona com altura animada */
 .lm-faq { border-top: 1px solid var(--ink); }
@@ -202,12 +195,6 @@ html .lp-mono :focus-visible { outline: 2px solid currentColor !important; outli
 .lp-mono .lp-foot { background: #0b0b0c; color: rgba(255, 255, 255, .5); border-top: 1px solid rgba(255, 255, 255, .14); position: relative; z-index: 1; }
 .lp-mono .lp-foot-brand img { filter: grayscale(1) brightness(1.6); }
 
-/* ---------- RPG Blackout em preto e branco ---------- */
-.lp-mono .lp-bo { --acc: #fff !important; --acc-rgb: 255, 255, 255 !important; --glow-rgb: 90, 90, 90 !important; background: #0b0b0c; border-radius: var(--radius) var(--radius) 0 0; margin-top: calc(var(--radius) * -1); position: relative; z-index: 1; overflow: hidden; color: #fff; }
-.lp-mono .lp-bo img { filter: grayscale(1) contrast(1.12); }
-.lp-mono .lp-bo-title { font-family: var(--wide); font-variation-settings: 'wdth' 125; letter-spacing: -.05em; }
-.lp-mono .lp-d20 svg { stroke: #fff; }
-
 /* ---------- Cursor ---------- */
 .lp-mono.has-cursor, .lp-mono.has-cursor a, .lp-mono.has-cursor button, .lp-mono.has-cursor summary { cursor: none; }
 .lm-cursor {
@@ -229,7 +216,7 @@ html .lp-mono :focus-visible { outline: 2px solid currentColor !important; outli
   .lm-end-title .lm-word-ch { animation: none; transition: transform 1.1s var(--ease-out) calc(var(--i) * 40ms); }
   .lm-end-title.is-in .lm-word-ch { transform: none; }
   .lm-statement span { opacity: 0; filter: blur(10px); transform: translateY(.3em); animation: lm-word .9s var(--ease-out) forwards; animation-delay: calc(var(--i) * 70ms + 650ms); }
-  .lm-hero-kicker, .lm-hero-side { opacity: 0; animation: lm-fade 1s var(--ease-out) 1.1s forwards; }
+  .lm-hero-side { opacity: 0; animation: lm-fade 1s var(--ease-out) 1.1s forwards; }
 
   .lp-mono.is-js .lp-reveal { opacity: 0; transform: translateY(40px); transition: opacity 1s var(--ease-out), transform 1s var(--ease-out); transition-delay: calc(var(--i, 0) * 90ms); }
   .lp-mono.is-js .lp-reveal.is-in { opacity: 1; transform: none; }
@@ -241,9 +228,7 @@ html .lp-mono :focus-visible { outline: 2px solid currentColor !important; outli
 @keyframes lm-rise { to { transform: translateY(0); } }
 @keyframes lm-word { to { opacity: 1; filter: blur(0); transform: none; } }
 @keyframes lm-fade { from { opacity: 0; transform: translateY(16px); } to { opacity: 1; transform: none; } }
-@keyframes lm-shot { from { opacity: 0; transform: translateY(80px); } to { opacity: 1; transform: none; } }
 @keyframes lm-marquee { to { transform: translateX(-50%); } }
-@keyframes lm-blink { 50% { opacity: .2; } }
 
 @media (prefers-reduced-motion: reduce) {
   .lm-marquee-row { animation: none; }
@@ -260,18 +245,17 @@ html .lp-mono :focus-visible { outline: 2px solid currentColor !important; outli
   .lm-hero-title { font-size: 13.6vw; }
   .lm-end-title { font-size: 11.4vw; }
   .lm-grid, .lm-principles { grid-template-columns: 1fr; }
-  .lm-dl-row { grid-template-columns: 1fr auto; }
-  .lm-dl-desc { grid-column: 1; grid-row: 2; }
-  .lm-dl-go { grid-row: 1 / 3; grid-column: 2; }
+  /* .lp-mono na frente: sem ele a regra de desktop (3 colunas) ganhava e a
+     seta caía em cima do nome do sistema. */
+  .lp-mono .lm-dl-row { grid-template-columns: minmax(0, 1fr) auto; row-gap: 10px; }
+  .lp-mono .lm-dl-name { flex-wrap: wrap; row-gap: 10px; }
+  .lp-mono .lm-dl-desc { grid-column: 1; grid-row: 2; }
+  .lp-mono .lm-dl-go { grid-row: 1 / 3; grid-column: 2; }
   .lp-mono .lm-cta .lm-btn { flex: 1 1 auto; justify-content: center; }
 }
 
-/* Acertos: nome do Blackout no cartão e título da seção dentro da tela. */
+/* Nome do Blackout no cartão. */
 .lm-card-art .lp-type-art strong { font-size: clamp(28px, 3.6vw, 56px); letter-spacing: .04em; color: #fff; text-shadow: none; }
-.lp-mono .lp-bo-title { color: #fff; font-size: clamp(56px, 9vw, 150px); }
-@media (max-width: 760px) {
-  .lp-mono .lp-bo-title { font-variation-settings: 'wdth' 100; font-size: 17vw; }
-}
 
 /* =============================================================
    Peças do catálogo (ArtCraft)
@@ -279,56 +263,29 @@ html .lp-mono :focus-visible { outline: 2px solid currentColor !important; outli
 /* Rótulo numerado da seção: "01/Apps". */
 .lm-eyebrow { display: inline-flex; align-items: baseline; gap: 2px; margin-bottom: 18px; font-size: 14px; color: var(--ink-3); font-variant-numeric: tabular-nums; }
 .lm-eyebrow b { color: var(--ink); font-weight: 600; }
-.lp-mono .lp-bo .lm-eyebrow { color: rgba(255, 255, 255, .45); }
-.lp-mono .lp-bo .lm-eyebrow b { color: #fff; }
-
-/* Abertura: ícones dos apps, linha de sistemas e aviso "sem assinatura". */
-.lm-hero-kicker { display: flex; align-items: center; gap: 14px; }
-.lm-icons { display: inline-flex; }
-.lm-icons img { width: 26px; height: 26px; border-radius: 8px; filter: grayscale(1); box-shadow: 0 0 0 2px var(--paper); }
-.lm-icons img + img { margin-left: -6px; }
-.lm-hero-plat { display: flex; flex-direction: column; gap: 4px; font-size: 14px; color: var(--ink); }
-.lm-hero-plat span { color: var(--ink-3); }
 .lm-hero .lm-marquee { margin-top: clamp(64px, 10vh, 120px); }
 
-/* Cartão do app: número e categoria em cima, situação e plataformas embaixo. */
+/* Cartão do app: captura, nome e uma linha. */
 .lm-card { gap: 14px; }
-.lm-card-top { display: flex; justify-content: space-between; font-size: 13px; color: var(--ink-3); font-variant-numeric: tabular-nums; padding-bottom: 12px; border-bottom: 1px solid var(--rule); }
-.lm-card-top span:first-child { color: var(--ink); font-weight: 600; }
 .lm-card-meta h3 { display: flex; align-items: center; gap: 12px; }
-.lm-card-meta h3 img { width: 28px; height: 28px; border-radius: 8px; filter: grayscale(1); }
-.lm-card-foot { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 14px; margin-top: 14px; font-size: 13px; color: var(--ink-3); }
-.lm-status { display: inline-flex; align-items: center; gap: 7px; padding: 7px 11px; border: 1px solid var(--rule); border-radius: 0; color: var(--ink); font: 500 11px/1 var(--mono); text-transform: uppercase; letter-spacing: .12em; }
-.lm-status::before { content: ''; width: 6px; height: 6px; border-radius: 50%; background: currentColor; }
-.lm-explore { display: inline-flex; align-items: center; gap: 8px; margin-top: 18px; font-weight: 600; font-size: 15px; border-bottom: 1px solid currentColor; padding-bottom: 3px; }
-.lm-explore span { transition: transform .45s var(--ease-out); }
-.lm-explore:hover span { transform: translateX(6px); }
 
-/* Princípios: 6 cartões numerados, com luz que segue o mouse. */
+/* Princípios: cartões que invertem as cores no hover. */
 .lm-principles { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 1px; background: var(--rule); border: 1px solid var(--rule); border-radius: calc(var(--radius) * .6); overflow: hidden; }
 .lm-principles li {
   position: relative; padding: clamp(26px, 3vw, 44px); background: #fff; min-height: 230px;
   display: flex; flex-direction: column; gap: 12px; transition: background .5s var(--ease-out), color .5s var(--ease-out);
 }
-.lm-principles li::after {
-  content: ''; position: absolute; inset: 0; pointer-events: none; opacity: 0; transition: opacity .4s;
-  background: radial-gradient(260px circle at var(--sx, 50%) var(--sy, 50%), rgba(0, 0, 0, .07), transparent 70%);
-}
-.lm-principles li:hover::after { opacity: 1; }
 .lm-num { font-size: 13px; font-variant-numeric: tabular-nums; color: var(--ink-3); margin-bottom: auto; padding-bottom: 32px; }
 .lm-principles h3 { font-size: clamp(22px, 1.9vw, 30px); letter-spacing: -.035em; font-weight: 700; font-variation-settings: 'wdth' 110; line-height: 1.05; }
 .lm-principles p { color: var(--ink-2); font-size: 15.5px; line-height: 1.55; max-width: 36ch; }
 .lm-principles li:hover { background: #000; color: #fff; }
 .lm-principles li:hover p, .lm-principles li:hover .lm-num { color: rgba(255, 255, 255, .6); }
 
-.lm-end .lm-eyebrow { margin-bottom: -8px; }
 .lm-hero .lm-marquee { margin-bottom: calc(var(--radius) + 56px); }
 
 /* Telas menores (depois dos princípios, pra valer por cima deles). */
 @media (max-width: 1000px) { .lm-principles { grid-template-columns: 1fr 1fr; } }
-@media (max-width: 600px) { .lm-principles { grid-template-columns: 1fr; } .lm-principles li { min-height: 0; } .lm-num { padding-bottom: 14px; } }
-/* Título do Blackout: o tamanho é ajustado pela página pra caber na largura. */
-.lp-mono .lp-bo-title { width: max-content; max-width: none; white-space: nowrap; }
+@media (max-width: 600px) { .lm-principles { grid-template-columns: 1fr; } .lm-num { padding-bottom: 14px; } }
 
 /* Botões quadrados em toda a página (cabeçalho, menu e links de ação). */
 .lp-mono .lp-btn { border-radius: 0; font: 700 12px/1 var(--mono); text-transform: uppercase; letter-spacing: .16em; padding: 13px 18px; }
@@ -336,11 +293,20 @@ html .lp-mono :focus-visible { outline: 2px solid currentColor !important; outli
 .lp-mono .lp-link { font: 700 12px/1 var(--mono); text-transform: uppercase; letter-spacing: .16em; }
 .lp-mono .lp-search { border-radius: 0; }
 .lp-mono .lp-search kbd, .lp-mono .lp-cmd kbd { border-radius: 0; }
-.lp-mono .lm-explore { font: 700 12px/1 var(--mono); text-transform: uppercase; letter-spacing: .16em; }
-.lp-mono .lm-eyebrow, .lp-mono .lm-card-top, .lp-mono .lm-num { font-family: var(--mono); text-transform: uppercase; letter-spacing: .1em; font-size: 12px; }
-.lp-mono .lp-bo-tabs button { border-radius: 0 !important; font-family: var(--mono); text-transform: uppercase; letter-spacing: .12em; font-size: 11px; }
-.lp-mono .lm-hero-plat { font-family: var(--mono); font-size: 12px; text-transform: uppercase; letter-spacing: .08em; }
+.lp-mono .lm-eyebrow, .lp-mono .lm-num { font-family: var(--mono); text-transform: uppercase; letter-spacing: .1em; font-size: 12px; }
 @media (max-width: 760px) { .lp-mono .lm-btn { padding: 22px 24px; font-size: 13px; } }
+
+/* Alvos de toque com pelo menos 44px (lupa, Entrar, menu e o link do Blog),
+   sem mudar o desenho: o que cresce é a área clicável. */
+.lp-mono .lp-search, .lp-mono .lp-burger { min-width: 44px; min-height: 44px; justify-content: center; }
+/* Até 560px o "Entrar" some do topo (fica no menu); não reexibir. */
+@media (min-width: 561px) { .lp-mono .lp-link { display: inline-flex; align-items: center; min-height: 44px; padding-inline: 6px; } }
+.lp-mono .lp-top-actions .lp-btn { min-height: 44px; }
+/* No celular os botões maiores não cabiam com o espaço de 18px entre eles. */
+@media (max-width: 480px) {
+  .lp-mono .lp-top-actions { gap: 4px; }
+  .lp-mono .lp-top-actions .lp-btn { padding-inline: 14px; letter-spacing: .12em; }
+}
 
 
 /* Menu do celular: com o menu aberto o topo deixa de inverter as cores
@@ -360,10 +326,14 @@ html .lp-mono :focus-visible { outline: 2px solid currentColor !important; outli
 .lm-hero .lm-marquee { padding: clamp(14px, 2.4vh, 22px) 0; }
 .lm-sec { padding-block: clamp(110px, 17vh, 200px); }
 .lm-card-meta p { color: var(--ink-3); font-size: 15px; }
-.lm-principles li { min-height: 190px; }
+/* Altura mínima só com 2+ colunas (alinha os cartões lado a lado); numa
+   coluna só ela abria um buraco entre o número e o título. */
+@media (min-width: 601px) { .lm-principles li { min-height: 190px; } }
+@media (max-width: 600px) { .lm-principles li { min-height: 0; } }
 .lm-principles p { font-size: 15px; }
 .lm-dl-desc { font: 500 12px/1 var(--mono); text-transform: uppercase; letter-spacing: .12em; }
-.lm-more { display: inline-flex; gap: 10px; margin-top: 36px; font: 700 12px/1 var(--mono); text-transform: uppercase; letter-spacing: .16em; border-bottom: 1px solid currentColor; padding-bottom: 4px; }
+.lm-more::after { content: ''; position: absolute; inset: -14px -4px; }
+.lm-more { position: relative; display: inline-flex; gap: 10px; margin-top: 36px; font: 700 12px/1 var(--mono); text-transform: uppercase; letter-spacing: .16em; border-bottom: 1px solid currentColor; padding-bottom: 4px; }
 .lm-more span { transition: transform .45s var(--ease-out); }
 .lm-more:hover span { transform: translateX(6px); }
 @media (max-width: 760px) { .lm-hero-side.lm-cta { justify-content: stretch; } }
