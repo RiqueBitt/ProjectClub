@@ -1,4 +1,5 @@
 const bcrypt = require('bcryptjs');
+const { passwordProblem } = require('../utils/passwordPolicy');
 const { generateSecret, verify, generateURI, createGuardrails } = require('otplib');
 
 // BUG CORRIGIDO — CAUSA RAIZ CONFIRMADA (erro 500 no login pra quem já
@@ -867,6 +868,9 @@ async function resetPassword(req, res, next) {
     if (!record || record.used || record.expiresAt < new Date()) {
       return res.status(400).json({ error: 'Link inválido ou expirado.' });
     }
+    const owner = await prisma.user.findUnique({ where: { id: record.userId }, select: { username: true, email: true } });
+    const weak = passwordProblem(newPassword, owner || {});
+    if (weak) return res.status(400).json({ error: weak });
 
     const passwordHash = await bcrypt.hash(newPassword, 12);
     await prisma.$transaction([
@@ -1004,6 +1008,8 @@ async function changePassword(req, res, next) {
     if (typeof currentPassword !== 'string' || !currentPassword || !(await bcrypt.compare(currentPassword, user.passwordHash))) {
       return res.status(401).json({ error: 'Senha atual incorreta.' });
     }
+    const weak = passwordProblem(newPassword, user);
+    if (weak) return res.status(400).json({ error: weak });
     const passwordHash = await bcrypt.hash(newPassword, 12);
     const currentHash = currentRefreshHash(req);
     await prisma.$transaction([

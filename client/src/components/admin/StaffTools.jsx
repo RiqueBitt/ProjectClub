@@ -357,6 +357,7 @@ export function StaffUserSearchTab() {
 }
 
 const HISTORY_TEXT = {
+  USER_ANONYMIZED: 'Dados pessoais apagados (LGPD)',
   MEMBER_WARN: 'Advertência',
   MEMBER_BAN: 'Banido da comunidade',
   MEMBER_UNBAN: 'Banimento da comunidade removido',
@@ -391,6 +392,11 @@ const FORMS = {
   suspend: { title: 'Suspender conta', amountLabel: 'Por quantas horas', amountDefault: '24', reasonLabel: 'Motivo (opcional)', confirm: 'Suspender', danger: true },
   timeout: { title: 'Silenciar no chat', amountLabel: 'Por quantos minutos', amountDefault: '60', reasonLabel: 'Motivo (opcional)', confirm: 'Silenciar', danger: true },
   warn: { title: 'Advertir', reasonLabel: 'Motivo (obrigatório)', confirm: 'Enviar advertência', danger: false, reasonRequired: true },
+  // LGPD: só pra conta já excluída, a pedido da pessoa. Não dá pra desfazer.
+  anonymize: {
+    title: 'Apagar os dados pessoais (LGPD) — não dá pra desfazer',
+    reasonLabel: 'Pra confirmar, digite o @ da conta', confirm: 'Apagar os dados', danger: true, reasonRequired: true,
+  },
 };
 
 export function StaffUserDrawer({ userId, onClose, onChanged }) {
@@ -441,6 +447,7 @@ export function StaffUserDrawer({ userId, onClose, onChanged }) {
       if (!reason) { setActionError('Escreva o motivo da advertência.'); return undefined; }
       return run(() => api.post(`/community/members/${userId}/warnings`, { reason }));
     }
+    if (form.kind === 'anonymize') return run(() => api.post(`/admin/users/${userId}/anonymize`, { confirm: reason }));
     return undefined;
   };
 
@@ -532,6 +539,12 @@ export function StaffUserDrawer({ userId, onClose, onChanged }) {
                     ? <button type="button" className="sth-btn" disabled={busy} onClick={() => run(() => api.delete(`/community/members/${userId}/timeout`))}>Tirar silêncio</button>
                     : <button type="button" className="sth-btn" disabled={busy} onClick={() => openForm('timeout')}>Silenciar</button>}
                   <button type="button" className="sth-btn" disabled={busy} onClick={() => openForm('warn')}>Advertir</button>
+                  {u.accountDisabledAt && !String(u.email || '').endsWith('@conta-excluida.invalid') && (
+                    <button
+                      type="button" className="sth-btn danger" disabled={busy} onClick={() => openForm('anonymize')}
+                      title="Conta excluída: apaga e-mail, nome, foto, sessões e outros dados pessoais a pedido da pessoa"
+                    >Apagar dados (LGPD)</button>
+                  )}
                   <button type="button" className="sth-btn" onClick={() => setSecurityOpen(true)}><Ic name="lock" size={14} /> Informações confidenciais</button>
                   <button type="button" className="sth-btn" onClick={() => { useStore.getState().openProfile?.(userId); }}><Ic name="user" size={14} /> Abrir perfil</button>
                 </div>

@@ -14,8 +14,8 @@ import { Facts, Note } from './blogContent.jsx';
 //   services/securityLog.js; erros: services/errorRing.js (50 em memória)
 //   e routes/system.js (/client-error);
 // - prazos: códigos de e-mail (15 min, 48 h na aprovação), link de senha
-//   (1 h), cookie de sessão (REFRESH_TOKEN_TTL_DAYS, 30 dias por padrão),
-//   pcKeep (60 dias, services/sessionKeep.js). NÃO existe rotina de
+//   (1 h), cookie de sessão (REFRESH_TOKEN_TTL_DAYS, 90 dias, mínimo no env.js),
+//   pcKeep (90 dias, services/sessionKeep.js). NÃO existe rotina de
 //   limpeza automática de dados antigos: se uma for criada, atualize a
 //   seção "Quanto tempo guardamos";
 // - exclusão: deleteAccount() só DESATIVA (accountDisabledAt);
@@ -26,7 +26,7 @@ import { Facts, Note } from './blogContent.jsx';
 // - moderação: services/automod.js, dmAutomod.js, reportController.js,
 //   middleware/honeypot.js.
 
-export const PRIVACY_UPDATED = 'Atualizado em 12 de outubro de 2026';
+export const PRIVACY_UPDATED = 'Atualizado em 25 de novembro de 2026';
 
 function DataTable({ rows }) {
   return (
@@ -107,7 +107,7 @@ export const PRIVACY_SECTIONS = [
           ['Perfil', 'Foto, banners, bio, status, conexões e o que mais você escolher preencher, para mostrar aos outros.', 'Até você mudar ou apagar.'],
           ['Mensagens, posts, comentários, reações e enquetes', 'Entregar e exibir a conversa. Mensagens editadas guardam as versões anteriores.', 'Até você apagar. Ao apagar, o texto sai da conversa; versões anteriores de uma mensagem editada e os anexos continuam guardados.'],
           ['Arquivos enviados', 'Imagens, GIFs e anexos que você manda no chat, no perfil e no fórum.', 'Até você ou a staff removerem.'],
-          ['Sessões de login', 'IP, navegador e sistema de cada aparelho conectado, com data de início e de último uso. Você vê o IP mascarado (só os dois primeiros blocos); a staff pode usar o IP completo para identificar abuso e contas duplicadas.', 'O registro fica no histórico da conta; a sessão em si expira em 30 dias sem uso.'],
+          ['Sessões de login', 'IP, navegador e sistema de cada aparelho conectado, com data de início e de último uso. Você vê o IP mascarado (só os dois primeiros blocos); a staff pode usar o IP completo para identificar abuso e contas duplicadas.', 'O registro fica no histórico da conta; a sessão em si expira em 90 dias sem uso.'],
           ['Registro de segurança', 'Troca de senha, sessões encerradas, e-mail alterado e conexões adicionadas, com o aparelho e um hash do IP (nunca o IP em si).', 'Enquanto a conta existir.'],
           ['Token de notificação', 'Um token por aparelho Android para entregar notificações com o app fechado.', 'Até você sair do aparelho ou o token deixar de valer.'],
           ['Economia e progresso', 'Moedas, gemas, XP, nível, conquistas, missões e o histórico de transações.', 'Enquanto a conta existir.'],
@@ -143,7 +143,7 @@ export const PRIVACY_SECTIONS = [
         <Facts items={[
           ['Código de verificação', '15 minutos. O que chega depois da aprovação da inscrição vale 48 horas.'],
           ['Link de nova senha', '1 hora, e só funciona uma vez.'],
-          ['Sessão de login', 'O cookie expira em 30 dias sem uso. O "lembrar login" vale até 60 dias.'],
+          ['Sessão de login', 'O cookie expira em 90 dias sem uso. O "lembrar login" também vale até 90 dias.'],
           ['Mensagem apagada', 'O texto sai da conversa na hora. Versões anteriores (se ela foi editada) e anexos continuam guardados até um pedido de remoção.'],
           ['Erros de tela', 'Os últimos 50, em memória, até o servidor reiniciar.'],
           ['Conta desativada', 'Os dados continuam guardados até você pedir a remoção (veja abaixo).'],
@@ -181,8 +181,8 @@ export const PRIVACY_SECTIONS = [
       <>
         <p className="wk-lead">Usamos só dois cookies, os dois de login, e guardamos preferências no seu navegador. Nenhum cookie de publicidade ou de análise.</p>
         <Store rows={[
-          ['refreshToken', 'cookie httpOnly · 30 dias', 'Renova o seu login sem pedir a senha de novo. O JavaScript da página não consegue ler, e ele só é enviado para o endereço de login do servidor.'],
-          ['pcKeep', 'cookie httpOnly · até 60 dias', '"Lembrar login": criptografado e assinado pelo servidor, guarda só o seu identificador. Cai junto quando você sai de todas as sessões ou troca a senha.'],
+          ['refreshToken', 'cookie httpOnly · 90 dias', 'Renova o seu login sem pedir a senha de novo. O JavaScript da página não consegue ler, e ele só é enviado para o endereço de login do servidor.'],
+          ['pcKeep', 'cookie httpOnly · até 90 dias', '"Lembrar login": criptografado e assinado pelo servidor, guarda só o seu identificador. Cai junto quando você sai de todas as sessões ou troca a senha.'],
           ['Preferências', 'armazenamento local', 'Tema, layout, zoom, estilo dos emojis, volume e fila do player, aba aberta e opções parecidas. Ficam só no seu aparelho.'],
         ]} />
         <p>O player do YouTube das chamadas usa o domínio youtube-nocookie.com, a versão do YouTube com menos cookies.</p>

@@ -143,6 +143,49 @@ pub fn is_password_strong_enough(p: Option<&str>) -> bool {
     })
 }
 
+/// Senhas comuns demais — a MESMA lista do Node (server/src/data/senhas-comuns.txt).
+const SENHAS_COMUNS: &str = include_str!("../../../../server/src/data/senhas-comuns.txt");
+const COMMON_MSG: &str = "Essa senha é comum demais e fácil de adivinhar. Escolha outra.";
+const PERSONAL_MSG: &str = "A senha não pode ser o seu nome de usuário ou o seu e-mail.";
+
+/// "Senha123!" → "senha"; "abc12345" → "abc"; "12345678" → "12345678".
+fn password_base(lower: &str) -> &str {
+    let stripped = lower.trim_end_matches(|c: char| !c.is_ascii_lowercase());
+    if stripped.is_empty() { lower } else { stripped }
+}
+
+/// `passwordProblem` (utils/passwordPolicy.js): senha comum demais ou igual
+/// ao nome de usuário / começo do e-mail. `None` = pode usar.
+pub fn password_problem(password: &str, username: &str, email: &str) -> Option<&'static str> {
+    let lower = password.to_lowercase();
+    let base = password_base(&lower);
+    let common = SENHAS_COMUNS
+        .lines()
+        .map(|l| l.trim())
+        .filter(|l| !l.is_empty() && !l.starts_with('#'));
+    let mut found = false;
+    for w in common {
+        if w == lower || w == base {
+            found = true;
+            break;
+        }
+    }
+    if found {
+        return Some(COMMON_MSG);
+    }
+    let local = email.split('@').next().unwrap_or("");
+    for p in [username, local] {
+        let p = p.trim().to_lowercase();
+        if p.chars().count() < 3 {
+            continue;
+        }
+        if lower == p || base == password_base(&p) {
+            return Some(PERSONAL_MSG);
+        }
+    }
+    None
+}
+
 fn numeric_code(len: usize) -> String {
     let mut r = rand::rng();
     (0..len)
@@ -186,6 +229,7 @@ async fn regenerate_recovery_codes(db: &Db, user_id: &str) -> anyhow::Result<Vec
 
 /// O que as rotas de 2FA/senha precisam da conta.
 struct Who {
+    username: String,
     email: String,
     email_verified: bool,
     password_hash: String,
@@ -197,7 +241,7 @@ struct Who {
 async fn who(db: &Db, user_id: &str) -> anyhow::Result<Option<Who>> {
     let row = db::first(
         db,
-        "SELECT email, emailVerified, passwordHash, twoFactorEnabled, twoFactorSecret, twoFactorLastUsedStep \
+        "SELECT username, email, emailVerified, passwordHash, twoFactorEnabled, twoFactorSecret, twoFactorLastUsedStep \
          FROM `User` WHERE id = ?",
         params![user_id],
     )
@@ -205,6 +249,7 @@ async fn who(db: &Db, user_id: &str) -> anyhow::Result<Option<Who>> {
     Ok(match row {
         None => None,
         Some(r) => Some(Who {
+            username: db::get(&r, "username")?,
             email: db::get(&r, "email")?,
             email_verified: db::get(&r, "emailVerified")?,
             password_hash: db::get(&r, "passwordHash")?,
@@ -399,6 +444,14 @@ pub async fn reset_password(State(state): State<AppState>, parts: Parts, body: B
                 return Ok(err(StatusCode::BAD_REQUEST, "Link inválido ou expirado."));
             };
             let user_id: String = db::get(row.as_ref().expect("linha"), "userId")?;
+            let owner = db::first(&c.db, "SELECT username, email FROM `User` WHERE id = ?", params![user_id.as_str()]).await?;
+            let (uname, mail) = match &owner {
+                Some(r) => (db::get::<String>(r, "username")?, db::get::<String>(r, "email")?),
+                None => (String::new(), String::new()),
+            };
+            if let Some(msg) = password_problem(new_password.unwrap_or_default(), &uname, &mail) {
+                return Ok(err(StatusCode::BAD_REQUEST, msg));
+            }
             let hash = hash_password(new_password.unwrap_or_default()).await?;
             let now = db::now();
             db::transaction(
@@ -640,6 +693,9 @@ pub async fn change_password(State(state): State<AppState>, parts: Parts, body: 
             if !right {
                 return Ok(err(StatusCode::UNAUTHORIZED, "Senha atual incorreta."));
             }
+            if let Some(msg) = password_problem(new_password.unwrap_or_default(), &user.username, &user.email) {
+                return Ok(err(StatusCode::BAD_REQUEST, msg));
+            }
             let hash = hash_password(new_password.unwrap_or_default()).await?;
             let current_hash = s::current_refresh_hash(&c.headers);
             let now = db::now();
@@ -684,6 +740,23 @@ mod tests {
     #[test]
     fn senha_forte_como_o_node() {
         assert!(is_password_strong_enough(Some("abcdefg1")));
+        // senhas comuns e pessoais (mesma lista do Node)
+        assert!(password_problem("senha123", "ana", "ana@x.com").is_some());
+        assert!(password_problem("Qwerty!1", "ana", "ana@x.com").is_some());
+        assert!(password_problem("Flamengo2024", "ana", "ana@x.com").is_some());
+        assert_eq!(
+            password_problem("riquebitt9", "riquebitt", "r@x.com"),
+            Some(PERSONAL_MSG)
+        );
+        assert_eq!(
+            password_problem("joana77", "ana", "joana@x.com"),
+            Some(PERSONAL_MSG)
+        );
+        assert_eq!(
+            password_problem("Tr0pical-Lua-77", "ana", "ana@x.com"),
+            None
+        );
+        assert_eq!(password_problem("xk29fj3la", "ana", "ana@x.com"), None);
         assert!(!is_password_strong_enough(Some("abcdefgh")));
         assert!(!is_password_strong_enough(Some("12345678")));
         assert!(!is_password_strong_enough(Some("abc12")));

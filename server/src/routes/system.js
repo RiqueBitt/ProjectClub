@@ -55,6 +55,7 @@ const recentErrors = new Map();
 // Rota sem login obrigatório: se vier um token válido, guarda de quem era
 // a tela (só o id) no ErrorLog; token ausente/inválido não muda nada.
 const { verifyAccessToken } = require('../services/tokens');
+const { redactUrl } = require('../utils/redactUrl');
 function optionalUserId(req) {
   const header = req.headers.authorization || '';
   if (!header.startsWith('Bearer ')) return null;
@@ -89,6 +90,8 @@ router.post('/client-error', express.json({ limit: '16kb' }), (req, res) => {
   list.push(now); recentErrors.set(ip, list);
   const b = req.body && typeof req.body === 'object' ? req.body : {};
   const clip = (v, n) => String(v || '').slice(0, n).replace(/\s+/g, ' ');
+  // A tela pode ser /reset-password?token=… — sem segredo no log.
+  b.path = redactUrl(b.path);
   if (isRecoveredDeployBlip(b)) {
     console.info(`[android-conexao] ${clip(b.message, 120)} (deploy/reinício, recuperado sozinho) | ${clip(b.version, 40)}`);
     return res.status(204).end();

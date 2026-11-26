@@ -63,7 +63,14 @@ class Realtime(private val api: Api, private val scope: CoroutineScope) {
             _connected.value = true
             emit("voice:rosters")
         }
-        s.on(Socket.EVENT_DISCONNECT) { _connected.value = false }
+        s.on(Socket.EVENT_DISCONNECT) { args ->
+            _connected.value = false
+            // O servidor derrubou o socket (ex.: sessões derrubadas depois de
+            // trocar a senha — token antigo). A biblioteca não reconecta
+            // sozinha nesse caso: renova o token e reconecta. Conta banida
+            // é recusada de novo no connect e cai no aviso de bloqueio.
+            if (args.firstOrNull()?.toString() == "io server disconnect") reauthorize()
+        }
         s.on(Socket.EVENT_CONNECT_ERROR) { args ->
             _connected.value = false
             val msg = (args.firstOrNull() as? Exception)?.message ?: args.firstOrNull()?.toString().orEmpty()

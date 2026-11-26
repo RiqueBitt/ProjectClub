@@ -8,6 +8,7 @@ const compression = require('compression');
 const rateLimit = require('express-rate-limit');
 const { createRateLimitStore } = require('./config/rateLimitStore');
 const { verifyAccessToken } = require('./services/tokens');
+const { redactUrl } = require('./utils/redactUrl');
 const env = require('./config/env');
 const { notFoundHandler, errorHandler } = require('./middleware/errorHandler');
 const { timingMiddleware } = require('./middleware/timing');
@@ -211,6 +212,9 @@ function createApp() {
   // gastos à toa (eram a maioria absoluta das linhas). As requests da API
   // continuam logadas iguais, que é o que serve pra depurar.
   const LOG_SKIP = /^\/(assets|uploads|emoji-sets|sounds|minigames|ruffle|socket\.io|favicon\.ico|manifest\.webmanifest|robots\.txt|sw\.js)\b/;
+  // SEGURANÇA: o token :url do morgan agora sai sem segredos da query
+  // (código do OAuth, chave do Nexus, tokens… — ver utils/redactUrl.js).
+  morgan.token('url', (req) => redactUrl(req.originalUrl || req.url));
   app.use(morgan(env.NODE_ENV === 'production' ? 'combined' : 'dev', {
     skip: (req, res) => env.NODE_ENV === 'production' && (res.statusCode === 304 || LOG_SKIP.test(req.path)),
   }));

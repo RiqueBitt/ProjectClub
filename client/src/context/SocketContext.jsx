@@ -140,7 +140,21 @@ export function SocketProvider({ children }) {
         Notification.requestPermission().catch(() => {});
       }
     });
-    socket.on('disconnect', () => setConnected(false));
+    socket.on('disconnect', (reason) => {
+      setConnected(false);
+      // O servidor derrubou este socket (ex.: sessões derrubadas depois de
+      // trocar a senha — token antigo). O Socket.IO não reconecta sozinho
+      // nesse caso: renova o token e reconecta. Conta banida/desativada é
+      // recusada de novo no connect (sem novo 'unauthorized'), então para.
+      if (reason !== 'io server disconnect') return;
+      clearTimeout(authRetryTimer);
+      authRetryTimer = setTimeout(() => {
+        if (socketRef.current !== socket) return;
+        refreshAccessToken()
+          .catch(() => null)
+          .finally(() => { if (socketRef.current === socket && !socket.connected) socket.connect(); });
+      }, 800);
+    });
 
     // Detecção de atividade pra status "Ausente" automático: o servidor
     // conta 15min sem receber nenhum 'presence:activity' e marca a conta

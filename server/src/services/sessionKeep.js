@@ -73,10 +73,14 @@ async function readKeepCookie(req) {
 }
 
 // Chamar sempre que todas as sessões de alguém forem derrubadas.
+// Também derruba os tokens de acesso e sockets já emitidos (ver
+// services/tokenRevocation.js), não só o "lembrar login".
 async function markSessionsRevoked(userId) {
-  try { await redis.set(revKey(userId), String(Date.now()), 'EX', TTL_SECONDS); } catch (err) {
+  const now = Date.now();
+  try { await redis.set(revKey(userId), String(now), 'EX', TTL_SECONDS); } catch (err) {
     console.warn('[sessão] falha ao registrar derrubada de sessões:', err?.message || err);
   }
+  require('./tokenRevocation').notifyRevoked(userId, now);
 }
 
 module.exports = { setKeepCookie, clearKeepCookie, readKeepCookie, readKeepCookieData, markSessionsRevoked };
