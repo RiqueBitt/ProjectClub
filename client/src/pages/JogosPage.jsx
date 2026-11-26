@@ -9,6 +9,7 @@ import PageIcon from '../components/PageIcons.jsx';
 import { proxyImage } from '../utils/imageProxy';
 import '../styles/jogos-page.css';
 import JogosHub from '../components/games/JogosHub.jsx';
+import GameHubShell from './gamehub/GameHubShell.jsx';
 
 // Ícones locais (traço) no lugar dos símbolos ▶ ⬇ 🔍 que viravam caixinha no Linux.
 const JP_ICONS = {
@@ -79,7 +80,7 @@ export default function JogosPage() {
 
   if (detailItem) {
     return (
-      <>
+      <GameHubShell>
         <AppDetailView item={detailItem} onBack={() => setDetailModuleId(null)} onOpenScreenshot={setLightboxIndex} />
         {lightboxIndex !== null && (
           <ScreenshotLightbox
@@ -89,13 +90,14 @@ export default function JogosPage() {
             onClose={() => setLightboxIndex(null)}
           />
         )}
-      </>
+      </GameHubShell>
     );
   }
 
   return (
+    <GameHubShell>
     <div className="jogos-page">
-      {/* Canal em destaque Jogos (nov/2026): vitrine, BLACKOUT, Mod Manager e biblioteca. */}
+      {/* Game Hub → Início (nov/2026): vitrine, hotlist, grátis, partidas, clipes e builds. */}
       <JogosHub />
       <div className="jogos-page-header jh-apps-head">
         <span className="jogos-page-header-icon"><PageIcon name="grid" size={22} /></span>
@@ -130,6 +132,7 @@ export default function JogosPage() {
         </div>
       )}
     </div>
+    </GameHubShell>
   );
 }
 

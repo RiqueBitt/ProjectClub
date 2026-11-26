@@ -202,7 +202,8 @@ export default function ModsLibrary({ library, updates, onBack, onOpenGame, noti
 
   return (
     <div className="mdx-wrap">
-      <button type="button" className="mdx-back-link" onClick={onBack}><Icon name="back" size={16} /> Jogos</button>
+      {/* Dentro do Game Hub a barra de abas já leva de volta. */}
+      {onBack && <button type="button" className="mdx-back-link" onClick={onBack}><Icon name="back" size={16} /> Jogos</button>}
 
       <header className="mdx-lib-hero">
         <div className="mdx-lib-hero-text">

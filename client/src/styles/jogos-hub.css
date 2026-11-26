@@ -100,20 +100,40 @@
 }
 @media (prefers-reduced-motion: reduce) { .jh-hero-content { animation: none; } .jh-hero, .jh-dot, .jh-game-art { transition: none; } }
 
-/* Mais jogados no clube (top 5) */
-.jh-top { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 12px; }
-.jh-top-item { position: relative; display: flex; flex-direction: column; gap: 8px; min-width: 0; }
-.jh-top-art { display: block; aspect-ratio: 2 / 3; overflow: hidden; border-radius: 14px; background: var(--bg-secondary); border: 1px solid var(--border); }
-.jh-top-art img { display: block; width: 100%; height: 100%; object-fit: cover; }
-.jh-top-pos {
-  position: absolute; left: 8px; top: 8px; z-index: 1; width: 30px; height: 30px; border-radius: 50%; display: grid; place-items: center;
-  font-size: 15px; font-weight: 900; color: #fff; background: rgba(0, 0, 0, .7); border: 2px solid rgba(255, 255, 255, .25);
+/* Hotlist do mês: os 5 mais jogados, com o número grande atrás da capa */
+.jh-hot { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 14px; }
+.jh-hot-item { position: relative; display: flex; flex-direction: column; gap: 8px; min-width: 0; padding-left: 46px; }
+.jh-hot-pos {
+  position: absolute; left: -4px; bottom: 40px; z-index: 0; font-size: 124px; line-height: .78; font-weight: 900; letter-spacing: -8px;
+  color: var(--bg-primary-solid, #0b0b0c); -webkit-text-stroke: 3px color-mix(in srgb, var(--text-muted) 70%, transparent); pointer-events: none;
 }
-.jh-top-item.p1 .jh-top-pos { background: linear-gradient(180deg, #ffd76a, #e0a800); color: #3a2600; border-color: #fff3c4; }
-.jh-top-item.p2 .jh-top-pos { background: linear-gradient(180deg, #e8ecf2, #a9b3c1); color: #1d232b; border-color: #fff; }
-.jh-top-item.p3 .jh-top-pos { background: linear-gradient(180deg, #f0b27a, #b86a2e); color: #2b1606; border-color: #ffe0c4; }
-.jh-top-item.p1 .jh-top-art { border-color: #e0a800; box-shadow: 0 0 0 1px rgba(224, 168, 0, .4), 0 10px 24px rgba(224, 168, 0, .18); }
-.jh-top-text { display: flex; flex-direction: column; min-width: 0; }
-.jh-top-text strong { font-size: 13.5px; color: var(--header-primary); }
-.jh-top-text small { font-size: 12px; color: var(--text-muted); }
-@media (max-width: 760px) { .jh-top { grid-template-columns: repeat(5, 120px); overflow-x: auto; padding-bottom: 6px; } }
+.jh-hot-art { position: relative; z-index: 1; display: block; aspect-ratio: 2 / 3; overflow: hidden; border-radius: 14px; background: var(--bg-secondary); border: 1px solid var(--border); box-shadow: -10px 10px 24px rgba(0, 0, 0, .35); transition: transform .18s ease; }
+.jh-hot-item:hover .jh-hot-art { transform: translateY(-4px); }
+.jh-hot-art img { display: block; width: 100%; height: 100%; object-fit: cover; }
+.jh-hot-item.p1 .jh-hot-pos { -webkit-text-stroke-color: #ffcf4a; text-shadow: 0 0 24px rgba(255, 190, 40, .35); }
+.jh-hot-item.p1 .jh-hot-art { border-color: #e0a800; box-shadow: 0 0 0 1px rgba(224, 168, 0, .5), -10px 12px 30px rgba(224, 168, 0, .22); }
+.jh-hot-item.p2 .jh-hot-pos { -webkit-text-stroke-color: #cfd6e0; }
+.jh-hot-item.p3 .jh-hot-pos { -webkit-text-stroke-color: #e0a272; }
+.jh-hot-text { position: relative; z-index: 1; display: flex; flex-direction: column; min-width: 0; }
+.jh-hot-text strong { font-size: 14px; color: var(--header-primary); }
+.jh-hot-text small { font-size: 12px; color: var(--text-muted); }
+.jh-hot-item.jh-skel { aspect-ratio: 2 / 3; border-radius: 14px; margin-left: 46px; padding: 0; background: var(--bg-secondary); animation: jh-pulse 1.2s ease-in-out infinite; }
+@media (max-width: 760px) {
+  .jh-hot { grid-template-columns: repeat(5, 160px); overflow-x: auto; padding-bottom: 8px; scrollbar-width: thin; }
+  .jh-hot-item { padding-left: 40px; }
+  .jh-hot-pos { font-size: 100px; }
+}
+
+/* Game Hub: cores das novas vitrines, cabeçalhos e atalhos */
+.jh-hero.jh-party { --jh-a: #8b5cf6; --jh-b: #1a1038; }
+.jh-hero.jh-free { --jh-a: #23a55a; --jh-b: #0a2214; }
+.jh-hero.jh-builds { --jh-a: #d9a441; --jh-b: #261a06; }
+.jh-h2 { display: flex; align-items: center; gap: 8px; }
+.jh-h2 .gh-ico { color: #8b5cf6; flex: none; }
+.jh-head { flex-wrap: wrap; }
+.jh-head-note { font-size: 12.5px; color: var(--text-muted); }
+.jh-head-actions { display: inline-flex; align-items: center; gap: 14px; }
+.jh-tools { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+.jh-tool.t-deals { --t: #a3e635; }
+@media (max-width: 860px) { .jh-tools { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+@media (max-width: 600px) { .jh-tools { grid-template-columns: 1fr; } }

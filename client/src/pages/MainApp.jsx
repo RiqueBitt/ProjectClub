@@ -134,6 +134,15 @@ const JogosPage = lazy(() => import('./JogosPage.jsx'));
 // pedido 1: "não crie uma nova categoria principal Jogos").
 const ModsPage = lazy(() => import('./ModsPage.jsx'));
 const GameLibraryPage = lazy(() => import('./GameLibraryPage.jsx')); // biblioteca de jogos (tempo de jogo)
+// Game Hub (nov/2026): abas de promoções, partidas, clipes e builds; o Mod
+// Manager e a Biblioteca entram embaixo da mesma barra (GameHubShell).
+const GameHubShell = lazy(() => import('./gamehub/GameHubShell.jsx'));
+const DealsTab = lazy(() => import('./gamehub/DealsTab.jsx'));
+const PartiesTab = lazy(() => import('./gamehub/PartiesTab.jsx'));
+const ClipsTab = lazy(() => import('./gamehub/ClipsTab.jsx'));
+const BuildsTab = lazy(() => import('./gamehub/BuildsTab.jsx'));
+const BuildView = lazy(() => import('./gamehub/BuildView.jsx'));
+const BuildEditor = lazy(() => import('./gamehub/BuildEditor.jsx'));
 // "Não fui eu" do aviso de novo acesso → Configurações → Segurança (Fase 5).
 const SecurityShortcutPage = lazy(() => import('./SecurityShortcutPage.jsx'));
 // Fase 4 — comunidade e economia.
@@ -580,8 +589,15 @@ export default function MainApp() {
                 <Route path="/comunidade/galeria" element={<CommunityGalleryPage />} />
                 {/* Item pedido: "crie uma nova categoria chamada Jogos" */}
                 <Route path="/jogos" element={<JogosPage />} />
-                <Route path="/jogos/mods" element={<ModsPage />} />
-                <Route path="/jogos/biblioteca" element={<GameLibraryPage />} />
+                <Route path="/jogos/promocoes" element={<GameHubShell><DealsTab /></GameHubShell>} />
+                <Route path="/jogos/partidas" element={<GameHubShell><PartiesTab /></GameHubShell>} />
+                <Route path="/jogos/clipes" element={<GameHubShell><ClipsTab /></GameHubShell>} />
+                <Route path="/jogos/builds" element={<GameHubShell><BuildsTab /></GameHubShell>} />
+                <Route path="/jogos/builds/nova" element={<GameHubShell><BuildEditor /></GameHubShell>} />
+                <Route path="/jogos/builds/:id" element={<GameHubShell><BuildView /></GameHubShell>} />
+                <Route path="/jogos/builds/:id/editar" element={<GameHubShell><BuildEditor /></GameHubShell>} />
+                <Route path="/jogos/mods" element={<GameHubShell><ModsPage /></GameHubShell>} />
+                <Route path="/jogos/biblioteca" element={<GameHubShell><GameLibraryPage /></GameHubShell>} />
                 <Route path="/jogos/biblioteca/:ref" element={<LibraryRoute Page={GameLibraryPage} />} />
                 <Route path="/seguranca/sessoes" element={<SecurityShortcutPage />} />
                 {/* "Participar" (Bora Jogar, Interesses, Convites, Reputação) e Retrospectiva saíram (nov/2026). */}

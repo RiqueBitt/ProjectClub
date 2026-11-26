@@ -115,8 +115,8 @@ export const FEATURED = [
   {
     // Jogos (nov/2026): BLACKOUT (agora público), Mod Manager, biblioteca e
     // apps do clube numa página só (pages/JogosPage.jsx).
-    key: 'jogos', label: 'Jogos', icon: 'gamepad', to: '/jogos',
-    hint: 'BLACKOUT, Mod Manager, seus jogos e apps do clube',
+    key: 'jogos', label: 'Game Hub', icon: 'gamepad', to: '/jogos',
+    hint: 'Promoções, partidas, clipes, builds, Mod Manager e seus jogos',
     match: (p) => p.startsWith('/jogos') || p.startsWith('/mod/') || p.startsWith('/modpack/') || p.startsWith('/compendio-blackout'),
     fixed: true,
   },

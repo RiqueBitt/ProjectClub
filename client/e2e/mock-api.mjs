@@ -64,6 +64,7 @@ export function handler(route) {
   const url = new URL(req.url());
   const p = url.pathname.replace(/^\/api/, '');
   const json = (body, status = 200) => route.fulfill({ status, contentType: 'application/json', body: JSON.stringify(body) });
+  if (p.startsWith('/game-hub/')) return gameHubMock(p, req, json);
   if (p === '/bootstrap') return bootstrapMock(route, url);
   // Links bonitos: /canal/<nome> ou o antigo /channels/<id> → canal.
   if (p === '/links/resolve') {
@@ -291,4 +292,90 @@ function shopMock(p, json) {
   const m = p.match(/^\/decorations\/(?:effects\/|collections\/)?([^/]+)\/buy$/);
   if (m) { shopState.owned.add(m[1]); return json({ ok: true, paid: 0, coins: 2000, gems: 12 }); }
   return json({ user: me });
+}
+
+// ---------- Game Hub (/api/game-hub) ----------
+// Capas e ícones de exemplo (gradiente + nome) — nas lojas de verdade vêm as imagens oficiais.
+const ghArt = (w, h, a, b, label, size = 34) => svg(w, h, `<defs><linearGradient id="g" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="${a}"/><stop offset="1" stop-color="${b}"/></linearGradient></defs><rect width="${w}" height="${h}" fill="url(#g)"/><text x="${w / 2}" y="${h / 2 + size / 3}" font-family="Arial Black,Arial,sans-serif" font-weight="900" font-size="${size}" text-anchor="middle" fill="#fff" opacity=".92">${label}</text>`);
+const ghIcon = (a, b, label) => ghArt(64, 64, a, b, label, 22);
+const GH_USERS = users;
+const ghParties = [
+  { id: 'pt1', title: 'Ranqueada até o ouro', note: 'Precisa de microfone. Bora subir!', slots: 5, game: { key: 'valorant', name: 'VALORANT', steamAppId: null }, startsAt: null, createdAt: new Date(now - 12 * 60000).toISOString(), expiresAt: new Date(now + 3 * 3600000).toISOString(), status: 'open', host: GH_USERS[4], hasCall: true, members: [GH_USERS[4], GH_USERS[1], GH_USERS[2]], filled: 3, myStatus: 'invited' },
+  { id: 'pt2', title: 'Deadlock casual de sexta', note: null, slots: 6, game: { key: 'deadlock', name: 'Deadlock', steamAppId: 1422450 }, startsAt: new Date(now + 26 * 3600000).toISOString(), createdAt: new Date(now - 3600000).toISOString(), expiresAt: new Date(now + 29 * 3600000).toISOString(), status: 'open', host: me, hasCall: false, members: [me, GH_USERS[3]], filled: 2, myStatus: 'host', invitedCount: 2 },
+  { id: 'pt3', title: 'Darktide no Auric', note: 'Só quem já passou do nível 30.', slots: 4, game: { key: 'warhammer-40-000-darktide', name: 'Warhammer 40,000: Darktide', steamAppId: 1361210 }, startsAt: null, createdAt: new Date(now - 30 * 60000).toISOString(), expiresAt: new Date(now + 2 * 3600000).toISOString(), status: 'open', host: GH_USERS[1], hasCall: true, members: [GH_USERS[1], GH_USERS[2], GH_USERS[3], GH_USERS[4]], filled: 4, myStatus: null },
+];
+const GH_LOL = (() => {
+  const c = (id, name, a, b) => ({ id, name, title: '', tags: [], img: ghIcon(a, b, name.slice(0, 2)) });
+  const it = (id, name, gold, a, extra = {}) => ({ id, name, gold, tags: [], depth: gold > 1500 ? 3 : 1, into: gold > 2000 ? 0 : 1, img: ghIcon(a, '#111', name.slice(0, 2)), ...extra });
+  const rune = (id, name, a) => ({ id, name, img: ghIcon(a, '#111', name.slice(0, 1)) });
+  return {
+    version: '16.23.1',
+    champions: [c('Ahri', 'Ahri', '#ff6fb5', '#5b1b52'), c('Jinx', 'Jinx', '#4fb3ff', '#2a1050'), c('Garen', 'Garen', '#ffd36b', '#304a8a'), c('Thresh', 'Thresh', '#59e0a0', '#0f3a2d'), c('LeeSin', 'Lee Sin', '#ff8a4f', '#4a1a0a'), c('Lux', 'Lux', '#fff17a', '#3b4fd1')],
+    items: [it('1056', 'Anel de Doran', 400, '#c79f4a'), it('2003', 'Poção de Vida', 50, '#d33c3c'), it('3020', 'Sapatos do Feiticeiro', 1100, '#6b5bd8', { tags: ['Boots'] }), it('6655', 'Tormento de Luden', 2850, '#3fb5ff'), it('3089', 'Capuz da Morte de Rabadon', 3500, '#9b4dff'), it('3135', 'Cajado do Vazio', 3000, '#c03fff'), it('3157', 'Ampulheta de Zhonya', 3250, '#e2b84a'), it('3165', 'Morellonomicon', 2850, '#5ec46f')],
+    runes: [
+      { id: 8100, key: 'Domination', name: 'Dominação', img: ghIcon('#d44', '#311', 'D'), slots: [[rune(8112, 'Eletrocutar', '#e33'), rune(8124, 'Predador', '#c44'), rune(8128, 'Colheita Sombria', '#933')]] },
+      { id: 8200, key: 'Sorcery', name: 'Feitiçaria', img: ghIcon('#68f', '#123', 'F'), slots: [[rune(8214, 'Invocar Aery', '#79f'), rune(8229, 'Cometa Arcano', '#57e'), rune(8230, 'Ímpeto Gradual', '#46d')]] },
+      { id: 8000, key: 'Precision', name: 'Precisão', img: ghIcon('#db4', '#321', 'P'), slots: [[rune(8005, 'Pressione o Ataque', '#ec5'), rune(8021, 'Agilidade nos Pés', '#ca4'), rune(8010, 'Conquistador', '#b93')]] },
+    ],
+    spells: [{ id: 'SummonerFlash', name: 'Flash', img: ghIcon('#ffe25b', '#7a5d00', 'F') }, { id: 'SummonerDot', name: 'Incendiar', img: ghIcon('#ff6a3d', '#5a1400', 'I') }, { id: 'SummonerTeleport', name: 'Teleporte', img: ghIcon('#b27cff', '#2b1050', 'T') }, { id: 'SummonerHeal', name: 'Curar', img: ghIcon('#6ce49b', '#0d4a2a', 'C') }],
+  };
+})();
+const GH_DL = (() => {
+  const ab = (n, a) => ({ slot: n, name: ['Catalisador', 'Rastro de Chamas', 'Concussão', 'Explosão Final'][n - 1], img: ghIcon(a, '#200', String(n)) });
+  const it = (id, name, slot, tier, cost) => ({ id, name, slot, tier, cost, active: false, img: ghIcon({ weapon: '#e8873a', vitality: '#6abf4b', spirit: '#a96bf0' }[slot], '#111', name.slice(0, 2)) });
+  return {
+    heroes: [{ id: 1, name: 'Infernus', img: ghIcon('#ff7a3d', '#3a1000', 'In'), abilities: [ab(1, '#f63'), ab(2, '#f84'), ab(3, '#e52'), ab(4, '#d41')] }, { id: 13, name: 'Haze', img: ghIcon('#a77cff', '#20103a', 'Hz'), abilities: [ab(1, '#97f'), ab(2, '#86e'), ab(3, '#75d'), ab(4, '#64c')] }],
+    items: [it(101, 'Extended Magazine', 'weapon', 1, 800), it(102, 'Headshot Booster', 'weapon', 1, 800), it(103, 'Extra Health', 'vitality', 1, 800), it(104, 'Mystic Burst', 'spirit', 1, 800), it(105, 'Tesla Bullets', 'weapon', 3, 3200), it(106, 'Superior Duration', 'spirit', 3, 3200), it(107, 'Leech', 'vitality', 4, 6400), it(108, 'Curse', 'spirit', 4, 6400)],
+  };
+})();
+const ghBuilds = [
+  { id: 'b1', game: 'lol', title: 'Ahri meio — dano explosivo', hero: 'Ahri', heroName: 'Ahri', role: 'mid', gameInfo: null, data: { champion: 'Ahri', role: 'mid', primaryTree: 8100, keystone: 8112, secondaryTree: 8200, spells: ['SummonerFlash', 'SummonerDot'], start: ['1056', '2003'], core: ['6655', '3020', '3089', '3135'], situational: ['3157', '3165'], skills: 'QWEQQRQWQWRWWEEREE' }, notes: 'Começa trocando com o Q e guarda o E pra quando o inimigo usar o Flash.\nNo nível 6, procure pegar alguém fora de posição.', author: me, likesCount: 14, liked: true, mine: true, createdAt: new Date(now - 2 * day).toISOString(), updatedAt: new Date(now - day).toISOString() },
+  { id: 'b2', game: 'deadlock', title: 'Infernus queimando tudo', hero: '1', heroName: 'Infernus', role: null, gameInfo: null, data: { hero: 1, early: [101, 103, 104], mid: [105, 106], late: [107, 108], abilityOrder: [1, 3, 2, 4] }, author: GH_USERS[4], likesCount: 9, liked: false, mine: false, createdAt: new Date(now - 3 * day).toISOString() },
+  { id: 'b3', game: 'darktide', title: 'Psíquico de cajado (Auric)', hero: 'psyker', heroName: 'Psíquico', role: null, gameInfo: null, data: { klass: 'psyker', melee: 'Espada de Força Mk II', ranged: 'Cajado Voidstrike Mk III', blessings: 'Transferência Térmica\nSurto', talents: 'Disrupt Destiny + Empowered Psionics', curios: ['+17% vida', '+5% resistência', '+ Dano a elites'] }, author: GH_USERS[1], likesCount: 6, liked: false, mine: false, createdAt: new Date(now - 5 * day).toISOString() },
+  { id: 'b4', game: 'outro', title: 'Sangramento com katana', hero: 'samurai', heroName: 'Samurai', role: null, gameInfo: { key: 'elden-ring', name: 'ELDEN RING', steamAppId: 1245620 }, data: { character: 'Samurai', items: ['Uchigatana', 'Rios de Sangue', 'Talismã do Tigre'], abilities: 'Força 20, Arcano 45' }, author: GH_USERS[2], likesCount: 3, liked: false, mine: false, createdAt: new Date(now - 6 * day).toISOString() },
+];
+function gameHubMock(p, req, json) {
+  const method = req.method();
+  if (p === '/game-hub/hotlist') {
+    const g = (position, gameKey, name, a, b, seconds, players) => ({ position, gameKey, name, steamAppId: null, iconUrl: ghArt(300, 450, a, b, name.split(' ')[0].slice(0, 9), 34), seconds, players });
+    return json({ month: new Date(now).toISOString().slice(0, 7), games: [g(1, 'valorant', 'VALORANT', '#ff4655', '#1b0c10', 412 * 3600, 23), g(2, 'counter-strike-2', 'Counter-Strike 2', '#f0a13a', '#1b2430', 298 * 3600, 17), g(3, 'minecraft', 'Minecraft', '#6bbf3b', '#2c1d0d', 241 * 3600, 21), g(4, 'deadlock', 'Deadlock', '#d9a441', '#1a1208', 133 * 3600, 9), g(5, 'league-of-legends', 'League of Legends', '#c8aa6e', '#0a1428', 120 * 3600, 11)] });
+  }
+  if (p === '/game-hub/deals') {
+    const d = (store, id, title, a, b, final, base, discount, currency = 'BRL', extra = {}) => ({ store, id: `${store}:${id}`, title, image: ghArt(460, 215, a, b, title.split(':')[0].slice(0, 18), 30), url: 'https://example.com/', price: { final, base, currency, discount }, free: false, endsAt: new Date(now + (2 + id % 5) * day).toISOString(), ...extra });
+    return json({
+      free: [{ ...d('epic', 1, 'Hollow Night', '#3a6df0', '#0b1430', 0, 59.99, 100), free: true, endsAt: new Date(now + 6 * day).toISOString() }, { ...d('epic', 2, 'Cyber Racer 2077', '#ff3cac', '#2b0d3a', 0, 89.99, 100), free: true, endsAt: new Date(now + 6 * day).toISOString() }],
+      upcoming: [{ ...d('epic', 3, 'Ilha Perdida', '#2bb673', '#062a1a', 0, 39.99, 100), free: true, startsAt: new Date(now + 6 * day).toISOString() }],
+      deals: [
+        d('steam', 4, 'Red Dead Redemption 2', '#c0392b', '#1a0a06', 74.97, 299.9, 75), d('gog', 5, 'Cyberpunk 2077', '#f9e900', '#1a1a00', 105.99, 265, 60), d('steam', 6, 'Hades II', '#ff7a18', '#2a0b00', 52.49, 87.49, 40),
+        d('epic', 7, 'Alan Wake 2', '#5ac8fa', '#06121c', 24.99, 49.99, 50, 'USD'), d('steam', 8, 'Terraria', '#59c34a', '#0d2a0a', 9.99, 19.99, 50), d('gog', 9, 'The Witcher 3', '#b4975a', '#1a140a', 23.99, 119.99, 80),
+        d('steam', 10, 'Stardew Valley', '#7ac143', '#2a4a14', 16.99, 24.99, 32), d('epic', 11, 'Control', '#e74c3c', '#160606', 7.49, 29.99, 75, 'USD'),
+      ],
+      stores: { steam: true, gog: true, epic: true }, updatedAt: new Date(now).toISOString(),
+    });
+  }
+  if (p === '/game-hub/parties' && method === 'GET') return json({ parties: ghParties });
+  if (p === '/game-hub/parties' && method === 'POST') {
+    const b = JSON.parse(req.postData() || '{}');
+    const party = { id: 'pt-new', title: b.title || b.gameName, note: b.note || null, slots: b.slots || 4, game: { key: 'novo', name: b.gameName, steamAppId: b.steamAppId || null }, startsAt: b.startsAt || null, createdAt: new Date().toISOString(), expiresAt: new Date(Date.now() + 3 * 3600000).toISOString(), status: 'open', host: me, hasCall: false, members: [me], filled: 1, myStatus: 'host', invitedCount: (b.invite || []).length };
+    ghParties.unshift(party);
+    return json({ party });
+  }
+  { const m = p.match(/^\/game-hub\/parties\/([^/]+)\/(join|leave|close|invite|call|kick)$/); if (m) {
+    const party = ghParties.find((x) => x.id === m[1]);
+    if (m[2] === 'join' && party) { party.members = [...party.members, me]; party.filled += 1; party.myStatus = 'joined'; return json({ party }); }
+    if (m[2] === 'invite') return json({ invited: 1 });
+    if (m[2] === 'call') return json({ channel: { id: 'v1', name: '☕ | Call ¹', type: 'VOICE', slug: 'call-1' } });
+    return json({ closed: m[2] === 'close' });
+  } }
+  if (p === '/game-hub/clips' && method === 'GET') {
+    const c = (id, title, provider, author, game, a, b, likes) => ({ id, title, url: 'https://www.youtube.com/watch?v=dQw4w9WgXcQ', provider, embedId: 'dQw4w9WgXcQ', thumb: ghArt(480, 270, a, b, title.split(' ').slice(0, 2).join(' '), 30), game: { key: game.toLowerCase(), name: game, steamAppId: null }, author, likesCount: likes, liked: id === 'c2', mine: author === me, createdAt: new Date(now - likes * 3600000).toISOString() });
+    return json({ clips: [c('c1', 'Ace no último round', 'youtube', GH_USERS[4], 'VALORANT', '#ff4655', '#16070a', 12), c('c2', 'Clutch 1v4 de faca', 'twitch', me, 'Counter-Strike 2', '#f0a13a', '#101820', 8), c('c3', 'Creeper no pior momento', 'medal', GH_USERS[1], 'Minecraft', '#6bbf3b', '#16200a', 5), c('c4', 'Ult do Infernus em 5', 'streamable', GH_USERS[2], 'Deadlock', '#d9a441', '#1a1208', 3)], more: false });
+  }
+  if (p === '/game-hub/builds' && method === 'GET') return json({ builds: ghBuilds, more: false });
+  { const m = p.match(/^\/game-hub\/builds\/([^/]+)$/); if (m && method === 'GET') { const b = ghBuilds.find((x) => x.id === m[1]); return b ? json({ build: b }) : json({ error: 'Build não encontrada.' }, 404); } }
+  if (p === '/game-hub/data/lol') return json(GH_LOL);
+  { const m = p.match(/^\/game-hub\/data\/lol\/champion\/([^/]+)$/); if (m) return json({ id: m[1], name: m[1], passive: null, spells: ['Q', 'W', 'E', 'R'].map((k, i) => ({ key: k, name: `${k}`, img: ghIcon(['#ff6fb5', '#b27cff', '#4fb3ff', '#ffd36b'][i], '#111', k) })) }); }
+  if (p === '/game-hub/data/deadlock') return json(GH_DL);
+  if (p === '/game-hub/data/darktide') return json({ classes: [] });
+  return json({ ok: true });
 }

@@ -168,12 +168,18 @@ contextBridge.exposeInMainWorld('electronAPI', {
   // desktop/clipsManager.js. O vídeo fica só na memória deste PC até a
   // pessoa apertar o atalho; aí vira um .webm em Vídeos/Project Club Clipes.
   clips: {
-    version: 1,
+    // 2 = biblioteca do Game Hub (library/reveal/trash + pcclip://).
+    version: 2,
     getState: () => ipcRenderer.invoke('clips:get-state'),
     setSettings: (patch) => ipcRenderer.invoke('clips:set-settings', patch || {}),
     saveNow: () => ipcRenderer.invoke('clips:save-now'),
     openFolder: () => ipcRenderer.invoke('clips:open-folder'),
     listDisplays: () => ipcRenderer.invoke('clips:list-displays'),
+    // Game Hub → Clipes: os vídeos da pasta (com o endereço pcclip:// pra
+    // tocar), mostrar um na pasta e mandar pra Lixeira.
+    library: () => ipcRenderer.invoke('clips:library'),
+    reveal: (name) => ipcRenderer.invoke('clips:reveal', String(name || '')),
+    trash: (name) => ipcRenderer.invoke('clips:trash', String(name || '')),
     onState: (callback) => {
       const handler = (_e, st) => callback(st);
       ipcRenderer.on('clips:state', handler);
