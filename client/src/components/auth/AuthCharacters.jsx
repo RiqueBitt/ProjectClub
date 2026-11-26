@@ -1,5 +1,6 @@
 import { memo, useCallback, useEffect, useId, useMemo, useRef, useState } from 'react';
 import '../../styles/auth-characters.css';
+import { Accessory, loadAccessories, saveAccessories, nextAccessory } from './authAccessories.jsx';
 
 // ---------------------------------------------------------------------
 // Turminha das telas de login/inscrição: quatro bichinhos "2.5D" (volume
@@ -8,8 +9,10 @@ import '../../styles/auth-characters.css';
 // acompanham o que a pessoa faz no formulário.
 //
 // Elenco FIXO (nov/2026): forma, cor e rosto de cada um são sempre os
-// mesmos e ninguém usa acessório. Nada acontece "do nada": fora respirar
-// e piscar, todo movimento é resposta ao que a pessoa faz.
+// mesmos — dois quadrados e dois retângulos, encostados uns nos outros. Cada um começa com o SEU acessório (authAccessories.jsx) e a
+// pessoa troca tocando nele — a escolha fica salva no navegador. Nada
+// acontece "do nada": fora respirar, piscar e o balanço do acessório,
+// todo movimento é resposta ao que a pessoa faz (PC e celular).
 //
 //   curiosa (Lila)  → espia com um olho quando a senha aparece
 //   tranquila(Menta)→ aperta os olhos sorrindo na senha
@@ -17,8 +20,12 @@ import '../../styles/auth-characters.css';
 //   caçula  (Mel)   → tapa os olhos quase juntinho, olha feio pra Lila
 //
 //   parado    → respiram, piscam, os olhos seguem o mouse
-//   mouse em cima → quem está embaixo do mouse sorri e cora
-//   clique/toque → quem levou o "cutucão" pula rindo e os outros olham
+//   mouse em cima → quem está embaixo do mouse sorri, cora e ergue o chapéu
+//   clique/toque → pula rindo, troca de acessório (com um "puf" de
+//                  brilhinhos) e os outros olham pra ele
+//   arrastar em cima (mouse ou dedo) → carinho: fecha os olhinhos, cora,
+//                  balança e solta coraçõezinhos
+//   celular   → os olhos seguem o dedo e a inclinação do aparelho
 //   digitando → se inclinam pro campo, os olhos seguem o cursor do texto e
 //               cada tecla faz um deles balançar a cabeça, um de cada vez
 //   senha     → tapam os olhos / fecham os olhos sorrindo
@@ -70,6 +77,15 @@ function family(h) {
 // onde ficam olhos/boca (proporções). Assim qualquer forma cabe em
 // qualquer papel, mantendo a composição (alturas variadas, sobreposição).
 const SHAPES = {
+  // Caixinha: quadrado ou retângulo de brinquedo, cantos só levemente
+  // arredondados (a turma do login é toda assim desde nov/2026).
+  caixa(cx, w, h, floor) {
+    const top = floor - h; const hw = w / 2; const rr = Math.min(14, w * 0.16, h * 0.16);
+    const body = `M${cx - hw} ${top + rr} Q${cx - hw} ${top} ${cx - hw + rr} ${top} H${cx + hw - rr} Q${cx + hw} ${top} ${cx + hw} ${top + rr} V${floor - rr} Q${cx + hw} ${floor} ${cx + hw - rr} ${floor} H${cx - hw + rr} Q${cx - hw} ${floor} ${cx - hw} ${floor - rr} Z`;
+    // Olhos mais pra cima nos altos, mais no meio nos baixinhos.
+    const eyeYf = h > w * 1.3 ? 0.3 : h < w * 0.8 ? 0.42 : 0.38;
+    return { body, top, lay: { eyeYf, gapf: 0.19, eyeRf: Math.min(0.12, (h * 0.13) / w), mouthDyf: 0.21 } };
+  },
   pilula(cx, w, h, floor) {
     const top = floor - h; const hw = w / 2; const br = Math.min(hw, 16);
     const body = `M${cx - hw} ${floor - br} V${top + hw} A${hw} ${hw} 0 0 1 ${cx + hw} ${top + hw} V${floor - br} Q${cx + hw} ${floor} ${cx + hw - br} ${floor} H${cx - hw + br} Q${cx - hw} ${floor} ${cx - hw} ${floor - br} Z`;
@@ -130,10 +146,14 @@ function geom(cx, w, h, floor, shapeName, eye) {
 // forma + cor. As caixas se sobrepõem de propósito (turminha grudada).
 // Ordem = ordem de desenho (trás → frente).
 const ROLES = [
-  { id: 'lila', cx: 202, w: 88, h: 136, shape: 'pilula', hue: 258, color: 'lilas', k: 80, z: 0.6, lean: 6, face: 6, lashes: true },
-  { id: 'menta', cx: 302, w: 148, h: 114, shape: 'cupula', hue: 160, color: 'menta', k: 55, z: 0.72, lean: 3.4, face: 7 },
-  { id: 'coral', cx: 132, w: 112, h: 102, shape: 'bolha', hue: 8, color: 'coral', k: 120, z: 0.55, lean: 4.6, face: 6 },
-  { id: 'mel', cx: 386, w: 72, h: 66, shape: 'ovo', hue: 44, color: 'mel', k: 190, z: 0.42, lean: 8, face: 4, baby: true },
+  // retângulo em pé
+  { id: 'lila', cx: 196, w: 82, h: 140, shape: 'caixa', hue: 258, color: 'lilas', k: 80, z: 0.6, lean: 6, face: 6, lashes: true },
+  // retângulo deitado
+  { id: 'menta', cx: 308, w: 152, h: 104, shape: 'caixa', hue: 160, color: 'menta', k: 55, z: 0.72, lean: 3.4, face: 7 },
+  // quadrado
+  { id: 'coral', cx: 126, w: 104, h: 102, shape: 'caixa', hue: 8, color: 'coral', k: 120, z: 0.55, lean: 4.6, face: 6 },
+  // quadradinho (caçula)
+  { id: 'mel', cx: 393, w: 66, h: 64, shape: 'caixa', hue: 44, color: 'mel', k: 190, z: 0.42, lean: 8, face: 4, baby: true },
 ];
 
 function makeCast() {
@@ -205,6 +225,8 @@ const MOODS = {
 // Rosto por cima do humor quando a pessoa interage (só no descanso/digitando).
 const HOVER_FACE = { mouth: 'grin', brow: 'up', blush: 2 };
 const POKE_FACE = { eyes: 'happy', mouth: 'big', brow: 'up', blush: 3, look: 'front' };
+const PET_FACE = { eyes: 'happy', mouth: 'cat', brow: 'soft', blush: 3, look: 'front' };
+const HEART = 'M0 3.2 C-4.2 0 -6.4 -2.2 -6.4 -4.6 C-6.4 -6.8 -4.7 -8.2 -3 -8.2 C-1.6 -8.2 -0.5 -7.4 0 -6.2 C0.5 -7.4 1.6 -8.2 3 -8.2 C4.7 -8.2 6.4 -6.8 6.4 -4.6 C6.4 -2.2 4.2 0 0 3.2 Z';
 
 // Bocas (desenhadas em volta de 0,0). fill = forma cheia com linguinha.
 const MOUTHS = {
@@ -403,7 +425,7 @@ function handPose(c, pose, i) {
   return [rx, ry, 0, false];
 }
 
-const Character = memo(function Character({ c, mood, index, reg, uid, onPoke, onHover }) {
+const Character = memo(function Character({ c, mood, index, reg, uid, acc, onPress, onHover }) {
   const eyeStates = Array.isArray(mood.eyes) ? mood.eyes : [mood.eyes, mood.eyes];
   const brow = BROWS[mood.brow];
   const handsOn = mood.hands !== 'rest';
@@ -415,8 +437,9 @@ const Character = memo(function Character({ c, mood, index, reg, uid, onPoke, on
       data-shape={c.shape}
       data-color={c.colorName}
       data-touch={mood.touch || undefined}
+      data-acc={acc}
       style={{ '--i': index, '--r': c.r }}
-      onPointerDown={(ev) => { ev.preventDefault(); onPoke?.(c.id); }}
+      onPointerDown={(ev) => { ev.preventDefault(); onPress?.(c.id, ev); }}
       onPointerEnter={(ev) => { if (ev.pointerType !== 'touch') onHover?.(c.id, true); }}
       onPointerLeave={() => onHover?.(c.id, false)}
     >
@@ -435,6 +458,7 @@ const Character = memo(function Character({ c, mood, index, reg, uid, onPoke, on
               <ellipse cx={c.cx - c.w * 0.26} cy={c.bodyTop + (FLOOR - c.bodyTop) * 0.12} rx={c.w * 0.12} ry={Math.min(10, (FLOOR - c.bodyTop) * 0.08)} fill="#fff" opacity=".5" />
             </g>
             <path d={c.body} fill="none" stroke="rgba(255,255,255,.3)" strokeWidth="1.2" className="pcc-rim" />
+            <Accessory c={c} id={acc} uid={uid} reg={reg} where="head" />
 
             <g ref={reg(c.id, 'face')} className="pcc-face">
               <g className="pcc-blush">
@@ -456,6 +480,7 @@ const Character = memo(function Character({ c, mood, index, reg, uid, onPoke, on
                 <Eye key={i} c={c} e={e} i={i} state={eyeStates[i]} uid={uid} />
               ))}
               <Mouth c={c} kind={mood.mouth} />
+              <Accessory c={c} id={acc} uid={uid} reg={reg} where="face" />
               <g className="pcc-hands" data-on={handsOn || undefined} data-pose={mood.hands}>
                 {[0, 1].map((i) => {
                   const [x, y, rot, vis] = handPose(c, mood.hands, i);
@@ -542,11 +567,15 @@ export default function AuthCharacters({ reaction = null, scope = '.pc-auth-pane
   // Interação: quem está embaixo do mouse e quem levou um cutucão.
   const [hoverId, setHoverId] = useState(null);
   const [poked, setPoked] = useState(null); // { id, key }
+  const [petId, setPetId] = useState(null); // quem está ganhando carinho
+  const [accs, setAccs] = useState(loadAccessories); // { lila: 'bow', ... }
+  const [fx, setFx] = useState([]); // efeitos soltos: { k, kind: 'heart'|'puff', id }
   const touchable = moodKey === 'idle' || moodKey === 'typing';
   const moods = {};
   for (const c of cast) {
     const base = MOODS[moodKey][c.id];
-    if (touchable && poked?.id === c.id) moods[c.id] = { ...base, ...POKE_FACE, touch: 'poke' };
+    if (touchable && petId === c.id) moods[c.id] = { ...base, ...PET_FACE, touch: 'pet' };
+    else if (touchable && poked?.id === c.id) moods[c.id] = { ...base, ...POKE_FACE, touch: 'poke' };
     else if (touchable && hoverId === c.id) moods[c.id] = { ...base, ...HOVER_FACE, touch: 'hover' };
     else moods[c.id] = base;
   }
@@ -555,7 +584,8 @@ export default function AuthCharacters({ reaction = null, scope = '.pc-auth-pane
   const live = useRef({ pointer: null, caret: null, moodKey, glance: null, form: null, formAt: 0 });
   live.current.caret = focus.caret;
   live.current.moodKey = moodKey;
-  live.current.poked = touchable ? poked?.id : null;
+  live.current.poked = touchable ? (petId || poked?.id) : null;
+  live.current.petId = petId;
 
   // Pulos/tremidas (Web Animations API), escalonados por personagem.
   const play = useCallback((id, key, frames, opts) => {
@@ -605,15 +635,27 @@ export default function AuthCharacters({ reaction = null, scope = '.pc-auth-pane
         const h = { lila: 26, menta: 18, coral: 30, mel: 38 }[c.id];
         hop(c, h, 720, 40 + i * 65, 1.3);
         if (c.id === 'mel') hop(c, 20, 520, 40 + i * 65 + 720, 1);
+        play(c.id, 'acc', [
+          { transform: 'none' }, { transform: 'translateY(-7px) rotate(-12deg)', offset: 0.45 }, { transform: 'rotate(6deg)', offset: 0.75 }, { transform: 'none' },
+        ], { duration: 820, delay: 120 + i * 65, easing: 'ease-out' });
       });
     }
   }, [reactKey, calm, play, hop, cast]);
 
   // Cutucão (clique/toque): pula rindo e os outros olham pra ele.
+  const fxKey = useRef(0);
+  const addFx = useCallback((kind, id, ms) => {
+    const k = ++fxKey.current;
+    setFx((list) => [...list.slice(-10), { k, kind, id }]);
+    setTimeout(() => setFx((list) => list.filter((f) => f.k !== k)), ms);
+  }, []);
   const poke = useCallback((id) => {
     const c = byId[id];
     if (!c) return;
     setPoked((p) => ({ id, key: (p?.key || 0) + 1 }));
+    // Cada toque troca o acessório (ordem fixa) e salva a escolha.
+    setAccs((m) => { const next = { ...m, [id]: nextAccessory(m[id]) }; saveAccessories(next); return next; });
+    addFx('puff', id, 700);
     const others = cast.filter((o) => o.id !== id).map((o) => o.id);
     live.current.glance = { ...Object.fromEntries(others.map((o) => [o, id])), until: performance.now() + 1300 };
     if (!calm) {
@@ -622,13 +664,54 @@ export default function AuthCharacters({ reaction = null, scope = '.pc-auth-pane
         { transform: 'none' }, { transform: 'scale(1.08)', offset: 0.35 }, { transform: 'none' },
       ], { duration: 620, easing: 'ease-out', composite: 'add' });
     }
-  }, [byId, cast, calm, hop, play]);
+  }, [byId, cast, calm, hop, play, addFx]);
   useEffect(() => {
     if (!poked) return undefined;
     const t = setTimeout(() => setPoked(null), 1100);
     return () => clearTimeout(t);
   }, [poked]);
   const hover = useCallback((id, on) => setHoverId((h) => (on ? id : h === id ? null : h)), []);
+
+  // Apertar num bichinho: soltar logo = toque (cutucão + troca de
+  // acessório); arrastar por cima = carinho (coraçõezinhos e balancinho).
+  const press = useRef(null);
+  const onPress = useCallback((id, ev) => {
+    press.current = { id, x: ev.clientX, y: ev.clientY, moved: 0, petted: false, lastHeart: 0 };
+  }, []);
+  useEffect(() => {
+    const onMove = (ev) => {
+      const p = press.current;
+      if (!p) return;
+      const d = Math.hypot(ev.clientX - p.x, ev.clientY - p.y);
+      p.x = ev.clientX; p.y = ev.clientY; p.moved += d;
+      if (p.moved > 26 && !p.petted) { p.petted = true; setPetId(p.id); }
+      if (p.petted && p.moved - p.lastHeart > 70) {
+        p.lastHeart = p.moved;
+        addFx('heart', p.id, 1300);
+        if (!calm) {
+          play(p.id, 'hop', [
+            { transform: 'none' }, { transform: 'rotate(-4deg) scale(1.04, .96)', offset: 0.3 },
+            { transform: 'rotate(4deg) scale(1.04, .96)', offset: 0.7 }, { transform: 'none' },
+          ], { duration: 420, easing: 'ease-in-out' });
+        }
+      }
+    };
+    const onUp = () => {
+      const p = press.current;
+      press.current = null;
+      if (!p) return;
+      if (p.petted) { setTimeout(() => setPetId((cur) => (cur === p.id ? null : cur)), 650); return; }
+      poke(p.id);
+    };
+    window.addEventListener('pointermove', onMove, { passive: true });
+    window.addEventListener('pointerup', onUp);
+    window.addEventListener('pointercancel', onUp);
+    return () => {
+      window.removeEventListener('pointermove', onMove);
+      window.removeEventListener('pointerup', onUp);
+      window.removeEventListener('pointercancel', onUp);
+    };
+  }, [poke, addFx, play, calm]);
 
   // Digitando: cada tecla faz um deles balançar a cabeça, um de cada vez
   // (mesma ordem sempre — nada sorteado).
@@ -656,9 +739,29 @@ export default function AuthCharacters({ reaction = null, scope = '.pc-auth-pane
   // Ponteiro do mouse (só guarda; o laço lê). Desligado no modo calmo.
   useEffect(() => {
     if (calm) { live.current.pointer = null; return undefined; }
-    const onMove = (e) => { if (e.pointerType !== 'touch') live.current.pointer = { x: e.clientX, y: e.clientY }; };
+    let clearT = 0;
+    const onMove = (e) => {
+      live.current.pointer = { x: e.clientX, y: e.clientY };
+      clearTimeout(clearT);
+      // No celular o dedo "some" quando solta: o olhar volta pro formulário.
+      if (e.pointerType === 'touch') clearT = setTimeout(() => { live.current.pointer = null; }, 1400);
+    };
+    const onDown = (e) => { if (e.pointerType === 'touch') onMove(e); };
+    // Celular: inclinar o aparelho faz a turma olhar pro lado (sem pedir
+    // permissão — se o navegador não manda o evento, nada acontece).
+    const onTilt = (e) => {
+      if (e.gamma == null) return;
+      live.current.tilt = { gx: clamp(e.gamma, -35, 35) / 35, gy: clamp((e.beta ?? 45) - 45, -35, 35) / 35 };
+    };
     window.addEventListener('pointermove', onMove, { passive: true });
-    return () => window.removeEventListener('pointermove', onMove);
+    window.addEventListener('pointerdown', onDown, { passive: true });
+    window.addEventListener('deviceorientation', onTilt, { passive: true });
+    return () => {
+      clearTimeout(clearT);
+      window.removeEventListener('pointermove', onMove);
+      window.removeEventListener('pointerdown', onDown);
+      window.removeEventListener('deviceorientation', onTilt);
+    };
   }, [calm]);
 
   // Piscadas: cada um no seu ritmo.
@@ -719,12 +822,16 @@ export default function AuthCharacters({ reaction = null, scope = '.pc-auth-pane
       const fp = formPoint(now);
       const form = fp ? toVb(r, fp) : { x: VB.x + VB.w + 200, y: 120 };
       const pickPt = calm ? null : (L.caret || L.pointer);
-      const tgt = pickPt ? toVb(r, pickPt) : form;
+      let tgt = pickPt ? toVb(r, pickPt) : form;
+      // Sem dedo nem cursor: no celular, a inclinação manda no olhar.
+      if (!pickPt && !calm && L.tilt && mk !== 'typing') {
+        tgt = { x: VB.x + VB.w / 2 + L.tilt.gx * 260, y: 120 + L.tilt.gy * 160 };
+      }
       const glance = L.glance && L.glance.until > now && (mk === 'idle' || mk === 'typing') ? L.glance : null;
       const formSide = Math.sign(form.x - (VB.x + VB.w / 2)) || 1;
       const out = {};
       cast.forEach((c) => {
-        const mood = L.poked === c.id ? { ...MOODS[mk][c.id], ...POKE_FACE } : MOODS[mk][c.id];
+        const mood = L.poked === c.id ? { ...MOODS[mk][c.id], ...(L.petId === c.id ? PET_FACE : POKE_FACE) } : MOODS[mk][c.id];
         const ex = (c.eyes[0].x + c.eyes[1].x) / 2;
         const ey = c.eyes[0].y;
         let look = mood.look;
@@ -874,6 +981,10 @@ export default function AuthCharacters({ reaction = null, scope = '.pc-auth-pane
             <stop offset="0" stopColor="#000" stopOpacity=".75" />
             <stop offset="1" stopColor="#000" stopOpacity="0" />
           </radialGradient>
+          <radialGradient id={`${uid}-bulb`}>
+            <stop offset=".3" stopColor="#ffd977" stopOpacity=".55" />
+            <stop offset="1" stopColor="#ffd977" stopOpacity="0" />
+          </radialGradient>
           {/* esclera: branca com sombrinha da pálpebra em cima */}
           <radialGradient id={`${uid}-scl`} cx="50%" cy="62%" r="60%">
             <stop offset=".55" stopColor="#fff" />
@@ -910,8 +1021,33 @@ export default function AuthCharacters({ reaction = null, scope = '.pc-auth-pane
 
         <g className="pcc-group">
           {cast.map((c) => (
-            <Character key={c.id} c={c} index={c.idx} mood={moods[c.id]} reg={reg} uid={uid} onPoke={poke} onHover={hover} />
+            <Character key={c.id} c={c} index={c.idx} mood={moods[c.id]} reg={reg} uid={uid} acc={accs[c.id]} onPress={onPress} onHover={hover} />
           ))}
+        </g>
+
+        {/* Coraçõezinhos (carinho) e "puf" de brilhinhos (troca de acessório). */}
+        <g className="pcc-fx">
+          {fx.map((f) => {
+            const c = byId[f.id];
+            if (!c) return null;
+            if (f.kind === 'heart') {
+              const side = f.k % 2 ? 1 : -1;
+              return (
+                <g key={f.k} transform={`translate(${c.cx + side * c.w * 0.18} ${c.bodyTop + 6})`}>
+                  <path className="pcc-heart" d={HEART} fill="#ff6f91" style={{ '--sx': side }} />
+                </g>
+              );
+            }
+            return (
+              <g key={f.k} transform={`translate(${c.cx} ${c.bodyTop - 4})`} className="pcc-puff">
+                {[0, 60, 120, 180, 240, 300].map((a, i) => (
+                  <g key={a} transform={`rotate(${a})`}>
+                    <path className="pcc-puff-s" d={SPARK} fill={i % 2 ? '#ffd977' : '#fff'} style={{ '--i': i }} />
+                  </g>
+                ))}
+              </g>
+            );
+          })}
         </g>
 
         {mode === 'success' && (

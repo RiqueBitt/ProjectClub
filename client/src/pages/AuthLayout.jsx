@@ -80,7 +80,10 @@ export default function AuthLayout({ title, subtitle, children, footer, wide = f
           </div>
 
           {charsInShowcase && (
-            <div className="pc-showcase-chars"><AuthCharacters reaction={reaction} /></div>
+            <div className="pc-showcase-chars">
+              <AuthCharacters reaction={reaction} />
+              <p className="pc-chars-hint">Toque pra trocar o acessório · arraste pra fazer carinho</p>
+            </div>
           )}
 
           <div className="pc-showcase-copy">

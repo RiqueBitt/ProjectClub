@@ -252,3 +252,15 @@ html .pc-auth-mono .pc-field-box input:focus-visible { outline: none !important;
   .pc-auth-mono .pc-showcase-title { font-size: clamp(56px, 19cqi, 230px); }
   .pc-auth-mono .pc-showcase-copy .pc-statement { font-size: clamp(22px, 4.6cqi, 40px); }
 }
+
+/* Dica da turminha (só na vitrine do PC). */
+.pc-chars-hint {
+  margin: 6px 0 0; font: 700 10.5px/1.4 var(--m-mono); text-transform: uppercase; letter-spacing: .14em;
+  color: rgba(0, 0, 0, .45); text-align: left;
+}
+.pc-auth-mono .pc-showcase-chars { flex-direction: column; align-items: stretch; justify-content: flex-end; }
+.pc-auth-mono .pc-showcase-chars .pcc-stage { flex: 1 1 auto; min-height: 0; height: auto; }
+.pc-auth-mono .pc-chars-hint { max-width: 500px; }
+/* Celular: a turma fica por cima do título (o palco não pega clique, só os
+   bichinhos), senão o título cobria a metade de baixo e o toque não chegava. */
+.pc-auth-mono .pc-auth-chars-mobile { position: relative; z-index: 2; }
