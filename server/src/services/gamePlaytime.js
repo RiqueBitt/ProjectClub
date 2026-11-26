@@ -46,11 +46,9 @@ async function dropState(userId) {
   try { await redis.del(keyFor(userId)); await redis.srem(ACTIVE_SET, userId); } catch { /* ignora */ }
 }
 
-// Nome -> chave estável ("Counter-Strike 2" -> "counter-strike-2").
-function gameKeyFor(name) {
-  return String(name || '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase()
-    .replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 80);
-}
+// Nome -> chave estável ("Counter-Strike 2" -> "counter-strike-2"); dia em
+// Brasília. Funções puras em utils/gameKeys.js (reexportadas aqui).
+const { gameKeyFor, dayKey } = require('../utils/gameKeys');
 
 // App ID da Steam a partir do link da capa que o desktop manda
 // (cdn.../steam/apps/<id>/header.jpg) ou do nosso proxy (/api/proxy/steam/<id>/...).
@@ -98,8 +96,6 @@ async function startSession(userId, game, now) {
 
 // Gráfico "horas por semana": soma os segundos também por dia (fuso de
 // Brasília). Best-effort — se falhar, o total do jogo já foi gravado.
-const DAY_FMT = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Sao_Paulo', year: 'numeric', month: '2-digit', day: '2-digit' });
-function dayKey(ms) { return DAY_FMT.format(new Date(ms)); }
 function addDaySeconds(userId, gameKey, seconds, now) {
   if (!(seconds > 0)) return;
   const day = dayKey(now);

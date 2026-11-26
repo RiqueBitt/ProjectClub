@@ -10,6 +10,16 @@ const path = require('path');
 const { autoUpdater } = require('electron-updater');
 const fs = require('fs');
 
+// Game Hub → Clipes: pcclip://clip/<nome> toca no site um vídeo da pasta de
+// clipes deste PC (clipsLibrary.js). Precisa ser registrado antes do
+// app ficar pronto. Sem supportFetchAPI: o <video> toca, mas a página não
+// consegue ler os bytes do arquivo por fetch().
+try {
+  require('electron').protocol.registerSchemesAsPrivileged([
+    { scheme: 'pcclip', privileges: { standard: true, secure: true, stream: true, bypassCSP: true } },
+  ]);
+} catch (err) { console.warn('[clipes] não deu pra registrar pcclip://:', err?.message || err); }
+
 // Ajustes conservadores do Chromium (só desligam extras que um app de uma
 // página só não usa; nada de GPU/flags experimentais que quebram em PC
 // fraco). PROJECT_CLUB_NO_SWITCHES=1 desliga tudo, pra diagnóstico.
@@ -1707,6 +1717,25 @@ if (!gotLock) {
   secureHandle('clips:set-settings', (_e, patch) => clipsMgr().setSettings(patch && typeof patch === 'object' ? patch : {}));
   secureHandle('clips:save-now', () => clipsMgr().save().catch((err) => ({ saved: false, reason: 'error', error: err.message })));
   secureHandle('clips:open-folder', () => clipsMgr().openFolder().then(() => true).catch(() => false));
+  // Game Hub → Clipes: a pasta vira biblioteca no site (listar, tocar por
+  // pcclip://, mostrar na pasta e mandar pra Lixeira). Nada sai do PC.
+  const clipsLibrary = require('./clipsLibrary');
+  secureHandle('clips:library', async () => {
+    const folder = clipsMgr().folder();
+    const clips = await clipsLibrary.list(folder);
+    return { folder, clips: clips.map((c) => ({ ...c, url: clipsLibrary.fileUrlFor(c.name) })) };
+  });
+  secureHandle('clips:reveal', (_e, name) => {
+    const file = clipsLibrary.resolve(clipsMgr().folder(), String(name || ''));
+    if (!file) return false;
+    shell.showItemInFolder(file);
+    return true;
+  });
+  secureHandle('clips:trash', async (_e, name) => {
+    const file = clipsLibrary.resolve(clipsMgr().folder(), String(name || ''));
+    if (!file) return false;
+    try { await shell.trashItem(file); return true; } catch { return false; }
+  });
   secureHandle('clips:list-displays', () => {
     try {
       const primary = screen.getPrimaryDisplay().id;
@@ -2080,6 +2109,9 @@ if (!gotLock) {
   app.whenReady().then(() => {
     setTimeout(recoverFpack, 4000);
     setupScreenShareHandler();
+    try {
+      session.defaultSession.protocol.handle('pcclip', (request) => require('./clipsLibrary').handleRequest(request, clipsMgr().folder()));
+    } catch (err) { console.warn('[clipes] pcclip:// indisponível:', err?.message || err); }
     setupDownloadHandler();
     // BUG CORRIGIDO — CAUSA RAIZ CONFIRMADA de "no PC eu falo e não sai
     // áudio nenhum, mas eu escuto todo mundo": faltava isto aqui. Um

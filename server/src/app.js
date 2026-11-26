@@ -77,6 +77,7 @@ const updatesRoutes = require('./routes/updates');
 const eventsRoutes = require('./routes/events');
 const activityRoutes = require('./routes/activity');
 const gamesLibraryRoutes = require('./routes/games'); // biblioteca de jogos (tempo de jogo)
+const gameHubRoutes = require('./routes/gameHub'); // Game Hub: promoções, hotlist, partidas, clipes, builds
 const decorationsRoutes = require('./routes/decorations');
 const supportersRoutes = require('./routes/supporters');
 const personalStickersRoutes = require('./routes/personalStickers'); // figurinhas pessoais (Assinante/Super)
@@ -460,6 +461,7 @@ function createApp() {
   app.use('/api/gallery', require('./routes/gallery'));
   app.use('/api/activity', activityRoutes);
   app.use('/api/games', gamesLibraryRoutes);
+  app.use('/api/game-hub', gameHubRoutes);
   app.use('/api/decorations', decorationsRoutes);
   app.use('/api/supporters', supportersRoutes);
   app.use('/api/personal-stickers', personalStickersRoutes);

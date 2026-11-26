@@ -290,6 +290,13 @@ model User {
   connectedAccounts   ConnectedAccount[]
   registeredGames     RegisteredGame[]
   gamePlaytimes       GamePlaytime[]
+  // Game Hub (nov/2026): partidas, clipes (só link) e builds.
+  gamePartiesHosted   GameParty[]       @relation("GamePartyHost")
+  gamePartyMembers    GamePartyMember[]
+  gameClips           GameClip[]
+  gameClipLikes       GameClipLike[]
+  gameBuilds          GameBuild[]
+  gameBuildLikes      GameBuildLike[]
   securityLogs        SecurityLog[]
   // Item pedido: "um user só pode criar um clã" — restrição vitalícia
   // (diferente de clanId, que só impede estar em DOIS ao mesmo
@@ -5019,4 +5026,116 @@ model BlackoutSheets {
   // [{ id, nome, classe, pv, lv }] calculado pelo próprio site (PV da classe).
   resumo    String?  @db.LongText
   updatedAt DateTime @updatedAt
+}
+
+// ---------- Game Hub (nov/2026) ----------
+// Partida: alguém abre ("Valorant agora, 5 vagas"), convida e quem entra
+// ganha a call da partida (sala de voz temporária do anfitrião, que some
+// sozinha quando esvazia). Vence sozinha em expiresAt.
+model GameParty {
+  id         String            @id @default(uuid())
+  hostId     String
+  host       User              @relation("GamePartyHost", fields: [hostId], references: [id], onDelete: Cascade)
+  gameKey    String            @db.VarChar(120)
+  gameName   String            @db.VarChar(100)
+  steamAppId Int?
+  title      String            @db.VarChar(80)
+  note       String?           @db.VarChar(500)
+  slots      Int               @default(4) // vagas contando o anfitrião
+  startsAt   DateTime? // null = agora
+  channelId  String?           @db.VarChar(64) // sala de voz da partida
+  status     String            @default("open") @db.VarChar(12) // open | closed
+  createdAt  DateTime          @default(now())
+  expiresAt  DateTime
+  members    GamePartyMember[]
+
+  @@index([status, expiresAt])
+  @@index([hostId, status])
+}
+
+model GamePartyMember {
+  id        String    @id @default(uuid())
+  partyId   String
+  party     GameParty @relation(fields: [partyId], references: [id], onDelete: Cascade)
+  userId    String
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  status    String    @db.VarChar(10) // joined | invited
+  invitedBy String?   @db.VarChar(64)
+  createdAt DateTime  @default(now())
+
+  @@unique([partyId, userId])
+  @@index([userId, status])
+}
+
+// Clipe compartilhado: o vídeo fica no PC de quem gravou (ou no YouTube,
+// Twitch, Medal, Streamable); aqui só o link, o título e o jogo.
+model GameClip {
+  id         String         @id @default(uuid())
+  userId     String
+  user       User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  title      String         @db.VarChar(100)
+  url        String         @db.VarChar(400)
+  provider   String         @db.VarChar(16) // youtube | twitch | medal | streamable
+  embedId    String         @db.VarChar(160)
+  gameKey    String?        @db.VarChar(120)
+  gameName   String?        @db.VarChar(100)
+  steamAppId Int?
+  likesCount Int            @default(0)
+  createdAt  DateTime       @default(now())
+  likes      GameClipLike[]
+
+  @@index([createdAt])
+  @@index([gameKey, createdAt])
+  @@index([userId, createdAt])
+}
+
+model GameClipLike {
+  id        String   @id @default(uuid())
+  clipId    String
+  clip      GameClip @relation(fields: [clipId], references: [id], onDelete: Cascade)
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
+
+  @@unique([clipId, userId])
+  @@index([userId])
+}
+
+// Build de jogo: LoL e Deadlock com campeão/herói e itens de verdade;
+// Darktide e outros jogos por campos de texto. `data` = JSON conferido
+// em services/gameHub/builds.js.
+model GameBuild {
+  id         String          @id @default(uuid())
+  authorId   String
+  author     User            @relation(fields: [authorId], references: [id], onDelete: Cascade)
+  game       String          @db.VarChar(16) // lol | deadlock | darktide | outro
+  gameKey    String?         @db.VarChar(120)
+  gameName   String?         @db.VarChar(100)
+  steamAppId Int?
+  hero       String?         @db.VarChar(80)
+  heroName   String?         @db.VarChar(80)
+  role       String?         @db.VarChar(24)
+  title      String          @db.VarChar(80)
+  data       String          @db.Text
+  notes      String?         @db.Text
+  likesCount Int             @default(0)
+  createdAt  DateTime        @default(now())
+  updatedAt  DateTime        @updatedAt
+  likes      GameBuildLike[]
+
+  @@index([game, createdAt])
+  @@index([game, likesCount])
+  @@index([authorId])
+}
+
+model GameBuildLike {
+  id        String    @id @default(uuid())
+  buildId   String
+  build     GameBuild @relation(fields: [buildId], references: [id], onDelete: Cascade)
+  userId    String
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt DateTime  @default(now())
+
+  @@unique([buildId, userId])
+  @@index([userId])
 }

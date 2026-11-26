@@ -16,7 +16,7 @@ async function exportData(req, res, next) {
     const userId = req.user.id;
     const user = await prisma.user.findUnique({ where: { id: userId } });
     if (!user) return res.status(404).json({ error: 'Conta não encontrada.' });
-    const [settings, messages, posts, comments, transactions, friendships, playtime, minigames, achievements, testimonials, reminders, scheduled] = await Promise.all([
+    const [settings, messages, posts, comments, transactions, friendships, playtime, minigames, achievements, testimonials, reminders, scheduled, hubParties, hubClips, hubBuilds] = await Promise.all([
       safe(() => prisma.userSettings.findUnique({ where: { userId } })),
       safe(() => prisma.message.findMany({ where: { authorId: userId, deleted: false }, orderBy: { createdAt: 'desc' }, take: LIMIT, select: { id: true, content: true, channelId: true, conversationId: true, createdAt: true, edited: true, pinned: true, attachments: { select: { url: true, filename: true, mimeType: true, size: true } } } })),
       safe(() => prisma.post.findMany({ where: { authorId: userId }, orderBy: { createdAt: 'desc' }, take: LIMIT, select: { id: true, title: true, content: true, type: true, createdAt: true, communityId: true } })),
@@ -29,6 +29,10 @@ async function exportData(req, res, next) {
       safe(() => prisma.testimonial.findMany({ where: { OR: [{ authorId: userId }, { targetId: userId }] }, take: LIMIT })),
       safe(() => prisma.reminder.findMany({ where: { userId } })),
       safe(() => prisma.scheduledMessage.findMany({ where: { authorId: userId } })),
+      // Game Hub: partidas que você abriu, clipes que compartilhou e builds.
+      safe(() => prisma.gameParty.findMany({ where: { hostId: userId }, orderBy: { createdAt: 'desc' }, take: LIMIT, select: { id: true, gameName: true, title: true, note: true, slots: true, startsAt: true, status: true, createdAt: true } })),
+      safe(() => prisma.gameClip.findMany({ where: { userId }, orderBy: { createdAt: 'desc' }, take: LIMIT, select: { id: true, title: true, url: true, gameName: true, createdAt: true } })),
+      safe(() => prisma.gameBuild.findMany({ where: { authorId: userId }, orderBy: { createdAt: 'desc' }, take: LIMIT, select: { id: true, game: true, gameName: true, title: true, heroName: true, data: true, notes: true, createdAt: true, updatedAt: true } })),
     ]);
     // Amigos: só id + nome de exibição (dado mínimo).
     let friends = [];
@@ -47,7 +51,7 @@ async function exportData(req, res, next) {
       posts: posts || [],
       comments: comments || [],
       economy: transactions || [],
-      games: { playtime: playtime || [], minigames: minigames || [] },
+      games: { playtime: playtime || [], minigames: minigames || [], gameHub: { parties: hubParties || [], clips: hubClips || [], builds: hubBuilds || [] } },
       achievements: achievements || [],
       testimonials: testimonials || [],
       reminders: reminders || [],
