@@ -84,6 +84,26 @@ router.get('/users', ctrl.listUsers);
 router.get('/users/:id/security-info', ctrl.getUserSecurityInfo);
 router.patch('/users/:id', ctrl.updateUserAdmin);
 router.post('/users/:id/ban', ctrl.banUser);
+// LGPD: anonimizar os dados de uma conta JÁ excluída, a pedido da pessoa
+// (services/accountErasure.js). Pede o @ atual no corpo como confirmação.
+router.post('/users/:id/anonymize', async (req, res, next) => {
+  try {
+    const prisma = require('../config/prisma');
+    const target = await prisma.user.findUnique({ where: { id: req.params.id }, select: { username: true } });
+    if (!target) return res.status(404).json({ error: 'Usuário não encontrado.' });
+    if (String(req.body?.confirm || '').trim().toLowerCase() !== target.username.toLowerCase()) {
+      return res.status(400).json({ error: `Pra confirmar, digite o @ da conta (${target.username}).` });
+    }
+    const { anonymizeUser } = require('../services/accountErasure');
+    const out = await anonymizeUser(req.params.id, {
+      actorId: req.user.id, reason: typeof req.body?.reason === 'string' ? req.body.reason.slice(0, 180) : null, io: req.app.get('io'),
+    });
+    res.json(out);
+  } catch (err) {
+    if (err.status && err.message) return res.status(err.status).json({ error: err.message });
+    next(err);
+  }
+});
 router.delete('/users/:id/ban', ctrl.unbanUser);
 router.post('/users/:id/suspend', ctrl.suspendUser);
 router.delete('/users/:id/suspend', ctrl.unsuspendUser);

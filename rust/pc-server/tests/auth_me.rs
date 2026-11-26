@@ -218,3 +218,39 @@ async fn manutencao_so_deixa_a_staff() {
     );
     assert_eq!(me(&env, Some("mod")).await.0, 200);
 }
+
+/// Sessões derrubadas (troca de senha etc. gravam `sess:revoked-at:<id>`):
+/// token emitido antes disso não vale mais, na hora — igual ao Node.
+#[tokio::test]
+async fn token_de_antes_da_derrubada_e_recusado() {
+    let Some(env) = setup().await else { return };
+    let Some(url) = env.redis_url.clone() else {
+        return;
+    };
+    add_user(&env.db, "u-derrubado", "").await;
+    assert_eq!(
+        me(&env, Some("u-derrubado")).await.0,
+        200,
+        "antes de derrubar, vale"
+    );
+    let cli = redis::Client::open(url).unwrap();
+    let mut con = cli.get_multiplexed_async_connection().await.unwrap();
+    // derrubada 2 s depois do token: o token é "de antes"
+    let later = (chrono::Utc::now().timestamp() + 2) * 1000;
+    let _: () = redis::cmd("SET")
+        .arg("sess:revoked-at:u-derrubado")
+        .arg(later.to_string())
+        .query_async(&mut con)
+        .await
+        .unwrap();
+    assert_eq!(
+        me(&env, Some("u-derrubado")).await,
+        (401, json!({ "error": "Sessão encerrada. Entre de novo." }))
+    );
+    let _: () = redis::cmd("DEL")
+        .arg("sess:revoked-at:u-derrubado")
+        .query_async(&mut con)
+        .await
+        .unwrap();
+    assert_eq!(me(&env, Some("u-derrubado")).await.0, 200);
+}

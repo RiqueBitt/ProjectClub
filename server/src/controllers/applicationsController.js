@@ -1,5 +1,6 @@
 const bcrypt = require('bcryptjs');
 const prisma = require('../config/prisma');
+const { passwordProblem } = require('../utils/passwordPolicy');
 const { auditReason, auditMetadata } = require('../utils/auditFields');
 const env = require('../config/env');
 const { sendApplicationApproved, sendApplicationRejected, sendVerificationCode } = require('../services/email');
@@ -160,6 +161,8 @@ async function submitApplication(req, res, next) {
 
     if (password.length < 8) return res.status(400).json({ error: 'A senha deve ter pelo menos 8 caracteres.' });
     if (!isPasswordStrongEnough(password)) return res.status(400).json({ error: 'A senha deve conter letras e números.' });
+    const weakPassword = passwordProblem(password, { username, email });
+    if (weakPassword) return res.status(400).json({ error: weakPassword });
 
     const normalizedEmail = email.toLowerCase();
     const existingUser = await prisma.user.findFirst({ where: { OR: [{ email: normalizedEmail }, { username }] } });

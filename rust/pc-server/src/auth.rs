@@ -119,6 +119,14 @@ impl FromRequestParts<AppState> for AuthUser {
         let Some(claims) = state.tokens.verify(token) else {
             return Err(unauthorized());
         };
+        // Sessões derrubadas (troca de senha, "sair dos outros aparelhos",
+        // staff…) valem na hora — igual ao services/tokenRevocation.js do Node.
+        if token_revoked(state, &claims).await {
+            return Err(error(
+                StatusCode::UNAUTHORIZED,
+                json!({ "error": "Sessão encerrada. Entre de novo." }),
+            ));
+        }
         let Some(db) = state.db.as_ref() else {
             return Err(unauthorized());
         };
@@ -127,6 +135,31 @@ impl FromRequestParts<AppState> for AuthUser {
             .await
             .map_err(|e| e.map(|b| *b).unwrap_or_else(unauthorized))
     }
+}
+
+/// Token emitido antes de `sess:revoked-at:<id>` (ms, gravado por
+/// `session::mark_sessions_revoked` / `markSessionsRevoked`) não vale mais.
+/// Compara em segundos inteiros (o `iat` é em segundos): emitido no mesmo
+/// segundo ainda vale. Redis fora ou lento (300 ms) → não derruba ninguém.
+pub fn is_stale(iat_secs: Option<u64>, revoked_ms: i64) -> bool {
+    match iat_secs {
+        Some(iat) if revoked_ms > 0 => (iat as i64) < revoked_ms / 1000,
+        _ => false,
+    }
+}
+
+async fn token_revoked(state: &AppState, claims: &Claims) -> bool {
+    let key = format!("sess:revoked-at:{}", claims.sub);
+    let got = tokio::time::timeout(
+        std::time::Duration::from_millis(300),
+        state.cache.get_raw(&key),
+    )
+    .await;
+    let revoked_ms = match got {
+        Ok(Some(Some(v))) => v.parse::<i64>().unwrap_or(0),
+        _ => 0,
+    };
+    is_stale(claims.iat, revoked_ms)
 }
 
 /// Erro "de propósito" (ban etc.) = `Some(resposta)`; falha de banco = `None` (→ 401).
@@ -282,6 +315,16 @@ pub fn mask_invisible(value: &mut serde_json::Value, viewer: Option<&str>) {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn token_de_antes_da_derrubada_nao_vale() {
+        // derrubada em 1000,500 s
+        assert!(is_stale(Some(999), 1_000_500));
+        assert!(!is_stale(Some(1000), 1_000_500), "mesmo segundo ainda vale");
+        assert!(!is_stale(Some(1001), 1_000_500));
+        assert!(!is_stale(Some(5), 0), "sem derrubada");
+        assert!(!is_stale(None, 1_000_500));
+    }
 
     #[test]
     fn token_do_node_vale_no_rust() {

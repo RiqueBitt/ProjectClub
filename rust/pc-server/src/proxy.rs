@@ -106,7 +106,9 @@ async fn forward_inner(state: AppState, mut req: Request<Body>) -> Response<Body
     let mut resp = match state.http.request(Request::from_parts(parts, body)).await {
         Ok(r) => r,
         Err(err) => {
-            tracing::warn!("node fora do ar ({path}): {err}", path = path_and_query);
+            // só o caminho: a query pode ter segredo (código do OAuth, chave…)
+            let path = path_and_query.split('?').next().unwrap_or("");
+            tracing::warn!("node fora do ar ({path}): {err}");
             return status(StatusCode::BAD_GATEWAY);
         }
     };

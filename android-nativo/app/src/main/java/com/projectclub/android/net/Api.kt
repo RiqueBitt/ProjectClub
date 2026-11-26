@@ -59,6 +59,9 @@ sealed interface RefreshResult {
  * - 401 numa rota comum → renova a sessão UMA vez (renovações são em fila:
  *   duas renovações com o mesmo cookie seriam tratadas como roubo).
  */
+private val TOKEN_401 = listOf("Token inválido ou expirado.", "Sessão encerrada. Entre de novo.", "Não autenticado.")
+private val NO_REFRESH_AUTH = Regex("^/api/auth/(login|register|refresh|logout|switch|qr/|oauth/2fa|passkeys/login|forgot-password|reset-password|app-handoff/)")
+
 class Api(context: Context) {
     val cookies = PersistentCookieJar(context.applicationContext)
 
@@ -88,7 +91,16 @@ class Api(context: Context) {
         }
         .authenticator { _, response ->
             val req = response.request
-            if (req.url.encodedPath.startsWith("/api/auth/")) return@authenticator null
+            // Rotas /auth/ não renovam sozinhas (senha errada também dá 401),
+            // exceto o 401 de TOKEN numa rota de conta já logada — ex.: logo
+            // depois de trocar a senha, o token deste aparelho cai e precisa
+            // renovar pra abrir /auth/sessions, /auth/me etc.
+            val path = req.url.encodedPath
+            if (path.startsWith("/api/auth/")) {
+                if (NO_REFRESH_AUTH.containsMatchIn(path)) return@authenticator null
+                val body = runCatching { response.peekBody(2048).string() }.getOrDefault("")
+                if (TOKEN_401.none { body.contains(it) }) return@authenticator null
+            }
             if (req.header(RETRY_HEADER) != null) return@authenticator null
             val used = req.header("Authorization")?.removePrefix("Bearer ")
             val fresh = refreshAfterFailure(used) ?: return@authenticator null

@@ -1,6 +1,7 @@
 const { guardSocket } = require('./guardHandler');
 const { Server } = require('socket.io');
 const { verifyAccessToken } = require('../services/tokens');
+const tokenRevocation = require('../services/tokenRevocation');
 const prisma = require('../config/prisma');
 const env = require('../config/env');
 const { getEffectivePermissions, channelHasRestrictions, getRoleCeiling } = require('../services/authz');
@@ -277,16 +278,20 @@ function initSockets(httpServer) {
       const token = socket.handshake.auth?.token;
       if (!token) return next(new Error('unauthorized'));
       const payload = verifyAccessToken(token);
-      const user = await prisma.user.findUnique({
-        where: { id: payload.sub },
-        select: { id: true, isPlatformBanned: true, suspendedUntil: true, accountDisabledAt: true },
-      });
-      if (!user) return next(new Error('unauthorized'));
+      const [user, revoked] = await Promise.all([
+        prisma.user.findUnique({
+          where: { id: payload.sub },
+          select: { id: true, isPlatformBanned: true, suspendedUntil: true, accountDisabledAt: true },
+        }),
+        tokenRevocation.isAccessTokenRevoked(payload),
+      ]);
+      if (!user || revoked) return next(new Error('unauthorized'));
       if (user.isPlatformBanned) return next(new Error('banned'));
       if (user.accountDisabledAt) return next(new Error('account_disabled'));
       if (user.suspendedUntil && new Date(user.suspendedUntil) > new Date()) return next(new Error('suspended'));
       socket.userId = payload.sub;
       socket.data.userId = payload.sub; // visível também via fetchSockets() (RemoteSocket)
+      socket.data.tokenIat = Number(payload.iat) || 0; // pra derrubar se as sessões caírem
       next();
     } catch (err) {
       next(new Error('unauthorized'));
@@ -1924,6 +1929,43 @@ function initSockets(httpServer) {
     }, 500);
     t.unref?.();
   };
+  // Sessões derrubadas (troca de senha, "sair dos outros aparelhos", staff…):
+  // socket aberto com token de antes disso cai — senão continuava recebendo
+  // DMs em tempo real pra sempre. O aparelho que segue logado reconecta
+  // sozinho com um token novo (client: SocketContext; Android: Realtime).
+  // Na hora pras derrubadas feitas no Node; a varredura de 1 em 1 min pega
+  // as feitas no Rust (que só gravam no Redis).
+  const dropStaleSockets = async (userId, revokedMs) => {
+    const sockets = await io.in(`user:${userId}`).fetchSockets().catch(() => []);
+    for (const s of sockets) {
+      if (tokenRevocation.isStale(s.data?.tokenIat, revokedMs)) {
+        s.emit('auth:session-revoked', {});
+        s.disconnect(true);
+      }
+    }
+  };
+  tokenRevocation.onRevoke((userId, at) => { dropStaleSockets(userId, at).catch(() => {}); });
+  io.dropStaleSockets = dropStaleSockets;
+  const staleSweep = setInterval(async () => {
+    try {
+      const byUser = new Map();
+      for (const s of io.of('/').sockets.values()) {
+        const uid = s.data?.userId;
+        if (uid && !byUser.has(uid)) byUser.set(uid, true);
+      }
+      const ids = [...byUser.keys()];
+      for (let i = 0; i < ids.length; i += 200) {
+        const chunk = ids.slice(i, i + 200);
+        // eslint-disable-next-line no-await-in-loop
+        const vals = await tokenRevocation.revokedAtMany(chunk);
+        for (let j = 0; j < chunk.length; j += 1) {
+          // eslint-disable-next-line no-await-in-loop
+          if (vals[j]) await dropStaleSockets(chunk[j], vals[j]);
+        }
+      }
+    } catch (err) { console.warn('[sessão] varredura de sockets falhou:', err?.message || err); }
+  }, 60_000);
+  staleSweep.unref?.();
   io.emitPresenceUpdate = (user) => emitPresence(io, user);
   io.isOnline = (userId) => presenceStore.isOnline(userId);
   io.onManualStatusChange = onManualStatusChange;

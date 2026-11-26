@@ -59,6 +59,20 @@ export function sharedRefresh() {
   return refreshPromise;
 }
 
+// Rotas /auth/ normalmente não renovam sozinhas (login, refresh, senha
+// errada também dão 401). Exceção: o 401 de TOKEN (vencido ou derrubado —
+// ex.: logo depois de trocar a senha ou "sair dos outros aparelhos", o
+// token de acesso deste aparelho cai e precisa renovar) numa rota de
+// conta já logada, como /auth/me ou /auth/sessions.
+const TOKEN_401 = new Set(['Token inválido ou expirado.', 'Sessão encerrada. Entre de novo.', 'Não autenticado.']);
+const NO_REFRESH_AUTH = /\/auth\/(login|register|refresh|logout|switch|qr\/|oauth\/2fa|passkeys\/login|forgot-password|reset-password|app-handoff\/)/;
+function shouldRefreshOn401(config, response) {
+  const url = String(config.url || '');
+  if (!url.includes('/auth/')) return true;
+  if (NO_REFRESH_AUTH.test(url)) return false;
+  return TOKEN_401.has(response?.data?.error);
+}
+
 export async function refreshAccessToken() {
   const { data } = await sharedRefresh();
   if (data?.accessToken) setAccessToken(data.accessToken);
@@ -71,7 +85,7 @@ api.interceptors.response.use(
     const original = error.config;
     // `config` pode faltar (erro antes de montar o pedido) — sem o `?.` isso
     // virava "Cannot read properties of undefined" em vez do erro real.
-    if (error.response?.status === 401 && original && !original._retry && !String(original.url || '').includes('/auth/')) {
+    if (error.response?.status === 401 && original && !original._retry && shouldRefreshOn401(original, error.response)) {
       original._retry = true;
       try {
         const { data } = await sharedRefresh();

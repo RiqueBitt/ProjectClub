@@ -1,5 +1,6 @@
 const { verifyAccessToken } = require('../services/tokens');
 const prisma = require('../config/prisma');
+const { isAccessTokenRevoked } = require('../services/tokenRevocation');
 
 // Cached for a few seconds so every single authenticated request doesn't
 // hit the DB just to check one boolean — a platform admin flipping
@@ -21,7 +22,13 @@ async function requireAuth(req, res, next) {
     if (!token) return res.status(401).json({ error: 'Não autenticado.' });
 
     const payload = verifyAccessToken(token);
-    const user = await prisma.user.findUnique({ where: { id: payload.sub } });
+    // Sessões derrubadas (troca de senha, "sair dos outros aparelhos", staff…)
+    // valem na hora — ver services/tokenRevocation.js.
+    const [user, revoked] = await Promise.all([
+      prisma.user.findUnique({ where: { id: payload.sub } }),
+      isAccessTokenRevoked(payload),
+    ]);
+    if (revoked) return res.status(401).json({ error: 'Sessão encerrada. Entre de novo.' });
     if (!user) return res.status(401).json({ error: 'Usuário não encontrado.' });
 
     // Enforced on every request (not just at login) so a ban/suspension

@@ -1,5 +1,6 @@
 const env = require('../config/env');
 const { recordError } = require('../services/errorRing');
+const { redactUrl } = require('../utils/redactUrl');
 
 function notFoundHandler(req, res) {
   res.status(404).json({ error: 'Rota não encontrada.' });
@@ -12,12 +13,13 @@ function errorHandler(err, req, res, next) { // eslint-disable-line no-unused-va
   // actual 5xx (unexpected, worth investigating) in red.
   const useColor = process.stdout.isTTY && !process.env.NO_COLOR;
   const tag = useColor ? (status >= 500 ? '\x1b[31m[erro 5xx]\x1b[0m' : '\x1b[33m[erro 4xx]\x1b[0m') : `[erro ${status}]`;
-  console.error(`${tag} ${req.method} ${req.originalUrl} —`, err.message || err);
+  const safeUrl = redactUrl(req.originalUrl); // sem segredos da query no log
+  console.error(`${tag} ${req.method} ${safeUrl} —`, err.message || err);
   if (status >= 500) console.error(err.stack || err);
   if (status >= 500) {
     recordError('server', {
-      status, path: `${req.method} ${req.originalUrl}`, message: err.message || String(err), stack: err.stack,
-      url: `${req.method} ${req.originalUrl}`, userAgent: req.get?.('user-agent'), userId: req.user?.id,
+      status, path: `${req.method} ${safeUrl}`, message: err.message || String(err), stack: err.stack,
+      url: `${req.method} ${safeUrl}`, userAgent: req.get?.('user-agent'), userId: req.user?.id,
     });
   }
   if (err.code === 'LIMIT_FILE_SIZE') {
