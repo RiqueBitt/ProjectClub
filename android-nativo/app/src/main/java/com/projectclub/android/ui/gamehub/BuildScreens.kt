@@ -282,15 +282,18 @@ private fun TextRows(rows: List<Pair<String, String>>) {
 
 /** Ícone quadrado (item, feitiço, runa) com o nome embaixo. */
 @Composable
-private fun IconTileNamed(img: String?, name: String, size: Dp = 46.dp, round: Boolean = false, ring: Color? = null, caption: Boolean = true) {
-    Column(Modifier.width(size + 18.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+private fun IconTileNamed(img: String?, name: String, size: Dp = 46.dp, round: Boolean = false, ring: Color? = null, caption: Boolean = true, slot: Dp? = null) {
+    // [slot]: altura fixa da área do ícone (alinha ícones de tamanhos diferentes na mesma linha).
+    Column(Modifier.width(maxOf(size, slot ?: size) + 18.dp), horizontalAlignment = Alignment.CenterHorizontally) {
         val shape = if (round) CircleShape else RoundedCornerShape(10.dp)
-        Box(
-            Modifier.size(size).clip(shape).background(PC.Surface2).then(if (ring != null) Modifier.border(2.dp, ring, shape) else Modifier),
-            contentAlignment = Alignment.Center,
-        ) {
-            if (img != null) AsyncImage(img, name, contentScale = ContentScale.Crop, modifier = Modifier.fillMaxSize())
-            else Text(name.take(2), color = PC.Muted, style = MaterialTheme.typography.labelSmall)
+        Box(Modifier.height(slot ?: size), contentAlignment = Alignment.Center) {
+            Box(
+                Modifier.size(size).clip(shape).background(PC.Surface2).then(if (ring != null) Modifier.border(2.dp, ring, shape) else Modifier),
+                contentAlignment = Alignment.Center,
+            ) {
+                if (img != null) AsyncImage(img, name, contentScale = ContentScale.Crop, modifier = Modifier.fillMaxSize())
+                else Text(name.take(2), color = PC.Muted, style = MaterialTheme.typography.labelSmall)
+            }
         }
         if (caption) Text(name, color = PC.Muted, fontSize = 10.sp, lineHeight = 12.sp, maxLines = 2, overflow = TextOverflow.Ellipsis, textAlign = TextAlign.Center)
     }
@@ -304,10 +307,10 @@ private fun LolBody(d: LolBuildData, data: LolData?, champ: LolChampionDetail?) 
     val keystone = data?.runes?.flatMap { t -> t.slots.flatten() }?.firstOrNull { it.id == d.keystone }
     if (primary != null || keystone != null || d.spells.isNotEmpty()) Block("Runas e feitiços") {
         FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            keystone?.let { IconTileNamed(it.img, it.name, 52.dp, round = true) }
-            primary?.let { IconTileNamed(it.img, it.name, 36.dp, round = true) }
-            secondary?.let { IconTileNamed(it.img, "+ ${it.name}", 36.dp, round = true) }
-            d.spells.forEach { sid -> val s = data?.spells?.firstOrNull { it.id == sid }; IconTileNamed(s?.img, s?.name ?: sid, 40.dp) }
+            keystone?.let { IconTileNamed(it.img, it.name, 52.dp, round = true, slot = 52.dp) }
+            primary?.let { IconTileNamed(it.img, it.name, 36.dp, round = true, slot = 52.dp) }
+            secondary?.let { IconTileNamed(it.img, "+ ${it.name}", 36.dp, round = true, slot = 52.dp) }
+            d.spells.forEach { sid -> val s = data?.spells?.firstOrNull { it.id == sid }; IconTileNamed(s?.img, s?.name ?: sid, 40.dp, slot = 52.dp) }
         }
     }
     val items = data?.items.orEmpty().associateBy { it.id }

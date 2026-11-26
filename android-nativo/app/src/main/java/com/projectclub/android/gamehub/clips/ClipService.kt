@@ -54,7 +54,8 @@ class ClipService : Service() {
     }
 
     private fun begin(intent: Intent) {
-        if (engine != null) return
+        // Já gravando: só confirma o primeiro plano (o Android exige a cada startForegroundService).
+        if (engine != null) { foreground(); return }
         settings = ClipSettings(
             mode = intent.getStringExtra(EXTRA_MODE) ?: ClipSettings.MODE_BUFFER,
             seconds = intent.getIntExtra(EXTRA_SECONDS, 30),
@@ -91,7 +92,8 @@ class ClipService : Service() {
     }
 
     private fun saveReplay() {
-        val e = engine ?: return
+        // Notificação velha (o app foi fechado): não tem o que salvar.
+        val e = engine ?: run { if (!isForeground) stopSelf(); return }
         val st = ClipRecorder._state.value as? ClipState.Running ?: return
         if (st.saving || settings.mode != ClipSettings.MODE_BUFFER) return
         ClipRecorder._state.value = st.copy(saving = true)

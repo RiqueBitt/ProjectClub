@@ -20,7 +20,6 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.navigationBarsPadding
-import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -206,12 +205,12 @@ fun PartyCard(p: GameParty, meId: String?, busy: Boolean, highlighted: Boolean, 
             }
             Spacer(Modifier.height(10.dp))
             Row(verticalAlignment = Alignment.CenterVertically) {
-                Row {
-                    p.members.take(6).forEachIndexed { i, u ->
-                        Box(Modifier.offset(x = (-8 * i).dp).clip(CircleShape).border(2.dp, PC.Surface, CircleShape)) { Avatar(u, 28.dp, decoration = false) }
+                Row(horizontalArrangement = Arrangement.spacedBy((-8).dp)) {
+                    p.members.take(6).forEach { u ->
+                        Box(Modifier.clip(CircleShape).border(2.dp, PC.Surface, CircleShape)) { Avatar(u, 28.dp, decoration = false) }
                     }
                 }
-                Spacer(Modifier.width(if (p.members.isEmpty()) 0.dp else 4.dp))
+                Spacer(Modifier.width(if (p.members.isEmpty()) 0.dp else 8.dp))
                 Text(
                     "${p.filled}/${p.slots} vagas" + (p.host?.let { " · por ${it.name}" } ?: ""),
                     color = PC.Muted, style = MaterialTheme.typography.bodySmall, maxLines = 1, overflow = TextOverflow.Ellipsis,

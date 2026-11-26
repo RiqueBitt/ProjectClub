@@ -470,7 +470,7 @@ fun PhoneClipsContent(state: ClipState, settings: ClipSettings, clips: List<Loca
                     }
                     Switch(
                         settings.audio, { if (!locked) actions.onSettings(settings.copy(audio = it)) }, enabled = !locked,
-                        colors = SwitchDefaults.colors(checkedTrackColor = HubViolet),
+                        colors = SwitchDefaults.colors(checkedTrackColor = HubViolet, disabledCheckedTrackColor = HubViolet.copy(alpha = 0.45f), disabledCheckedThumbColor = Color.White.copy(alpha = 0.8f)),
                     )
                 } else Text("Neste Android o clipe sai sem o som do jogo.", color = PC.Faint, style = MaterialTheme.typography.bodySmall)
                 if (locked) Text("Desligue o gravador pra mudar.", color = PC.Faint, style = MaterialTheme.typography.bodySmall)
