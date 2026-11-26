@@ -46,16 +46,27 @@ export function Ico({ name, size = 18, className = '' }) {
   );
 }
 
-// Capa do jogo: imagem dada, ou as da Steam (cada erro tenta a próxima), ou
-// um controle com o nome.
-export function GameCover({ appId, name, src = null, shape = 'wide', className = '' }) {
-  const list = useMemo(() => [...(src ? [{ src }] : []), ...steamCoverCandidates(appId, shape === 'wide' ? 'wide' : 'cover')], [appId, src, shape]);
+// Capa do jogo: a que o servidor achou (Steam conferida, ou a arte da Twitch
+// pros jogos fora da Steam), ou as da Steam (cada erro tenta a próxima), ou
+// um controle com o nome. [tall] = a capa dada é vertical: num espaço largo
+// ela aparece inteira, com o fundo desfocado da própria imagem.
+export function GameCover({ appId, name, src = null, tall = false, shape = 'wide', className = '' }) {
+  const list = useMemo(() => [...(src ? [{ src, tall }] : []), ...steamCoverCandidates(appId, shape === 'wide' ? 'wide' : 'cover')], [appId, src, tall, shape]);
   const [i, setI] = useState(0);
   useEffect(() => { setI(0); }, [list]);
-  if (!list[i]) {
+  const cur = list[i];
+  if (!cur) {
     return <span className={`gh-cover-none ${className}`}><Ico name="gamepad" size={28} />{name && <b>{name}</b>}</span>;
   }
-  return <img className={className} src={list[i].src} alt="" loading="lazy" decoding="async" onError={() => setI((n) => n + 1)} />;
+  if (cur.tall && shape === 'wide') {
+    return (
+      <span className={`gh-cover-tall ${className}`}>
+        <img className="gh-cover-tall-bg" src={cur.src} alt="" aria-hidden="true" loading="lazy" decoding="async" />
+        <img className="gh-cover-tall-fg" src={cur.src} alt="" loading="lazy" decoding="async" onError={() => setI((n) => n + 1)} />
+      </span>
+    );
+  }
+  return <img className={className} src={cur.src} alt="" loading="lazy" decoding="async" onError={() => setI((n) => n + 1)} />;
 }
 
 export const errText = (err, fallback) => err?.response?.data?.error || fallback;

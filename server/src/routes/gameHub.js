@@ -26,11 +26,14 @@ const buildCreate = perUser('build', 24 * 60 * 60_000, 30, 'Você já criou muit
 // Responde o erro "de gente" (status + mensagem) ou passa pro tratador geral.
 const handle = (fn) => async (req, res, next) => {
   try { res.json(await fn(req, res)); } catch (err) {
-    if (err?.status) return res.status(err.status).json({ error: err.message });
+    if (err?.status) return res.status(err.status).json({ error: err.message, ...(err.code ? { code: err.code } : {}) });
     next(err);
   }
 };
 const deps = (req) => ({ io: req.app.get('io') });
+// Capas dos jogos (Steam conferida, ou arte da Twitch pros que não são da Steam).
+const covers = require('../services/gameHub/covers');
+const gameOfBuild = (b) => (b.gameInfo ? b.gameInfo : null);
 const me = async (req) => {
   const u = await require('../config/prisma').user.findUnique({ where: { id: req.user.id }, select: { id: true, displayName: true, username: true, platformRole: true } });
   return u || req.user;
@@ -44,7 +47,11 @@ router.get('/hotlist', handle(() => hotlist.getHotlist()));
 
 // ---------- Partidas ----------
 const parties = require('../services/gameHub/parties');
-router.get('/parties', handle((req) => parties.list(req.user.id, { gameKey: req.query.game || null }).then((list) => ({ parties: list }))));
+router.get('/parties', handle(async (req) => {
+  const list = await parties.list(req.user.id, { gameKey: req.query.game || null });
+  await covers.withGameCovers(list);
+  return { parties: list };
+}));
 router.post('/parties', partyCreate, handle(async (req) => ({ party: await parties.create(await me(req), req.body || {}, deps(req)) })));
 router.post('/parties/:id/join', writes, handle(async (req) => ({ party: await parties.join(req.user, req.params.id) })));
 router.post('/parties/:id/leave', writes, handle((req) => parties.leave(req.user, req.params.id)));
@@ -55,7 +62,11 @@ router.post('/parties/:id/call', writes, handle((req) => parties.call(req.user, 
 
 // ---------- Clipes ----------
 const clips = require('../services/gameHub/clips');
-router.get('/clips', handle((req) => clips.list(req.user.id, { gameKey: req.query.game || null, mine: req.query.mine === '1', before: req.query.before || null })));
+router.get('/clips', handle(async (req) => {
+  const out = await clips.list(req.user.id, { gameKey: req.query.game || null, mine: req.query.mine === '1', before: req.query.before || null });
+  await covers.withGameCovers(out.clips);
+  return out;
+}));
 router.post('/clips', clipCreate, handle(async (req) => ({ clip: await clips.create(req.user, req.body || {}) })));
 router.delete('/clips/:id', writes, handle(async (req) => clips.remove(await me(req), req.params.id)));
 router.post('/clips/:id/like', writes, handle((req) => clips.toggleLike(req.user, req.params.id)));
@@ -63,11 +74,19 @@ router.post('/clips/:id/like', writes, handle((req) => clips.toggleLike(req.user
 // ---------- Builds ----------
 const builds = require('../services/gameHub/builds');
 const gameData = require('../services/gameHub/gameData');
-router.get('/builds', handle((req) => builds.list(req.user.id, {
-  game: req.query.game || null, hero: req.query.hero || null, sort: req.query.sort === 'new' ? 'new' : 'top',
-  mine: req.query.mine === '1', q: String(req.query.q || '').trim(), skip: req.query.skip,
-})));
-router.get('/builds/:id', handle(async (req) => ({ build: await builds.get(req.user.id, req.params.id) })));
+router.get('/builds', handle(async (req) => {
+  const out = await builds.list(req.user.id, {
+    game: req.query.game || null, hero: req.query.hero || null, sort: req.query.sort === 'new' ? 'new' : 'top',
+    mine: req.query.mine === '1', q: String(req.query.q || '').trim(), skip: req.query.skip,
+  });
+  await covers.withGameCovers(out.builds, gameOfBuild);
+  return out;
+}));
+router.get('/builds/:id', handle(async (req) => {
+  const build = await builds.get(req.user.id, req.params.id);
+  if (build) await covers.withGameCovers([build], gameOfBuild);
+  return { build };
+}));
 router.post('/builds', buildCreate, handle(async (req) => ({ build: await builds.create(req.user, req.body || {}) })));
 router.put('/builds/:id', writes, handle(async (req) => ({ build: await builds.update(req.user, req.params.id, req.body || {}) })));
 router.delete('/builds/:id', writes, handle(async (req) => builds.remove(await me(req), req.params.id)));
@@ -90,5 +109,26 @@ router.get('/data/lol/champion/:id', dataRoute(async (req) => {
 }));
 router.get('/data/deadlock', dataRoute(() => gameData.deadlockData()));
 router.get('/data/darktide', dataRoute(async () => ({ classes: gameData.DARKTIDE_CLASSES })));
+
+// Capa de um jogo pelo nome/appId (seletor de jogo, jogos instalados no celular).
+const coverLimit = perUser('cover', 60_000, 120, 'Muitas capas seguidas. Espere um pouco.');
+router.get('/cover', coverLimit, handle(async (req, res) => {
+  const name = String(req.query.name || '').trim().slice(0, 100);
+  const appId = Number(req.query.appId) || null;
+  if (!name && !appId) { const e = new Error('Diga o jogo.'); e.status = 400; throw e; }
+  const c = await covers.resolve({ name, steamAppId: appId, prefer: 'wide' });
+  res.set('Cache-Control', 'private, max-age=86400');
+  return { url: c?.url || null, tall: !!c?.tall };
+}));
+
+// ---------- Celular: jogos com mods e addons do Bedrock ----------
+const bedrock = require('../services/gameHub/bedrock');
+const catalog = perUser('bedrock', 60_000, 60, 'Muitas buscas seguidas. Espere um pouco.');
+router.get('/android/games', handle((req, res) => { res.set('Cache-Control', 'private, max-age=3600'); return bedrock.androidGames(); }));
+router.get('/bedrock/classes', catalog, handle(() => bedrock.classes()));
+router.get('/bedrock/search', catalog, handle((req) => bedrock.search({
+  q: req.query.q, classId: req.query.class, sort: String(req.query.sort || 'popular'), page: req.query.page,
+})));
+router.get('/bedrock/mods/:id/files', catalog, handle((req) => bedrock.files(req.params.id)));
 
 module.exports = router;

@@ -154,7 +154,7 @@ export default function JogosHub() {
           <ol className="jh-hot">
             {hotGames.map((g) => (
               <li key={g.gameKey} className={`jh-hot-item p${g.position}`}>
-                <span className="jh-hot-art"><GameCover appId={g.steamAppId} src={g.iconUrl && !g.steamAppId ? g.iconUrl : null} name={g.name} shape="cover" /></span>
+                <span className="jh-hot-art"><GameCover appId={g.steamAppId} src={g.coverTall ? g.cover : (g.steamAppId ? null : (g.cover || g.iconUrl || null))} name={g.name} shape="cover" /></span>
                 <span className="jh-hot-pos">{g.position}</span>
                 <span className="jh-hot-text">
                   <strong className="truncate">{g.name}</strong>

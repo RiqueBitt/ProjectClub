@@ -10,11 +10,11 @@ const UA = 'ProjectClub/1.0 (+https://projectclub.shardweb.app)';
 const store = new Map(); // key -> { at, value }
 const inflight = new Map(); // key -> Promise
 
-async function fetchJson(url, { timeoutMs = 10_000, fetchImpl = globalThis.fetch } = {}) {
+async function fetchJson(url, { timeoutMs = 10_000, fetchImpl = globalThis.fetch, headers = {} } = {}) {
   const ctrl = new AbortController();
   const t = setTimeout(() => ctrl.abort(), timeoutMs);
   try {
-    const res = await fetchImpl(url, { headers: { 'user-agent': UA, accept: 'application/json' }, signal: ctrl.signal });
+    const res = await fetchImpl(url, { headers: { 'user-agent': UA, accept: 'application/json', ...headers }, signal: ctrl.signal });
     if (!res.ok) throw new Error(`HTTP ${res.status} em ${new URL(url).host}`);
     return await res.json();
   } finally { clearTimeout(t); }

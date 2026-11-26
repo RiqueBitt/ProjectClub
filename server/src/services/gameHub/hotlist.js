@@ -40,7 +40,15 @@ async function getHotlist(deps = {}) {
   const month = monthStartKey(now);
   if (!deps.db && memo && memo.month === month && now - memo.at < TTL) return memo.value;
   const value = await computeHotlist({ ...deps, now });
-  if (!deps.db) memo = { at: now, month, value };
+  // Capa de cada jogo (Steam, ou a arte da Twitch pros que não são da Steam: WoW, Roblox…).
+  if (!deps.db) {
+    await require('./covers').resolveMany(
+      value.games,
+      (g) => ({ name: g.name, steamAppId: g.steamAppId, image: g.iconUrl, prefer: 'wide' }),
+      (g, c) => { g.cover = c?.url || null; g.coverTall = !!c?.tall; },
+    );
+    memo = { at: now, month, value };
+  }
   return value;
 }
 

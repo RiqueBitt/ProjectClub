@@ -110,6 +110,7 @@ fun MoreTab(repo: Repository, actions: HomeActions, nav: com.projectclub.android
         Entry(Icons.AutoMirrored.Outlined.Article, "Fórum", PC.Forum, "/comunidades"),
         Entry(Icons.Outlined.Bolt, "Atividade", PC.Green, "/atividade"),
         Entry(Icons.Outlined.Search, "Buscar", PC.Brand, "/search"),
+        Entry(Icons.Outlined.SportsEsports, "Game Hub", Color(0xFFA970FF), "/jogos"),
         Entry(Icons.Outlined.VideogameAsset, "Meus jogos", Color(0xFFA78BFA), "/jogos/biblioteca"),
         Entry(Icons.Outlined.SupportAgent, "Suporte", Color(0xFF34D399), "/tickets"),
         // Também no site (abrem dentro do app, já logado).

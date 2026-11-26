@@ -5,6 +5,7 @@
 // Cada loja é buscada e guardada separada (30 min): se uma cair, as outras
 // continuam aparecendo, e a que caiu mostra a última lista boa.
 const { fetchJson, cached } = require('./remote');
+const covers = require('./covers');
 
 const TTL = 30 * 60 * 1000;
 const URLS = {
@@ -93,7 +94,8 @@ function parseEpicDeals(json) {
     const steamAppId = num(d?.steamAppID);
     return {
       store: 'epic', id: `epicdeal:${d.gameID || d.dealID}`, title: String(d.title || '').slice(0, 120),
-      image: steamAppId ? steamHeader(steamAppId) : (d.thumb || null),
+      // A capa certa sai do covers.js (Steam conferida → imagem do CheapShark → Twitch).
+      image: d.thumb || null, steamAppId: steamAppId || null,
       url: d.dealID ? `https://www.cheapshark.com/redirect?dealID=${d.dealID}` : null,
       price: { final: round2(final), base: round2(base), currency: 'USD', discount: Math.round(num(d?.savings) || 0) },
       free: false, endsAt: null,
@@ -120,10 +122,22 @@ async function getDeals(deps = {}) {
   const freeTitles = new Set((epicFree?.free || []).map((d) => d.title.toLowerCase()));
   const deals = [...(steam || []), ...(gog || []), ...(epicDeals || []).filter((d) => !freeTitles.has(d.title.toLowerCase()))]
     .sort((a, b) => (b.price.discount || 0) - (a.price.discount || 0));
+  // Capas: troca "sem imagem" e endereços quebrados da Steam, e diminui as da Epic.
+  const withCover = (list) => covers.resolveMany(
+    list.map((d) => ({ ...d })),
+    (d) => ({ name: d.title, steamAppId: d.steamAppId || null, image: d.image, prefer: 'wide' }),
+    (d, c) => { d.image = c?.url || null; d.imageTall = !!c?.tall; },
+    { deps },
+  );
+  const [free, upcoming, rest] = await Promise.all([
+    withCover([...(epicFree?.free || []), ...deals.filter((d) => d.free)]),
+    withCover(epicFree?.upcoming || []),
+    withCover(deals.filter((d) => !d.free)),
+  ]);
   return {
-    free: [...(epicFree?.free || []), ...deals.filter((d) => d.free)],
-    upcoming: epicFree?.upcoming || [],
-    deals: deals.filter((d) => !d.free),
+    free,
+    upcoming,
+    deals: rest,
     stores: { steam: steam !== null, gog: gog !== null, epic: epicFree !== null || epicDeals !== null },
     updatedAt: new Date().toISOString(),
   };

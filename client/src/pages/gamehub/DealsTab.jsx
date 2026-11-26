@@ -16,7 +16,7 @@ export function StoreBadge({ store }) {
 export function FreeCard({ deal, upcoming = false }) {
   return (
     <a className={`gh-free${upcoming ? ' is-soon' : ''}`} href={deal.url} target="_blank" rel="noopener noreferrer">
-      <span className="gh-free-art"><GameCover src={deal.image} appId={deal.steamAppId} name={deal.title} /></span>
+      <span className="gh-free-art"><GameCover src={deal.image} tall={deal.imageTall} appId={deal.steamAppId} name={deal.title} /></span>
       <span className="gh-free-body">
         <span className="gh-free-top"><StoreBadge store={deal.store} /><b className="gh-free-tag">{upcoming ? 'Em breve' : 'Grátis'}</b></span>
         <strong className="gh-free-title">{deal.title}</strong>
@@ -35,7 +35,7 @@ export function DealCard({ deal }) {
   return (
     <a className="gh-deal" href={deal.url} target="_blank" rel="noopener noreferrer" title={`Abrir na ${STORES[deal.store]}`}>
       <span className="gh-deal-art">
-        <GameCover src={deal.image} appId={deal.steamAppId} name={deal.title} />
+        <GameCover src={deal.image} tall={deal.imageTall} appId={deal.steamAppId} name={deal.title} />
         {p.discount > 0 && <b className="gh-deal-off">-{p.discount}%</b>}
       </span>
       <span className="gh-deal-body">

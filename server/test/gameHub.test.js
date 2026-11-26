@@ -63,7 +63,8 @@ test('CheapShark (Epic): em dólar, sem os grátis, link pelo redirect', () => {
   assert.equal(out[0].price.currency, 'USD');
   assert.equal(out[0].price.discount, 50);
   assert.equal(out[0].url, 'https://www.cheapshark.com/redirect?dealID=BBB%2F');
-  assert.match(out[0].image, /1145360\/header\.jpg$/);
+  assert.equal(out[0].image, 'https://x/h.jpg');
+  assert.equal(out[0].steamAppId, 1145360);
 });
 
 test('getDeals: uma loja fora do ar não derruba as outras', async () => {
@@ -314,4 +315,189 @@ test('Deadlock: heróis jogáveis com as 4 habilidades e itens da loja', () => {
   assert.deepEqual(out.heroes.map((h) => h.name), ['Infernus']);
   assert.deepEqual(out.heroes[0].abilities.map((a) => [a.slot, a.name]), [[1, 'Catalisador'], [2, 'Rastro']]);
   assert.deepEqual(out.items.map((i) => [i.id, i.slot, i.cost]), [[7, 'weapon', 800]]);
+});
+
+// ---------- Celular: addons do Bedrock (CurseForge) e jogos com mods ----------
+const bedrock = require('../src/services/gameHub/bedrock');
+
+function fakeFetch(routes) {
+  const calls = [];
+  const impl = async (url, init) => {
+    calls.push({ url: String(url), headers: init?.headers || {} });
+    const u = new URL(url);
+    const hit = routes[u.pathname];
+    if (!hit) return { ok: false, status: 404, json: async () => ({}) };
+    return { ok: true, status: 200, json: async () => (typeof hit === 'function' ? hit(u) : hit) };
+  };
+  return { impl, calls };
+}
+
+const CF_MOD = {
+  id: 1234, gameId: 78022, name: 'Actions & Stuff', summary: 'Animações novas', classId: 4984,
+  logo: { thumbnailUrl: 'https://media.forgecdn.net/t.png', url: 'https://media.forgecdn.net/f.png' },
+  links: { websiteUrl: 'https://www.curseforge.com/minecraft-bedrock/addons/actions-stuff' },
+  downloadCount: 98765.0, categories: [{ name: 'Animações' }, { name: 'Utilidades' }], authors: [{ name: 'Oreville' }],
+  dateModified: '2026-11-20T10:00:00Z', allowModDistribution: true, mainFileId: 2,
+  latestFiles: [
+    { id: 1, displayName: 'v1 beta', fileName: 'actions-beta.zip', releaseType: 2, fileDate: '2026-10-01T00:00:00Z', fileLength: 100, downloadUrl: 'https://edge.forgecdn.net/1/a.zip', gameVersions: ['1.21.40', 'Bedrock'] },
+    { id: 2, displayName: 'v2', fileName: 'Actions.mcaddon', releaseType: 1, fileDate: '2026-11-20T00:00:00Z', fileLength: 2048, downloadUrl: 'https://edge.forgecdn.net/2/Actions.mcaddon', gameVersions: ['1.21.50'] },
+  ],
+};
+
+test('Bedrock: sem chave responde 503 com code no_key (sem chamar a CurseForge)', async () => {
+  remote._resetForTests();
+  const { impl, calls } = fakeFetch({});
+  await assert.rejects(bedrock.search({ q: 'casa' }, { key: '', fetchImpl: impl }), (e) => e.status === 503 && e.code === 'no_key');
+  assert.equal(calls.length, 0);
+});
+
+test('Bedrock: busca monta a URL certa e manda a chave no cabeçalho', async () => {
+  remote._resetForTests();
+  const { impl, calls } = fakeFetch({ '/v1/mods/search': { data: [CF_MOD], pagination: { totalCount: 45 } } });
+  const out = await bedrock.search({ q: '  furniture ', classId: '4984', sort: 'popular', page: '1' }, { key: 'k-test', fetchImpl: impl });
+  const u = new URL(calls[0].url);
+  assert.equal(u.searchParams.get('gameId'), '78022');
+  assert.equal(u.searchParams.get('classId'), '4984');
+  assert.equal(u.searchParams.get('searchFilter'), 'furniture');
+  assert.equal(u.searchParams.get('sortField'), '13'); // com texto, ordena por relevância
+  assert.equal(u.searchParams.get('index'), '20');
+  assert.equal(calls[0].headers['x-api-key'], 'k-test');
+  assert.equal(out.page, 1);
+  assert.equal(out.hasMore, true); // 45 resultados, página 2 de 3
+  const m = out.mods[0];
+  assert.equal(m.name, 'Actions & Stuff');
+  assert.equal(m.icon, 'https://media.forgecdn.net/t.png');
+  assert.deepEqual(m.categories, ['Animações', 'Utilidades']);
+  assert.equal(m.mainFile.id, 2);
+  assert.equal(m.mainFile.installable, true);
+  assert.deepEqual(m.mainFile.versions, ['1.21.50']);
+});
+
+test('Bedrock: página e ordem fora do esperado viram valores seguros', () => {
+  const { path, page } = bedrock.searchPath({ sort: 'qualquer', page: '-3', classId: 'abc' });
+  const u = new URL(`https://x${path}`);
+  assert.equal(page, 0);
+  assert.equal(u.searchParams.get('sortField'), '2');
+  assert.equal(u.searchParams.get('classId'), null);
+  assert.equal(bedrock.searchPath({ page: '99999' }).page, 499); // index + pageSize ≤ 10.000
+  assert.equal(new URL(`https://x${bedrock.searchPath({ sort: 'name' }).path}`).searchParams.get('sortOrder'), 'asc');
+});
+
+test('Bedrock: arquivos mais novos primeiro; autor que proíbe download fica sem link', async () => {
+  remote._resetForTests();
+  const locked = { ...CF_MOD, id: 77, allowModDistribution: false };
+  const { impl } = fakeFetch({
+    '/v1/mods/77': { data: locked },
+    '/v1/mods/77/files': { data: [
+      { ...CF_MOD.latestFiles[0], downloadUrl: null },
+      { ...CF_MOD.latestFiles[1], downloadUrl: null },
+    ] },
+  });
+  const out = await bedrock.files('77', { key: 'k', fetchImpl: impl });
+  assert.equal(out.mod.canDownload, false);
+  assert.deepEqual(out.files.map((f) => f.id), [2, 1]);
+  assert.equal(out.files[0].downloadUrl, null);
+  assert.equal(out.files[1].installable, false); // .zip o Minecraft não importa sozinho
+  assert.equal(out.files[1].channel, 'beta');
+});
+
+test('Bedrock: item de outro jogo e id inválido são recusados', async () => {
+  remote._resetForTests();
+  const { impl } = fakeFetch({ '/v1/mods/5': { data: { ...CF_MOD, id: 5, gameId: 432 } }, '/v1/mods/5/files': { data: [] } });
+  await assert.rejects(bedrock.files('5', { key: 'k', fetchImpl: impl }), (e) => e.status === 404);
+  await assert.rejects(bedrock.files('abc', { key: 'k', fetchImpl: impl }), (e) => e.status === 400);
+});
+
+test('Bedrock: tipos de conteúdo só com as classes, na ordem do site', async () => {
+  remote._resetForTests();
+  const { impl } = fakeFetch({ '/v1/categories': { data: [
+    { id: 6913, name: 'Maps', slug: 'maps', isClass: true, displayIndex: 2 },
+    { id: 4984, name: 'Addons', slug: 'addons', isClass: true, displayIndex: 1 },
+    { id: 9, name: 'Sub', classId: 4984, isClass: false },
+  ] } });
+  const out = await bedrock.classes({ key: 'k', fetchImpl: impl });
+  assert.deepEqual(out.classes.map((c) => c.slug), ['addons', 'maps']);
+});
+
+test('Jogos de Android: lista sem pacote repetido e com o que fazer em cada um', () => {
+  const { games } = bedrock.androidGames();
+  const pkgs = games.flatMap((g) => g.packages);
+  assert.equal(new Set(pkgs).size, pkgs.length);
+  assert.ok(games.find((g) => g.packages.includes('com.mojang.minecraftpe'))?.support === 'install');
+  for (const g of games) {
+    assert.ok(['install', 'ingame', 'loader'].includes(g.support), g.id);
+    assert.ok(g.tip && g.name, g.id);
+    if (g.support === 'loader') assert.ok(g.loaderPackages.length && g.url, g.id);
+  }
+});
+
+// ---------- Capas dos jogos ----------
+const covers = require('../src/services/gameHub/covers');
+
+function coverFetch(map) {
+  const calls = [];
+  const impl = async (url, init = {}) => {
+    calls.push(`${init.method || 'GET'} ${url}`);
+    for (const [re, res] of map) {
+      if (re.test(url)) {
+        const r = typeof res === 'function' ? res(url, init) : res;
+        return { ok: r.status === 200, status: r.status, headers: { get: (h) => (h === 'content-type' ? (r.type || 'image/jpeg') : null) }, json: async () => r.json };
+      }
+    }
+    return { ok: false, status: 404, headers: { get: () => 'text/html' }, json: async () => ({}) };
+  };
+  return { impl, calls };
+}
+
+test('Capas: reconhece "sem imagem", capa vertical e diminui as da Epic', () => {
+  assert.ok(covers.isPlaceholder('https://www.cheapshark.com/img/default_box_art.png'));
+  assert.ok(covers.isPlaceholder(null));
+  assert.ok(!covers.isPlaceholder('https://cdn1.epicgames.com/x.jpg'));
+  assert.ok(covers.isTall('https://cdn2.unrealengine.com/egs-x-editions-s2-1200x1600-abc.jpg'));
+  assert.ok(covers.isTall('https://static-cdn.jtvnw.net/ttv-boxart/Roblox-285x380.jpg'));
+  assert.ok(!covers.isTall('https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/730/header.jpg'));
+  assert.equal(covers.sized('https://cdn1.epicgames.com/a/b.jpg'), 'https://cdn1.epicgames.com/a/b.jpg?h=360&quality=medium&resize=1&w=640');
+  assert.match(covers.sized('https://cdn2.unrealengine.com/egs-x-1200x1600-a.jpg'), /h=480&quality=medium&resize=1&w=360$/);
+  assert.equal(covers.sized('https://store.ubisoft.com/i.jpg?sw=197&amp;sh=261'), 'https://store.ubisoft.com/i.jpg?sw=197&sh=261');
+  assert.deepEqual(covers.nameVariants('Need for Speed™ Heat Deluxe Edition'), ['Need for Speed Heat Deluxe Edition', 'Need for Speed Heat']);
+  assert.deepEqual(covers.nameVariants('STAR WARS Jedi: Survivor'), ['STAR WARS Jedi: Survivor', 'STAR WARS Jedi']);
+});
+
+test('Capas: jogo fora da Steam pega a arte da Twitch; "sem capa" da Twitch é recusado', async () => {
+  covers._resetForTests(); remote._resetForTests();
+  const { impl } = coverFetch([
+    [/ttv-boxart\/World%20of%20Warcraft-/, { status: 200 }],
+    [/ttv-boxart\//, { status: 302 }],
+    [/storesearch/, { status: 200, json: { items: [{ id: 1, name: 'Outro Jogo Qualquer' }] } }],
+  ]);
+  const wow = await covers.resolve({ name: 'World of Warcraft' }, { fetchImpl: impl });
+  assert.deepEqual(wow, { url: 'https://static-cdn.jtvnw.net/ttv-boxart/World%20of%20Warcraft-285x380.jpg', tall: true });
+  assert.equal(await covers.resolve({ name: 'Jogo Que Não Existe' }, { fetchImpl: impl }), null);
+});
+
+test('Capas: Steam com endereço novo usa o header_image do appdetails', async () => {
+  covers._resetForTests(); remote._resetForTests();
+  const { impl, calls } = coverFetch([
+    [/store_item_assets\/steam\/apps\/3724680\/header\.jpg$/, { status: 404, type: 'text/html' }],
+    [/appdetails\?appids=3724680/, { status: 200, json: { 3724680: { success: true, data: { header_image: 'https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/3724680/abc/header.jpg?t=1' } } } }],
+    [/store_item_assets\/steam\/apps\/730\/header\.jpg$/, { status: 200 }],
+  ]);
+  const a = await covers.resolve({ name: 'Gangsters Way', steamAppId: 3724680, image: 'https://www.cheapshark.com/img/default_box_art.png' }, { fetchImpl: impl });
+  assert.equal(a.url, 'https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/3724680/abc/header.jpg?t=1');
+  const cs = await covers.resolve({ name: 'Counter-Strike 2', steamAppId: 730 }, { fetchImpl: impl });
+  assert.deepEqual(cs, { url: 'https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/730/header.jpg', tall: false });
+  // guardado: a segunda vez não busca de novo
+  const before = calls.length;
+  await covers.resolve({ name: 'Counter-Strike 2', steamAppId: 730 }, { fetchImpl: impl });
+  assert.equal(calls.length, before);
+});
+
+test('Capas: promoção com capa vertical da Epic prefere a larga da Steam', async () => {
+  covers._resetForTests(); remote._resetForTests();
+  const { impl } = coverFetch([[/steam\/apps\/1174180\/header\.jpg$/, { status: 200 }]]);
+  const tall = 'https://cdn2.unrealengine.com/egs-rdr2-editions-s2-1200x1600-a.jpg';
+  const wide = await covers.resolve({ name: 'RDR2', steamAppId: 1174180, image: tall, prefer: 'wide' }, { fetchImpl: impl });
+  assert.equal(wide.tall, false);
+  const noSteam = await covers.resolve({ name: 'Exclusivo', image: tall, prefer: 'wide' }, { fetchImpl: impl });
+  assert.deepEqual(noSteam, { url: `${tall}?h=480&quality=medium&resize=1&w=360`, tall: true });
 });

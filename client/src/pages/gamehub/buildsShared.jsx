@@ -101,7 +101,7 @@ export function BuildPortrait({ build, index, size = 56 }) {
     const k = DARKTIDE_CLASSES.find((c) => c.id === build.hero);
     return <span className={`gh-icon gh-klass k-${build.hero}`} style={{ '--s': `${size}px` }} title={k?.name}>{k?.glyph || '?'}</span>;
   }
-  return <span className="gh-icon gh-icon-cover" style={{ '--s': `${size}px` }}><GameCover appId={build.gameInfo?.steamAppId} name="" /></span>;
+  return <span className="gh-icon gh-icon-cover" style={{ '--s': `${size}px` }}><GameCover appId={build.gameInfo?.steamAppId} src={build.gameInfo?.cover} tall={build.gameInfo?.coverTall} name="" /></span>;
 }
 
 // Seletor genérico: busca + filtros + grade de ícones.

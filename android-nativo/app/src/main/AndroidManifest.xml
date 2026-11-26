@@ -246,6 +246,12 @@
             android:exported="false"
             android:foregroundServiceType="microphone|mediaPlayback|mediaProjection" />
 
+        <!-- Game Hub: grava clipes da tela (replay dos últimos segundos ou gravar/parar). -->
+        <service
+            android:name=".gamehub.clips.ClipService"
+            android:exported="false"
+            android:foregroundServiceType="mediaProjection" />
+
         <service
             android:name=".notify.PushService"
             android:exported="false">
@@ -279,4 +285,14 @@
             android:name="com.google.firebase.messaging.default_notification_icon"
             android:resource="@drawable/ic_stat_pc" />
     </application>
+
+    <!-- Game Hub → Mods: ver os jogos instalados (só apps da tela inicial) e
+         entregar addons ao Minecraft. Sem QUERY_ALL_PACKAGES. -->
+    <queries>
+        <intent>
+            <action android:name="android.intent.action.MAIN" />
+            <category android:name="android.intent.category.LAUNCHER" />
+        </intent>
+        <package android:name="com.mojang.minecraftpe" />
+    </queries>
 </manifest>

@@ -43,7 +43,7 @@ export function PartyCard({ party, onChange, onInvite, highlight = false, compac
   const open = Array.from({ length: Math.max(0, party.slots - party.filled) });
   return (
     <article className={`gh-party${highlight ? ' is-hl' : ''}${compact ? ' is-compact' : ''}`} id={`partida-${party.id}`}>
-      <div className="gh-party-art"><GameCover appId={party.game.steamAppId} name={party.game.name} /></div>
+      <div className="gh-party-art"><GameCover appId={party.game.steamAppId} src={party.game.cover} tall={party.game.coverTall} name={party.game.name} /></div>
       <div className="gh-party-body">
         <div className="gh-party-top">
           <span className={`gh-when${party.startsAt ? '' : ' is-now'}`}>{party.startsAt ? <Ico name="clock" size={13} /> : <span className="gh-live-dot" />}{whenLabel(party.startsAt)}</span>

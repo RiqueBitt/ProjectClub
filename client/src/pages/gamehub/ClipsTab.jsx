@@ -30,7 +30,7 @@ export function ClipCard({ clip, onOpen, onLike }) {
   return (
     <article className="gh-clip">
       <button type="button" className="gh-clip-art" onClick={() => onOpen(clip)} aria-label={`Assistir ${clip.title}`}>
-        <GameCover src={clip.thumb} appId={clip.game?.steamAppId} name={clip.game?.name || ''} />
+        <GameCover src={clip.thumb || clip.game?.cover} tall={!clip.thumb && !!clip.game?.coverTall} appId={clip.game?.steamAppId} name={clip.game?.name || ''} />
         <span className="gh-clip-play"><Ico name="play" size={22} /></span>
         <span className={`gh-clip-prov p-${clip.provider}`}>{PROVIDERS[clip.provider]}</span>
       </button>
