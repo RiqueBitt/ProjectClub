@@ -9,7 +9,10 @@ import { Accessory, loadAccessories, saveAccessories, nextAccessory } from './au
 // acompanham o que a pessoa faz no formulário.
 //
 // Elenco FIXO (nov/2026): forma, cor e rosto de cada um são sempre os
-// mesmos — dois quadrados e dois retângulos, encostados uns nos outros. Cada um começa com o SEU acessório (authAccessories.jsx) e a
+// mesmos — dois quadrados e dois retângulos, encostados uns nos outros.
+// Traço MINIMALISTA (igual ao site): cor lisa, sem brilho nem sombreado,
+// olho de bolinha preta, boca de traço; sobrancelha e bochecha só
+// aparecem nas reações. Cada um começa com o SEU acessório (authAccessories.jsx) e a
 // pessoa troca tocando nele — a escolha fica salva no navegador. Nada
 // acontece "do nada": fora respirar, piscar e o balanço do acessório,
 // todo movimento é resposta ao que a pessoa faz (PC e celular).
@@ -178,16 +181,16 @@ function makeCast() {
 const E = (eyes, mouth, o = {}) => ({ eyes, mouth, brow: 'none', hands: 'rest', blush: 1, look: 'target', ...o });
 const MOODS = {
   idle: {
-    lila: E('open', 'smile', { brow: 'soft' }),
-    menta: E('open', 'soft', { brow: 'soft' }),
-    coral: E('open', 'cat', { brow: 'soft', blush: 2 }),
-    mel: E('open', 'smile', { brow: 'soft' }),
+    lila: E('open', 'smile', { blush: 0 }),
+    menta: E('open', 'soft', { blush: 0 }),
+    coral: E('open', 'smile', { blush: 0 }),
+    mel: E('open', 'smile', { blush: 0 }),
   },
   typing: {
-    lila: E('open', 'grin', { brow: 'up' }),
-    menta: E('open', 'smile', { brow: 'soft' }),
-    coral: E('open', 'smile', { blush: 2 }),
-    mel: E('wide', 'o'),
+    lila: E('open', 'smile', { blush: 0 }),
+    menta: E('open', 'soft', { blush: 0 }),
+    coral: E('open', 'smile', { blush: 0 }),
+    mel: E('wide', 'o', { blush: 0 }),
   },
   password: {
     lila: E('closed', 'smile', { brow: 'soft', look: 'away' }),
@@ -340,7 +343,7 @@ function useFormFocus(scopeSelector) {
 
 // ----------------------------- desenho ------------------------------
 
-function Eye({ c, e, i, state, uid }) {
+function Eye({ c, e, i, state }) {
   const side = i === 0 ? 1 : -1; // ">" no esquerdo, "<" no direito
   const k = c.r / 9; // os traços de olho fechado acompanham o tamanho do olho
   return (
@@ -348,33 +351,13 @@ function Eye({ c, e, i, state, uid }) {
       <g className="pcc-eye" data-state={state}>
         <g className="pcc-eye-open">
           <g className="pcc-blink">
-            {/* esclera com sombrinha da pálpebra em cima (dá fundo ao olho) */}
-            <circle r={c.r} fill={`url(#${uid}-scl)`} />
-            <circle r={c.r} fill="none" stroke={INK} strokeOpacity=".22" strokeWidth="1" />
             <g className="pcc-pupil">
               <g className="pcc-pupil-s">
-                <circle r={c.pr} fill={c.deep} />
-                <circle r={c.pr} fill={`url(#${uid}-iris)`} />
-                <circle r={c.pr * 0.6} fill={INK} />
-                <circle cx={c.pr * 0.36} cy={-c.pr * 0.4} r={c.pr * 0.34} fill="#fff" />
-                <circle cx={-c.pr * 0.38} cy={c.pr * 0.42} r={c.pr * 0.15} fill="#fff" opacity=".85" />
+                <ellipse rx={c.pr * 0.95} ry={c.pr * 1.15} fill={INK} />
+                <circle cx={c.pr * 0.32} cy={-c.pr * 0.42} r={c.pr * 0.28} fill="#fff" />
               </g>
             </g>
-            {/* Pálpebra de verdade: desce por cima da esclera (recortada). */}
-            <g clipPath={`url(#${uid}-eye-${c.id})`}>
-              <path
-                className="pcc-lid" fill={c.lid}
-                d={`M${-c.r - 2} ${-2 * c.r - 4} H${c.r + 2} V0 Q0 3 ${-c.r - 2} 0 Z`}
-              />
-            </g>
           </g>
-          {c.lashes && (
-            // cílios no canto de fora
-            <path
-              d={`M${side * -c.r * 0.78} ${-c.r * 0.62} l${side * -3.4} -3 M${side * -c.r * 0.98} ${-c.r * 0.2} l${side * -4} -1`}
-              stroke={INK} strokeWidth="2" strokeLinecap="round" fill="none"
-            />
-          )}
         </g>
         <g transform={`scale(${k})`}>
           <path className="pcc-eye-alt pcc-eye-closed" d="M-6.5 -0.5 Q0 4.5 6.5 -0.5" />
@@ -391,21 +374,18 @@ function Mouth({ c, kind }) {
     <g transform={`translate(${c.mouth.x} ${c.mouth.y}) scale(${c.mouth.s})`}>
       {Object.entries(MOUTHS).map(([k, m]) => {
         const on = kind === k || undefined;
-        if (m.ellipse) return <ellipse key={k} className="pcc-mouth" data-on={on} cx="0" cy="2" rx="4.2" ry="5.2" fill="#2b1631" />;
+        if (m.ellipse) return <ellipse key={k} className="pcc-mouth" data-on={on} cx="0" cy="2" rx="3.6" ry="4.4" fill={INK} />;
         if (m.fill) {
           return (
             <g key={k} className="pcc-mouth" data-on={on}>
-              <path d={m.d} fill="#2b1631" stroke="#2b1631" strokeWidth="1.5" strokeLinejoin="round" />
-              {/* dentinhos em cima e linguinha embaixo */}
-              <path d={k === 'big' ? 'M-7.5 -2.2 Q0 -0.6 7.5 -2.2 L7 0.6 Q0 2 -7 0.6 Z' : 'M-6 -1.9 Q0 -0.4 6 -1.9 L5.6 0.2 Q0 1.4 -5.6 0.2 Z'} fill="#fff" />
-              <ellipse cx="0" cy={k === 'big' ? 7.6 : 5.8} rx={k === 'big' ? 5 : 3.6} ry={k === 'big' ? 2.8 : 2} fill="#ff7c98" />
+              <path d={m.d} fill={INK} stroke={INK} strokeWidth="1.5" strokeLinejoin="round" />
             </g>
           );
         }
         return (
           <path
             key={k} className="pcc-mouth" data-on={on} d={m.d}
-            fill="none" stroke={INK} strokeWidth="2.8" strokeLinecap="round" strokeLinejoin="round"
+            fill="none" stroke={INK} strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round"
           />
         );
       })}
@@ -446,23 +426,12 @@ const Character = memo(function Character({ c, mood, index, reg, uid, acc, onPre
       <g ref={reg(c.id, 'hop')} className="pcc-hop">
         <g ref={reg(c.id, 'lean')}>
           <g className="pcc-breathe">
-            <path d={c.body} fill={`url(#${uid}-g-${c.id})`} />
-            <g clipPath={`url(#${uid}-b-${c.id})`}>
-              {/* sombra própria embaixo/à direita e brilho em cima/à esquerda */}
-              <rect x={c.cx - c.w} y={c.bodyTop - 30} width={c.w * 2} height={FLOOR - c.bodyTop + 30} fill={`url(#${uid}-sv-${c.id})`} />
-              <rect x={c.cx - c.w} y={c.bodyTop - 30} width={c.w * 2} height={FLOOR - c.bodyTop + 30} fill={`url(#${uid}-sh-${c.id})`} />
-              {/* oclusão suave na base (assenta no chão) */}
-              <rect x={c.cx - c.w} y={FLOOR - Math.min(42, (FLOOR - c.bodyTop) * 0.4)} width={c.w * 2} height="60" fill={`url(#${uid}-occ-${c.id})`} />
-              {/* brilho especular alto à esquerda (volume de brinquedo) */}
-              <ellipse cx={c.cx - c.w * 0.24} cy={c.bodyTop + (FLOOR - c.bodyTop) * 0.2} rx={c.w * 0.26} ry={Math.min(30, (FLOOR - c.bodyTop) * 0.2)} fill={`url(#${uid}-sheen)`} />
-              <ellipse cx={c.cx - c.w * 0.26} cy={c.bodyTop + (FLOOR - c.bodyTop) * 0.12} rx={c.w * 0.12} ry={Math.min(10, (FLOOR - c.bodyTop) * 0.08)} fill="#fff" opacity=".5" />
-            </g>
-            <path d={c.body} fill="none" stroke="rgba(255,255,255,.3)" strokeWidth="1.2" className="pcc-rim" />
+            <path d={c.body} fill={c.base} />
             <Accessory c={c} id={acc} uid={uid} reg={reg} where="head" />
 
             <g ref={reg(c.id, 'face')} className="pcc-face">
               <g className="pcc-blush">
-                {c.blush.map((b, i) => <ellipse key={i} cx={b.x} cy={b.y} rx={c.blushR[0] * 1.15} ry={c.blushR[1] * 1.2} fill={`url(#${uid}-ck-${c.id})`} />)}
+                {c.blush.map((b, i) => <ellipse key={i} cx={b.x} cy={b.y} rx={c.blushR[0] * 0.8} ry={c.blushR[1] * 0.75} fill={c.cheek} />)}
               </g>
               <g className="pcc-brows" data-on={brow ? true : undefined}>
                 {c.eyes.map((e, i) => (
@@ -489,12 +458,8 @@ const Character = memo(function Character({ c, mood, index, reg, uid, acc, onPre
                       key={i} className="pcc-hand" data-slow={mood.hands === 'peek' && i === 1 ? true : undefined}
                       style={{ transform: `translate(${x}px, ${y}px) rotate(${rot}deg) scale(${(vis ? 1 : 0.4) * c.hand * (i ? -1 : 1)}, ${(vis ? 1 : 0.4) * c.hand})`, opacity: vis ? 1 : 0 }}
                     >
-                      {/* luvinha: palma, dedão e dois risquinhos de dedo */}
-                      <ellipse cx="0.5" cy="3.5" rx="9" ry="8" fill="#2a1840" opacity=".24" />
-                      <ellipse cx="-8.4" cy="1.5" rx="3.6" ry="2.8" transform="rotate(-35 -8.4 1.5)" fill={c.top} stroke={c.deep} strokeWidth="1.5" />
-                      <path d={MITTEN} fill={`url(#${uid}-h-${c.id})`} stroke={c.deep} strokeWidth="1.9" strokeLinejoin="round" />
-                      <path d="M-2.2 -7.5 V-3 M2.6 -7.2 V-3" stroke={c.deep} strokeWidth="1.2" strokeLinecap="round" opacity=".7" />
-                      <ellipse cx="-2.5" cy="-5" rx="2.6" ry="1.4" fill="#fff" opacity=".35" />
+                      {/* mãozinha lisa */}
+                      <path d={MITTEN} fill={c.top} stroke={c.deep} strokeWidth="1.4" strokeLinejoin="round" />
                     </g>
                   );
                 })}
@@ -940,81 +905,19 @@ export default function AuthCharacters({ reaction = null, scope = '.pc-auth-pane
         focusable="false"
       >
         <defs>
-          {cast.map((c) => (
-            <g key={c.id}>
-              <radialGradient id={`${uid}-ck-${c.id}`}>
-                <stop offset="0" stopColor={c.cheek} stopOpacity=".95" />
-                <stop offset="1" stopColor={c.cheek} stopOpacity="0" />
-              </radialGradient>
-              <linearGradient id={`${uid}-g-${c.id}`} gradientUnits="userSpaceOnUse" x1={c.cx - c.w * 0.3} y1={c.bodyTop} x2={c.cx + c.w * 0.3} y2={FLOOR}>
-                <stop offset="0" stopColor={c.top} />
-                <stop offset=".5" stopColor={c.base} />
-                <stop offset="1" stopColor={c.base} />
-              </linearGradient>
-              {/* Luvinha mais clara que o corpo, pra ler como mão em cima do rosto. */}
-              <linearGradient id={`${uid}-h-${c.id}`} x1="0" y1="0" x2="0" y2="1">
-                <stop offset="0" stopColor={c.mitt} />
-                <stop offset="1" stopColor={c.top} />
-              </linearGradient>
-              <linearGradient id={`${uid}-sv-${c.id}`} gradientUnits="userSpaceOnUse" x1="0" y1={c.bodyTop} x2="0" y2={FLOOR}>
-                <stop offset=".4" stopColor={c.deep} stopOpacity="0" />
-                <stop offset="1" stopColor={c.deep} stopOpacity=".65" />
-              </linearGradient>
-              <linearGradient id={`${uid}-sh-${c.id}`} gradientUnits="userSpaceOnUse" x1={c.cx - c.w / 2} y1="0" x2={c.cx + c.w / 2} y2="0">
-                <stop offset=".5" stopColor={c.deep} stopOpacity="0" />
-                <stop offset="1" stopColor={c.deep} stopOpacity=".5" />
-              </linearGradient>
-              {/* Oclusão de contato: escurece o pezinho pra assentar no chão. */}
-              <linearGradient id={`${uid}-occ-${c.id}`} gradientUnits="userSpaceOnUse" x1="0" y1={FLOOR - 42} x2="0" y2={FLOOR}>
-                <stop offset="0" stopColor={c.deep} stopOpacity="0" />
-                <stop offset="1" stopColor={c.deep} stopOpacity=".5" />
-              </linearGradient>
-              <clipPath id={`${uid}-b-${c.id}`}><path d={c.body} /></clipPath>
-              <clipPath id={`${uid}-eye-${c.id}`}><circle r={c.r + 0.3} /></clipPath>
-            </g>
-          ))}
-          <radialGradient id={`${uid}-sheen`}>
-            <stop offset="0" stopColor="#fff" stopOpacity=".62" />
-            <stop offset="1" stopColor="#fff" stopOpacity="0" />
-          </radialGradient>
-          <radialGradient id={`${uid}-shadow`}>
-            <stop offset="0" stopColor="#000" stopOpacity=".75" />
-            <stop offset="1" stopColor="#000" stopOpacity="0" />
-          </radialGradient>
+          {/* brilho da antena (acessório) */}
           <radialGradient id={`${uid}-bulb`}>
             <stop offset=".3" stopColor="#ffd977" stopOpacity=".55" />
             <stop offset="1" stopColor="#ffd977" stopOpacity="0" />
           </radialGradient>
-          {/* esclera: branca com sombrinha da pálpebra em cima */}
-          <radialGradient id={`${uid}-scl`} cx="50%" cy="62%" r="60%">
-            <stop offset=".55" stopColor="#fff" />
-            <stop offset="1" stopColor="#dcd8e6" />
-          </radialGradient>
-          {/* íris: mais clara embaixo, como luz entrando no olho */}
-          <radialGradient id={`${uid}-iris`} cx="50%" cy="75%" r="65%">
-            <stop offset="0" stopColor="#fff" stopOpacity=".45" />
-            <stop offset="1" stopColor="#fff" stopOpacity="0" />
-          </radialGradient>
-          <radialGradient id={`${uid}-glow`}>
-            <stop offset="0" stopColor="#fff" stopOpacity=".09" />
-            <stop offset="1" stopColor="#fff" stopOpacity="0" />
-          </radialGradient>
-          <linearGradient id={`${uid}-floor`} gradientUnits="userSpaceOnUse" x1={VB.x} y1="0" x2={VB.x + VB.w} y2="0">
-            <stop offset="0" stopColor="#fff" stopOpacity="0" />
-            <stop offset=".5" stopColor="#fff" stopOpacity=".22" />
-            <stop offset="1" stopColor="#fff" stopOpacity="0" />
-          </linearGradient>
         </defs>
 
-        {/* Chão: brilho de fundo, linha e sombras de contato. */}
-        <ellipse cx="246" cy={FLOOR - 64} rx="200" ry="100" fill={`url(#${uid}-glow)`} />
-        <rect x={VB.x} y={FLOOR} width={VB.w} height="1" fill={`url(#${uid}-floor)`} />
-        <ellipse cx="248" cy={FLOOR + 3} rx="210" ry="9" fill={`url(#${uid}-shadow)`} opacity=".55" />
+        {/* Chão: só uma sombrinha lisa embaixo de cada um. */}
         {cast.map((c) => (
           <g key={c.id} transform={`translate(${c.cx} ${FLOOR + 1.5})`}>
             <ellipse
               ref={reg(c.id, 'shadow')} className="pcc-shadow"
-              rx={c.w * 0.56} ry="5.5" fill={`url(#${uid}-shadow)`}
+              rx={c.w * 0.5} ry="3.5" fill="#000" opacity=".14"
             />
           </g>
         ))}

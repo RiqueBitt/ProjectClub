@@ -47,7 +47,6 @@
 }
 
 /* ---------- rosto ---------- */
-.pcc-rim { opacity: .5; }
 
 .pcc-eye { transition: transform .45s var(--pcc-spring) var(--d); }
 .pcc-eye-open { transition: transform .32s var(--pcc-soft) var(--d), opacity .2s ease var(--d); }
@@ -59,7 +58,7 @@
 }
 .pcc-lidline { opacity: 0; transition: opacity .2s ease var(--d); }
 .pcc-eye-alt {
-  fill: none; stroke: #1d1631; stroke-width: 2.8; stroke-linecap: round; stroke-linejoin: round;
+  fill: none; stroke: #1d1631; stroke-width: 2.6; stroke-linecap: round; stroke-linejoin: round;
   opacity: 0; transform: scale(.6, .2);
   transition: opacity .18s ease var(--d), transform .4s var(--pcc-spring) var(--d);
 }
@@ -80,10 +79,9 @@
 .pcc-menta .pcc-eye[data-state='half'] .pcc-blink,
 .pcc-coral .pcc-eye[data-state='half'] .pcc-blink { transform: translateY(1.5px) scale(1, .62); }
 
-/* Piscada: pálpebra desce (olhos com esclera) ou o olho achata. */
-.pcc-char[data-blink] .pcc-lid { transform: translateY(calc(var(--r, 10) * 1px + 3px)); transition-duration: .07s; }
-.pcc-coral[data-blink] .pcc-blink,
-.pcc-menta[data-blink] .pcc-blink { transform: scale(1, .1); transition-duration: .07s; }
+/* Piscada: o olho (bolinha) achata. */
+.pcc-char[data-blink] .pcc-blink { transform: scale(1, .1); transition-duration: .07s; }
+.pcc-eye[data-state='half'] .pcc-blink { transform: translateY(1px) scale(1, .55); }
 
 /* Bocas: troca com um "pop" de mola. */
 .pcc-mouth {
