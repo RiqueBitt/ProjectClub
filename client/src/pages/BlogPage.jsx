@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { Link, Navigate, useNavigate, useParams } from 'react-router-dom';
 import { PublicFooter, PublicHeader, usePublicScrollChrome } from './public/PublicChrome.jsx';
 import { CATEGORIES, POSTS, categoryLabel, featuredPost, fmtDate, postBySlug } from './blog/posts.jsx';
+import { BannerArt } from './blog/bannerArt.jsx';
 import '../styles/landing.css';
 import '../styles/landing-mono.css';
 import '../styles/public-docs.css';
@@ -15,18 +16,14 @@ import '../styles/blog.css';
 
 const reducedMotion = () => typeof window !== 'undefined' && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 
-// Banner desenhado em código (nada de imagem gerada): um símbolo grande do
-// assunto sobre um padrão que muda de artigo pra artigo. Com `image`, usa a
-// captura real do app em preto e branco.
-const PATTERNS = ['grid', 'rings', 'stripes', 'dots', 'waves', 'blocks'];
-function hashOf(s) { let h = 0; for (let i = 0; i < s.length; i += 1) h = (h * 31 + s.charCodeAt(i)) >>> 0; return h; }
-export function PostBanner({ post, big = false }) {
-  const h = hashOf(post.slug);
-  const pattern = PATTERNS[h % PATTERNS.length];
-  const tone = h % 3 === 0 ? 'is-light' : 'is-dark';
+// Banner desenhado em código (nada de imagem gerada): uma cena da turminha
+// do login sobre o assunto do artigo (blog/bannerArt.jsx). Na grade, um
+// claro e um escuro alternados, feito tabuleiro; em cima de fundo preto
+// (destaque e topo do artigo), sempre o claro.
+export function PostBanner({ post, big = false, dark = false }) {
   return (
-    <div className={`bl-banner is-${pattern} ${post.image ? 'is-dark' : tone} ${big ? 'is-big' : ''}`} style={{ '--h': h % 360, '--r': `${(h % 7) - 3}deg` }} aria-hidden="true">
-      {post.image ? <img src={post.image} alt="" loading="lazy" decoding="async" /> : <span className="bl-mark">{post.mark}</span>}
+    <div className={`bl-banner ${dark ? 'is-dark' : 'is-light'} ${big ? 'is-big' : ''}`} aria-hidden="true">
+      <BannerArt post={post} />
       <span className="bl-banner-cat">{categoryLabel(post.category)}</span>
     </div>
   );
@@ -36,7 +33,7 @@ function PostCard({ post, i = 0 }) {
   return (
     <li className="bl-card lp-reveal" style={{ '--i': i % 6 }}>
       <Link to={`/blog/${post.slug}`} data-cursor="Ler">
-        <PostBanner post={post} />
+        <PostBanner post={post} dark={i % 2 === 0} />
         <span className="bl-card-meta"><b>{categoryLabel(post.category)}</b><time dateTime={post.date}>{fmtDate(post.date)}</time></span>
         <h3>{post.title}</h3>
         <p>{post.excerpt}</p>

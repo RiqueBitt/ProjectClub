@@ -4,7 +4,9 @@ import { PRIVACY_SECTIONS } from '../public/privacyContent.jsx';
 
 // Catálogo do Blog (/blog e /blog/:slug).
 //
-// Três fontes, um formato só ({ slug, category, title, excerpt, date, mark, body }):
+// Três fontes, um formato só ({ slug, category, title, excerpt, date, mark, body }).
+// O banner de cada artigo é uma cena desenhada em blog/bannerArt.jsx (chave =
+// slug); artigo novo sem cena usa a placa com o `mark`.
 //  - NEWS: novidades escritas aqui (o que mudou e como usar);
 //  - o guia (public/blogContent.jsx): cada seção vira um artigo de tutorial;
 //  - termos e privacidade (public/privacyContent.jsx): dois artigos.
@@ -152,15 +154,12 @@ const GUIDE_MARK = {
   'assistir-juntos': '▶', biblioteca: '▤', mods: '⚙', apps: '▦', 'app-pc': '⌘', android: '▯', moderacao: '⛨', atalhos: '⌨', duvidas: '?',
 };
 const GUIDE_SLUG = { 'o-que-e': 'o-que-e-o-project-club', conta: 'conta-e-inscricao', dms: 'dms-e-grupos', voz: 'voz-e-chamadas', perfil: 'amigos-e-perfil', economia: 'economia-e-progresso', clas: 'clas', 'assistir-juntos': 'cinema-e-youtube-juntos', biblioteca: 'biblioteca-de-jogos', mods: 'mods-e-modpacks', apps: 'aba-apps', 'app-pc': 'app-para-computador', android: 'app-de-android', moderacao: 'seguranca-e-moderacao', duvidas: 'duvidas-comuns' };
-// Capturas reais (em preto e branco no card) para alguns artigos.
-const GUIDE_IMAGE = { 'o-que-e': '/apps/projectclub/shots/02-chat.jpg', mods: '/apps/modmanager/shots/01-biblioteca.jpg', 'app-pc': '/apps/projectclub/shots/02-chat.jpg' };
 
 const GUIDE_POSTS = GUIDE_SECTIONS.map((s) => ({
   slug: GUIDE_SLUG[s.id] || s.id,
   category: s.id === 'duvidas' ? 'primeiros-passos' : (GUIDE_CATEGORY[s.group] || 'tutoriais'),
   date: GUIDE_DATE,
   mark: GUIDE_MARK[s.id] || s.title[0],
-  image: GUIDE_IMAGE[s.id],
   title: s.title,
   excerpt: firstLead(s.body),
   body: s.body,
