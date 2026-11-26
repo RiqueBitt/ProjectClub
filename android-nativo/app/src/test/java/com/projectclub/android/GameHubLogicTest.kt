@@ -124,6 +124,23 @@ class GameHubLogicTest {
         assertEquals(800 to 480, ClipEngine.sizeFor(800, 480, 720))
     }
 
+    @Test fun ordemDasCapas() {
+        val steam = "https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/730"
+        // lista: imagem pequena da Steam primeiro, a grande no fim como reserva
+        assertEquals(listOf("$steam/capsule_231x87.jpg", "$steam/header.jpg"), HubLogic.coverCandidates(730, small = true).map { it.url })
+        // jogo fora da Steam: só a capa achada pelo servidor (vertical)
+        val wow = HubLogic.coverCandidates(null, cover = "https://t/wow.jpg", coverTall = true)
+        assertEquals(listOf(HubLogic.Art("https://t/wow.jpg", true)), wow)
+        // cartaz: verticais primeiro
+        assertEquals(
+            listOf("https://t/cs.jpg", "$steam/library_600x900.jpg", "$steam/header.jpg"),
+            HubLogic.coverCandidates(730, cover = "https://t/cs.jpg", coverTall = true, poster = true).map { it.url },
+        )
+        // imagem da loja vem antes e não repete
+        assertEquals(listOf("https://e/x.jpg", "$steam/header.jpg"), HubLogic.coverCandidates(730, image = "https://e/x.jpg", cover = "$steam/header.jpg").map { it.url })
+        assertTrue(HubLogic.coverCandidates(null).isEmpty())
+    }
+
     @Test fun nomeDoClipe() {
         assertEquals("Clipe 2026-11-26 15-00-00.mp4", HubLogic.clipFileName(now, sp))
     }

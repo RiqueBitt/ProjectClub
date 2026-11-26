@@ -273,7 +273,7 @@ private fun HeroButton(text: String, icon: ImageVector, filled: Boolean, modifie
 private fun ShortcutTile(s: HubShortcut, modifier: Modifier, onClick: () -> Unit) {
     val shape = RoundedCornerShape(20.dp)
     Box(
-        modifier.height(100.dp).clip(shape)
+        modifier.height(112.dp).clip(shape)
             .background(Brush.linearGradient(listOf(s.color.copy(alpha = 0.24f), PC.Surface)))
             .border(1.dp, s.color.copy(alpha = 0.30f), shape)
             .clickable(onClick = onClick),
