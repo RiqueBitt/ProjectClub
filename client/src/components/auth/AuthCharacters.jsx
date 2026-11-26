@@ -10,9 +10,12 @@ import { Accessory, loadAccessories, saveAccessories, nextAccessory } from './au
 //
 // Elenco FIXO (nov/2026): forma, cor e rosto de cada um são sempre os
 // mesmos — dois quadrados e dois retângulos, encostados uns nos outros.
-// Traço MINIMALISTA (igual ao site): cor lisa, sem brilho nem sombreado,
-// olho de bolinha preta, boca de traço; sobrancelha e bochecha só
-// aparecem nas reações. Cada um começa com o SEU acessório (authAccessories.jsx) e a
+// No ESTILO DO SITE: só preto e branco, cantos quase retos (como os
+// botões) e, igual à faixa "CHAT ✳ VOZ" (uma linha cheia, outra vazada),
+// dois bichinhos CHEIOS e dois só de CONTORNO, alternando. As cores vêm
+// de --pcc-ink/--pcc-paper (auth-characters.css): no fundo preto do
+// celular elas se invertem sozinhas. Olho de bolinha, boca de traço;
+// sobrancelha e bochecha só aparecem nas reações. Cada um começa com o SEU acessório (authAccessories.jsx) e a
 // pessoa troca tocando nele — a escolha fica salva no navegador. Nada
 // acontece "do nada": fora respirar, piscar e o balanço do acessório,
 // todo movimento é resposta ao que a pessoa faz (PC e celular).
@@ -46,7 +49,8 @@ import { Accessory, loadAccessories, saveAccessories, nextAccessory } from './au
 
 const VB = { x: 38, y: 0, w: 416, h: 244 };
 const FLOOR = 228;
-const INK = '#1d1631';
+// Cor do rosto: a do papel nos cheios, a da tinta nos de contorno (CSS).
+const INK = 'currentColor';
 
 const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
 const r2 = (v) => Math.round(v * 100) / 100;
@@ -80,14 +84,15 @@ function family(h) {
 // onde ficam olhos/boca (proporções). Assim qualquer forma cabe em
 // qualquer papel, mantendo a composição (alturas variadas, sobreposição).
 const SHAPES = {
-  // Caixinha: quadrado ou retângulo de brinquedo, cantos só levemente
-  // arredondados (a turma do login é toda assim desde nov/2026).
+  // Caixinha: quadrado ou retângulo de BORDA RETA (a turma do login é
+  // toda assim desde nov/2026 — igual aos botões quadrados do site).
   caixa(cx, w, h, floor) {
-    const top = floor - h; const hw = w / 2; const rr = Math.min(14, w * 0.16, h * 0.16);
+    const top = floor - h; const hw = w / 2; const rr = 0; // borda reta, como os botões do site
     const body = `M${cx - hw} ${top + rr} Q${cx - hw} ${top} ${cx - hw + rr} ${top} H${cx + hw - rr} Q${cx + hw} ${top} ${cx + hw} ${top + rr} V${floor - rr} Q${cx + hw} ${floor} ${cx + hw - rr} ${floor} H${cx - hw + rr} Q${cx - hw} ${floor} ${cx - hw} ${floor - rr} Z`;
     // Olhos mais pra cima nos altos, mais no meio nos baixinhos.
     const eyeYf = h > w * 1.3 ? 0.3 : h < w * 0.8 ? 0.42 : 0.38;
-    return { body, top, lay: { eyeYf, gapf: 0.19, eyeRf: Math.min(0.12, (h * 0.13) / w), mouthDyf: 0.21 } };
+    const gapf = h > w * 1.3 ? 0.15 : 0.19; // no alto e fino, olhos mais juntinhos
+    return { body, top, lay: { eyeYf, gapf, eyeRf: Math.min(0.12, (h * 0.13) / w), mouthDyf: 0.21 } };
   },
   pilula(cx, w, h, floor) {
     const top = floor - h; const hw = w / 2; const br = Math.min(hw, 16);
@@ -150,13 +155,13 @@ function geom(cx, w, h, floor, shapeName, eye) {
 // Ordem = ordem de desenho (trás → frente).
 const ROLES = [
   // retângulo em pé
-  { id: 'lila', cx: 196, w: 82, h: 140, shape: 'caixa', hue: 258, color: 'lilas', k: 80, z: 0.6, lean: 6, face: 6, lashes: true },
+  { id: 'lila', cx: 205, w: 82, h: 140, shape: 'caixa', hue: 258, color: 'lilas', solid: false, k: 80, z: 0.6, lean: 6, face: 6, lashes: true },
   // retângulo deitado
-  { id: 'menta', cx: 308, w: 152, h: 104, shape: 'caixa', hue: 160, color: 'menta', k: 55, z: 0.72, lean: 3.4, face: 7 },
+  { id: 'menta', cx: 313, w: 152, h: 104, shape: 'caixa', hue: 160, color: 'menta', solid: true, k: 55, z: 0.72, lean: 3.4, face: 7 },
   // quadrado
-  { id: 'coral', cx: 126, w: 104, h: 102, shape: 'caixa', hue: 8, color: 'coral', k: 120, z: 0.55, lean: 4.6, face: 6 },
+  { id: 'coral', cx: 120, w: 104, h: 102, shape: 'caixa', hue: 8, color: 'coral', solid: true, k: 120, z: 0.55, lean: 4.6, face: 6 },
   // quadradinho (caçula)
-  { id: 'mel', cx: 393, w: 66, h: 64, shape: 'caixa', hue: 44, color: 'mel', k: 190, z: 0.42, lean: 8, face: 4, baby: true },
+  { id: 'mel', cx: 398, w: 66, h: 64, shape: 'caixa', hue: 44, color: 'mel', solid: false, k: 190, z: 0.42, lean: 8, face: 4, baby: true },
 ];
 
 function makeCast() {
@@ -164,7 +169,7 @@ function makeCast() {
     const g = geom(role.cx, role.w, role.h, FLOOR, role.shape, 'ball');
     return {
       id: role.id, idx: i, cx: role.cx, w: role.w,
-      k: role.k, z: role.z, lean: role.lean, face: role.face, lashes: !!role.lashes,
+      k: role.k, z: role.z, lean: role.lean, face: role.face, lashes: !!role.lashes, solid: !!role.solid,
       coverIn: role.baby ? g.eyeDX * 0.42 : 0,
       hand: clamp(role.w / 110, 0.85, 1.08),
       ...family(role.hue), ...g,
@@ -354,7 +359,6 @@ function Eye({ c, e, i, state }) {
             <g className="pcc-pupil">
               <g className="pcc-pupil-s">
                 <ellipse rx={c.pr * 0.95} ry={c.pr * 1.15} fill={INK} />
-                <circle cx={c.pr * 0.32} cy={-c.pr * 0.42} r={c.pr * 0.28} fill="#fff" />
               </g>
             </g>
           </g>
@@ -418,6 +422,7 @@ const Character = memo(function Character({ c, mood, index, reg, uid, acc, onPre
       data-color={c.colorName}
       data-touch={mood.touch || undefined}
       data-acc={acc}
+      data-solid={c.solid || undefined}
       style={{ '--i': index, '--r': c.r }}
       onPointerDown={(ev) => { ev.preventDefault(); onPress?.(c.id, ev); }}
       onPointerEnter={(ev) => { if (ev.pointerType !== 'touch') onHover?.(c.id, true); }}
@@ -426,12 +431,12 @@ const Character = memo(function Character({ c, mood, index, reg, uid, acc, onPre
       <g ref={reg(c.id, 'hop')} className="pcc-hop">
         <g ref={reg(c.id, 'lean')}>
           <g className="pcc-breathe">
-            <path d={c.body} fill={c.base} />
+            <path d={c.body} className="pcc-body" />
             <Accessory c={c} id={acc} uid={uid} reg={reg} where="head" />
 
             <g ref={reg(c.id, 'face')} className="pcc-face">
               <g className="pcc-blush">
-                {c.blush.map((b, i) => <ellipse key={i} cx={b.x} cy={b.y} rx={c.blushR[0] * 0.8} ry={c.blushR[1] * 0.75} fill={c.cheek} />)}
+                {c.blush.map((b, i) => <ellipse key={i} cx={b.x} cy={b.y} rx={c.blushR[0] * 0.8} ry={c.blushR[1] * 0.75} fill={INK} opacity=".28" />)}
               </g>
               <g className="pcc-brows" data-on={brow ? true : undefined}>
                 {c.eyes.map((e, i) => (
@@ -459,7 +464,7 @@ const Character = memo(function Character({ c, mood, index, reg, uid, acc, onPre
                       style={{ transform: `translate(${x}px, ${y}px) rotate(${rot}deg) scale(${(vis ? 1 : 0.4) * c.hand * (i ? -1 : 1)}, ${(vis ? 1 : 0.4) * c.hand})`, opacity: vis ? 1 : 0 }}
                     >
                       {/* mãozinha lisa */}
-                      <path d={MITTEN} fill={c.top} stroke={c.deep} strokeWidth="1.4" strokeLinejoin="round" />
+                      <path d={MITTEN} className="pcc-mitt" strokeWidth="1.8" strokeLinejoin="round" />
                     </g>
                   );
                 })}
@@ -585,10 +590,10 @@ export default function AuthCharacters({ reaction = null, scope = '.pc-auth-pane
           { transform: 'none', easing: 'cubic-bezier(.2,.9,.3,1)' },
           { transform: `translateY(${-h}px) scale(.95, 1.07)`, offset: 0.16, easing: 'cubic-bezier(.6,0,.9,.5)' },
           { transform: 'scale(1.07, .92)', offset: 0.3 },
-          { transform: 'translateX(-4px) rotate(-2.2deg)', offset: 0.42 },
-          { transform: 'translateX(4px) rotate(2.2deg)', offset: 0.54 },
-          { transform: 'translateX(-2.5px) rotate(-1.2deg)', offset: 0.66 },
-          { transform: 'translateX(1.5px) rotate(.5deg)', offset: 0.8 },
+          { transform: 'translateX(-4px)', offset: 0.42 },
+          { transform: 'translateX(4px)', offset: 0.54 },
+          { transform: 'translateX(-2.5px)', offset: 0.66 },
+          { transform: 'translateX(1.5px)', offset: 0.8 },
           { transform: 'none' },
         ], { duration: 820, delay: i * 45, easing: 'ease-out' });
         play(c.id, 'shadow', [
@@ -655,8 +660,8 @@ export default function AuthCharacters({ reaction = null, scope = '.pc-auth-pane
         addFx('heart', p.id, 1300);
         if (!calm) {
           play(p.id, 'hop', [
-            { transform: 'none' }, { transform: 'rotate(-4deg) scale(1.04, .96)', offset: 0.3 },
-            { transform: 'rotate(4deg) scale(1.04, .96)', offset: 0.7 }, { transform: 'none' },
+            { transform: 'none' }, { transform: 'translateX(-3px) scale(1.04, .96)', offset: 0.3 },
+            { transform: 'translateX(3px) scale(1.04, .96)', offset: 0.7 }, { transform: 'none' },
           ], { duration: 420, easing: 'ease-in-out' });
         }
       }
@@ -694,7 +699,7 @@ export default function AuthCharacters({ reaction = null, scope = '.pc-auth-pane
       lastAt = now;
       const id = order[n++ % order.length];
       play(id, 'hop', [
-        { transform: 'none' }, { transform: 'rotate(-2deg) translateY(-2px)', offset: 0.4 }, { transform: 'none' },
+        { transform: 'none' }, { transform: 'translateY(-3px)', offset: 0.4 }, { transform: 'none' },
       ], { duration: 260, easing: 'ease-out' });
     };
     root.addEventListener('input', onInput);
@@ -837,7 +842,8 @@ export default function AuthCharacters({ reaction = null, scope = '.pc-auth-pane
       const key = `${r2(s.lean)}|${r2(s.fx)}|${r2(s.fy)}|${r2(s.px)}|${r2(s.py)}`;
       if (key === s.w) return; // nada mudou: não mexe no DOM
       s.w = key;
-      e.lean?.setAttribute('transform', `translate(${c.cx} ${FLOOR}) skewX(${r2(-s.lean)}) translate(${-c.cx} ${-FLOOR})`);
+      // Borda reta: o corpo não entorta (sem skew); só o rosto e os olhos
+      // acompanham o formulário/mouse.
       if (e.face) e.face.style.transform = `translate(${r2(s.fx)}px, ${r2(s.fy)}px)`;
       const pt = `translate(${r2(s.px)}px, ${r2(s.py)}px)`;
       e.char?.querySelectorAll('.pcc-pupil').forEach((p) => { p.style.transform = pt; });
@@ -905,11 +911,6 @@ export default function AuthCharacters({ reaction = null, scope = '.pc-auth-pane
         focusable="false"
       >
         <defs>
-          {/* brilho da antena (acessório) */}
-          <radialGradient id={`${uid}-bulb`}>
-            <stop offset=".3" stopColor="#ffd977" stopOpacity=".55" />
-            <stop offset="1" stopColor="#ffd977" stopOpacity="0" />
-          </radialGradient>
         </defs>
 
         {/* Chão: só uma sombrinha lisa embaixo de cada um. */}
@@ -917,7 +918,7 @@ export default function AuthCharacters({ reaction = null, scope = '.pc-auth-pane
           <g key={c.id} transform={`translate(${c.cx} ${FLOOR + 1.5})`}>
             <ellipse
               ref={reg(c.id, 'shadow')} className="pcc-shadow"
-              rx={c.w * 0.5} ry="3.5" fill="#000" opacity=".14"
+              rx={c.w * 0.5} ry="3" className="pcc-shadow-fill"
             />
           </g>
         ))}
@@ -937,7 +938,7 @@ export default function AuthCharacters({ reaction = null, scope = '.pc-auth-pane
               const side = f.k % 2 ? 1 : -1;
               return (
                 <g key={f.k} transform={`translate(${c.cx + side * c.w * 0.18} ${c.bodyTop + 6})`}>
-                  <path className="pcc-heart" d={HEART} fill="#ff6f91" style={{ '--sx': side }} />
+                  <path className="pcc-heart" d={HEART} style={{ '--sx': side }} />
                 </g>
               );
             }
@@ -945,7 +946,7 @@ export default function AuthCharacters({ reaction = null, scope = '.pc-auth-pane
               <g key={f.k} transform={`translate(${c.cx} ${c.bodyTop - 4})`} className="pcc-puff">
                 {[0, 60, 120, 180, 240, 300].map((a, i) => (
                   <g key={a} transform={`rotate(${a})`}>
-                    <path className="pcc-puff-s" d={SPARK} fill={i % 2 ? '#ffd977' : '#fff'} style={{ '--i': i }} />
+                    <path className="pcc-puff-s" d={SPARK} style={{ '--i': i }} />
                   </g>
                 ))}
               </g>
@@ -957,7 +958,7 @@ export default function AuthCharacters({ reaction = null, scope = '.pc-auth-pane
           <g className="pcc-sparkles">
             {SPARKLES.map((s, i) => (
               <g key={i} transform={`translate(${s.x} ${s.y}) scale(${s.s})`}>
-                <path className="pcc-spark" d={SPARK} fill={cast[i % cast.length].top} style={{ '--i': i }} />
+                <path className="pcc-spark" d={SPARK} style={{ '--i': i }} />
               </g>
             ))}
           </g>

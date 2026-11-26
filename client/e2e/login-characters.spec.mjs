@@ -200,7 +200,9 @@ test('bonequinhos: elenco fixo, juntinhos e sem nada aleatório', async ({ page 
   // Parado por 7 s: nenhum deles muda de rosto sozinho (só respira/pisca).
   await page.locator('.pc-auth-head h1').click();
   const moods = () => page.$$eval('.pcc-char', (els) => els.map((el) => el.querySelector('.pcc-mouth[data-on]')?.getAttribute('d') || 'o').join(','));
-  const before = await moods();
+  // Tirar o foco do campo faz a turma voltar do "digitando" pro normal; espera assentar.
+  let before = await moods();
+  await expect.poll(async () => { const now = await moods(); const same = now === before; before = now; return same; }, { intervals: [700], timeout: 6000 }).toBe(true);
   await page.waitForTimeout(7000);
   expect(await moods()).toBe(before);
 });

@@ -149,9 +149,8 @@ html .pc-auth-mono :focus-visible { outline: 2px solid #fff !important; outline-
 .pc-auth-mono .pc-steps li { font-family: var(--m-mono); text-transform: uppercase; letter-spacing: .12em; font-size: 11px; }
 .pc-auth-mono .pc-step-dot { border-radius: 0; }
 
-/* Turminha e ícones: sem cor, como o resto (a cor volta no hover dos ícones). */
-.pc-auth-mono .auth-chars,
-.pc-auth-mono .pc-auth-chars-mobile { filter: grayscale(1) contrast(1.05); }
+/* Turminha no celular (fundo preto): tinta branca e papel preto. */
+.pc-auth-mono .pc-auth-chars-mobile { --pcc-ink: #fff; --pcc-paper: #0b0b0c; }
 
 /* ---------- Vitrine (PC): folha branca ---------- */
 @media (min-width: 1024px) {
@@ -170,7 +169,6 @@ html .pc-auth-mono :focus-visible { outline: 2px solid #fff !important; outline-
   .pc-auth-mono .pc-auth-showcase::before { display: none; }
   .pc-auth-mono .pc-auth-showcase .pc-brand { color: #000; }
   .pc-auth-mono .pc-auth-showcase .pc-brand-mark { filter: grayscale(1) brightness(0); }
-  .pc-auth-mono .pc-showcase-chars { filter: grayscale(1) contrast(1.05); }
 
   .pc-auth-mono .pc-showcase-title {
     font-family: var(--m-wide); font-weight: 800; font-variation-settings: 'wdth' 125;

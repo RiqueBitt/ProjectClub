@@ -18,6 +18,30 @@
 }
 .pcc-svg { display: block; width: 100%; height: 100%; overflow: visible; }
 
+/* ---------- Preto e branco do site ----------
+   --pcc-ink = tinta (preto na folha branca do PC), --pcc-paper = papel.
+   No fundo preto (celular) o auth-mono.css troca os dois.
+   Cheio (data-solid): corpo de tinta e rosto de papel.
+   Contorno: corpo de papel com borda de tinta e rosto de tinta. */
+.pcc-stage { --pcc-ink: #000; --pcc-paper: #fff; }
+.pcc-char { color: var(--pcc-ink); }
+.pcc-char[data-solid] { color: var(--pcc-paper); }
+.pcc-body { fill: var(--pcc-paper); stroke: var(--pcc-ink); stroke-width: 2.4; }
+.pcc-char[data-solid] .pcc-body { fill: var(--pcc-ink); }
+.pcc-mitt { fill: var(--pcc-paper); stroke: var(--pcc-ink); }
+.pcc-shadow-fill { fill: var(--pcc-ink); opacity: .12; }
+.pcc-heart, .pcc-puff-s, .pcc-spark { fill: var(--pcc-ink); }
+
+/* Acessórios (authAccessories.jsx): sempre o CONTRÁRIO do corpo — no
+   bichinho preto, acessório branco; no branco, preto. --pcc-body-c é a cor
+   do corpo; currentColor é a do rosto (= cor do acessório). */
+.pcc-char { --pcc-body-c: var(--pcc-paper); }
+.pcc-char[data-solid] { --pcc-body-c: var(--pcc-ink); }
+.pcc-acc-pop .a { fill: currentColor; stroke: var(--pcc-body-c); stroke-width: 1.6; stroke-linejoin: miter; }
+.pcc-acc-pop .d { fill: var(--pcc-body-c); stroke: none; }
+.pcc-acc-pop .ln { fill: none; stroke: currentColor; stroke-linecap: square; stroke-linejoin: miter; }
+.pcc-acc-pop .le { fill: none; stroke: var(--pcc-body-c); stroke-linecap: square; stroke-linejoin: miter; }
+
 /* Origem na própria coordenada local (0,0) de cada peça. */
 .pcc-eye, .pcc-eye-open, .pcc-blink, .pcc-pupil, .pcc-pupil-s, .pcc-lid, .pcc-eye-alt,
 .pcc-mouth, .pcc-brow, .pcc-hand, .pcc-shadow, .pcc-spark,
@@ -58,7 +82,7 @@
 }
 .pcc-lidline { opacity: 0; transition: opacity .2s ease var(--d); }
 .pcc-eye-alt {
-  fill: none; stroke: #1d1631; stroke-width: 2.6; stroke-linecap: round; stroke-linejoin: round;
+  fill: none; stroke: currentColor; stroke-width: 2.6; stroke-linecap: round; stroke-linejoin: round;
   opacity: 0; transform: scale(.6, .2);
   transition: opacity .18s ease var(--d), transform .4s var(--pcc-spring) var(--d);
 }
