@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { useNavigate, useSearchParams } from 'react-router-dom';
+import { useSearchParams } from 'react-router-dom';
 import ModsLibrary, { useModsLibrary } from './mods/ModsLibrary.jsx';
 import GameManager from './mods/GameManager.jsx';
 import LauncherModsManager from './mods/LauncherModsManager.jsx';
@@ -31,7 +31,6 @@ import '../styles/mods.css';
 // implementação própria, direto contra a API pública do Thunderstore,
 // nenhum código do Gale (GPL-3.0) foi copiado.
 export default function ModsPage() {
-  const navigate = useNavigate();
   const library = useModsLibrary();
   const updates = useLibraryUpdates(library);
   const [selectedGame, setSelectedGame] = useState(null);
@@ -114,7 +113,6 @@ export default function ModsPage() {
         <ModsLibrary
           library={library}
           updates={updates}
-          onBack={() => navigate('/jogos')}
           onOpenGame={openGame}
           notice={notice}
           onDismissNotice={() => setNotice('')}
