@@ -26,7 +26,7 @@ const buildCreate = perUser('build', 24 * 60 * 60_000, 30, 'Você já criou muit
 // Responde o erro "de gente" (status + mensagem) ou passa pro tratador geral.
 const handle = (fn) => async (req, res, next) => {
   try { res.json(await fn(req, res)); } catch (err) {
-    if (err?.status) return res.status(err.status).json({ error: err.message });
+    if (err?.status) return res.status(err.status).json({ error: err.message, ...(err.code ? { code: err.code } : {}) });
     next(err);
   }
 };
@@ -90,5 +90,15 @@ router.get('/data/lol/champion/:id', dataRoute(async (req) => {
 }));
 router.get('/data/deadlock', dataRoute(() => gameData.deadlockData()));
 router.get('/data/darktide', dataRoute(async () => ({ classes: gameData.DARKTIDE_CLASSES })));
+
+// ---------- Celular: jogos com mods e addons do Bedrock ----------
+const bedrock = require('../services/gameHub/bedrock');
+const catalog = perUser('bedrock', 60_000, 60, 'Muitas buscas seguidas. Espere um pouco.');
+router.get('/android/games', handle((req, res) => { res.set('Cache-Control', 'private, max-age=3600'); return bedrock.androidGames(); }));
+router.get('/bedrock/classes', catalog, handle(() => bedrock.classes()));
+router.get('/bedrock/search', catalog, handle((req) => bedrock.search({
+  q: req.query.q, classId: req.query.class, sort: String(req.query.sort || 'popular'), page: req.query.page,
+})));
+router.get('/bedrock/mods/:id/files', catalog, handle((req) => bedrock.files(req.params.id)));
 
 module.exports = router;

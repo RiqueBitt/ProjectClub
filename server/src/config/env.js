@@ -123,6 +123,12 @@ module.exports = {
   // funcionando normalmente.
   STEAM_WEB_API_KEY: process.env.STEAM_WEB_API_KEY || '',
 
+  // Catálogo de addons do Minecraft Bedrock no Game Hub do celular
+  // (CurseForge). Chave de graça em https://console.curseforge.com. Sem ela,
+  // /api/game-hub/bedrock/* responde 503 (code 'no_key') e o app só instala
+  // arquivos que já estão no aparelho.
+  CURSEFORGE_API_KEY: process.env.CURSEFORGE_API_KEY || '',
+
   // ---------- Voz (ver docs/voz-propria.md)
   // Só o servidor de mídia PRÓPRIO (media-server/, mediasoup + coturn):
   // MEDIA_SERVER_URL + MEDIA_SERVER_SECRET (obrigatórios pra voz), e

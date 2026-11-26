@@ -86,6 +86,8 @@ class AppNavigator(
     override fun games(userId: String) = go("games/$userId")
     override fun trades() = go("trades")
     override fun route(route: String) = go(route)
+    private fun gameHub(tab: String?, party: String? = null, sub: String? = null) =
+        go("gamehub?tab=${enc(tab ?: "")}&p=${enc(party ?: "")}&sub=${enc(sub ?: "")}")
     override fun site(path: String) = com.projectclub.android.ui.praca.SiteActivity.open(context, path)
 
     // ---- links bonitos (/canal/<nome>, /dm/<@>, /perfil/<@>, /evento/<nome>, /forum/<nome>) ----
@@ -178,10 +180,24 @@ class AppNavigator(
                 if (code != null) com.projectclub.android.ui.qr.QrLogin.pending.value = code
                 else com.projectclub.android.ui.qr.QrLogin.scan(context) // sem código: abre o leitor
             }
-            "jogos" -> if (seg.getOrNull(1) == "biblioteca") {
-                val ref = seg.getOrNull(2)
-                if (ref == null) games("me") else openUserRef(ref) { games(it) }
-            } else site(uri.path.orEmpty() + (uri.query?.let { "?$it" } ?: ""))
+            "jogos" -> when (seg.getOrNull(1)) {
+                "biblioteca" -> {
+                    val ref = seg.getOrNull(2)
+                    if (ref == null) games("me") else openUserRef(ref) { games(it) }
+                }
+                // Game Hub nativo (/jogos, /jogos/partidas?p=<id>, /jogos/clipes?tab=celular, /jogos/builds/<id>...)
+                null, "promocoes", "partidas", "clipes", "mods" -> gameHub(seg.getOrNull(1), uri.getQueryParameter("p"), tab)
+                "builds" -> {
+                    val ref = seg.getOrNull(2)
+                    when {
+                        ref == null -> gameHub("builds")
+                        ref == "nova" -> go("gamehub/build-edit?id=")
+                        seg.getOrNull(3) == "editar" -> go("gamehub/build-edit?id=" + enc(ref))
+                        else -> go("gamehub/build/" + enc(ref))
+                    }
+                }
+                else -> site(uri.path.orEmpty() + (uri.query?.let { "?$it" } ?: ""))
+            }
             "profile" -> repo.me.value?.id?.let(::fullProfile) ?: onHome(4)
             "perfil", "u" -> seg.getOrNull(1)?.let { ref -> openUserRef(ref) { fullProfile(it) } }
             // o resto do site abre dentro do app, já logado
@@ -244,4 +260,13 @@ fun NavGraphBuilder.featureScreens(repo: Repository, nav: AppNav) {
     screen("creator-shop") { com.projectclub.android.ui.extra.CreatorShopScreen(repo, nav) }
     screen("wallet/{id}", listOf("id")) { com.projectclub.android.ui.extra.WalletCardScreen(repo, nav, it?.getString("id").orEmpty()) }
     screen("games/{id}", listOf("id")) { com.projectclub.android.ui.activity.GamesScreen(repo, nav, it?.getString("id").orEmpty()) }
+    // Game Hub (promoções, partidas, clipes, builds e mods do celular)
+    screen("gamehub?tab={tab}&p={p}&sub={sub}", listOf("tab", "p", "sub")) {
+        com.projectclub.android.ui.gamehub.GameHubScreen(
+            repo, nav, it?.getString("tab")?.ifBlank { null }, it?.getString("p")?.ifBlank { null }, it?.getString("sub")?.ifBlank { null },
+        )
+    }
+    screen("gamehub/build/{id}", listOf("id")) { com.projectclub.android.ui.gamehub.BuildScreen(repo, nav, it?.getString("id").orEmpty()) }
+    screen("gamehub/build-edit?id={id}", listOf("id")) { com.projectclub.android.ui.gamehub.BuildEditorScreen(repo, nav, it?.getString("id")?.ifBlank { null }) }
+    screen("gamehub/bedrock") { com.projectclub.android.ui.gamehub.BedrockScreen(repo, nav) }
 }

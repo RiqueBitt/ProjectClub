@@ -125,8 +125,8 @@ fun ChannelsTab(repo: Repository, actions: HomeActions) {
                     Featured(Icons.Outlined.People, "Amigos", Color(0xFFFF8A3D)) { actions.openWeb("/dms") }
                     Featured(Icons.Outlined.MonetizationOn, "Economia", PC.Store) { actions.openWeb("/economia") }
                     Featured(Icons.Outlined.EmojiEvents, "Progresso", Color(0xFFF5C518)) { actions.openWeb("/progresso") }
-                    // Jogos (nov/2026): BLACKOUT (público), Mod Manager e biblioteca.
-                    Featured(Icons.Outlined.SportsEsports, "Jogos", Color(0xFFA970FF)) { actions.openWeb("/jogos") }
+                    // Game Hub (nov/2026): promoções, partidas, clipes, builds e mods — nativo no celular.
+                    Featured(Icons.Outlined.SportsEsports, "Game Hub", Color(0xFFA970FF)) { actions.openWeb("/jogos") }
                 }
                 Box(Modifier.padding(horizontal = 14.dp).fillMaxWidth().height(1.dp).background(PC.Line))
             }
