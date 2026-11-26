@@ -174,45 +174,49 @@ for (const size of SIZES) {
       await shot(page, size.name, '9-erro-oauth');
     });
 
-    test('sorteios aleatórios (fotos de vários carregamentos)', async ({ page }) => {
-      test.slow();
-      await mockApi(page);
-      for (let i = 0; i < 4; i += 1) {
-        await page.goto('/login');
-        await expect(page.locator('.pcc-stage')).toBeVisible();
-        await page.locator('.pc-auth-head h1').click();
-        await page.waitForTimeout(500);
-        await shot(page, size.name, `0-sorteio-${i + 1}`);
-      }
-    });
   });
 }
 
-// A turma nasce sorteada (forma + cor + rosto + acessório) a cada
-// carregamento, exposta em data-variant. Dois carregamentos têm que dar
-// elencos diferentes — e, no mesmo elenco, ninguém repete forma+cor.
-const variantSig = (page) => page.$$eval('.pcc-char', (els) => els.map((el) => el.getAttribute('data-variant')).join(' | '));
-const shapeColorPairs = (page) => page.$$eval('.pcc-char', (els) => els.map((el) => `${el.getAttribute('data-shape')}:${el.getAttribute('data-color')}`));
+// Elenco fixo e juntinho: sempre as mesmas formas/cores, sem acessórios
+// e sem truques aleatórios; reage a mouse em cima e a clique.
+const castSig = (page) => page.$$eval('.pcc-char', (els) => els.map((el) => `${el.getAttribute('data-shape')}:${el.getAttribute('data-color')}`).join(' | '));
 
-test('bonequinhos variam a cada carregamento (forma/cor/rosto sorteados)', async ({ page }) => {
+test('bonequinhos: elenco fixo, juntinhos e sem nada aleatório', async ({ page }) => {
   await mockApi(page);
   await page.goto('/login');
-  await expect(page.locator('.pcc-stage')).toBeVisible();
   await expect(page.locator('.pcc-char')).toHaveCount(4);
+  const first = await castSig(page);
+  await page.reload();
+  await expect(page.locator('.pcc-char')).toHaveCount(4);
+  expect(await castSig(page)).toBe(first);
+  // Sem acessório nem truque.
+  await expect(page.locator('.pcc-acc, .pcc-aura, [data-stunt]')).toHaveCount(0);
+  // Juntinhos: cada corpo encosta (sobrepõe) no vizinho.
+  const boxes = await page.$$eval('.pcc-char > .pcc-hop', (els) => els.map((el) => { const r = el.getBoundingClientRect(); return [r.left, r.right]; }));
+  const sorted = boxes.sort((a, b) => a[0] - b[0]);
+  for (let i = 1; i < sorted.length; i += 1) expect(sorted[i][0]).toBeLessThanOrEqual(sorted[i - 1][1]);
+  // Parado por 7 s: nenhum deles muda de rosto sozinho (só respira/pisca).
+  await page.locator('.pc-auth-head h1').click();
+  const moods = () => page.$$eval('.pcc-char', (els) => els.map((el) => el.querySelector('.pcc-mouth[data-on]')?.getAttribute('d') || 'o').join(','));
+  const before = await moods();
+  await page.waitForTimeout(7000);
+  expect(await moods()).toBe(before);
+});
 
-  // Dentro de um carregamento: nenhuma dupla forma+cor repetida.
-  const pairs = await shapeColorPairs(page);
-  expect(new Set(pairs).size).toBe(pairs.length);
-
-  // Entre carregamentos: a assinatura muda (recarrega algumas vezes pra
-  // não depender de sorte). O espaço de sorteio é enorme, então basta um.
-  const seen = new Set([await variantSig(page)]);
-  for (let i = 0; i < 4 && seen.size < 2; i += 1) {
-    await page.reload();
-    await expect(page.locator('.pcc-char')).toHaveCount(4);
-    seen.add(await variantSig(page));
-  }
-  expect(seen.size).toBeGreaterThan(1);
+test('bonequinhos: mouse em cima sorri e clique faz pular rindo', async ({ page }, info) => {
+  test.skip(info.project.name === 'celular', 'mouse só no PC');
+  await mockApi(page);
+  await page.goto('/login');
+  const coral = page.locator('.pcc-coral');
+  await expect(coral).toBeVisible();
+  const box = await coral.locator('.pcc-hop').boundingBox();
+  await page.mouse.move(box.x + box.width / 2, box.y + box.height * 0.7);
+  await expect(coral).toHaveAttribute('data-touch', 'hover');
+  await page.mouse.down(); await page.mouse.up();
+  await expect(coral).toHaveAttribute('data-touch', 'poke');
+  await expect(coral.locator('.pcc-eye').first()).toHaveAttribute('data-state', 'happy');
+  await page.mouse.move(5, 5);
+  await expect.poll(() => coral.getAttribute('data-touch'), { timeout: 3000 }).toBe(null);
 });
 
 test('modo calmo (prefers-reduced-motion): sem animação contínua', async ({ page }) => {
