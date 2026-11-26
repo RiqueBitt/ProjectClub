@@ -473,6 +473,7 @@ async fn bau_diario() {
             "chestImageClosed",
             "chestImageOpened",
             "coins",
+            "streakBonus",
             "streak",
             "streakRequired",
             "megaAwarded",
@@ -546,6 +547,8 @@ async fn bau_diario() {
     let gems = b["megaGems"].as_i64().unwrap();
     assert!((1..=6).contains(&gems), "{gems}");
     assert_eq!((&b["megaAwarded"], &b["streak"]), (&json!(true), &json!(0)));
+    // dia do Mega Baú: o bônus da sequência é o maior (dia 5 → +20)
+    assert_eq!(b["streakBonus"], json!(20));
     assert_eq!(b["balance"]["gems"], json!(1 + gems));
     assert_eq!(b["balance"]["dailyStreak"], json!(0));
     let (n,): (i64,) = sqlx::query_as(

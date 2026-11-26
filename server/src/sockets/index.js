@@ -1314,6 +1314,52 @@ function initSockets(httpServer) {
       io.to(`voice:${channelId}`).emit('voice:reaction', { channelId, userId, emoji });
     });
 
+    // Baú da call (services/callChest.js): ver se tem um aberto ao entrar, e abrir.
+    socket.on('voice:chest-get', async ({ channelId } = {}, ack) => {
+      if (typeof ack !== 'function') return;
+      if (!channelId || !(await voiceStore.hasParticipant(channelId, userId))) return ack({ chest: null });
+      ack({ chest: require('../services/callChest').get(channelId) });
+    });
+    socket.on('voice:chest-claim', async ({ channelId, chestId } = {}, ack) => {
+      const reply = (r) => { if (typeof ack === 'function') ack(r); };
+      try {
+        if (!channelId || !(await voiceStore.hasParticipant(channelId, userId))) return reply({ ok: false, reason: 'Entre na call para abrir o baú.' });
+        reply(await require('../services/callChest').claim(io, { channelId, chestId, userId }));
+      } catch (err) {
+        console.error('[baú-call] abrir falhou:', err?.message || err);
+        reply({ ok: false, reason: 'Não consegui abrir o baú agora.' });
+      }
+    });
+
+    // Gorjeta na call (services/callTips.js): algumas moedas pra quem está na mesma call.
+    const tipBucket = (() => { let last = 0; return () => { const n = Date.now(); if (n - last < 1500) return false; last = n; return true; }; })();
+    socket.on('voice:tip', async ({ channelId, toUserId, amount } = {}, ack) => {
+      const reply = (r) => { if (typeof ack === 'function') ack(r); };
+      try {
+        if (!tipBucket()) return reply({ ok: false, reason: 'Calma! Espere um instante.' });
+        reply(await require('../services/callTips').tip(io, { channelId: String(channelId || ''), fromId: userId, toId: String(toUserId || ''), amount }));
+      } catch (err) {
+        console.error('[gorjeta] falhou:', err?.message || err);
+        reply({ ok: false, reason: 'Não consegui mandar a gorjeta agora.' });
+      }
+    });
+
+    // Duelo de dados valendo moedas (services/callDuel.js).
+    const duelReply = (ack) => (r) => { if (typeof ack === 'function') ack(r); };
+    const duelSafe = (name, fn) => async (payload = {}, ack) => {
+      const reply = duelReply(ack);
+      try { reply(await fn(payload || {})); } catch (err) {
+        console.error(`[duelo] ${name} falhou:`, err?.message || err);
+        reply({ ok: false, reason: 'Não deu certo agora. Tente de novo.' });
+      }
+    };
+    socket.on('voice:duel-challenge', duelSafe('desafio', ({ channelId, toUserId, stake }) => {
+      if (!tipBucket()) return { ok: false, reason: 'Calma! Espere um instante.' };
+      return require('../services/callDuel').challenge(io, { channelId: String(channelId || ''), fromId: userId, toId: String(toUserId || ''), stake });
+    }));
+    socket.on('voice:duel-accept', duelSafe('aceite', ({ duelId }) => require('../services/callDuel').accept(io, { duelId: String(duelId || ''), userId })));
+    socket.on('voice:duel-decline', duelSafe('recusa', ({ duelId }) => require('../services/callDuel').decline(io, { duelId: String(duelId || ''), userId })));
+
     // Soundboard: toca um som curto pra todo mundo da call (ver
     // services/soundboard.js). Precisa estar na sala e ter USE_SOUNDBOARD.
     socket.on('soundboard:play', async ({ channelId, soundId } = {}, ack) => {

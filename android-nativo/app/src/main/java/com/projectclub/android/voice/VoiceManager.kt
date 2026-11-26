@@ -53,7 +53,24 @@ data class CallState(
     /** Apertar para falar: microfone só abre enquanto segura o botão. */
     val pushToTalk: Boolean = false,
     val pttHeld: Boolean = false,
+    /** Baú da call aberto agora (quem tocar primeiro leva moedas). */
+    val chest: CallChest? = null,
+    /** Último baú aberto ("Fulano abriu o baú: +25"), some sozinho. */
+    val chestResult: CallChestResult? = null,
+    /** Gorjetas que acabaram de acontecer na call (somem sozinhas). */
+    val tips: List<CallTip> = emptyList(),
+    /** Duelo de dados esperando resposta e o último resultado. */
+    val duel: CallDuel? = null,
+    val duelResult: CallDuelResult? = null,
 )
+
+data class CallDuel(val id: String, val fromId: String, val fromName: String, val toId: String, val toName: String, val stake: Int, val expiresAt: Long)
+data class CallDuelResult(val fromId: String, val fromName: String, val toId: String, val toName: String, val fromRoll: Int, val toRoll: Int, val winnerId: String?, val stake: Int)
+
+data class CallTip(val id: Long, val fromId: String?, val fromName: String, val toId: String?, val toName: String, val amount: Int)
+
+data class CallChest(val id: String, val expiresAt: Long)
+data class CallChestResult(val userId: String?, val name: String, val coins: Int, val gems: Int)
 
 data class CallReaction(val id: Long, val userId: String, val emoji: String)
 
@@ -169,7 +186,7 @@ class VoiceManager(context: Context, private val repo: Repository, private val s
             repo.realtime.events.collect { e ->
                 val ch = _state.value.channelName ?: return@collect
                 when (e.name) {
-                    "voice:joined" -> if (e.data.toString().contains(ch)) sendState()
+                    "voice:joined" -> if (e.data.toString().contains(ch)) { sendState(); fetchChest(ch) }
                     "voice:kicked-by-other-device" -> if (e.data.toString().contains(ch)) main.post { replacedElsewhere() }
                     // O servidor não me acha na sala (caí e a tolerância passou): entra de novo.
                     "voice:not-in-room" -> if (e.data.toString().contains(ch) && _state.value.status == CallStatus.Connected) {
@@ -207,6 +224,77 @@ class VoiceManager(context: Context, private val repo: Repository, private val s
                         if ((o["channelId"] as? JsonPrimitive)?.content != ch) return@collect
                         val url = ((o["sound"] as? JsonObject)?.get("url") as? JsonPrimitive)?.content ?: return@collect
                         main.post { onSoundboardPlay(url) }
+                    }
+                    "voice:chest" -> {
+                        val o = e.data as? JsonObject ?: return@collect
+                        fun f(k: String) = (o[k] as? JsonPrimitive)?.content
+                        if (f("channelId") != ch) return@collect
+                        val c = CallChest(f("id") ?: return@collect, f("expiresAt")?.toLongOrNull() ?: return@collect)
+                        _state.update { it.copy(chest = c, chestResult = null) }
+                    }
+                    "voice:chest-gone" -> {
+                        val o = e.data as? JsonObject ?: return@collect
+                        val id = (o["id"] as? JsonPrimitive)?.content
+                        _state.update { if (it.chest?.id == id) it.copy(chest = null) else it }
+                    }
+                    "voice:chest-claimed" -> {
+                        val o = e.data as? JsonObject ?: return@collect
+                        fun f(k: String) = (o[k] as? JsonPrimitive)?.content
+                        if (f("channelId") != ch) return@collect
+                        val u = o["user"] as? JsonObject
+                        fun uf(k: String) = (u?.get(k) as? JsonPrimitive)?.content
+                        val res = CallChestResult(
+                            uf("id"), uf("displayName") ?: uf("username") ?: "Alguém",
+                            f("coins")?.toIntOrNull() ?: 0, f("gems")?.toIntOrNull() ?: 0,
+                        )
+                        _state.update { it.copy(chest = if (it.chest?.id == f("id")) null else it.chest, chestResult = res) }
+                        main.postDelayed({ _state.update { st -> if (st.chestResult === res) st.copy(chestResult = null) else st } }, 4500)
+                    }
+                    "voice:duel" -> {
+                        val o = e.data as? JsonObject ?: return@collect
+                        fun f(k: String) = (o[k] as? JsonPrimitive)?.content
+                        fun u(k: String, g: String) = ((o[k] as? JsonObject)?.get(g) as? JsonPrimitive)?.content
+                        if (f("channelId") != ch) return@collect
+                        val d = CallDuel(
+                            f("id") ?: return@collect, f("fromId") ?: return@collect, u("from", "displayName") ?: "Alguém",
+                            f("toId") ?: return@collect, u("to", "displayName") ?: "alguém",
+                            f("stake")?.toIntOrNull() ?: 0, f("expiresAt")?.toLongOrNull() ?: 0L,
+                        )
+                        _state.update { it.copy(duel = d) }
+                    }
+                    "voice:duel-gone" -> {
+                        val o = e.data as? JsonObject ?: return@collect
+                        val id = (o["id"] as? JsonPrimitive)?.content
+                        _state.update { if (it.duel?.id == id) it.copy(duel = null) else it }
+                    }
+                    "voice:duel-result" -> {
+                        val o = e.data as? JsonObject ?: return@collect
+                        fun f(k: String) = (o[k] as? JsonPrimitive)?.content
+                        fun u(k: String, g: String) = ((o[k] as? JsonObject)?.get(g) as? JsonPrimitive)?.content
+                        if (f("channelId") != ch) return@collect
+                        val fromId = u("from", "id") ?: return@collect
+                        val toId = u("to", "id") ?: return@collect
+                        val rolls = o["rolls"] as? JsonObject
+                        val r = CallDuelResult(
+                            fromId, u("from", "displayName") ?: "Alguém", toId, u("to", "displayName") ?: "alguém",
+                            (rolls?.get(fromId) as? JsonPrimitive)?.content?.toIntOrNull() ?: 0,
+                            (rolls?.get(toId) as? JsonPrimitive)?.content?.toIntOrNull() ?: 0,
+                            f("winnerId")?.takeIf { it != "null" }, f("stake")?.toIntOrNull() ?: 0,
+                        )
+                        _state.update { it.copy(duel = if (it.duel?.id == f("id")) null else it.duel, duelResult = r) }
+                        main.postDelayed({ _state.update { st -> if (st.duelResult === r) st.copy(duelResult = null) else st } }, 6000)
+                    }
+                    "voice:tip" -> {
+                        val o = e.data as? JsonObject ?: return@collect
+                        if ((o["channelId"] as? JsonPrimitive)?.content != ch) return@collect
+                        fun u(k: String, f: String) = ((o[k] as? JsonObject)?.get(f) as? JsonPrimitive)?.content
+                        val t = CallTip(
+                            System.nanoTime(), u("from", "id"), u("from", "displayName") ?: u("from", "username") ?: "Alguém",
+                            u("to", "id"), u("to", "displayName") ?: u("to", "username") ?: "alguém",
+                            (o["amount"] as? JsonPrimitive)?.content?.toIntOrNull() ?: 0,
+                        )
+                        _state.update { it.copy(tips = (it.tips + t).takeLast(3)) }
+                        main.postDelayed({ _state.update { st -> st.copy(tips = st.tips.filter { it.id != t.id }) } }, 4000)
                     }
                     "voice:reaction" -> {
                         val o = e.data as? JsonObject ?: return@collect
@@ -649,6 +737,47 @@ class VoiceManager(context: Context, private val repo: Repository, private val s
         val ch = _state.value.channelName ?: return
         if (emoji !in QUICK_REACTIONS) return
         repo.realtime.emit("voice:reaction", JSONObject().put("channelId", ch).put("emoji", emoji))
+    }
+
+    /** Tenta abrir o baú da call; [onFail] recebe o motivo quando não deu. */
+    fun claimChest(onFail: (String) -> Unit = {}) {
+        val ch = _state.value.channelName ?: return
+        val c = _state.value.chest ?: return
+        repo.realtime.emitObjectWithAck("voice:chest-claim", JSONObject().put("channelId", ch).put("chestId", c.id)) { r ->
+            if (r?.optBoolean("ok") != true) main.post { onFail(r?.optString("reason")?.takeIf { it.isNotBlank() } ?: "Não deu pra abrir.") }
+        }
+    }
+
+    /** Gorjeta pra alguém da mesma call; [onFail] recebe o motivo quando não deu. */
+    fun sendTip(toUserId: String, amount: Int, onFail: (String) -> Unit = {}) {
+        val ch = _state.value.channelName ?: return
+        repo.realtime.emitObjectWithAck("voice:tip", JSONObject().put("channelId", ch).put("toUserId", toUserId).put("amount", amount)) { r ->
+            if (r?.optBoolean("ok") != true) main.post { onFail(r?.optString("reason")?.takeIf { it.isNotBlank() } ?: "Não deu pra mandar a gorjeta.") }
+        }
+    }
+
+    /** Duelo de dados: desafiar, aceitar ou recusar; [onFail] recebe o motivo. */
+    fun challengeDuel(toUserId: String, stake: Int, onFail: (String) -> Unit = {}) {
+        val ch = _state.value.channelName ?: return
+        repo.realtime.emitObjectWithAck("voice:duel-challenge", JSONObject().put("channelId", ch).put("toUserId", toUserId).put("stake", stake)) { r ->
+            if (r?.optBoolean("ok") != true) main.post { onFail(r?.optString("reason")?.takeIf { it.isNotBlank() } ?: "Não deu pra desafiar.") }
+        }
+    }
+
+    fun answerDuel(accept: Boolean, onFail: (String) -> Unit = {}) {
+        val d = _state.value.duel ?: return
+        repo.realtime.emitObjectWithAck(if (accept) "voice:duel-accept" else "voice:duel-decline", JSONObject().put("duelId", d.id)) { r ->
+            if (r?.optBoolean("ok") != true) main.post { onFail(r?.optString("reason")?.takeIf { it.isNotBlank() } ?: "Não deu certo.") }
+        }
+    }
+
+    /** Ao entrar: já tem um baú aberto nessa call? */
+    private fun fetchChest(ch: String) {
+        repo.realtime.emitObjectWithAck("voice:chest-get", JSONObject().put("channelId", ch)) { r ->
+            val o = r?.optJSONObject("chest") ?: return@emitObjectWithAck
+            val c = CallChest(o.optString("id").ifBlank { return@emitObjectWithAck }, o.optLong("expiresAt"))
+            main.post { _state.update { if (it.channelName == ch) it.copy(chest = c) else it } }
+        }
     }
 
     /** Volume de uma pessoa (0–200 %), só pra você. */

@@ -427,3 +427,105 @@
 .vc-closed-live:hover { border-color: var(--accent, #5865f2); }
 .vc-closed-live-dot { width: 8px; height: 8px; border-radius: 50%; background: #ed4245; box-shadow: 0 0 0 3px rgba(237, 66, 69, .25); }
 .vc-closed-live b { display: inline-flex; align-items: center; gap: 4px; padding: 3px 10px; border-radius: 999px; background: var(--accent, #5865f2); color: #fff; font-size: 12px; }
+
+/* ---------------------------------------------------------------
+   Vitrine da call: o que a pessoa personaliza aparece aqui, onde a
+   turma passa o tempo. Banner do perfil no fundo do quadrado (sem
+   câmera), placa de identificação atrás do nome e o efeito de texto da
+   Loja no nome (nameStyle com fullEffect).
+   --------------------------------------------------------------- */
+.vc-tile.has-banner {
+  background:
+    linear-gradient(180deg, rgba(0, 0, 0, .18), rgba(0, 0, 0, .68)),
+    var(--tile-banner) center / cover no-repeat,
+    var(--bg-secondary);
+}
+.vc-tile.has-banner .vc-tile-avatar > * { box-shadow: 0 0 0 3px rgba(0, 0, 0, .35), 0 12px 34px rgba(0, 0, 0, .5); }
+.vc-label.has-id-card {
+  background:
+    linear-gradient(90deg, rgba(0, 0, 0, .62), rgba(0, 0, 0, .25)),
+    var(--id-card) var(--id-card-pos, center) / var(--id-card-size, cover) no-repeat;
+  padding-right: 14px;
+}
+.vc-label-me { font-weight: 500; opacity: .7; }
+
+/* ---------- Baú da call (components/voice/CallChest.jsx) ---------- */
+.cc-wrap {
+  position: fixed; right: 24px; bottom: 112px; z-index: 1200;
+  display: flex; flex-direction: column; align-items: flex-end; gap: 6px;
+  pointer-events: none;
+}
+.cc-chest {
+  pointer-events: auto;
+  display: grid; justify-items: center; gap: 2px;
+  padding: 10px 14px 9px; border-radius: 14px;
+  background: color-mix(in srgb, var(--bg-floating, #18191c) 88%, transparent);
+  border: 1px solid color-mix(in srgb, #e8b93c 55%, transparent);
+  box-shadow: 0 8px 28px rgba(0, 0, 0, .35), 0 0 0 0 rgba(232, 185, 60, .5);
+  color: var(--text-normal, #fff); cursor: pointer; font: inherit;
+  animation: cc-in .35s cubic-bezier(.2, 1.4, .4, 1), cc-glow 1.6s ease-in-out .35s infinite;
+}
+.cc-chest:hover .cc-art { transform: translateY(-2px) rotate(-3deg); }
+.cc-chest:focus-visible { outline: 2px solid #e8b93c; outline-offset: 3px; }
+.cc-art { transition: transform .15s; overflow: visible; }
+.cc-lid { transform-origin: 6px 24px; transition: transform .3s; }
+.cc-label { font-weight: 700; font-size: 13px; }
+.cc-sub { font-size: 11px; opacity: .7; }
+.cc-error {
+  margin: 0; padding: 6px 10px; border-radius: 8px; font-size: 12px; max-width: 220px;
+  background: var(--bg-floating, #18191c); color: var(--text-normal, #fff);
+}
+.cc-result {
+  display: flex; flex-direction: row; align-items: center; gap: 10px;
+  padding: 8px 14px 8px 10px; border-radius: 14px;
+  background: color-mix(in srgb, var(--bg-floating, #18191c) 92%, transparent);
+  color: var(--text-normal, #fff); box-shadow: 0 8px 28px rgba(0, 0, 0, .35);
+  animation: cc-in .3s ease-out;
+}
+.cc-result.is-mine { border: 1px solid #e8b93c; }
+.cc-result strong { display: block; font-size: 13px; }
+.cc-loot { display: inline-flex; align-items: center; gap: 4px; font-size: 13px; font-weight: 700; color: #e8b93c; }
+@keyframes cc-in { from { opacity: 0; transform: translateY(12px) scale(.9); } }
+@keyframes cc-glow { 50% { box-shadow: 0 8px 28px rgba(0, 0, 0, .35), 0 0 0 6px rgba(232, 185, 60, .18); } }
+@media (prefers-reduced-motion: reduce) { .cc-chest, .cc-result { animation: none; } }
+@media (max-width: 640px) { .cc-wrap { right: 10px; bottom: 104px; } }
+
+/* ---------- Chat da call (painel ao lado, ChatWindow com callChat) ---------- */
+.vc-with-chat { flex: 1; min-height: 0; display: flex; }
+.vc-with-chat > :first-child { flex: 1; min-width: 0; }
+.vc-side-chat {
+  width: min(380px, 42%); flex-shrink: 0; min-height: 0;
+  display: flex; flex-direction: column;
+  border-left: 1px solid var(--border-subtle, rgba(255, 255, 255, .08));
+  background: var(--bg-primary, #1e1f22);
+}
+.vc-side-chat-head { display: flex; align-items: center; justify-content: space-between; padding: 10px 12px; border-bottom: 1px solid var(--border-subtle, rgba(255, 255, 255, .08)); }
+.vc-side-chat-head strong { font-size: 14px; }
+.vc-side-chat > .error-boundary, .vc-side-chat .chat-window { flex: 1; min-height: 0; }
+.vc-side-chat .chat-window.is-call-chat > .chat-header { display: none; }
+@media (max-width: 860px) {
+  .vc-with-chat.is-open { position: relative; }
+  .vc-side-chat { position: absolute; inset: 0; width: auto; z-index: 30; border-left: 0; }
+}
+.cc-tips { bottom: 240px; }
+.cc-tip .pc-currency { flex-shrink: 0; }
+.cc-tip-to { display: block; font-size: 12px; opacity: .75; }
+@media (max-width: 640px) { .cc-tips { bottom: 226px; } }
+.vc-goal { position: relative; overflow: hidden; }
+.vc-goal-bar { position: absolute; inset: auto auto 0 0; height: 2px; width: var(--p, 0%); background: #e8b93c; }
+.vc-goal.is-done { color: #e8b93c; }
+@media (max-width: 640px) { .vc-goal { display: none; } }
+.cc-duels { bottom: auto; top: 76px; }
+.cc-duels .cc-result { pointer-events: auto; max-width: 320px; }
+.cc-duel-die {
+  flex-shrink: 0; display: grid; place-items: center; width: 36px; height: 36px; border-radius: 8px;
+  background: #e8b93c; color: #3b2410; font-weight: 800; font-size: 12px;
+  clip-path: polygon(50% 0, 100% 25%, 100% 75%, 50% 100%, 0 75%, 0 25%);
+}
+.cc-duel-actions { display: flex; gap: 6px; margin-top: 6px; }
+.cc-btn {
+  font: inherit; font-size: 12px; font-weight: 700; padding: 5px 12px; border-radius: 8px; cursor: pointer;
+  border: 1px solid rgba(255, 255, 255, .2); background: transparent; color: inherit;
+}
+.cc-btn.primary { background: #e8b93c; border-color: #e8b93c; color: #3b2410; }
+.cc-btn:focus-visible { outline: 2px solid #e8b93c; outline-offset: 2px; }

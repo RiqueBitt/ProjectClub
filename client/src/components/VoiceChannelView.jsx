@@ -6,6 +6,9 @@ import { useStore } from '../store/useStore';
 import { getMyCommunityPermissions, hasPermission } from '../utils/permissions';
 import ScreenShareModal from './modals/ScreenShareModal.jsx';
 import UserAvatar from './UserAvatar.jsx';
+import { idCardFramingVars } from './ProfileBanner.jsx';
+import { hasCustomNameStyle, nameStyleClassName, nameStyleProps } from '../utils/nameStyle';
+import { proxyImage } from '../utils/imageProxy';
 import { CustomIcon, hasCustomIcon } from './ChannelIcon.jsx';
 import { usePopoverCoordination } from '../utils/popoverCoordinator';
 import { MicTest, MicSilentWarning, QualityDot } from './voice/VoiceExtras.jsx';
@@ -14,6 +17,9 @@ import { useYouTubeWatch, YouTubeStage, YouTubePicker, ActivitiesButton, YouTube
 import { CallMusicPicker } from '../music/MusicPlayer.jsx';
 import { DicePicker, CallDicePopup, useCallDice } from './activities/Dice.jsx';
 import RpgTable from './voice/RpgTable.jsx';
+import { CallChest, CallTips, CallDuels, TIP_AMOUNTS, DUEL_STAKES, sendCallTip, challengeDuel } from './voice/CallChest.jsx';
+import { useSocket } from '../context/SocketContext.jsx';
+import { getCommunityGoals } from '../api/community';
 import { RecordingBanner, RecordButton, LiveCaptions } from './voice/CallExtras.jsx';
 import { getVoicePref, setVoicePref, onVoicePrefsChange } from '../utils/voicePrefs';
 import { useContextMenu } from '../context/ContextMenuContext.jsx';
@@ -72,9 +78,28 @@ function useElapsed(startedAt) {
   return h > 0 ? `${h}:${String(m).padStart(2, '0')}:${String(sec).padStart(2, '0')}` : `${m}:${String(sec).padStart(2, '0')}`;
 }
 
+// Meta coletiva da semana de minutos em call (communityGoals.js): todo mundo
+// que está em call ajuda a bater; aparece aqui pra turma ver o progresso.
+function useVoiceGoal() {
+  const { socket } = useSocket() || {};
+  const [goal, setGoal] = useState(null);
+  useEffect(() => {
+    let alive = true;
+    const load = () => getCommunityGoals()
+      .then((d) => { if (alive) setGoal((d?.goals || []).find((g) => g.metric === 'VOICE_MINUTES') || null); })
+      .catch(() => {});
+    load();
+    const t = setInterval(load, 5 * 60_000);
+    socket?.on('goals:reached', load);
+    return () => { alive = false; clearInterval(t); socket?.off('goals:reached', load); };
+  }, [socket]);
+  return goal;
+}
+
 function CallHeader({ channel, count, isStage, children }) {
   const voice = useVoice();
   const elapsed = useElapsed(voice?.rosterStartedAt?.[channel.id]);
+  const goal = useVoiceGoal();
   return (
     <header className="vc-head">
       {/* Ícone personalizado do canal (emoji/imagem da staff) no lugar do genérico. */}
@@ -84,6 +109,15 @@ function CallHeader({ channel, count, isStage, children }) {
       <span className="vc-chip"><span className="vc-live" /> Ao vivo</span>
       <span className="vc-chip"><Icon name="people" size={15} /> {count}</span>
       {elapsed && <span className="vc-chip vc-mono">{elapsed}</span>}
+      {goal && (
+        <span
+          className={`vc-chip vc-goal${goal.reached ? ' is-done' : ''}`}
+          title={`Meta da semana: ${goal.target.toLocaleString('pt-BR')} minutos em call na comunidade. Quem participou ganha ${goal.rewardCoins} moedas na virada da semana.`}
+        >
+          <span className="vc-goal-bar" style={{ '--p': `${goal.percent}%` }} aria-hidden="true" />
+          {goal.reached ? 'Meta da semana batida!' : `Meta da semana ${goal.percent}%`}
+        </span>
+      )}
       {channel.tempOwnerId && <span className="vc-chip" title="Some sozinha 1 minuto depois de ficar vazia">Temporária</span>}
       {children}
     </header>
@@ -97,6 +131,10 @@ export default function VoiceChannelView({ channel }) {
   const roles = useStore((s) => s.roles);
 
   const inThisCall = voice?.call?.channelId === channel.id;
+  // Gorjeta na call (hooks aqui em cima: o lobby retorna antes).
+  const { socket } = useSocket() || {};
+  const [tipNotice, setTipNotice] = useState('');
+  const clearTipNotice = useCallback(() => setTipNotice(''), []);
   const isStage = channel.type === 'STAGE';
   // Veio do aviso "Evento começou! Entrar na call" (?entrar=1): entra sozinho.
   const [params, setParams] = useSearchParams();
@@ -190,7 +228,31 @@ export default function VoiceChannelView({ channel }) {
   // Moderação (Silenciar/Ensurdecer no servidor, Mover para…, Desconectar):
   // só aparece com a permissão — o servidor confere de novo.
   const modPerms = getMyCommunityPermissions(roles, members, user.id, user.platformRole);
-  const modItemsFor = (uid, st) => buildVoiceModerationItems({ voice, channelId: channel.id, target: { userId: uid, ...(st || {}) }, myPerms: modPerms, myUserId: user.id });
+  // Gorjeta: algumas moedas pra quem está na mesma call (fica no menu da pessoa).
+  const tipItems = (uid) => (uid === user.id || !inThisCall || String(channel.id).startsWith('dm:') ? [] : [{
+    label: 'Dar gorjeta',
+    submenu: TIP_AMOUNTS.map((v) => ({
+      label: `${v} moedas`,
+      onClick: async () => {
+        const r = await sendCallTip(socket, { channelId: channel.id, toUserId: uid, amount: v });
+        if (!r?.ok) setTipNotice(r?.reason || 'Não deu pra mandar a gorjeta.');
+      },
+    })),
+  }, {
+    label: 'Duelo de dados',
+    submenu: DUEL_STAKES.map((v) => ({
+      label: `Valendo ${v} moedas`,
+      onClick: async () => {
+        const r = await challengeDuel(socket, { channelId: channel.id, toUserId: uid, stake: v });
+        if (!r?.ok) setTipNotice(r?.reason || 'Não deu pra desafiar.');
+      },
+    })),
+  }]);
+  const modItemsFor = (uid, st) => {
+    const mod = buildVoiceModerationItems({ voice, channelId: channel.id, target: { userId: uid, ...(st || {}) }, myPerms: modPerms, myUserId: user.id });
+    const tip = tipItems(uid);
+    return tip.length && mod.length ? [...tip, { divider: true }, ...mod] : [...tip, ...mod];
+  };
   const allUserIds = [...new Set([user.id, ...Object.keys(participants)])];
 
   // Lives dos outros que eu fechei: não aparecem (e nem baixam — ver setScreenClosed).
@@ -315,6 +377,10 @@ export default function VoiceChannelView({ channel }) {
         {callDice.current && <CallDicePopup key={`${callDice.current.user?.id}-${callDice.current.at}`} event={callDice.current} onDone={callDice.done} />}
         {/* Legendas ao vivo do seu microfone (K). */}
         <LiveCaptions active={inThisCall} />
+        {/* Baú da call: aparece de vez em quando, quem abrir primeiro leva. */}
+        {inThisCall && <CallChest channelId={channel.id} meId={user?.id} />}
+        {inThisCall && <CallTips channelId={channel.id} meId={user?.id} notice={tipNotice} onNoticeDone={clearTipNotice} />}
+        {inThisCall && <CallDuels channelId={channel.id} meId={user?.id} />}
       </div>
       <MicSilentWarning voice={voice} />
       <YouTubeToast yt={yt} />
@@ -414,8 +480,8 @@ function PersonTile({ uid, person, isMe, state, connecting, cameraStream, volume
   const modState = state.serverDeafened ? 'Ensurdecido no servidor' : state.serverMuted ? 'Silenciado no servidor' : null;
   return (
     <div
-      className={`vc-tile${state.speaking && !state.muted ? ' is-speaking' : ''}${cameraStream ? ' has-video' : ''}${connecting ? ' is-connecting' : ''}`}
-      style={{ '--tile-color': color }}
+      className={`vc-tile${state.speaking && !state.muted ? ' is-speaking' : ''}${cameraStream ? ' has-video' : ''}${connecting ? ' is-connecting' : ''}${person?.bannerUrl && !cameraStream ? ' has-banner' : ''}`}
+      style={{ '--tile-color': color, ...(person?.bannerUrl && !cameraStream ? { '--tile-banner': `url(${JSON.stringify(proxyImage(person.bannerUrl))})` } : {}) }}
       onContextMenu={hasMenu ? (e) => openMenu(e, menuItems) : undefined}
     >
       {cameraStream && !connecting ? (
@@ -427,11 +493,15 @@ function PersonTile({ uid, person, isMe, state, connecting, cameraStream, volume
       )}
       {connecting && <span className="vc-tile-connecting">Conectando…</span>}
 
-      <span className="vc-label">
+      <span
+        className={`vc-label${person?.idCardUrl ? ' has-id-card' : ''}`}
+        style={person?.idCardUrl ? { '--id-card': `url(${JSON.stringify(proxyImage(person.idCardUrl))})`, ...idCardFramingVars(person.idCardFraming) } : undefined}
+      >
         {modState ? (
           <span className="vc-label-muted vc-label-servermuted" title={modState} aria-label={modState}><Icon name="micOff" size={14} /></span>
         ) : state.muted ? <span className="vc-label-muted"><Icon name="micOff" size={14} /></span> : null}
-        <span className="truncate">{person?.displayName || uid}{isMe ? ' (você)' : ''}</span>
+        <span className={`truncate ${person && hasCustomNameStyle(person) ? nameStyleClassName(person, { fullEffect: true }) : ''}`} style={person && hasCustomNameStyle(person) ? nameStyleProps(person, { fullEffect: true }) : undefined}>{person?.displayName || uid}</span>
+        {isMe && <span className="vc-label-me">(você)</span>}
         {state.screenSharing && <Icon name="screen" size={14} />}
         {!connecting && <QualityDot quality={quality} />}
       </span>
@@ -507,7 +577,8 @@ function StageView({ roles, members, channel, memberFor }) {
             return (
               <li key={uid} className={handsRaised[uid] ? 'has-hand' : ''}>
                 <UserAvatar user={person || { displayName: uid }} size={32} />
-                <span className="truncate">{person?.displayName || uid}{isMe ? ' (você)' : ''}</span>
+                <span className={`truncate ${person && hasCustomNameStyle(person) ? nameStyleClassName(person, { fullEffect: true }) : ''}`} style={person && hasCustomNameStyle(person) ? nameStyleProps(person, { fullEffect: true }) : undefined}>{person?.displayName || uid}</span>
+        {isMe && <span className="vc-label-me">(você)</span>}
                 {handsRaised[uid] && <span className="vc-hand" title="Pediu para falar"><Icon name="hand" size={15} /></span>}
                 {isModerator && !isMe && (
                   <button type="button" className="vc-link" onClick={() => voice.setParticipantRole(uid, 'speaker')}>Convidar</button>

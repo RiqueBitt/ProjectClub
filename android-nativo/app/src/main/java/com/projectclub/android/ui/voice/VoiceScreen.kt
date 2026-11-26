@@ -94,6 +94,10 @@ import com.projectclub.android.data.Repository
 import com.projectclub.android.data.User
 import com.projectclub.android.data.VoiceParticipant
 import com.projectclub.android.ui.common.Avatar
+import com.projectclub.android.Config
+import com.projectclub.android.ui.common.nameFxStyle
+import androidx.compose.ui.layout.ContentScale
+import coil.compose.AsyncImage
 import com.projectclub.android.ui.theme.PC
 import com.projectclub.android.voice.CallService
 import com.projectclub.android.voice.CallState
@@ -118,6 +122,10 @@ class CallActions(
     val playSound: (String, (String?) -> Unit) -> Unit = { _, _ -> },
     val setPushToTalk: (Boolean) -> Unit = {},
     val pushToTalk: (Boolean) -> Unit = {},
+    val claimChest: ((String) -> Unit) -> Unit = {},
+    val tip: ((String, Int, (String) -> Unit) -> Unit)? = null,
+    val duel: ((String, Int, (String) -> Unit) -> Unit)? = null,
+    val answerDuel: (Boolean, (String) -> Unit) -> Unit = { _, _ -> },
 )
 
 @Composable
@@ -175,6 +183,10 @@ fun VoiceScreen(voice: VoiceManager, repo: Repository, onBack: () -> Unit) {
             playSound = voice::playSoundboard,
             setPushToTalk = voice::setPushToTalk,
             pushToTalk = voice::pushToTalk,
+            claimChest = { onFail -> voice.claimChest(onFail) },
+            tip = if (channelName.startsWith("dm:")) null else { to, amount, onFail -> voice.sendTip(to, amount, onFail) },
+            duel = if (channelName.startsWith("dm:")) null else { to, stake, onFail -> voice.challengeDuel(to, stake, onFail) },
+            answerDuel = { accept, onFail -> voice.answerDuel(accept, onFail) },
         ),
         screen = { userId, modifier ->
             Box(modifier) {
@@ -332,11 +344,18 @@ fun CallLayout(
                 }) { picker = !picker }
             }
         }
+        // Baú da call: canto de baixo, acima dos controles.
+        if (!fullscreen) CallChestOverlay(
+            state, me?.id, actions.claimChest, actions.answerDuel,
+            Modifier.align(Alignment.BottomEnd).navigationBarsPadding().padding(end = 14.dp, bottom = 120.dp),
+        )
     }
     personSheet?.let { id ->
         CallPersonSheet(
             userOf(id), id, actions.volumeOf(id), { actions.setVolume(id, it) },
             onProfile = { personSheet = null; actions.openProfile(id) }, onDismiss = { personSheet = null },
+            onTip = actions.tip?.takeIf { id != me?.id }?.let { t -> { amount, onFail -> t(id, amount, onFail) } },
+            onDuel = actions.duel?.takeIf { id != me?.id }?.let { t -> { stake, onFail -> t(id, stake, onFail) } },
         )
     }
 }
@@ -428,19 +447,39 @@ private fun PersonCard(p: Person, compact: Boolean, onClick: () -> Unit) {
     val border by animateColorAsState(if (p.speaking) PC.Green else Color.White.copy(alpha = 0.06f), tween(180), label = "b")
     val shape = RoundedCornerShape(22.dp)
     val accent = profileColor(p.user?.profileColor)
+    // Vitrine: o banner da pessoa fica de fundo, a placa atrás do nome e o
+    // efeito de texto da Loja no nome — o que cada um personaliza aparece
+    // onde a turma passa o tempo.
+    val banner = Config.media(p.user?.bannerUrl)
+    val idCard = Config.media(p.user?.idCardUrl)
+    val baseName = if (compact) MaterialTheme.typography.labelLarge else MaterialTheme.typography.titleSmall
+    val fx = nameFxStyle(p.user?.profileNameEffect)
     Box(
         Modifier.fillMaxWidth().aspectRatio(if (compact) 0.86f else 0.95f).clip(shape)
             .background(Brush.verticalGradient(listOf(accent.copy(alpha = 0.28f), PC.Surface2.copy(alpha = 0.95f))))
             .border(if (p.speaking) 2.5.dp else 1.dp, border, shape)
             .clickable(enabled = !p.isMe, onClick = onClick),
     ) {
+        if (banner != null) {
+            AsyncImage(model = banner, contentDescription = null, contentScale = ContentScale.Crop, modifier = Modifier.matchParentSize(), alpha = 0.55f)
+            Box(Modifier.matchParentSize().background(Brush.verticalGradient(listOf(Color.Black.copy(alpha = 0.15f), Color.Black.copy(alpha = 0.7f)))))
+        }
         Column(Modifier.fillMaxSize().padding(10.dp), verticalArrangement = Arrangement.Center, horizontalAlignment = Alignment.CenterHorizontally) {
             BigAvatar(p, if (compact) 64.dp else 84.dp)
             Spacer(Modifier.height(10.dp))
-            Text(
-                p.user?.name ?: "…", color = PC.Header, fontWeight = FontWeight.Bold, maxLines = 1, overflow = TextOverflow.Ellipsis,
-                style = if (compact) MaterialTheme.typography.labelLarge else MaterialTheme.typography.titleSmall,
-            )
+            Box(
+                Modifier.clip(RoundedCornerShape(8.dp)).then(if (idCard != null) Modifier.background(Color.Black.copy(alpha = 0.35f)) else Modifier),
+                contentAlignment = Alignment.Center,
+            ) {
+                if (idCard != null) {
+                    AsyncImage(model = idCard, contentDescription = null, contentScale = ContentScale.Crop, modifier = Modifier.matchParentSize(), alpha = 0.8f)
+                }
+                Text(
+                    p.user?.name ?: "…", color = PC.Header, fontWeight = FontWeight.Bold, maxLines = 1, overflow = TextOverflow.Ellipsis,
+                    style = if (fx != null) baseName.merge(fx) else baseName,
+                    modifier = Modifier.padding(horizontal = if (idCard != null) 10.dp else 0.dp, vertical = if (idCard != null) 4.dp else 0.dp),
+                )
+            }
             if (p.isMe) Text("você", color = PC.Muted, style = MaterialTheme.typography.labelSmall)
         }
         Row(Modifier.align(Alignment.TopEnd).padding(8.dp), horizontalArrangement = Arrangement.spacedBy(4.dp)) {

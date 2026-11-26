@@ -72,3 +72,6 @@ server/reports/
 desktop/vendor/openvpn/*.msi
 # Compêndio BLACKOUT baixado do repo privado (services/blackoutSync.js)
 server/data/blackout-site/
+
+# Despejo do Redis dos testes locais
+dump.rdb

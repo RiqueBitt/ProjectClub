@@ -1,6 +1,11 @@
 //! Loja (controllers/shopController.js) — por enquanto a cestinha:
 //! `POST /api/decorations/checkout`, que compra vários itens de uma vez,
 //! TUDO OU NADA, numa transação só.
+//!
+//! Ofertas (oferta da semana e primeira compra, services/shopDeals.js) só
+//! existem no Node: quando o preço que a pessoa confirmou não bate com o
+//! preço normal daqui (PRICE_CHANGED), nada foi cobrado e a cestinha é
+//! repassada pro Node, que conhece as ofertas e decide.
 
 use std::collections::HashSet;
 
@@ -177,6 +182,12 @@ struct Ready {
 
 /// `POST /api/decorations/checkout { items: [{ kind, id, currency, expectedPrice }] }`.
 pub async fn checkout(State(state): State<AppState>, parts: Parts, body: Bytes) -> Response {
+    let (method, uri, headers) = (
+        parts.method.clone(),
+        parts.uri.clone(),
+        parts.headers.clone(),
+    );
+    let raw_body = body.clone();
     let c = prelude_or_return!(state, parts, body, true, None);
     let out = async {
         let raw: &[Value] = match c.body.get("items") {
@@ -239,6 +250,21 @@ pub async fn checkout(State(state): State<AppState>, parts: Parts, body: Bytes) 
             }
             Err(stop) => {
                 let _ = tx.rollback().await;
+                // Preço de oferta (só o Node calcula): repassa a cestinha inteira.
+                if let Stop::Fail(StatusCode::CONFLICT, _, extra) = &stop
+                    && extra.get("code").and_then(Value::as_str) == Some("PRICE_CHANGED")
+                {
+                    drop(conn);
+                    let mut again = axum::http::Request::new(axum::body::Body::from(raw_body));
+                    *again.method_mut() = method;
+                    *again.uri_mut() = uri;
+                    *again.headers_mut() = headers;
+                    let node = crate::proxy::forward(State(state.clone()), again).await;
+                    // Node fora do ar: fica o "preço mudou" daqui mesmo.
+                    if node.status() != StatusCode::BAD_GATEWAY {
+                        return Ok(node);
+                    }
+                }
                 return match stop {
                     Stop::Fail(status, msg, extra) => {
                         let mut body = Map::new();

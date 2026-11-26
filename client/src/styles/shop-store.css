@@ -730,3 +730,12 @@
 @media (prefers-reduced-motion: reduce) {
   .room-rarity, .room-rarity::before, .room-rarity::after { animation: none !important; }
 }
+
+/* Primeira compra pela metade (services/shopDeals.js) */
+.shop-room .room-first-buy {
+  display: flex; align-items: center; gap: 10px;
+  padding: 12px 16px; border-radius: 12px;
+  background: linear-gradient(180deg, #fff6d6, #ffe9a3); color: #3a2400;
+  border: 1px solid #f2c94c; font-size: 14px; line-height: 1.4;
+}
+.shop-room .room-first-buy strong { font-weight: 700; }
