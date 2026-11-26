@@ -63,7 +63,8 @@ test('CheapShark (Epic): em dólar, sem os grátis, link pelo redirect', () => {
   assert.equal(out[0].price.currency, 'USD');
   assert.equal(out[0].price.discount, 50);
   assert.equal(out[0].url, 'https://www.cheapshark.com/redirect?dealID=BBB%2F');
-  assert.match(out[0].image, /1145360\/header\.jpg$/);
+  assert.equal(out[0].image, 'https://x/h.jpg');
+  assert.equal(out[0].steamAppId, 1145360);
 });
 
 test('getDeals: uma loja fora do ar não derruba as outras', async () => {
@@ -428,4 +429,75 @@ test('Jogos de Android: lista sem pacote repetido e com o que fazer em cada um',
     assert.ok(g.tip && g.name, g.id);
     if (g.support === 'loader') assert.ok(g.loaderPackages.length && g.url, g.id);
   }
+});
+
+// ---------- Capas dos jogos ----------
+const covers = require('../src/services/gameHub/covers');
+
+function coverFetch(map) {
+  const calls = [];
+  const impl = async (url, init = {}) => {
+    calls.push(`${init.method || 'GET'} ${url}`);
+    for (const [re, res] of map) {
+      if (re.test(url)) {
+        const r = typeof res === 'function' ? res(url, init) : res;
+        return { ok: r.status === 200, status: r.status, headers: { get: (h) => (h === 'content-type' ? (r.type || 'image/jpeg') : null) }, json: async () => r.json };
+      }
+    }
+    return { ok: false, status: 404, headers: { get: () => 'text/html' }, json: async () => ({}) };
+  };
+  return { impl, calls };
+}
+
+test('Capas: reconhece "sem imagem", capa vertical e diminui as da Epic', () => {
+  assert.ok(covers.isPlaceholder('https://www.cheapshark.com/img/default_box_art.png'));
+  assert.ok(covers.isPlaceholder(null));
+  assert.ok(!covers.isPlaceholder('https://cdn1.epicgames.com/x.jpg'));
+  assert.ok(covers.isTall('https://cdn2.unrealengine.com/egs-x-editions-s2-1200x1600-abc.jpg'));
+  assert.ok(covers.isTall('https://static-cdn.jtvnw.net/ttv-boxart/Roblox-285x380.jpg'));
+  assert.ok(!covers.isTall('https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/730/header.jpg'));
+  assert.equal(covers.sized('https://cdn1.epicgames.com/a/b.jpg'), 'https://cdn1.epicgames.com/a/b.jpg?h=360&quality=medium&resize=1&w=640');
+  assert.match(covers.sized('https://cdn2.unrealengine.com/egs-x-1200x1600-a.jpg'), /h=480&quality=medium&resize=1&w=360$/);
+  assert.equal(covers.sized('https://store.ubisoft.com/i.jpg?sw=197&amp;sh=261'), 'https://store.ubisoft.com/i.jpg?sw=197&sh=261');
+  assert.deepEqual(covers.nameVariants('Need for Speed™ Heat Deluxe Edition'), ['Need for Speed Heat Deluxe Edition', 'Need for Speed Heat']);
+  assert.deepEqual(covers.nameVariants('STAR WARS Jedi: Survivor'), ['STAR WARS Jedi: Survivor', 'STAR WARS Jedi']);
+});
+
+test('Capas: jogo fora da Steam pega a arte da Twitch; "sem capa" da Twitch é recusado', async () => {
+  covers._resetForTests(); remote._resetForTests();
+  const { impl } = coverFetch([
+    [/ttv-boxart\/World%20of%20Warcraft-/, { status: 200 }],
+    [/ttv-boxart\//, { status: 302 }],
+    [/storesearch/, { status: 200, json: { items: [{ id: 1, name: 'Outro Jogo Qualquer' }] } }],
+  ]);
+  const wow = await covers.resolve({ name: 'World of Warcraft' }, { fetchImpl: impl });
+  assert.deepEqual(wow, { url: 'https://static-cdn.jtvnw.net/ttv-boxart/World%20of%20Warcraft-285x380.jpg', tall: true });
+  assert.equal(await covers.resolve({ name: 'Jogo Que Não Existe' }, { fetchImpl: impl }), null);
+});
+
+test('Capas: Steam com endereço novo usa o header_image do appdetails', async () => {
+  covers._resetForTests(); remote._resetForTests();
+  const { impl, calls } = coverFetch([
+    [/store_item_assets\/steam\/apps\/3724680\/header\.jpg$/, { status: 404, type: 'text/html' }],
+    [/appdetails\?appids=3724680/, { status: 200, json: { 3724680: { success: true, data: { header_image: 'https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/3724680/abc/header.jpg?t=1' } } } }],
+    [/store_item_assets\/steam\/apps\/730\/header\.jpg$/, { status: 200 }],
+  ]);
+  const a = await covers.resolve({ name: 'Gangsters Way', steamAppId: 3724680, image: 'https://www.cheapshark.com/img/default_box_art.png' }, { fetchImpl: impl });
+  assert.equal(a.url, 'https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/3724680/abc/header.jpg?t=1');
+  const cs = await covers.resolve({ name: 'Counter-Strike 2', steamAppId: 730 }, { fetchImpl: impl });
+  assert.deepEqual(cs, { url: 'https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/730/header.jpg', tall: false });
+  // guardado: a segunda vez não busca de novo
+  const before = calls.length;
+  await covers.resolve({ name: 'Counter-Strike 2', steamAppId: 730 }, { fetchImpl: impl });
+  assert.equal(calls.length, before);
+});
+
+test('Capas: promoção com capa vertical da Epic prefere a larga da Steam', async () => {
+  covers._resetForTests(); remote._resetForTests();
+  const { impl } = coverFetch([[/steam\/apps\/1174180\/header\.jpg$/, { status: 200 }]]);
+  const tall = 'https://cdn2.unrealengine.com/egs-rdr2-editions-s2-1200x1600-a.jpg';
+  const wide = await covers.resolve({ name: 'RDR2', steamAppId: 1174180, image: tall, prefer: 'wide' }, { fetchImpl: impl });
+  assert.equal(wide.tall, false);
+  const noSteam = await covers.resolve({ name: 'Exclusivo', image: tall, prefer: 'wide' }, { fetchImpl: impl });
+  assert.deepEqual(noSteam, { url: `${tall}?h=480&quality=medium&resize=1&w=360`, tall: true });
 });

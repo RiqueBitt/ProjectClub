@@ -99,15 +99,23 @@ import kotlinx.coroutines.withContext
 /** Lista do servidor guardada pela sessão (muda pouco). */
 private object ModsCache { var games: List<ModdableGame>? = null }
 
+/** Jogos deste celular casados com a lista do servidor (null = carregando). */
 @Composable
-fun ModsTab(repo: Repository, nav: AppNav) {
+fun rememberDetectedGames(repo: Repository, refresh: Int = 0): List<HubLogic.DetectedGame>? {
     val ctx = LocalContext.current
-    var refresh by remember { mutableStateOf(0) }
     val detected by produceState<List<HubLogic.DetectedGame>?>(null, refresh) {
         val curated = ModsCache.games ?: runCatching { repo.api.get<ModdableGamesResponse>("/api/game-hub/android/games").games }
             .getOrNull()?.also { ModsCache.games = it }.orEmpty()
         value = withContext(Dispatchers.IO) { HubLogic.matchInstalled(InstalledGames.scan(ctx), curated, ctx.packageName) }
     }
+    return detected
+}
+
+@Composable
+fun ModsTab(repo: Repository, nav: AppNav) {
+    val ctx = LocalContext.current
+    var refresh by remember { mutableStateOf(0) }
+    val detected = rememberDetectedGames(repo, refresh)
     ModsContent(
         detected,
         onLaunch = { g -> if (!InstalledGames.launch(ctx, g.app.packageName)) ctx.toast("Não deu pra abrir o jogo.") },
@@ -141,7 +149,7 @@ fun ModsContent(
     val others = detected?.filter { !it.moddable }.orEmpty()
     LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
         item(key = "bedrock") { BedrockBanner(onBedrock) }
-        item(key = "h") { SectionHead("Seus jogos com mods", action = "Atualizar", onAction = onRefresh) }
+        item(key = "h") { SectionHead("Seus jogos com mods", action = "Atualizar", color = hubTab("mods").color, onAction = onRefresh) }
         when {
             detected == null -> item(key = "loading") { ListSkeleton(3, 48.dp) }
             moddable.isEmpty() -> item(key = "none") {

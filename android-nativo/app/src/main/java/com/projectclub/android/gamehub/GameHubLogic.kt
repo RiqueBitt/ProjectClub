@@ -107,7 +107,48 @@ object HubLogic {
         }
     }
 
-    fun steamCover(appId: Long?): String? = appId?.takeIf { it > 0 }?.let { "https://cdn.cloudflare.steamstatic.com/steam/apps/$it/header.jpg" }
+    private const val STEAM_ART = "https://shared.akamai.steamstatic.com/store_item_assets/steam/apps"
+
+    /** Capa larga da Steam (460×215). */
+    fun steamCover(appId: Long?): String? = appId?.takeIf { it > 0 }?.let { "$STEAM_ART/$it/header.jpg" }
+
+    /** Capa larga pequena da Steam (231×87, ~10 KB) pra listas. */
+    fun steamSmall(appId: Long?): String? = appId?.takeIf { it > 0 }?.let { "$STEAM_ART/$it/capsule_231x87.jpg" }
+
+    /** Capa em pé da Steam (600×900) pra cartazes. */
+    fun steamPoster(appId: Long?): String? = appId?.takeIf { it > 0 }?.let { "$STEAM_ART/$it/library_600x900.jpg" }
+
+    /** Uma imagem candidata a capa; [tall] = vertical (capa de caixa). */
+    data class Art(val url: String, val tall: Boolean = false)
+
+    /**
+     * Ordem de tentativa das capas (cada erro tenta a próxima):
+     * imagem que veio da loja → Steam (pequena ou grande) → capa que o
+     * servidor achou (Twitch pros jogos fora da Steam) → Steam grande.
+     * [poster] = espaço em pé: começa pelas verticais.
+     */
+    fun coverCandidates(
+        steamAppId: Long?,
+        image: String? = null,
+        imageTall: Boolean = false,
+        cover: String? = null,
+        coverTall: Boolean = false,
+        small: Boolean = false,
+        poster: Boolean = false,
+    ): List<Art> {
+        val out = ArrayList<Art>()
+        fun add(url: String?, tall: Boolean = false) { if (!url.isNullOrBlank() && out.none { it.url == url }) out += Art(url, tall) }
+        if (poster) {
+            if (imageTall) add(image, true)
+            if (coverTall) add(cover, true)
+            add(steamPoster(steamAppId), true)
+        }
+        add(image, imageTall)
+        add(if (small) steamSmall(steamAppId) else steamCover(steamAppId))
+        add(cover, coverTall)
+        add(steamCover(steamAppId))
+        return out
+    }
 
     // ---------- Jogos instalados ----------
 

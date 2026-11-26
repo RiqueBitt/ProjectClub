@@ -54,6 +54,7 @@ import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -101,7 +102,7 @@ class PartyActions(
 )
 
 @Composable
-fun PartiesTab(repo: Repository, nav: AppNav, highlight: String? = null, startCreating: Boolean = false) {
+fun PartiesTab(repo: Repository, nav: AppNav, highlight: String? = null, startCreating: Boolean = false, onChanged: () -> Unit = {}) {
     val ctx = LocalContext.current
     val scope = rememberCoroutineScope()
     val parties = rememberLoader("parties") { repo.api.get<PartiesResponse>("/api/game-hub/parties").parties }
@@ -116,6 +117,7 @@ fun PartiesTab(repo: Repository, nav: AppNav, highlight: String? = null, startCr
             runCatching { block() }.onFailure { ctx.toast(it.message ?: "Não deu certo.") }
             busy = null
             parties.reload()
+            onChanged()
         }
     }
     val actions = PartyActions(
@@ -145,6 +147,7 @@ fun PartiesTab(repo: Repository, nav: AppNav, highlight: String? = null, startCr
     if (creating) CreatePartySheet(repo, onDismiss = { creating = false }) { created ->
         creating = false
         parties.reload()
+        onChanged()
         if (created != null) ctx.toast("Partida criada!")
     }
     inviting?.let { p ->
@@ -165,13 +168,49 @@ fun PartiesContent(
     actions: PartyActions,
     onCreate: () -> Unit,
 ) {
-    val sorted = remember(parties, highlight) { parties.sortedByDescending { it.id == highlight } }
+    var filter by rememberSaveable { mutableStateOf("todas") }
+    val now = parties.count { HubLogic.whenLabel(it.startsAt) == "Agora" }
+    val sorted = remember(parties, highlight, filter) {
+        parties.filter {
+            when (filter) {
+                "agora" -> HubLogic.whenLabel(it.startsAt) == "Agora"
+                "marcadas" -> HubLogic.whenLabel(it.startsAt) != "Agora"
+                "minhas" -> it.inside
+                else -> true
+            }
+        }.sortedByDescending { it.id == highlight }
+    }
     LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
         item(key = "create") {
-            PillButton("Criar partida", onCreate, Modifier.fillMaxWidth(), icon = Icons.Outlined.Add, color = HubVioletDeep)
+            val shape = RoundedCornerShape(22.dp)
+            Row(
+                Modifier.fillMaxWidth().clip(shape).background(HubGradient).border(1.dp, HubViolet.copy(alpha = 0.35f), shape).clickable(onClick = onCreate).padding(16.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Box(Modifier.size(46.dp).clip(CircleShape).background(Color.White), contentAlignment = Alignment.Center) {
+                    Icon(Icons.Outlined.Add, null, tint = HubVioletDeep, modifier = Modifier.size(26.dp))
+                }
+                Spacer(Modifier.width(14.dp))
+                Column(Modifier.weight(1f)) {
+                    Text("Criar partida", color = Color.White, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+                    Text("Escolha o jogo, as vagas e chame os amigos. Quem entra ganha a call.", color = Color.White.copy(alpha = 0.78f), style = MaterialTheme.typography.bodySmall)
+                }
+            }
+        }
+        item(key = "filters") {
+            androidx.compose.foundation.lazy.LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                item { HubChip("Todas · ${parties.size}", filter == "todas", { filter = "todas" }) }
+                item { HubChip("Agora · $now", filter == "agora", { filter = "agora" }) }
+                item { HubChip("Marcadas · ${parties.size - now}", filter == "marcadas", { filter = "marcadas" }) }
+                item { HubChip("Minhas", filter == "minhas", { filter = "minhas" }) }
+            }
         }
         if (sorted.isEmpty()) item(key = "empty") {
-            EmptyState(Icons.Outlined.SportsEsports, "Nenhuma partida aberta", "Abra uma e chame a galera: quem entrar ganha a call da partida.")
+            EmptyState(
+                Icons.Outlined.SportsEsports,
+                if (filter == "todas") "Nenhuma partida aberta" else "Nada aqui",
+                if (filter == "todas") "Abra uma e chame a galera: quem entrar ganha a call da partida." else "Troque o filtro ou crie uma partida.",
+            )
         }
         items(sorted, key = { it.id }) { p -> PartyCard(p, meId, busy == p.id, p.id == highlight, actions) }
     }
@@ -187,7 +226,7 @@ fun PartyCard(p: GameParty, meId: String?, busy: Boolean, highlighted: Boolean, 
             .border(if (highlighted) 2.dp else 1.dp, if (highlighted) HubViolet else PC.Line, shape),
     ) {
         Box {
-            GameCover(p.game.name, Modifier.fillMaxWidth().height(96.dp), p.game.steamAppId, shape = RoundedCornerShape(0.dp))
+            GameCover(p.game.name, Modifier.fillMaxWidth().height(120.dp), p.game.steamAppId, shape = RoundedCornerShape(0.dp), cover = p.game.cover, coverTall = p.game.coverTall)
             Box(Modifier.matchParentSize().background(androidx.compose.ui.graphics.Brush.verticalGradient(listOf(Color.Transparent, Color(0xE60B0B10)))))
             Row(Modifier.align(Alignment.BottomStart).padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
                 val now = p.startsAt == null || HubLogic.whenLabel(p.startsAt) == "Agora"
@@ -285,7 +324,7 @@ fun CreatePartySheet(repo: Repository, onDismiss: () -> Unit, onDone: (GameParty
                     .clickable { picking = true }.padding(10.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
-                GameCover(g?.name ?: "?", Modifier.width(96.dp).height(45.dp), g?.steamAppId, shape = RoundedCornerShape(10.dp))
+                GameCover(g?.name ?: "?", Modifier.width(96.dp).height(45.dp), g?.steamAppId, shape = RoundedCornerShape(10.dp), cover = g?.cover, coverTall = g?.coverTall == true, small = true)
                 Spacer(Modifier.width(12.dp))
                 Column(Modifier.weight(1f)) {
                     Text(g?.name ?: "Escolher jogo", color = if (g == null) PC.Muted else PC.Header, style = MaterialTheme.typography.bodyLarge, maxLines = 1, overflow = TextOverflow.Ellipsis)
@@ -427,7 +466,7 @@ fun PartyRow(p: GameParty, onClick: () -> Unit) {
             .clickable(onClick = onClick).padding(10.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        GameCover(p.game.name, Modifier.width(84.dp).height(40.dp), p.game.steamAppId, shape = RoundedCornerShape(10.dp))
+        GameCover(p.game.name, Modifier.width(92.dp).height(43.dp), p.game.steamAppId, shape = RoundedCornerShape(10.dp), cover = p.game.cover, coverTall = p.game.coverTall, small = true)
         Spacer(Modifier.width(12.dp))
         Column(Modifier.weight(1f)) {
             Text(p.title, color = PC.Header, style = MaterialTheme.typography.bodyLarge, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis)

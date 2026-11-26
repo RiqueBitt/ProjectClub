@@ -122,10 +122,10 @@ import kotlinx.serialization.json.put
 fun ClipsTab(repo: Repository, nav: AppNav, startOnPhone: Boolean = false) {
     var phone by rememberSaveable { mutableStateOf(startOnPhone) }
     Column(Modifier.fillMaxSize()) {
-        Row(Modifier.fillMaxWidth().padding(start = 16.dp, end = 16.dp, top = 14.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            HubChip("Do clube", !phone, { phone = false }, Icons.Outlined.VideoLibrary)
-            HubChip("Neste celular", phone, { phone = true }, Icons.Outlined.Smartphone)
-        }
+        Segmented(
+            listOf("clube" to "Do clube", "celular" to "Neste celular"), if (phone) "celular" else "clube", { phone = it == "celular" },
+            Modifier.padding(start = 16.dp, end = 16.dp, top = 14.dp), icons = listOf(Icons.Outlined.VideoLibrary, Icons.Outlined.Smartphone),
+        )
         if (phone) PhoneClips() else ClubClips(repo, nav)
     }
 }
@@ -247,7 +247,7 @@ fun ClipCard(c: GameClip, onOpen: () -> Unit, onLike: () -> Unit, onDelete: () -
     val shape = RoundedCornerShape(20.dp)
     Column(Modifier.fillMaxWidth().clip(shape).background(PC.Surface).border(1.dp, PC.Line, shape)) {
         Box(Modifier.fillMaxWidth().aspectRatio(16f / 9f).clickable(onClick = onOpen)) {
-            GameCover(c.game?.name ?: c.title, Modifier.matchParentSize(), c.game?.steamAppId, image = c.thumb, shape = RoundedCornerShape(0.dp))
+            GameCover(c.game?.name ?: c.title, Modifier.matchParentSize(), c.game?.steamAppId, image = c.thumb, shape = RoundedCornerShape(0.dp), cover = c.game?.cover, coverTall = c.game?.coverTall == true)
             Box(Modifier.align(Alignment.Center).size(54.dp).clip(CircleShape).background(Color(0x99000000)), contentAlignment = Alignment.Center) {
                 Icon(Icons.Outlined.PlayArrow, "Assistir", tint = Color.White, modifier = Modifier.size(34.dp))
             }
@@ -477,7 +477,7 @@ fun PhoneClipsContent(state: ClipState, settings: ClipSettings, clips: List<Loca
             }
         }
         item(key = "list-h") {
-            SectionHead("Clipes neste celular" + (clips?.size?.takeIf { it > 0 }?.let { " · $it" } ?: ""))
+            SectionHead("Clipes neste celular" + (clips?.size?.takeIf { it > 0 }?.let { " · $it" } ?: ""), color = hubTab("clipes").color)
             Spacer(Modifier.height(2.dp))
             Text("Ficam na Galeria (Filmes → ${ClipStore.FOLDER}). Pra mostrar no clube, mande pro YouTube e cole o link em Do clube.", color = PC.Faint, style = MaterialTheme.typography.bodySmall)
         }

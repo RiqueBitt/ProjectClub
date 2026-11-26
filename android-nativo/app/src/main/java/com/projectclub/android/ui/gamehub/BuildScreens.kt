@@ -827,7 +827,7 @@ private fun OtherEditor(d: BuildDraft, repo: Repository) {
                 .clickable { picking = true }.padding(10.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            if (g != null) GameCover(g.name, Modifier.width(92.dp).height(43.dp), g.steamAppId, shape = RoundedCornerShape(10.dp))
+            if (g != null) GameCover(g.name, Modifier.width(92.dp).height(43.dp), g.steamAppId, shape = RoundedCornerShape(10.dp), cover = g.cover, coverTall = g.coverTall, small = true)
             else Icon(Icons.Outlined.SportsEsports, null, tint = PC.Muted)
             Spacer(Modifier.width(10.dp))
             Text(g?.name ?: "Escolher jogo", color = if (g == null) PC.Muted else PC.Header, style = MaterialTheme.typography.bodyLarge)

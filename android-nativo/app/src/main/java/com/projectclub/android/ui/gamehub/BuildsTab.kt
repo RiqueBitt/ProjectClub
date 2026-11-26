@@ -94,7 +94,7 @@ fun BuildCover(b: GameBuild, modifier: Modifier, shape: RoundedCornerShape = Rou
         "lol" -> GameCover(b.heroName ?: b.title, modifier, image = lolSplash(lolChampionOf(b)), shape = shape)
         "deadlock" -> GameCover("Deadlock", modifier, DEADLOCK_APP, shape = shape)
         "darktide" -> GameCover("Darktide", modifier, DARKTIDE_APP, shape = shape)
-        else -> GameCover(b.gameInfo?.name ?: b.title, modifier, b.gameInfo?.steamAppId, shape = shape)
+        else -> GameCover(b.gameInfo?.name ?: b.title, modifier, b.gameInfo?.steamAppId, shape = shape, cover = b.gameInfo?.cover, coverTall = b.gameInfo?.coverTall == true)
     }
 }
 

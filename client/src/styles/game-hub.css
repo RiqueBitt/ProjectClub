@@ -98,6 +98,9 @@
 .gh-skel { display: block; border-radius: var(--gh-radius); background: linear-gradient(90deg, var(--bg-secondary) 25%, var(--bg-modifier-hover) 50%, var(--bg-secondary) 75%); background-size: 200% 100%; animation: gh-shimmer 1.3s linear infinite; }
 @keyframes gh-shimmer { to { background-position: -200% 0; } }
 .gh-cover-none { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 6px; width: 100%; height: 100%; padding: 8px; box-sizing: border-box; color: var(--text-muted); background: linear-gradient(135deg, color-mix(in srgb, var(--gh-accent) 16%, var(--bg-secondary)), var(--bg-secondary)); text-align: center; }
+.gh-cover-tall { position: relative; display: block; width: 100%; height: 100%; overflow: hidden; background: #000; }
+.gh-cover-tall .gh-cover-tall-bg { position: absolute; inset: -12%; width: 124%; height: 124%; object-fit: cover; filter: blur(16px) brightness(.5) saturate(1.2); }
+.gh-cover-tall .gh-cover-tall-fg { position: relative; display: block; height: 100%; width: auto; max-width: 100%; margin: 0 auto; object-fit: contain; box-shadow: 0 0 24px rgba(0, 0, 0, .5); }
 .gh-cover-none b { font-size: 12px; line-height: 1.2; color: var(--header-primary); display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
 
 /* ---------- Lojas e promoções ---------- */

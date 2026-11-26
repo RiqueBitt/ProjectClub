@@ -15,11 +15,9 @@ import androidx.compose.material.icons.automirrored.outlined.ArrowBack
 import androidx.compose.material.icons.outlined.SportsEsports
 import androidx.compose.material3.Icon
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.platform.LocalInspectionMode
 import androidx.compose.ui.unit.dp
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.github.takahirom.roborazzi.captureRoboImage
@@ -57,7 +55,8 @@ import com.projectclub.android.ui.gamehub.ClubClipsContent
 import com.projectclub.android.ui.gamehub.DealsContent
 import com.projectclub.android.ui.gamehub.HubChip
 import com.projectclub.android.ui.gamehub.HubHomeContent
-import com.projectclub.android.ui.gamehub.HubTabRow
+import com.projectclub.android.ui.gamehub.HubBottomBar
+import com.projectclub.android.ui.gamehub.hubTab
 import com.projectclub.android.ui.gamehub.ModsContent
 import com.projectclub.android.ui.gamehub.PartiesContent
 import com.projectclub.android.ui.gamehub.PartyActions
@@ -69,6 +68,20 @@ import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.buildJsonArray
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.put
+import android.graphics.Bitmap
+import android.graphics.BitmapFactory
+import android.graphics.drawable.BitmapDrawable
+import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.test.core.app.ApplicationProvider
+import coil.Coil
+import coil.ImageLoader
+import coil.decode.DataSource
+import coil.intercept.Interceptor
+import coil.request.ErrorResult
+import coil.request.ImageResult
+import coil.request.SuccessResult
+import kotlinx.coroutines.Dispatchers
+import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.annotation.Config
@@ -92,62 +105,104 @@ class GameHubScreenShots {
     private val rio = u("u3", "Rio")
 
     private fun shot(name: String, content: @Composable () -> Unit) = captureRoboImage("screenshots/$name.png") {
-        ProjectClubTheme {
-            CompositionLocalProvider(LocalInspectionMode provides true) {
-                Box(Modifier.fillMaxSize().background(PC.Bg)) { content() }
-            }
-        }
+        ProjectClubTheme { Box(Modifier.fillMaxSize().background(PC.Bg)) { content() } }
     }
 
-    /** Barra do Game Hub + abas, igual à tela de verdade. */
+    /**
+     * Capas de verdade nas capturas: o Coil baixa cada imagem na hora (sem
+     * thread, pra estar pronta antes da foto). Sem internet, fica o
+     * cartão com o nome do jogo, igual ao app quando não acha capa.
+     */
+    private class NetImages(private val app: Application) : Interceptor {
+        override suspend fun intercept(chain: Interceptor.Chain): ImageResult {
+            val url = chain.request.data as? String ?: return ErrorResult(null, chain.request, IllegalStateException("sem endereço"))
+            val bmp = synchronized(cache) { if (cache.containsKey(url)) cache[url] else download(url).also { cache[url] = it } }
+            return if (bmp != null) SuccessResult(BitmapDrawable(app.resources, bmp), chain.request, DataSource.MEMORY_CACHE)
+            else ErrorResult(null, chain.request, IllegalStateException("sem imagem: $url"))
+        }
+
+        private fun download(url: String): Bitmap? = runCatching {
+            val c = java.net.URL(url).openConnection() as java.net.HttpURLConnection
+            c.instanceFollowRedirects = false // Twitch redireciona pro "sem capa"
+            c.connectTimeout = 8000; c.readTimeout = 8000
+            c.setRequestProperty("User-Agent", "ProjectClub-Screenshots")
+            try {
+                if (c.responseCode != 200) null else c.inputStream.use { BitmapFactory.decodeStream(it) }
+            } finally { c.disconnect() }
+        }.getOrNull()
+
+        companion object { val cache = HashMap<String, Bitmap?>() }
+    }
+
+    @Before fun images() {
+        val app: Application = ApplicationProvider.getApplicationContext()
+        Coil.setImageLoader(
+            ImageLoader.Builder(app).components { add(NetImages(app)) }
+                .dispatcher(Dispatchers.Unconfined).allowHardware(false).build(),
+        )
+    }
+
+    /** Barra do topo + menu de baixo do Game Hub, igual à tela de verdade. */
     @Composable
     private fun Hub(tab: String, content: @Composable () -> Unit) {
         Column(Modifier.fillMaxSize()) {
-            PcTopBar("Game Hub", Icons.Outlined.SportsEsports, navigation = {
+            PcTopBar(if (tab == "inicio") "Game Hub" else hubTab(tab).label, if (tab == "inicio") Icons.Outlined.SportsEsports else hubTab(tab).icon, navigation = {
                 Box(Modifier.padding(12.dp)) { Icon(Icons.AutoMirrored.Outlined.ArrowBack, null, tint = PC.Text) }
             })
-            HubTabRow(tab) {}
             Box(Modifier.weight(1f).fillMaxWidth()) { content() }
+            HubBottomBar(tab, {}, badges = mapOf("partidas" to 2))
         }
     }
+
+    private fun twitch(name: String) = "https://static-cdn.jtvnw.net/ttv-boxart/${java.net.URLEncoder.encode(name, "UTF-8").replace("+", "%20")}-285x380.jpg"
+    private fun steam(id: Long) = "https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/$id/header.jpg"
+    private val dd = "https://ddragon.leagueoflegends.com/cdn/14.23.1/img"
 
     private val hot = HotlistResponse(
         "2026-11",
         listOf(
-            HotGame(1, "minecraft", "Minecraft", null, null, 412_000, 23),
-            HotGame(2, "counter-strike-2", "Counter-Strike 2", 730, null, 288_000, 14),
-            HotGame(3, "deadlock", "Deadlock", 1422450, null, 190_000, 9),
-            HotGame(4, "valorant", "VALORANT", null, null, 120_000, 8),
-            HotGame(5, "stardew-valley", "Stardew Valley", 413150, null, 64_000, 4),
+            HotGame(1, "world-of-warcraft", "World of Warcraft", null, null, 353_000, 6, twitch("World of Warcraft"), true),
+            HotGame(2, "counter-strike-2", "Counter-Strike 2", 730, null, 288_000, 14, steam(730)),
+            HotGame(3, "minecraft", "Minecraft", null, null, 190_000, 9, twitch("Minecraft"), true),
+            HotGame(4, "deadlock", "Deadlock", 1422450, null, 120_000, 8, steam(1422450)),
+            HotGame(5, "roblox", "Roblox", null, null, 64_000, 4, twitch("Roblox"), true),
         ),
     )
 
     private val deals = DealsResponse(
         free = listOf(
-            Deal("epic", "epic:1", "Hogwarts Legacy", null, "https://x", DealPrice(0.0, 249.9, "BRL", 100), true, endsAt = ahead(60 * 24 * 6)),
-            Deal("epic", "epic:2", "Control", null, "https://x", DealPrice(0.0, 89.99, "BRL", 100), true, endsAt = ahead(60 * 24 * 6)),
+            Deal(
+                "epic", "epic:1", "Firestone Idle RPG",
+                "https://cdn1.epicgames.com/spt-assets/69576a28f7154fe9a0dce97508da5163/firestone-online-idle-rpg-yus55.jpg?h=360&quality=medium&resize=1&w=640",
+                "https://x", DealPrice(0.0, 0.0, "BRL", 100), true, endsAt = ahead(60 * 24 * 6),
+            ),
+            Deal(
+                "epic", "epic:2", "Bread and Fred",
+                "https://cdn1.epicgames.com/spt-assets/545b4dd8bb364c12b719268198a93ef3/bread-and-fred-3jnwn.jpg?h=360&quality=medium&resize=1&w=640",
+                "https://x", DealPrice(0.0, 37.99, "BRL", 100), true, endsAt = ahead(60 * 24 * 6),
+            ),
         ),
-        upcoming = listOf(Deal("epic", "epic:3", "Hades", null, "https://x", DealPrice(0.0, 47.49, "BRL", 100), true, startsAt = ahead(60 * 24 * 7))),
+        upcoming = listOf(Deal("epic", "epic:3", "Hades", steam(1145360), "https://x", DealPrice(0.0, 47.49, "BRL", 100), true, startsAt = ahead(60 * 24 * 7), steamAppId = 1145360)),
         deals = listOf(
-            Deal("steam", "steam:1", "Red Dead Redemption 2", null, "https://x", DealPrice(74.97, 299.9, "BRL", 75)),
-            Deal("gog", "gog:1", "Cyberpunk 2077", null, "https://x", DealPrice(105.99, 265.0, "BRL", 60)),
-            Deal("steam", "steam:2", "Baldur's Gate 3", null, "https://x", DealPrice(149.99, 199.99, "BRL", 25)),
-            Deal("epic", "epicdeal:1", "Alan Wake 2", null, "https://x", DealPrice(24.99, 49.99, "USD", 50)),
+            Deal("steam", "steam:1", "Red Dead Redemption 2", steam(1174180), "https://x", DealPrice(74.97, 299.9, "BRL", 75), steamAppId = 1174180),
+            Deal("gog", "gog:1", "Cyberpunk 2077", steam(1091500), "https://x", DealPrice(105.99, 265.0, "BRL", 60)),
+            Deal("steam", "steam:2", "Baldur's Gate 3", steam(1086940), "https://x", DealPrice(149.99, 199.99, "BRL", 25), steamAppId = 1086940),
+            Deal("epic", "epicdeal:1", "Alan Wake 2", twitch("Alan Wake 2"), "https://x", DealPrice(24.99, 49.99, "USD", 50), imageTall = true),
         ),
     )
 
     private val parties = listOf(
         GameParty(
-            "p1", "Ranked até o diamante", "Precisa de microfone. Sem tóxico!", 5, HubGame("valorant", "VALORANT"),
+            "p1", "Ranked até o diamante", "Precisa de microfone. Sem tóxico!", 5, HubGame("valorant", "VALORANT", null, twitch("VALORANT"), true),
             null, ago(20), ahead(160), "open", lia, hasCall = true, members = listOf(lia, me, loritta), filled = 3, myStatus = "joined",
         ),
-        GameParty("p2", "Deadlock hoje à noite", null, 6, HubGame("deadlock", "Deadlock", 1422450), ahead(300), ago(60), ahead(480), "open", rio, members = listOf(rio), filled = 1),
-        GameParty("p3", "Minecraft SMP", "Servidor novo, bora construir.", 4, HubGame("minecraft", "Minecraft"), null, ago(5), ahead(175), "open", me, members = listOf(me), filled = 1, myStatus = "host", invitedCount = 2),
+        GameParty("p2", "Deadlock hoje à noite", null, 6, HubGame("deadlock", "Deadlock", 1422450, steam(1422450)), ahead(300), ago(60), ahead(480), "open", rio, members = listOf(rio), filled = 1),
+        GameParty("p3", "Minecraft SMP", "Servidor novo, bora construir.", 4, HubGame("minecraft", "Minecraft", null, twitch("Minecraft"), true), null, ago(5), ahead(175), "open", me, members = listOf(me), filled = 1, myStatus = "host", invitedCount = 2),
     )
 
     private val clips = listOf(
-        GameClip("c1", "Clutch 1v4 no B", "https://youtu.be/x", "youtube", "x", null, HubGame("cs2", "Counter-Strike 2", 730), lia, 12, true, false, ago(90)),
-        GameClip("c2", "Ace de Jett", "https://twitch.tv/x", "twitch", "x", null, HubGame("valorant", "VALORANT"), loritta, 3, false, false, ago(60 * 26)),
+        GameClip("c1", "Clutch 1v4 no B", "https://youtu.be/x", "youtube", "x", null, HubGame("cs2", "Counter-Strike 2", 730, steam(730)), lia, 12, true, false, ago(90)),
+        GameClip("c2", "Ace de Jett", "https://twitch.tv/x", "twitch", "x", null, HubGame("valorant", "VALORANT", null, twitch("VALORANT"), true), loritta, 3, false, false, ago(60 * 26)),
     )
 
     private val lolBuild = GameBuild(
@@ -168,21 +223,39 @@ class GameHubScreenShots {
 
     private val lolData = LolData(
         "14.23.1",
-        listOf(LolChampion("Jinx", "Jinx", "a Bala Perdida", listOf("Marksman"), "")),
+        listOf(LolChampion("Jinx", "Jinx", "a Bala Perdida", listOf("Marksman"), "$dd/champion/Jinx.png")),
         listOf(
-            LolItem("1055", "Lâmina de Doran", 450), LolItem("2003", "Poção de Vida", 50), LolItem("6672", "Matador Kraken", 3000),
-            LolItem("3031", "Gume do Infinito", 3400), LolItem("3094", "Canhão Fumegante", 2600), LolItem("3036", "Lembranças do Lorde Dominik", 3000),
+            LolItem("1055", "Lâmina de Doran", 450, img = "$dd/item/1055.png"), LolItem("2003", "Poção de Vida", 50, img = "$dd/item/2003.png"),
+            LolItem("6672", "Matador Kraken", 3000, img = "$dd/item/6672.png"), LolItem("3031", "Gume do Infinito", 3400, img = "$dd/item/3031.png"),
+            LolItem("3094", "Canhão Fumegante", 2600, img = "$dd/item/3094.png"), LolItem("3036", "Lembranças do Lorde Dominik", 3000, img = "$dd/item/3036.png"),
         ),
         listOf(
-            LolRuneTree(8000, "Precision", "Precisão", "", listOf(listOf(LolRune(8005, "Pressione o Ataque"), LolRune(8008, "Ritmo Fatal"), LolRune(8021, "Agilidade nos Pés")))),
-            LolRuneTree(8100, "Domination", "Dominação", "", emptyList()),
+            LolRuneTree(
+                8000, "Precision", "Precisão", "https://ddragon.leagueoflegends.com/cdn/img/perk-images/Styles/7201_Precision.png",
+                listOf(listOf(LolRune(8008, "Ritmo Fatal", "https://ddragon.leagueoflegends.com/cdn/img/perk-images/Styles/Precision/LethalTempo/LethalTempoTemp.png"))),
+            ),
+            LolRuneTree(8100, "Domination", "Dominação", "https://ddragon.leagueoflegends.com/cdn/img/perk-images/Styles/7200_Domination.png", emptyList()),
         ),
-        listOf(LolSpell("SummonerFlash", "Flash"), LolSpell("SummonerHeal", "Curar")),
+        listOf(LolSpell("SummonerFlash", "Flash", "$dd/spell/SummonerFlash.png"), LolSpell("SummonerHeal", "Curar", "$dd/spell/SummonerHeal.png")),
     )
-    private val jinx = LolChampionDetail("Jinx", "Jinx", null, listOf(LolAbility("Q", "Troca-troca!"), LolAbility("W", "Zap!"), LolAbility("E", "Mordidas Flamejantes"), LolAbility("R", "Super Mega Míssil da Morte!")))
+    private val jinx = LolChampionDetail(
+        "Jinx", "Jinx", null,
+        listOf(LolAbility("Q", "Troca-troca!", "$dd/spell/JinxQ.png"), LolAbility("W", "Zap!", "$dd/spell/JinxW.png"), LolAbility("E", "Mordidas Flamejantes", "$dd/spell/JinxE.png"), LolAbility("R", "Super Mega Míssil da Morte!", "$dd/spell/JinxR.png")),
+    )
 
-    @Test fun inicio() = shot("gh-01-inicio") {
-        Hub("inicio") { HubHomeContent(hot, deals, parties, clips, listOf(lolBuild, dlBuild), { _, _ -> }, {}, {}, {}) }
+    @Test @Config(qualifiers = "w412dp-h1700dp-xxhdpi")
+    fun inicio() = shot("gh-01-inicio") {
+        Hub("inicio") { HubHomeContent(hot, deals, parties, clips, listOf(lolBuild, dlBuild), 3, "RiqueBitt", { _, _ -> }, {}, {}, {}) }
+    }
+
+    @Test fun inicioTela() = shot("gh-01b-inicio-tela") {
+        Hub("inicio") { HubHomeContent(hot, deals, parties, clips, listOf(lolBuild, dlBuild), 3, "RiqueBitt", { _, _ -> }, {}, {}, {}) }
+    }
+
+    @Test fun inicioRolado() = shot("gh-01c-inicio-rolado") {
+        Hub("inicio") {
+            HubHomeContent(hot, deals, parties, clips, listOf(lolBuild, dlBuild), 3, "RiqueBitt", { _, _ -> }, {}, {}, {}, listState = rememberLazyListState(2))
+        }
     }
 
     @Test fun promocoes() = shot("gh-02-promocoes") { Hub("promocoes") { DealsContent(deals) {} } }
@@ -192,9 +265,9 @@ class GameHubScreenShots {
     @Test fun clipesClube() = shot("gh-04-clipes-clube") {
         Hub("clipes") {
             Column {
-                Row(Modifier.padding(start = 16.dp, top = 14.dp, end = 16.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    HubChip("Do clube", true, {}); HubChip("Neste celular", false, {})
-                }
+                com.projectclub.android.ui.gamehub.Segmented(
+                    listOf("clube" to "Do clube", "celular" to "Neste celular"), "clube", {}, Modifier.padding(start = 16.dp, top = 14.dp, end = 16.dp),
+                )
                 ClubClipsContent(clips, false, false, false, {}, {}, {}, {}, {}, {})
             }
         }

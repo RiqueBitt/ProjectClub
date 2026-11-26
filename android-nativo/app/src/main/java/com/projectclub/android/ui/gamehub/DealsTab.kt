@@ -80,7 +80,7 @@ fun DealsContent(data: DealsResponse, onOpen: (String) -> Unit) {
         contentPadding = PaddingValues(16.dp), horizontalArrangement = Arrangement.spacedBy(12.dp), verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
         if (data.free.isNotEmpty()) {
-            item(span = { GridItemSpan(2) }, key = "free-h") { SectionHead("Grátis agora") }
+            item(span = { GridItemSpan(2) }, key = "free-h") { SectionHead("Grátis agora", color = PC.Green) }
             item(span = { GridItemSpan(2) }, key = "free") {
                 LazyRow(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                     items(data.free) { FreeCard(it, Modifier.width(270.dp)) { it.url?.let(onOpen) } }
@@ -88,7 +88,7 @@ fun DealsContent(data: DealsResponse, onOpen: (String) -> Unit) {
             }
         }
         if (data.upcoming.isNotEmpty()) {
-            item(span = { GridItemSpan(2) }, key = "up-h") { SectionHead("Grátis em breve") }
+            item(span = { GridItemSpan(2) }, key = "up-h") { SectionHead("Grátis em breve", color = PC.Muted) }
             item(span = { GridItemSpan(2) }, key = "up") {
                 LazyRow(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                     items(data.upcoming) { FreeCard(it, Modifier.width(220.dp), upcoming = true) { it.url?.let(onOpen) } }
@@ -97,9 +97,9 @@ fun DealsContent(data: DealsResponse, onOpen: (String) -> Unit) {
         }
         item(span = { GridItemSpan(2) }, key = "deals-h") {
             Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                SectionHead("Promoções")
+                SectionHead("Promoções", color = hubTab("promocoes").color)
                 LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    items(STORES, key = { it.first }) { (k, label) -> HubChip(label, store == k, { store = k }) }
+                    items(STORES, key = { it.first }) { (k, label) -> HubChip(label, store == k, { store = k }, color = Color(0xFF0E7FC0)) }
                 }
             }
         }
@@ -121,7 +121,7 @@ fun FreeCard(d: Deal, modifier: Modifier = Modifier, upcoming: Boolean = false, 
     val shape = RoundedCornerShape(18.dp)
     Column(modifier.clip(shape).background(PC.Surface).border(1.dp, PC.Line, shape).clickable(onClick = onClick)) {
         Box {
-            GameCover(d.title, Modifier.fillMaxWidth().aspectRatio(16f / 9f), image = d.image, shape = RoundedCornerShape(0.dp))
+            GameCover(d.title, Modifier.fillMaxWidth().aspectRatio(16f / 9f), d.steamAppId, image = d.image, shape = RoundedCornerShape(0.dp), imageTall = d.imageTall)
             HubBadge(if (upcoming) "Em breve" else "Grátis", if (upcoming) PC.Surface3 else PC.Green, Modifier.align(Alignment.TopStart).padding(8.dp))
         }
         Column(Modifier.padding(12.dp)) {
@@ -146,7 +146,7 @@ fun DealCard(d: Deal, onClick: () -> Unit) {
     val shape = RoundedCornerShape(18.dp)
     Column(Modifier.fillMaxWidth().clip(shape).background(PC.Surface).border(1.dp, PC.Line, shape).clickable(onClick = onClick)) {
         Box {
-            GameCover(d.title, Modifier.fillMaxWidth().aspectRatio(460f / 215f), image = d.image, shape = RoundedCornerShape(0.dp))
+            GameCover(d.title, Modifier.fillMaxWidth().aspectRatio(460f / 215f), d.steamAppId, image = d.image, shape = RoundedCornerShape(0.dp), imageTall = d.imageTall)
             HubBadge("-${d.price.discount}%", PC.Green, Modifier.align(Alignment.TopEnd).padding(6.dp))
         }
         Column(Modifier.padding(10.dp)) {

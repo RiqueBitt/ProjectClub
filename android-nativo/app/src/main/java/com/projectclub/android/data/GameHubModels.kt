@@ -21,6 +21,9 @@ data class Deal(
     val free: Boolean = false,
     val startsAt: String? = null,
     val endsAt: String? = null,
+    val steamAppId: Long? = null,
+    /** A imagem é vertical (capa de caixa): aparece inteira, com fundo desfocado. */
+    val imageTall: Boolean = false,
 )
 
 @Serializable
@@ -45,6 +48,9 @@ data class HotGame(
     val iconUrl: String? = null,
     val seconds: Long = 0,
     val players: Int = 0,
+    /** Capa achada pelo servidor (Steam conferida, ou arte da Twitch pros jogos fora da Steam). */
+    val cover: String? = null,
+    val coverTall: Boolean = false,
 )
 
 @Serializable
@@ -52,7 +58,18 @@ data class HotlistResponse(val month: String = "", val games: List<HotGame> = em
 
 // ---------- Jogo (partidas, clipes, builds) ----------
 @Serializable
-data class HubGame(val key: String? = null, val name: String = "", val steamAppId: Long? = null)
+data class HubGame(
+    val key: String? = null,
+    val name: String = "",
+    val steamAppId: Long? = null,
+    /** Capa achada pelo servidor (WoW, Roblox, Minecraft… pela arte da Twitch). */
+    val cover: String? = null,
+    val coverTall: Boolean = false,
+)
+
+/** GET /api/game-hub/cover?name=&appId= */
+@Serializable
+data class CoverResponse(val url: String? = null, val tall: Boolean = false)
 
 /** Resultado de GET /api/games/search (steamAppId vem como texto). */
 @Serializable
