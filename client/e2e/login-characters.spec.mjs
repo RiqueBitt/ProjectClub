@@ -174,45 +174,82 @@ for (const size of SIZES) {
       await shot(page, size.name, '9-erro-oauth');
     });
 
-    test('sorteios aleatórios (fotos de vários carregamentos)', async ({ page }) => {
-      test.slow();
-      await mockApi(page);
-      for (let i = 0; i < 4; i += 1) {
-        await page.goto('/login');
-        await expect(page.locator('.pcc-stage')).toBeVisible();
-        await page.locator('.pc-auth-head h1').click();
-        await page.waitForTimeout(500);
-        await shot(page, size.name, `0-sorteio-${i + 1}`);
-      }
-    });
   });
 }
 
-// A turma nasce sorteada (forma + cor + rosto + acessório) a cada
-// carregamento, exposta em data-variant. Dois carregamentos têm que dar
-// elencos diferentes — e, no mesmo elenco, ninguém repete forma+cor.
-const variantSig = (page) => page.$$eval('.pcc-char', (els) => els.map((el) => el.getAttribute('data-variant')).join(' | '));
-const shapeColorPairs = (page) => page.$$eval('.pcc-char', (els) => els.map((el) => `${el.getAttribute('data-shape')}:${el.getAttribute('data-color')}`));
+// Elenco fixo e juntinho: sempre as mesmas formas/cores e o mesmo
+// acessório inicial (nada sorteado); reage a mouse, toque e carinho.
+const castSig = (page) => page.$$eval('.pcc-char', (els) => els.map((el) => `${el.getAttribute('data-shape')}:${el.getAttribute('data-color')}`).join(' | '));
 
-test('bonequinhos variam a cada carregamento (forma/cor/rosto sorteados)', async ({ page }) => {
+test('bonequinhos: elenco fixo, juntinhos e sem nada aleatório', async ({ page }) => {
   await mockApi(page);
   await page.goto('/login');
-  await expect(page.locator('.pcc-stage')).toBeVisible();
   await expect(page.locator('.pcc-char')).toHaveCount(4);
+  const first = await castSig(page);
+  await page.reload();
+  await expect(page.locator('.pcc-char')).toHaveCount(4);
+  expect(await castSig(page)).toBe(first);
+  // Acessório inicial fixo de cada um; sem truques.
+  const accSig = () => page.$$eval('.pcc-char', (els) => els.map((el) => `${el.classList[1]}=${el.getAttribute('data-acc')}`).join(' '));
+  expect(await accSig()).toBe('pcc-lila=bow pcc-menta=headphones pcc-coral=cap pcc-mel=sprout');
+  await expect(page.locator('.pcc-aura, [data-stunt]')).toHaveCount(0);
+  // Juntinhos: cada corpo encosta (sobrepõe) no vizinho.
+  const boxes = await page.$$eval('.pcc-char > .pcc-hop', (els) => els.map((el) => { const r = el.getBoundingClientRect(); return [r.left, r.right]; }));
+  const sorted = boxes.sort((a, b) => a[0] - b[0]);
+  for (let i = 1; i < sorted.length; i += 1) expect(sorted[i][0]).toBeLessThanOrEqual(sorted[i - 1][1]);
+  // Parado por 7 s: nenhum deles muda de rosto sozinho (só respira/pisca).
+  await page.locator('.pc-auth-head h1').click();
+  const moods = () => page.$$eval('.pcc-char', (els) => els.map((el) => el.querySelector('.pcc-mouth[data-on]')?.getAttribute('d') || 'o').join(','));
+  // Tirar o foco do campo faz a turma voltar do "digitando" pro normal; espera assentar.
+  let before = await moods();
+  await expect.poll(async () => { const now = await moods(); const same = now === before; before = now; return same; }, { intervals: [700], timeout: 6000 }).toBe(true);
+  await page.waitForTimeout(7000);
+  expect(await moods()).toBe(before);
+});
 
-  // Dentro de um carregamento: nenhuma dupla forma+cor repetida.
-  const pairs = await shapeColorPairs(page);
-  expect(new Set(pairs).size).toBe(pairs.length);
+test('bonequinhos: mouse em cima sorri e clique faz pular rindo', async ({ page }, info) => {
+  test.skip(info.project.name === 'celular', 'mouse só no PC');
+  await mockApi(page);
+  await page.goto('/login');
+  const coral = page.locator('.pcc-coral');
+  await expect(coral).toBeVisible();
+  const box = await coral.locator('.pcc-hop').boundingBox();
+  await page.mouse.move(box.x + box.width / 2, box.y + box.height * 0.7);
+  await expect(coral).toHaveAttribute('data-touch', 'hover');
+  // Clique: pula rindo e troca o boné pelo próximo acessório (ordem fixa).
+  await page.mouse.down(); await page.mouse.up();
+  await expect(coral).toHaveAttribute('data-touch', 'poke');
+  await expect(coral.locator('.pcc-eye').first()).toHaveAttribute('data-state', 'happy');
+  await expect(coral).toHaveAttribute('data-acc', 'sprout');
+  // A escolha fica salva: recarregou, continua.
+  await page.mouse.move(5, 5);
+  await expect.poll(() => coral.getAttribute('data-touch'), { timeout: 3000 }).toBe(null);
+  await page.reload();
+  await expect(page.locator('.pcc-coral')).toHaveAttribute('data-acc', 'sprout');
+  // Arrastar por cima = carinho (olhinhos fechados e coraçõezinhos).
+  const c2 = page.locator('.pcc-coral');
+  const b2 = await c2.locator('.pcc-hop').boundingBox();
+  const cx = b2.x + b2.width / 2; const cy = b2.y + b2.height * 0.7;
+  await page.mouse.move(cx, cy); await page.mouse.down();
+  for (let i = 0; i < 8; i += 1) await page.mouse.move(cx + (i % 2 ? 30 : -30), cy, { steps: 4 });
+  await expect(c2).toHaveAttribute('data-touch', 'pet');
+  await expect(page.locator('.pcc-heart').first()).toBeAttached();
+  await page.mouse.up();
+  // Carinho não troca o acessório.
+  await expect(c2).toHaveAttribute('data-acc', 'sprout');
+  await expect.poll(() => c2.getAttribute('data-touch'), { timeout: 3000 }).not.toBe('pet');
+});
 
-  // Entre carregamentos: a assinatura muda (recarrega algumas vezes pra
-  // não depender de sorte). O espaço de sorteio é enorme, então basta um.
-  const seen = new Set([await variantSig(page)]);
-  for (let i = 0; i < 4 && seen.size < 2; i += 1) {
-    await page.reload();
-    await expect(page.locator('.pcc-char')).toHaveCount(4);
-    seen.add(await variantSig(page));
-  }
-  expect(seen.size).toBeGreaterThan(1);
+test('bonequinhos no celular: tocar troca o acessório', async ({ page }, info) => {
+  test.skip(info.project.name !== 'celular', 'só no celular');
+  await mockApi(page);
+  await page.goto('/login');
+  const mel = page.locator('.pcc-mel');
+  await expect(mel).toHaveAttribute('data-acc', 'sprout');
+  // (a turma respira — clicar pelo ponto, sem esperar "parar de mexer")
+  const b = await mel.locator('.pcc-hop').boundingBox();
+  await page.mouse.click(b.x + b.width / 2, b.y + b.height * 0.45);
+  await expect(mel).toHaveAttribute('data-acc', 'partyHat');
 });
 
 test('modo calmo (prefers-reduced-motion): sem animação contínua', async ({ page }) => {

@@ -1,28 +1,39 @@
 import { memo, useCallback, useEffect, useId, useMemo, useRef, useState } from 'react';
 import '../../styles/auth-characters.css';
+import { Accessory, loadAccessories, saveAccessories, nextAccessory } from './authAccessories.jsx';
 
 // ---------------------------------------------------------------------
 // Turminha das telas de login/inscrição: quatro bichinhos "2.5D" (volume
 // de brinquedo feito com luz suave, oclusão na base, brilho especular e
-// sombra de contato — tudo em SVG, só transform/opacity) que acompanham
-// o que a pessoa faz no formulário.
+// sombra de contato — tudo em SVG, só transform/opacity), JUNTINHOS, que
+// acompanham o que a pessoa faz no formulário.
 //
-// A CADA carregamento eles nascem DIFERENTES: cada papel sorteia uma
-// forma de corpo, uma cor harmônica de uma paleta curada e um rostinho
-// (tipo de olho, sobrancelha, boca de descanso e um acessório). Dois
-// nunca repetem forma+cor. O sorteio fica exposto em data-variant/
-// data-shape/data-color/data-face/data-acc pra quem quiser inspecionar.
+// Elenco FIXO (nov/2026): forma, cor e rosto de cada um são sempre os
+// mesmos — dois quadrados e dois retângulos, encostados uns nos outros.
+// No ESTILO DO SITE: só preto e branco, cantos quase retos (como os
+// botões) e, igual à faixa "CHAT ✳ VOZ" (uma linha cheia, outra vazada),
+// dois bichinhos CHEIOS e dois só de CONTORNO, alternando. As cores vêm
+// de --pcc-ink/--pcc-paper (auth-characters.css): no fundo preto do
+// celular elas se invertem sozinhas. Olho de bolinha, boca de traço;
+// sobrancelha e bochecha só aparecem nas reações. Cada um começa com o SEU acessório (authAccessories.jsx) e a
+// pessoa troca tocando nele — a escolha fica salva no navegador. Nada
+// acontece "do nada": fora respirar, piscar e o balanço do acessório,
+// todo movimento é resposta ao que a pessoa faz (PC e celular).
 //
-// Os PAPÉIS (curiosa, tranquila, tímido, caçula) continuam fixos — é o
-// que dá as relações e os comportamentos; só a APARÊNCIA é sorteada.
-//
-//   curiosa (Lila)  → espia com um olho quando a senha aparece, mexe o acessório
+//   curiosa (Lila)  → espia com um olho quando a senha aparece
 //   tranquila(Menta)→ aperta os olhos sorrindo na senha
 //   tímido  (Coral) → tapa os olhos com as mãozinhas
-//   caçula  (Mel)   → dá pulinhos, tapa os olhos quase juntinho, olha feio pra Lila
+//   caçula  (Mel)   → tapa os olhos quase juntinho, olha feio pra Lila
 //
-//   parado    → respiram, piscam (às vezes juntos), trocam olhares…
-//   digitando → se inclinam pro campo e os olhos seguem o cursor do texto
+//   parado    → respiram, piscam, os olhos seguem o mouse
+//   mouse em cima → quem está embaixo do mouse sorri, cora e ergue o chapéu
+//   clique/toque → pula rindo, troca de acessório (com um "puf" de
+//                  brilhinhos) e os outros olham pra ele
+//   arrastar em cima (mouse ou dedo) → carinho: fecha os olhinhos, cora,
+//                  balança e solta coraçõezinhos
+//   celular   → os olhos seguem o dedo e a inclinação do aparelho
+//   digitando → se inclinam pro campo, os olhos seguem o cursor do texto e
+//               cada tecla faz um deles balançar a cabeça, um de cada vez
 //   senha     → tapam os olhos / fecham os olhos sorrindo
 //   "mostrar" → a Lila espia com um olho só (o caçula olha feio pra ela)
 //   erro      → susto (pulinho + tremida) e depois biquinho emburrado
@@ -32,20 +43,19 @@ import '../../styles/auth-characters.css';
 // único requestAnimationFrame que escreve direto no DOM (nada de
 // re-render por quadro; o mouse fica numa ref). Pulos e tremidas usam a
 // Web Animations API; expressões trocam por atributos + transições CSS.
-// Só transform/opacity animam. prefers-reduced-motion e html[data-lite]
-// ("modo calmo") desligam tudo que se mexe sozinho. Como é 100% SVG, não
-// depende de WebGL: o mesmo desenho serve de base em qualquer navegador.
-// Puramente decorativo: aria-hidden.
+// prefers-reduced-motion e html[data-lite] ("modo calmo") desligam tudo
+// que se mexe sozinho. Puramente decorativo: aria-hidden.
 // ---------------------------------------------------------------------
 
 const VB = { x: 38, y: 0, w: 416, h: 244 };
 const FLOOR = 228;
-const INK = '#1d1631';
+// Cor do rosto: a do papel nos cheios, a da tinta nos de contorno (CSS).
+const INK = 'currentColor';
 
 const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
 const r2 = (v) => Math.round(v * 100) / 100;
 
-// -------------------------- sorteio de visual ------------------------
+// ------------------------------- cores -------------------------------
 
 // HSL → hex (sem depender de nada; roda no navegador no 1º render).
 function hsl(h, s, l) {
@@ -69,39 +79,21 @@ function family(h) {
     cheek: hsl((h * 0.12 + 344) % 360, 92, 73),
   };
 }
-// Paleta curada (matizes de brinquedo/doçura) com rótulos pro data-color.
-const HUES = [
-  { h: 258, n: 'lilas' }, { h: 160, n: 'menta' }, { h: 8, n: 'coral' }, { h: 44, n: 'mel' },
-  { h: 205, n: 'ceu' }, { h: 328, n: 'chiclete' }, { h: 96, n: 'limao' }, { h: 24, n: 'tangerina' },
-  { h: 278, n: 'uva' }, { h: 184, n: 'agua' }, { h: 342, n: 'rosa' }, { h: 52, n: 'manteiga' },
-];
-
-const rand = (n) => Math.floor(Math.random() * n);
-const pick = (arr) => arr[rand(arr.length)];
-function shuffle(arr) {
-  const a = arr.slice();
-  for (let i = a.length - 1; i > 0; i -= 1) { const j = rand(i + 1); [a[i], a[j]] = [a[j], a[i]]; }
-  return a;
-}
-const hueDist = (a, b) => { const d = Math.abs(a - b) % 360; return Math.min(d, 360 - d); };
-// Escolhe n matizes distintos e BEM espaçados (harmonia + nenhuma cor repetida).
-function pickHues(n) {
-  const pool = shuffle(HUES);
-  const out = [];
-  for (const c of pool) {
-    if (out.every((o) => hueDist(o.h, c.h) >= 30)) out.push(c);
-    if (out.length === n) break;
-  }
-  // Se o espaçamento não encheu (raro), completa com o que sobrou.
-  for (const c of pool) { if (out.length === n) break; if (!out.includes(c)) out.push(c); }
-  return out;
-}
-
 // --------- formas de corpo (silhueta + proporções do rosto) ----------
 // Cada forma desenha a silhueta DENTRO da caixa (cx, w, h, floor) e diz
 // onde ficam olhos/boca (proporções). Assim qualquer forma cabe em
 // qualquer papel, mantendo a composição (alturas variadas, sobreposição).
 const SHAPES = {
+  // Caixinha: quadrado ou retângulo de BORDA RETA (a turma do login é
+  // toda assim desde nov/2026 — igual aos botões quadrados do site).
+  caixa(cx, w, h, floor) {
+    const top = floor - h; const hw = w / 2; const rr = 0; // borda reta, como os botões do site
+    const body = `M${cx - hw} ${top + rr} Q${cx - hw} ${top} ${cx - hw + rr} ${top} H${cx + hw - rr} Q${cx + hw} ${top} ${cx + hw} ${top + rr} V${floor - rr} Q${cx + hw} ${floor} ${cx + hw - rr} ${floor} H${cx - hw + rr} Q${cx - hw} ${floor} ${cx - hw} ${floor - rr} Z`;
+    // Olhos mais pra cima nos altos, mais no meio nos baixinhos.
+    const eyeYf = h > w * 1.3 ? 0.3 : h < w * 0.8 ? 0.42 : 0.38;
+    const gapf = h > w * 1.3 ? 0.15 : 0.19; // no alto e fino, olhos mais juntinhos
+    return { body, top, lay: { eyeYf, gapf, eyeRf: Math.min(0.12, (h * 0.13) / w), mouthDyf: 0.21 } };
+  },
   pilula(cx, w, h, floor) {
     const top = floor - h; const hw = w / 2; const br = Math.min(hw, 16);
     const body = `M${cx - hw} ${floor - br} V${top + hw} A${hw} ${hw} 0 0 1 ${cx + hw} ${top + hw} V${floor - br} Q${cx + hw} ${floor} ${cx + hw - br} ${floor} H${cx - hw + br} Q${cx - hw} ${floor} ${cx - hw} ${floor - br} Z`;
@@ -133,25 +125,15 @@ const SHAPES = {
     return { body, top, lay: { eyeYf: 0.4, gapf: 0.19, eyeRf: 0.14, mouthDyf: 0.28 } };
   },
 };
-const SHAPE_NAMES = Object.keys(SHAPES);
-
-// --------------------------- rostos e acessórios ---------------------
-const EYE_TYPES = ['ball', 'dot', 'bean'];
-const IDLE_MOUTHS = ['smile', 'soft', 'cat', 'grin'];
-const IDLE_BROWS = ['soft', 'up', 'none'];
-const ACC_SWAY = ['antenna', 'sprout', 'horn'];   // balançam (vento)
-const ACC_BOUNCE = ['leaf', 'ears', 'bow'];        // dão um pulinho
-const isSway = (t) => ACC_SWAY.includes(t);
-
+// --------------------------- rostos ---------------------------------
 // Geometria concreta de um corpo a partir da forma + caixa + tipo de olho.
 function geom(cx, w, h, floor, shapeName, eye) {
   const s = SHAPES[shapeName](cx, w, h, floor);
   const { lay } = s; const eyeY = s.top + h * lay.eyeYf;
   const eyeDX = w * lay.gapf; const er = Math.max(5, w * lay.eyeRf);
-  let r; let pr; let pMax;
-  if (eye === 'ball') { r = er; pr = er * 0.5; pMax = clamp(er * 0.42, 2.6, 5); }
-  else if (eye === 'dot') { r = er * 0.72; pr = er * 0.7; pMax = clamp(er * 0.5, 2.4, 3.6); }
-  else { r = er * 0.72; pr = er * 0.74; pMax = clamp(er * 0.38, 2.2, 3.2); }
+  // Olho grande de brinquedo: esclera, íris na cor do bichinho, pupila e
+  // dois brilhos. pMax = quanto a íris anda olhando pros lados.
+  const r = er * 1.12; const pr = er * 0.62; const pMax = clamp(er * 0.4, 2.6, 5.2);
   const eyes = [{ x: cx - eyeDX, y: eyeY }, { x: cx + eyeDX, y: eyeY }];
   const mouthY = eyeY + w * lay.mouthDyf;
   const blushDX = eyeDX + er * 1.0; const blushY = eyeY + er * 1.4;
@@ -168,44 +150,34 @@ function geom(cx, w, h, floor, shapeName, eye) {
   };
 }
 
-// Papéis fixos: personalidade de MOVIMENTO + caixa (posição/altura) +
-// marcas de comportamento. draw = ordem de desenho (trás → frente).
+// Elenco fixo: personalidade de MOVIMENTO + caixa (posição/altura) +
+// forma + cor. As caixas se sobrepõem de propósito (turminha grudada).
+// Ordem = ordem de desenho (trás → frente).
 const ROLES = [
-  { id: 'lila', cx: 191, w: 84, h: 130, k: 80, z: 0.6, lean: 6, face: 6 },
-  { id: 'menta', cx: 296, w: 150, h: 112, k: 55, z: 0.72, lean: 3.4, face: 7 },
-  { id: 'coral', cx: 116, w: 108, h: 100, k: 120, z: 0.55, lean: 4.6, face: 6 },
-  { id: 'mel', cx: 396, w: 66, h: 60, k: 190, z: 0.42, lean: 8, face: 4, baby: true },
+  // retângulo em pé
+  { id: 'lila', cx: 205, w: 82, h: 140, shape: 'caixa', hue: 258, color: 'lilas', solid: false, k: 80, z: 0.6, lean: 6, face: 6, lashes: true },
+  // retângulo deitado
+  { id: 'menta', cx: 313, w: 152, h: 104, shape: 'caixa', hue: 160, color: 'menta', solid: true, k: 55, z: 0.72, lean: 3.4, face: 7 },
+  // quadrado
+  { id: 'coral', cx: 120, w: 104, h: 102, shape: 'caixa', hue: 8, color: 'coral', solid: true, k: 120, z: 0.55, lean: 4.6, face: 6 },
+  // quadradinho (caçula)
+  { id: 'mel', cx: 398, w: 66, h: 64, shape: 'caixa', hue: 44, color: 'mel', solid: false, k: 190, z: 0.42, lean: 8, face: 4, baby: true },
 ];
 
-// Sorteia o elenco inteiro de um carregamento. Papel = fixo; visual = sorteado.
 function makeCast() {
-  const shapes = shuffle(SHAPE_NAMES).slice(0, ROLES.length);
-  const hues = pickHues(ROLES.length);
-  // Acessórios: garante pelo menos um que balança e um que pula, pro
-  // ocioso ter o que animar; o resto é livre (inclusive "nenhum").
-  const accs = shuffle([pick(ACC_SWAY), pick(ACC_BOUNCE), pick([...ACC_SWAY, ...ACC_BOUNCE, 'none', 'none']), 'none']);
   const cast = ROLES.map((role, i) => {
-    const shape = shapes[i % shapes.length];
-    const col = family(hues[i % hues.length].h);
-    const eye = pick(EYE_TYPES);
-    const g = geom(role.cx, role.w, role.h, FLOOR, shape, eye);
-    const accType = accs[i];
-    const acc = accType === 'none' ? null : { type: accType, x: role.cx, y: g.bodyTop + 2 };
+    const g = geom(role.cx, role.w, role.h, FLOOR, role.shape, 'ball');
     return {
       id: role.id, idx: i, cx: role.cx, w: role.w,
-      k: role.k, z: role.z, lean: role.lean, face: role.face,
+      k: role.k, z: role.z, lean: role.lean, face: role.face, lashes: !!role.lashes, solid: !!role.solid,
       coverIn: role.baby ? g.eyeDX * 0.42 : 0,
       hand: clamp(role.w / 110, 0.85, 1.08),
-      ...col, ...g, acc,
-      shape, colorName: hues[i % hues.length].n,
-      idleMouth: pick(IDLE_MOUTHS), idleBrow: pick(IDLE_BROWS),
-      variant: `${shape}-${hues[i % hues.length].n}-${eye}-${accType}`,
+      ...family(role.hue), ...g,
+      shape: role.shape, colorName: role.color,
     };
   });
   const byId = Object.fromEntries(cast.map((c) => [c.id, c]));
-  const swayer = cast.find((c) => c.acc && isSway(c.acc.type));
-  const bouncer = cast.find((c) => c.acc && !isSway(c.acc.type));
-  return { cast, byId, swayerId: swayer?.id || null, bouncerId: bouncer?.id || null };
+  return { cast, byId };
 }
 
 // Expressões: olhos (open | wide | half | closed | happy | squeeze — ou
@@ -214,16 +186,16 @@ function makeCast() {
 const E = (eyes, mouth, o = {}) => ({ eyes, mouth, brow: 'none', hands: 'rest', blush: 1, look: 'target', ...o });
 const MOODS = {
   idle: {
-    lila: E('open', 'smile', { brow: 'soft' }),
-    menta: E('open', 'soft', { brow: 'soft' }),
-    coral: E('open', 'cat', { blush: 2 }),
-    mel: E('open', 'smile'),
+    lila: E('open', 'smile', { blush: 0 }),
+    menta: E('open', 'soft', { blush: 0 }),
+    coral: E('open', 'smile', { blush: 0 }),
+    mel: E('open', 'smile', { blush: 0 }),
   },
   typing: {
-    lila: E('open', 'grin', { brow: 'up' }),
-    menta: E('open', 'smile', { brow: 'soft' }),
-    coral: E('open', 'smile', { blush: 2 }),
-    mel: E('wide', 'o'),
+    lila: E('open', 'smile', { blush: 0 }),
+    menta: E('open', 'soft', { blush: 0 }),
+    coral: E('open', 'smile', { blush: 0 }),
+    mel: E('wide', 'o', { blush: 0 }),
   },
   password: {
     lila: E('closed', 'smile', { brow: 'soft', look: 'away' }),
@@ -257,6 +229,12 @@ const MOODS = {
     mel: E('happy', 'big', { hands: 'up', blush: 3, look: 'front' }),
   },
 };
+
+// Rosto por cima do humor quando a pessoa interage (só no descanso/digitando).
+const HOVER_FACE = { mouth: 'grin', brow: 'up', blush: 2 };
+const POKE_FACE = { eyes: 'happy', mouth: 'big', brow: 'up', blush: 3, look: 'front' };
+const PET_FACE = { eyes: 'happy', mouth: 'cat', brow: 'soft', blush: 3, look: 'front' };
+const HEART = 'M0 3.2 C-4.2 0 -6.4 -2.2 -6.4 -4.6 C-6.4 -6.8 -4.7 -8.2 -3 -8.2 C-1.6 -8.2 -0.5 -7.4 0 -6.2 C0.5 -7.4 1.6 -8.2 3 -8.2 C4.7 -8.2 6.4 -6.8 6.4 -4.6 C6.4 -2.2 4.2 0 0 3.2 Z';
 
 // Bocas (desenhadas em volta de 0,0). fill = forma cheia com linguinha.
 const MOUTHS = {
@@ -370,38 +348,26 @@ function useFormFocus(scopeSelector) {
 
 // ----------------------------- desenho ------------------------------
 
-function Eye({ c, e, i, state, uid }) {
+function Eye({ c, e, i, state }) {
   const side = i === 0 ? 1 : -1; // ">" no esquerdo, "<" no direito
+  const k = c.r / 9; // os traços de olho fechado acompanham o tamanho do olho
   return (
     <g transform={`translate(${e.x} ${e.y})`}>
       <g className="pcc-eye" data-state={state}>
         <g className="pcc-eye-open">
           <g className="pcc-blink">
-            {c.eye === 'ball' && <circle r={c.r} fill="#fff" />}
             <g className="pcc-pupil">
               <g className="pcc-pupil-s">
-                {c.eye === 'bean'
-                  ? <ellipse rx={c.pr * 0.92} ry={c.pr * 1.32} fill={INK} />
-                  : <circle r={c.pr} fill={INK} />}
-                <circle cx={c.pr * 0.34} cy={-c.pr * 0.42} r={c.pr * 0.36} fill="#fff" />
-                <circle cx={-c.pr * 0.36} cy={c.pr * 0.4} r={c.pr * 0.15} fill="#fff" opacity=".8" />
+                <ellipse rx={c.pr * 0.95} ry={c.pr * 1.15} fill={INK} />
               </g>
             </g>
-            {c.eye === 'ball' && (
-              // Pálpebra de verdade: desce por cima da esclera (recortada).
-              <g clipPath={`url(#${uid}-eye-${c.id})`}>
-                <path
-                  className="pcc-lid" fill={c.lid}
-                  d={`M${-c.r - 2} ${-2 * c.r - 4} H${c.r + 2} V0 Q0 3 ${-c.r - 2} 0 Z`}
-                />
-              </g>
-            )}
           </g>
-          {c.eye !== 'ball' && <path className="pcc-lidline" d={`M${-c.r - 2} ${-c.r * 0.15} H${c.r + 2}`} stroke={INK} strokeWidth="2.6" strokeLinecap="round" />}
         </g>
-        <path className="pcc-eye-alt pcc-eye-closed" d="M-6.5 -0.5 Q0 4.5 6.5 -0.5" />
-        <path className="pcc-eye-alt pcc-eye-happy" d="M-6.5 2.5 Q0 -5.5 6.5 2.5" />
-        <path className="pcc-eye-alt pcc-eye-squeeze" d={`M${-5 * side} -5 L${5 * side} 0 L${-5 * side} 5`} />
+        <g transform={`scale(${k})`}>
+          <path className="pcc-eye-alt pcc-eye-closed" d="M-6.5 -0.5 Q0 4.5 6.5 -0.5" />
+          <path className="pcc-eye-alt pcc-eye-happy" d="M-6.5 2.5 Q0 -5.5 6.5 2.5" />
+          <path className="pcc-eye-alt pcc-eye-squeeze" d={`M${-5 * side} -5 L${5 * side} 0 L${-5 * side} 5`} />
+        </g>
       </g>
     </g>
   );
@@ -412,90 +378,21 @@ function Mouth({ c, kind }) {
     <g transform={`translate(${c.mouth.x} ${c.mouth.y}) scale(${c.mouth.s})`}>
       {Object.entries(MOUTHS).map(([k, m]) => {
         const on = kind === k || undefined;
-        if (m.ellipse) return <ellipse key={k} className="pcc-mouth" data-on={on} cx="0" cy="2" rx="4.2" ry="5.2" fill="#2b1631" />;
+        if (m.ellipse) return <ellipse key={k} className="pcc-mouth" data-on={on} cx="0" cy="2" rx="3.6" ry="4.4" fill={INK} />;
         if (m.fill) {
           return (
             <g key={k} className="pcc-mouth" data-on={on}>
-              <path d={m.d} fill="#2b1631" stroke="#2b1631" strokeWidth="1.5" strokeLinejoin="round" />
-              <ellipse cx="0" cy={k === 'big' ? 7.6 : 5.8} rx={k === 'big' ? 5 : 3.6} ry={k === 'big' ? 2.8 : 2} fill="#ff7c98" />
+              <path d={m.d} fill={INK} stroke={INK} strokeWidth="1.5" strokeLinejoin="round" />
             </g>
           );
         }
         return (
           <path
             key={k} className="pcc-mouth" data-on={on} d={m.d}
-            fill="none" stroke={INK} strokeWidth="2.8" strokeLinecap="round" strokeLinejoin="round"
+            fill="none" stroke={INK} strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round"
           />
         );
       })}
-    </g>
-  );
-}
-
-// Acessório sorteado, desenhado em volta da âncora (topo do corpo).
-function Accessory({ c, reg, uid }) {
-  const a = c.acc;
-  if (!a) return null;
-  let art = null;
-  if (a.type === 'antenna') {
-    art = (
-      <>
-        <path d="M0 1 C0 -9 4 -16 9 -27" fill="none" stroke={c.deep} strokeWidth="3.2" strokeLinecap="round" />
-        <circle cx="10" cy="-30" r="13" fill={`url(#${uid}-bulb)`} className="pcc-antenna-glow" />
-        <circle cx="10" cy="-30" r="6" fill="#ffd977" />
-        <circle cx="8" cy="-32" r="1.8" fill="#fff" opacity=".9" />
-      </>
-    );
-  } else if (a.type === 'sprout') {
-    art = (
-      <>
-        <path d="M0 2 C0 -6 2 -12 1 -20" fill="none" stroke={c.deep} strokeWidth="2.8" strokeLinecap="round" />
-        <path d="M1 -14 C-5 -16 -9 -12 -10 -8 C-4 -8 0 -10 1 -14 Z" fill={c.base} stroke={c.deep} strokeWidth="1.4" />
-        <path d="M1 -20 C-2 -26 1 -31 6 -32 C6 -26 4 -22 1 -20 Z" fill={c.top} stroke={c.deep} strokeWidth="1.4" />
-      </>
-    );
-  } else if (a.type === 'horn') {
-    art = (
-      <>
-        <path d="M-5.5 2 C-5 -11 -1 -21 2 -25 C5 -19 3 -7 3 2 Z" fill={c.top} stroke={c.deep} strokeWidth="1.6" strokeLinejoin="round" />
-        <path d="M-3 -3 H1.2 M-3 -10 H1.8" stroke={c.deep} strokeWidth="1.4" strokeLinecap="round" opacity=".55" />
-        <path d="M-3.4 2 C-3 -8 -1 -16 0 -20" fill="none" stroke="#fff" strokeWidth="1.4" strokeLinecap="round" opacity=".45" />
-      </>
-    );
-  } else if (a.type === 'leaf') {
-    art = (
-      <>
-        <path d="M0 2 C-3 -8 -12 -14 -19 -12 C-15 -6 -9 -1 0 2 Z" fill={c.deep} />
-        <path d="M0 2 C1 -10 8 -19 16 -20 C14 -11 8 -3 0 2 Z" fill={c.base} stroke={c.deep} strokeWidth="1.5" />
-      </>
-    );
-  } else if (a.type === 'ears') {
-    art = (
-      <>
-        {[-1, 1].map((s) => (
-          <g key={s} transform={`translate(${s * 13} -2)`}>
-            <ellipse cx="0" cy="-10" rx="8" ry="13" transform={`rotate(${s * 16} 0 -10)`} fill={c.base} stroke={c.deep} strokeWidth="1.5" />
-            <ellipse cx="0" cy="-10" rx="3.6" ry="7" transform={`rotate(${s * 16} 0 -10)`} fill={c.cheek} opacity=".7" />
-          </g>
-        ))}
-      </>
-    );
-  } else if (a.type === 'bow') {
-    art = (
-      <>
-        <path d="M-2 -10 L-16 -17 L-16 -3 Z" fill={c.cheek} stroke={c.deep} strokeWidth="1.5" strokeLinejoin="round" />
-        <path d="M2 -10 L16 -17 L16 -3 Z" fill={c.cheek} stroke={c.deep} strokeWidth="1.5" strokeLinejoin="round" />
-        <circle cx="0" cy="-10" r="4.5" fill={c.deep} />
-        <ellipse cx="-1.5" cy="-11.5" rx="1.6" ry="1" fill="#fff" opacity=".6" />
-      </>
-    );
-  }
-  const sway = isSway(a.type);
-  return (
-    <g transform={`translate(${a.x} ${a.y})`}>
-      <g className={sway ? 'pcc-acc-sway' : undefined}>
-        <g ref={reg(c.id, 'acc')} className={`pcc-acc${sway ? '' : ' pcc-acc-bounce'}`}>{art}</g>
-      </g>
     </g>
   );
 }
@@ -509,55 +406,10 @@ function handPose(c, pose, i) {
   if (pose === 'cover') return [ex - (c.coverIn || 0) * tilt, ey + 1 + (c.coverIn || 0), 14 * tilt, true];
   if (pose === 'up') return [c.up[i][0], c.up[i][1], 28 * tilt, true];
   if (pose === 'peek') return i === 0 ? [ex, ey, -18, true] : [c.chin[0], c.chin[1], 30, true];
-  // ---- poses dos "stunts" (cultura pop) ----
-  // dab: um braço cruza o rosto, o outro estica pro lado oposto.
-  if (pose === 'dab') return i === 0 ? [ex + 10, ey - 2, -40, true] : [c.up[1][0] + 10, c.up[1][1] - 12, 70, true];
-  // tchauzinho: mão direita no alto (a CSS balança), esquerda descansa.
-  if (pose === 'wave') return i === 1 ? [c.up[1][0], c.up[1][1] - 6, 18, true] : [rx, ry, 0, false];
-  // pensativo: mão no queixo.
-  if (pose === 'think') return i === 1 ? [c.chin[0] - 2, c.chin[1] + 3, 22, true] : [rx, ry, 0, false];
-  // coração: as duas mãos se encontram no peito.
-  if (pose === 'heart') return [c.cx + (i === 0 ? -5 : 5), ey + 18, i === 0 ? -40 : 40, true];
-  // mãozinhas pro alto (sayajin / comemoração / "flex").
-  if (pose === 'flex') return [c.up[i][0] + (i === 0 ? -4 : 4), c.up[i][1] - 10, 55 * tilt, true];
-  // facepalm: uma mão sobre o olho.
-  if (pose === 'facepalm') return i === 0 ? [ex + 2, ey - 1, -10, true] : [rx, ry, 0, false];
-  // continência.
-  if (pose === 'salute') return i === 1 ? [c.eyes[1].x + 6, ey - 8, -30, true] : [rx, ry, 0, false];
-  // apontando pra frente (pro formulário).
-  if (pose === 'point') return i === 1 ? [c.cx + c.w * 0.5, ey + 12, 90, true] : [rx, ry, 0, false];
   return [rx, ry, 0, false];
 }
 
-// ---------------------------- stunts ---------------------------------
-// Truques aleatórios no descanso: cada um tem um rosto (sobrescreve o humor
-// enquanto dura) e uma coreografia (Web Animations API no grupo 'hop',
-// no acessório e na aura). Nome em data-stunt pra inspeção/teste.
-const STUNTS = {
-  aura: { dur: 2600, face: { eyes: 'wide', brow: 'angry', mouth: 'grin', hands: 'flex', blush: 1 } },
-  dab: { dur: 1500, face: { eyes: 'closed', brow: 'soft', mouth: 'smirk', hands: 'dab' } },
-  floss: { dur: 2200, face: { eyes: 'open', brow: 'up', mouth: 'grin', hands: 'rest' } },
-  spin: { dur: 1400, face: { eyes: 'wide', brow: 'up', mouth: 'o', hands: 'rest' } },
-  moonwalk: { dur: 2000, face: { eyes: 'half', brow: 'sly', mouth: 'smirk', hands: 'rest' } },
-  wave: { dur: 1800, face: { eyes: 'open', brow: 'up', mouth: 'grin', hands: 'wave' } },
-  think: { dur: 2400, face: { eyes: 'half', brow: 'soft', mouth: 'flat', hands: 'think', look: 'away' } },
-  heart: { dur: 2000, face: { eyes: 'squeeze', brow: 'soft', mouth: 'smile', hands: 'heart', blush: 3 } },
-  bow: { dur: 1600, face: { eyes: 'closed', brow: 'soft', mouth: 'soft', hands: 'rest' } },
-  dance: { dur: 2400, face: { eyes: 'closed', brow: 'up', mouth: 'big', hands: 'flex' } },
-  shocked: { dur: 1400, face: { eyes: 'wide', brow: 'up', mouth: 'o', hands: 'up' } },
-  facepalm: { dur: 1800, face: { eyes: ['closed', 'half'], brow: 'cross', mouth: 'flat', hands: 'facepalm' } },
-  flex: { dur: 1800, face: { eyes: 'open', brow: 'angry', mouth: 'grin', hands: 'flex' } },
-  salute: { dur: 1500, face: { eyes: 'open', brow: 'soft', mouth: 'smile', hands: 'salute' } },
-  griddy: { dur: 2000, face: { eyes: 'squeeze', brow: 'up', mouth: 'grin', hands: 'rest' } },
-  point: { dur: 1600, face: { eyes: 'open', brow: 'sly', mouth: 'smirk', hands: 'point', look: 'form' } },
-  sleepy: { dur: 2600, face: { eyes: 'closed', brow: 'soft', mouth: 'soft', hands: 'rest', look: 'away' } },
-  jump: { dur: 1300, face: { eyes: 'wide', brow: 'up', mouth: 'big', hands: 'up' } },
-};
-const STUNT_NAMES = Object.keys(STUNTS);
-// Duplas: dois fazem juntos (tchau um pro outro, coração, dança).
-const DUET_STUNTS = ['wave', 'heart', 'dance', 'floss', 'griddy'];
-
-const Character = memo(function Character({ c, mood, index, reg, uid }) {
+const Character = memo(function Character({ c, mood, index, reg, uid, acc, onPress, onHover }) {
   const eyeStates = Array.isArray(mood.eyes) ? mood.eyes : [mood.eyes, mood.eyes];
   const brow = BROWS[mood.brow];
   const handsOn = mood.hands !== 'rest';
@@ -566,45 +418,25 @@ const Character = memo(function Character({ c, mood, index, reg, uid }) {
       ref={reg(c.id, 'char')}
       className={`pcc-char pcc-${c.id}`}
       data-blush={mood.blush}
-      data-variant={c.variant}
       data-shape={c.shape}
       data-color={c.colorName}
-      data-face={c.eye}
-      data-acc={c.acc?.type || 'none'}
-      data-stunt={mood.stunt || undefined}
+      data-touch={mood.touch || undefined}
+      data-acc={acc}
+      data-solid={c.solid || undefined}
       style={{ '--i': index, '--r': c.r }}
+      onPointerDown={(ev) => { ev.preventDefault(); onPress?.(c.id, ev); }}
+      onPointerEnter={(ev) => { if (ev.pointerType !== 'touch') onHover?.(c.id, true); }}
+      onPointerLeave={() => onHover?.(c.id, false)}
     >
       <g ref={reg(c.id, 'hop')} className="pcc-hop">
-        {/* Aura (power-up de anime): some por padrão; o stunt 'aura' acende. */}
-        <g ref={reg(c.id, 'aura')} className="pcc-aura" style={{ opacity: 0, transformOrigin: `${c.cx}px ${FLOOR}px` }}>
-          <ellipse cx={c.cx} cy={(c.bodyTop + FLOOR) / 2} rx={c.w * 1.25} ry={(FLOOR - c.bodyTop) * 0.72 + 10} fill={`url(#${uid}-aura-${c.id})`} />
-          <g ref={reg(c.id, 'auraP')} className="pcc-aura-p">
-            {[-0.8, -0.35, 0.1, 0.5, 0.9].map((k, i) => (
-              <path key={i} d="M0 0 C-3 -8 3 -12 0 -20 C-2 -12 4 -8 0 0 Z" fill={c.top} opacity=".85"
-                transform={`translate(${c.cx + k * c.w * 0.95} ${FLOOR - 6 - (i % 2) * 10}) scale(${0.8 + (i % 3) * 0.25})`} />
-            ))}
-          </g>
-        </g>
         <g ref={reg(c.id, 'lean')}>
           <g className="pcc-breathe">
-            <Accessory c={c} reg={reg} uid={uid} />
-
-            <path d={c.body} fill={`url(#${uid}-g-${c.id})`} />
-            <g clipPath={`url(#${uid}-b-${c.id})`}>
-              {/* sombra própria embaixo/à direita e brilho em cima/à esquerda */}
-              <rect x={c.cx - c.w} y={c.bodyTop - 30} width={c.w * 2} height={FLOOR - c.bodyTop + 30} fill={`url(#${uid}-sv-${c.id})`} />
-              <rect x={c.cx - c.w} y={c.bodyTop - 30} width={c.w * 2} height={FLOOR - c.bodyTop + 30} fill={`url(#${uid}-sh-${c.id})`} />
-              {/* oclusão suave na base (assenta no chão) */}
-              <rect x={c.cx - c.w} y={FLOOR - Math.min(42, (FLOOR - c.bodyTop) * 0.4)} width={c.w * 2} height="60" fill={`url(#${uid}-occ-${c.id})`} />
-              {/* brilho especular alto à esquerda (volume de brinquedo) */}
-              <ellipse cx={c.cx - c.w * 0.24} cy={c.bodyTop + (FLOOR - c.bodyTop) * 0.2} rx={c.w * 0.26} ry={Math.min(30, (FLOOR - c.bodyTop) * 0.2)} fill={`url(#${uid}-sheen)`} />
-              <ellipse cx={c.cx - c.w * 0.26} cy={c.bodyTop + (FLOOR - c.bodyTop) * 0.12} rx={c.w * 0.12} ry={Math.min(10, (FLOOR - c.bodyTop) * 0.08)} fill="#fff" opacity=".5" />
-            </g>
-            <path d={c.body} fill="none" stroke="rgba(255,255,255,.3)" strokeWidth="1.2" className="pcc-rim" />
+            <path d={c.body} className="pcc-body" />
+            <Accessory c={c} id={acc} uid={uid} reg={reg} where="head" />
 
             <g ref={reg(c.id, 'face')} className="pcc-face">
               <g className="pcc-blush">
-                {c.blush.map((b, i) => <ellipse key={i} cx={b.x} cy={b.y} rx={c.blushR[0]} ry={c.blushR[1]} fill={c.cheek} />)}
+                {c.blush.map((b, i) => <ellipse key={i} cx={b.x} cy={b.y} rx={c.blushR[0] * 0.8} ry={c.blushR[1] * 0.75} fill={INK} opacity=".28" />)}
               </g>
               <g className="pcc-brows" data-on={brow ? true : undefined}>
                 {c.eyes.map((e, i) => (
@@ -622,6 +454,7 @@ const Character = memo(function Character({ c, mood, index, reg, uid }) {
                 <Eye key={i} c={c} e={e} i={i} state={eyeStates[i]} uid={uid} />
               ))}
               <Mouth c={c} kind={mood.mouth} />
+              <Accessory c={c} id={acc} uid={uid} reg={reg} where="face" />
               <g className="pcc-hands" data-on={handsOn || undefined} data-pose={mood.hands}>
                 {[0, 1].map((i) => {
                   const [x, y, rot, vis] = handPose(c, mood.hands, i);
@@ -630,12 +463,8 @@ const Character = memo(function Character({ c, mood, index, reg, uid }) {
                       key={i} className="pcc-hand" data-slow={mood.hands === 'peek' && i === 1 ? true : undefined}
                       style={{ transform: `translate(${x}px, ${y}px) rotate(${rot}deg) scale(${(vis ? 1 : 0.4) * c.hand * (i ? -1 : 1)}, ${(vis ? 1 : 0.4) * c.hand})`, opacity: vis ? 1 : 0 }}
                     >
-                      {/* luvinha: palma, dedão e dois risquinhos de dedo */}
-                      <ellipse cx="0.5" cy="3.5" rx="9" ry="8" fill="#2a1840" opacity=".24" />
-                      <ellipse cx="-8.4" cy="1.5" rx="3.6" ry="2.8" transform="rotate(-35 -8.4 1.5)" fill={c.top} stroke={c.deep} strokeWidth="1.5" />
-                      <path d={MITTEN} fill={`url(#${uid}-h-${c.id})`} stroke={c.deep} strokeWidth="1.9" strokeLinejoin="round" />
-                      <path d="M-2.2 -7.5 V-3 M2.6 -7.2 V-3" stroke={c.deep} strokeWidth="1.2" strokeLinecap="round" opacity=".7" />
-                      <ellipse cx="-2.5" cy="-5" rx="2.6" ry="1.4" fill="#fff" opacity=".35" />
+                      {/* mãozinha lisa */}
+                      <path d={MITTEN} className="pcc-mitt" strokeWidth="1.8" strokeLinejoin="round" />
                     </g>
                   );
                 })}
@@ -660,9 +489,9 @@ export default function AuthCharacters({ reaction = null, scope = '.pc-auth-pane
   const focus = useFormFocus(scope);
   const [react, setReact] = useState(null); // 'error' | 'pout' | 'success'
 
-  // Elenco sorteado UMA vez por montagem (= por carregamento de página).
+  // Elenco fixo (montado uma vez).
   const gen = useMemo(() => makeCast(), []);
-  const { cast, byId, swayerId, bouncerId } = gen;
+  const { cast, byId } = gen;
 
   // Refs dos elementos de cada personagem (preenchidas pelo Character).
   const els = useRef({});
@@ -705,27 +534,28 @@ export default function AuthCharacters({ reaction = null, scope = '.pc-auth-pane
   else if (focus.kind === 'password') mode = 'password';
   else if (focus.kind === 'text') mode = 'typing';
   const moodKey = react === 'pout' ? 'pout' : mode;
-  // Stunt em andamento: { [id]: nome } — só vale no descanso.
-  const [stunts, setStunts] = useState({});
-  // Humores do papel + um toquezinho de rosto sorteado no descanso.
+  // Interação: quem está embaixo do mouse e quem levou um cutucão.
+  const [hoverId, setHoverId] = useState(null);
+  const [poked, setPoked] = useState(null); // { id, key }
+  const [petId, setPetId] = useState(null); // quem está ganhando carinho
+  const [accs, setAccs] = useState(loadAccessories); // { lila: 'bow', ... }
+  const [fx, setFx] = useState([]); // efeitos soltos: { k, kind: 'heart'|'puff', id }
+  const touchable = moodKey === 'idle' || moodKey === 'typing';
   const moods = {};
   for (const c of cast) {
     const base = MOODS[moodKey][c.id];
-    // Stunts valem no descanso E enquanto digita (o campo de login já vem
-    // focado, então "idle" puro quase não acontece); nunca na senha/erro.
-    if ((moodKey === 'idle' || moodKey === 'typing') && stunts[c.id] && STUNTS[stunts[c.id]]) {
-      moods[c.id] = { ...base, ...STUNTS[stunts[c.id]].face, stunt: stunts[c.id] };
-    } else if (moodKey === 'idle') {
-      moods[c.id] = { ...base, mouth: c.idleMouth, brow: c.idleBrow };
-    } else {
-      moods[c.id] = base;
-    }
+    if (touchable && petId === c.id) moods[c.id] = { ...base, ...PET_FACE, touch: 'pet' };
+    else if (touchable && poked?.id === c.id) moods[c.id] = { ...base, ...POKE_FACE, touch: 'poke' };
+    else if (touchable && hoverId === c.id) moods[c.id] = { ...base, ...HOVER_FACE, touch: 'hover' };
+    else moods[c.id] = base;
   }
 
   // Tudo que o laço de animação lê fica numa ref (sem re-render por quadro).
   const live = useRef({ pointer: null, caret: null, moodKey, glance: null, form: null, formAt: 0 });
   live.current.caret = focus.caret;
   live.current.moodKey = moodKey;
+  live.current.poked = touchable ? (petId || poked?.id) : null;
+  live.current.petId = petId;
 
   // Pulos/tremidas (Web Animations API), escalonados por personagem.
   const play = useCallback((id, key, frames, opts) => {
@@ -750,22 +580,6 @@ export default function AuthCharacters({ reaction = null, scope = '.pc-auth-pane
       { transform: 'none', opacity: 1 },
     ], { duration: dur, delay, easing: 'ease-in-out' });
   }, [play]);
-  // Balança o acessório (antena/broto/chifre) ou dá pulinho (folha/orelha/laço).
-  const wiggleAcc = useCallback((id) => {
-    if (!id) return;
-    play(id, 'acc', [
-      { transform: 'rotate(0)' }, { transform: 'rotate(-14deg)', offset: 0.2 }, { transform: 'rotate(11deg)', offset: 0.45 },
-      { transform: 'rotate(-6deg)', offset: 0.7 }, { transform: 'rotate(2deg)', offset: 0.88 }, { transform: 'rotate(0)' },
-    ], { duration: 1000, easing: 'ease-in-out' });
-  }, [play]);
-  const bounceAcc = useCallback((id) => {
-    if (!id) return;
-    play(id, 'acc', [
-      { transform: 'none' }, { transform: 'translateY(-4px) scale(1.06)', offset: 0.3 }, { transform: 'translateY(1px) scale(.97)', offset: 0.6 },
-      { transform: 'none' },
-    ], { duration: 820, easing: 'ease-in-out' });
-  }, [play]);
-
   const reactKey = react ? `${react === 'pout' ? 'error' : react}-${reaction?.key ?? 0}` : null;
   useEffect(() => {
     if (calm || !reactKey) return;
@@ -776,10 +590,10 @@ export default function AuthCharacters({ reaction = null, scope = '.pc-auth-pane
           { transform: 'none', easing: 'cubic-bezier(.2,.9,.3,1)' },
           { transform: `translateY(${-h}px) scale(.95, 1.07)`, offset: 0.16, easing: 'cubic-bezier(.6,0,.9,.5)' },
           { transform: 'scale(1.07, .92)', offset: 0.3 },
-          { transform: 'translateX(-4px) rotate(-2.2deg)', offset: 0.42 },
-          { transform: 'translateX(4px) rotate(2.2deg)', offset: 0.54 },
-          { transform: 'translateX(-2.5px) rotate(-1.2deg)', offset: 0.66 },
-          { transform: 'translateX(1.5px) rotate(.5deg)', offset: 0.8 },
+          { transform: 'translateX(-4px)', offset: 0.42 },
+          { transform: 'translateX(4px)', offset: 0.54 },
+          { transform: 'translateX(-2.5px)', offset: 0.66 },
+          { transform: 'translateX(1.5px)', offset: 0.8 },
           { transform: 'none' },
         ], { duration: 820, delay: i * 45, easing: 'ease-out' });
         play(c.id, 'shadow', [
@@ -791,21 +605,136 @@ export default function AuthCharacters({ reaction = null, scope = '.pc-auth-pane
         const h = { lila: 26, menta: 18, coral: 30, mel: 38 }[c.id];
         hop(c, h, 720, 40 + i * 65, 1.3);
         if (c.id === 'mel') hop(c, 20, 520, 40 + i * 65 + 720, 1);
+        play(c.id, 'acc', [
+          { transform: 'none' }, { transform: 'translateY(-7px) rotate(-12deg)', offset: 0.45 }, { transform: 'rotate(6deg)', offset: 0.75 }, { transform: 'none' },
+        ], { duration: 820, delay: 120 + i * 65, easing: 'ease-out' });
       });
-      if (swayerId) wiggleAcc(swayerId);
-      if (bouncerId) bounceAcc(bouncerId);
     }
-  }, [reactKey, calm, play, hop, cast, swayerId, bouncerId, wiggleAcc, bounceAcc]);
+  }, [reactKey, calm, play, hop, cast]);
+
+  // Cutucão (clique/toque): pula rindo e os outros olham pra ele.
+  const fxKey = useRef(0);
+  const addFx = useCallback((kind, id, ms) => {
+    const k = ++fxKey.current;
+    setFx((list) => [...list.slice(-10), { k, kind, id }]);
+    setTimeout(() => setFx((list) => list.filter((f) => f.k !== k)), ms);
+  }, []);
+  const poke = useCallback((id) => {
+    const c = byId[id];
+    if (!c) return;
+    setPoked((p) => ({ id, key: (p?.key || 0) + 1 }));
+    // Cada toque troca o acessório (ordem fixa) e salva a escolha.
+    setAccs((m) => { const next = { ...m, [id]: nextAccessory(m[id]) }; saveAccessories(next); return next; });
+    addFx('puff', id, 700);
+    const others = cast.filter((o) => o.id !== id).map((o) => o.id);
+    live.current.glance = { ...Object.fromEntries(others.map((o) => [o, id])), until: performance.now() + 1300 };
+    if (!calm) {
+      hop(c, c.id === 'mel' ? 22 : 16, 620, 0, 1.4);
+      play(id, 'face', [
+        { transform: 'none' }, { transform: 'scale(1.08)', offset: 0.35 }, { transform: 'none' },
+      ], { duration: 620, easing: 'ease-out', composite: 'add' });
+    }
+  }, [byId, cast, calm, hop, play, addFx]);
+  useEffect(() => {
+    if (!poked) return undefined;
+    const t = setTimeout(() => setPoked(null), 1100);
+    return () => clearTimeout(t);
+  }, [poked]);
+  const hover = useCallback((id, on) => setHoverId((h) => (on ? id : h === id ? null : h)), []);
+
+  // Apertar num bichinho: soltar logo = toque (cutucão + troca de
+  // acessório); arrastar por cima = carinho (coraçõezinhos e balancinho).
+  const press = useRef(null);
+  const onPress = useCallback((id, ev) => {
+    press.current = { id, x: ev.clientX, y: ev.clientY, moved: 0, petted: false, lastHeart: 0 };
+  }, []);
+  useEffect(() => {
+    const onMove = (ev) => {
+      const p = press.current;
+      if (!p) return;
+      const d = Math.hypot(ev.clientX - p.x, ev.clientY - p.y);
+      p.x = ev.clientX; p.y = ev.clientY; p.moved += d;
+      if (p.moved > 26 && !p.petted) { p.petted = true; setPetId(p.id); }
+      if (p.petted && p.moved - p.lastHeart > 70) {
+        p.lastHeart = p.moved;
+        addFx('heart', p.id, 1300);
+        if (!calm) {
+          play(p.id, 'hop', [
+            { transform: 'none' }, { transform: 'translateX(-3px) scale(1.04, .96)', offset: 0.3 },
+            { transform: 'translateX(3px) scale(1.04, .96)', offset: 0.7 }, { transform: 'none' },
+          ], { duration: 420, easing: 'ease-in-out' });
+        }
+      }
+    };
+    const onUp = () => {
+      const p = press.current;
+      press.current = null;
+      if (!p) return;
+      if (p.petted) { setTimeout(() => setPetId((cur) => (cur === p.id ? null : cur)), 650); return; }
+      poke(p.id);
+    };
+    window.addEventListener('pointermove', onMove, { passive: true });
+    window.addEventListener('pointerup', onUp);
+    window.addEventListener('pointercancel', onUp);
+    return () => {
+      window.removeEventListener('pointermove', onMove);
+      window.removeEventListener('pointerup', onUp);
+      window.removeEventListener('pointercancel', onUp);
+    };
+  }, [poke, addFx, play, calm]);
+
+  // Digitando: cada tecla faz um deles balançar a cabeça, um de cada vez
+  // (mesma ordem sempre — nada sorteado).
+  useEffect(() => {
+    if (calm) return undefined;
+    const root = document.querySelector(scope);
+    if (!root) return undefined;
+    let n = 0; let lastAt = 0;
+    const order = ['coral', 'lila', 'menta', 'mel'];
+    const onInput = (ev) => {
+      const el = ev.target;
+      if (!el?.matches?.('input, textarea') || isPasswordInput(el)) return;
+      const now = performance.now();
+      if (now - lastAt < 90) return;
+      lastAt = now;
+      const id = order[n++ % order.length];
+      play(id, 'hop', [
+        { transform: 'none' }, { transform: 'translateY(-3px)', offset: 0.4 }, { transform: 'none' },
+      ], { duration: 260, easing: 'ease-out' });
+    };
+    root.addEventListener('input', onInput);
+    return () => root.removeEventListener('input', onInput);
+  }, [calm, scope, play]);
 
   // Ponteiro do mouse (só guarda; o laço lê). Desligado no modo calmo.
   useEffect(() => {
     if (calm) { live.current.pointer = null; return undefined; }
-    const onMove = (e) => { if (e.pointerType !== 'touch') live.current.pointer = { x: e.clientX, y: e.clientY }; };
+    let clearT = 0;
+    const onMove = (e) => {
+      live.current.pointer = { x: e.clientX, y: e.clientY };
+      clearTimeout(clearT);
+      // No celular o dedo "some" quando solta: o olhar volta pro formulário.
+      if (e.pointerType === 'touch') clearT = setTimeout(() => { live.current.pointer = null; }, 1400);
+    };
+    const onDown = (e) => { if (e.pointerType === 'touch') onMove(e); };
+    // Celular: inclinar o aparelho faz a turma olhar pro lado (sem pedir
+    // permissão — se o navegador não manda o evento, nada acontece).
+    const onTilt = (e) => {
+      if (e.gamma == null) return;
+      live.current.tilt = { gx: clamp(e.gamma, -35, 35) / 35, gy: clamp((e.beta ?? 45) - 45, -35, 35) / 35 };
+    };
     window.addEventListener('pointermove', onMove, { passive: true });
-    return () => window.removeEventListener('pointermove', onMove);
+    window.addEventListener('pointerdown', onDown, { passive: true });
+    window.addEventListener('deviceorientation', onTilt, { passive: true });
+    return () => {
+      clearTimeout(clearT);
+      window.removeEventListener('pointermove', onMove);
+      window.removeEventListener('pointerdown', onDown);
+      window.removeEventListener('deviceorientation', onTilt);
+    };
   }, [calm]);
 
-  // Piscadas: cada um no seu ritmo (às vezes dois piscam juntos).
+  // Piscadas: cada um no seu ritmo.
   const blink = useCallback((id, ms = 140) => {
     const el = els.current[id]?.char;
     if (!el) return;
@@ -816,171 +745,14 @@ export default function AuthCharacters({ reaction = null, scope = '.pc-auth-pane
     if (calm) return undefined;
     const timers = new Set();
     const later = (fn, ms) => { const t = setTimeout(() => { timers.delete(t); fn(); }, ms); timers.add(t); };
+    // Ritmo fixo por bichinho (cada um no seu tempo, sem sorteio).
+    const every = { lila: 3400, menta: 4600, coral: 3900, mel: 2900 };
     cast.forEach((c, i) => {
-      const loop = () => later(() => {
-        blink(c.id);
-        if (Math.random() < 0.2) later(() => blink(c.id), 260); // piscada dupla
-        loop();
-      }, 2200 + Math.random() * 3600 + i * 250);
-      loop();
+      const loop = () => later(() => { blink(c.id); loop(); }, every[c.id] || 3600);
+      later(loop, 700 + i * 450);
     });
     return () => timers.forEach(clearTimeout);
   }, [calm, blink, cast]);
-
-  // ---- Stunts (truques aleatórios): aura, dab, floss, spin, moonwalk... ----
-  const stunt = useCallback((c, name) => {
-    const def = STUNTS[name];
-    if (!def) return;
-    const { dur } = def;
-    const k = (frames, opts = {}, key = 'hop') => play(c.id, key, frames, { duration: dur, easing: 'ease-in-out', ...opts });
-    // .pcc-hop já gira/escala pela base (transform-origin 50% 100%).
-    const sx = (v) => v;
-    setStunts((st) => ({ ...st, [c.id]: name }));
-    switch (name) {
-      case 'aura': {
-        // Power-up: aura acende e pulsa, chamas sobem, corpo treme e se estufa.
-        k([{ opacity: 0, transform: 'scale(.6)' }, { opacity: 1, transform: 'scale(1)', offset: 0.18 }, { opacity: .9, transform: 'scale(1.08)', offset: 0.5 }, { opacity: 1, transform: 'scale(1.02)', offset: 0.8 }, { opacity: 0, transform: 'scale(1.15)' }], {}, 'aura');
-        k([{ transform: 'translateY(0)' }, { transform: 'translateY(-26px)' }], { iterations: 4, duration: dur / 4, easing: 'linear' }, 'auraP');
-        const shake = []; for (let i = 0; i <= 24; i += 1) shake.push({ transform: sx(`translate(${i % 2 ? 1.6 : -1.6}px, 0) scale(${1 + Math.min(i, 12) * 0.006}, ${1 + Math.min(i, 12) * 0.004})`), offset: i / 24 });
-        k(shake, { easing: 'linear' });
-        k([{ transform: 'none' }, { transform: 'scale(1.2, .9)', offset: .3 }, { transform: 'scale(1.1, .95)', offset: .8 }, { transform: 'none' }], {}, 'shadow');
-        break;
-      }
-      case 'dab':
-        k([{ transform: sx('rotate(0)') }, { transform: sx('rotate(-16deg) translate(-6px, -4px)'), offset: 0.25, easing: 'cubic-bezier(.2,.9,.3,1.2)' }, { transform: sx('rotate(-16deg) translate(-6px, -4px)'), offset: 0.75 }, { transform: sx('rotate(0)') }]);
-        break;
-      case 'floss': {
-        const f = []; const n = 8;
-        for (let i = 0; i <= n; i += 1) f.push({ transform: sx(`skewX(${i % 2 ? -9 : 9}deg) translateX(${i % 2 ? 5 : -5}px)`), offset: i / n });
-        f[0].transform = sx('none'); f[n].transform = sx('none');
-        k(f, { easing: 'ease-in-out' });
-        break;
-      }
-      case 'spin':
-        // Gira em torno de si (vira de costas e volta): escala X vai a -1.
-        k([{ transform: sx('scaleX(1)') }, { transform: sx('scaleX(-1) translateY(-10px)'), offset: 0.3 }, { transform: sx('scaleX(1) translateY(-14px)'), offset: 0.55 }, { transform: sx('scaleX(-1)'), offset: 0.8 }, { transform: sx('scaleX(1)') }]);
-        k([{ transform: 'none' }, { transform: 'scale(.7, .8)', opacity: .5, offset: .5 }, { transform: 'none' }], {}, 'shadow');
-        break;
-      case 'moonwalk': {
-        const m = []; const n = 10;
-        for (let i = 0; i <= n; i += 1) m.push({ transform: sx(`translateX(${-28 * Math.sin((i / n) * Math.PI)}px) translateY(${i % 2 ? -3 : 0}px) rotate(${i % 2 ? -3 : 3}deg)`), offset: i / n });
-        k(m, { easing: 'linear' });
-        break;
-      }
-      case 'wave':
-        k([{ transform: sx('rotate(0)') }, { transform: sx('rotate(4deg)'), offset: 0.5 }, { transform: sx('rotate(0)') }]);
-        break;
-      case 'think':
-        k([{ transform: sx('rotate(0)') }, { transform: sx('rotate(-5deg) translateX(-3px)'), offset: 0.3 }, { transform: sx('rotate(-5deg) translateX(-3px)'), offset: 0.85 }, { transform: sx('rotate(0)') }]);
-        break;
-      case 'heart':
-        k([{ transform: sx('scale(1)') }, { transform: sx('scale(1.06, .96)'), offset: 0.3 }, { transform: sx('scale(.98, 1.03)'), offset: 0.55 }, { transform: sx('scale(1.04, .98)'), offset: 0.8 }, { transform: sx('scale(1)') }]);
-        break;
-      case 'bow':
-        k([{ transform: sx('rotate(0)') }, { transform: sx('rotate(22deg) translateY(2px) scale(1, .96)'), offset: 0.35, easing: 'cubic-bezier(.3,.7,.3,1)' }, { transform: sx('rotate(22deg) translateY(2px) scale(1, .96)'), offset: 0.7 }, { transform: sx('rotate(0)') }]);
-        break;
-      case 'dance': {
-        const d = []; const n = 12;
-        for (let i = 0; i <= n; i += 1) d.push({ transform: sx(`translateY(${i % 2 ? -8 : 0}px) rotate(${i % 4 < 2 ? -7 : 7}deg) scale(${i % 2 ? 1.03 : 1}, ${i % 2 ? .97 : 1})`), offset: i / n });
-        k(d);
-        wiggleAcc(c.id);
-        break;
-      }
-      case 'shocked':
-        hop(c, 18, 520, 0, 1.4);
-        k([{ transform: sx('translateX(0)') }, { transform: sx('translateX(-3px)'), offset: .5 }, { transform: sx('translateX(3px)'), offset: .6 }, { transform: sx('translateX(-2px)'), offset: .7 }, { transform: sx('translateX(0)') }], { delay: 520, duration: dur - 520 });
-        break;
-      case 'facepalm':
-        k([{ transform: sx('rotate(0)') }, { transform: sx('rotate(6deg) translateY(3px)'), offset: 0.3 }, { transform: sx('rotate(6deg) translateY(3px)'), offset: 0.8 }, { transform: sx('rotate(0)') }]);
-        break;
-      case 'flex':
-        k([{ transform: sx('scale(1)') }, { transform: sx('scale(1.1, .94)'), offset: 0.25, easing: 'cubic-bezier(.2,.9,.3,1.3)' }, { transform: sx('scale(1.08, .96)'), offset: 0.8 }, { transform: sx('scale(1)') }]);
-        break;
-      case 'salute':
-        k([{ transform: sx('none') }, { transform: sx('translateY(-4px) scale(1.02, 1.03)'), offset: 0.2 }, { transform: sx('translateY(-4px) scale(1.02, 1.03)'), offset: 0.8 }, { transform: sx('none') }]);
-        break;
-      case 'griddy': {
-        const g = []; const n = 10;
-        for (let i = 0; i <= n; i += 1) g.push({ transform: sx(`translateX(${i % 2 ? 7 : -7}px) translateY(${i % 2 ? -6 : 0}px) rotate(${i % 2 ? 5 : -5}deg)`), offset: i / n });
-        g[0].transform = sx('none'); g[n].transform = sx('none');
-        k(g, { easing: 'linear' });
-        break;
-      }
-      case 'point':
-        k([{ transform: sx('rotate(0)') }, { transform: sx('rotate(3deg) translateX(4px)'), offset: 0.3 }, { transform: sx('rotate(3deg) translateX(4px)'), offset: 0.8 }, { transform: sx('rotate(0)') }]);
-        break;
-      case 'sleepy':
-        k([{ transform: sx('rotate(0)') }, { transform: sx('rotate(-6deg) translateY(2px)'), offset: 0.4 }, { transform: sx('rotate(-6deg) translateY(2px)'), offset: 0.75 }, { transform: sx('rotate(0)') }]);
-        break;
-      case 'jump':
-        hop(c, 22, 700, 0, 1.3);
-        break;
-      default: break;
-    }
-    return setTimeout(() => setStunts((st) => (st[c.id] === name ? { ...st, [c.id]: null } : st)), dur);
-  }, [play, hop, wiggleAcc]);
-
-  // Agenda os stunts no descanso: sozinho (cada 5–9s) ou em dupla (às vezes).
-  useEffect(() => {
-    if (calm) return undefined;
-    const timers = new Set();
-    const later = (fn, ms) => { const t = setTimeout(() => { timers.delete(t); fn(); }, ms); timers.add(t); };
-    let lastName = null;
-    const act = () => {
-      if ((live.current.moodKey === 'idle' || live.current.moodKey === 'typing') && !document.hidden) {
-        const free = cast.filter((c) => !live.current.stunts?.[c.id]);
-        if (free.length) {
-          let name = pick(STUNT_NAMES);
-          if (name === lastName) name = pick(STUNT_NAMES);
-          lastName = name;
-          const a = pick(free);
-          const duet = DUET_STUNTS.includes(name) && free.length > 1 && Math.random() < 0.45;
-          timers.add(stunt(a, name));
-          if (duet) { const b = pick(free.filter((c) => c.id !== a.id)); later(() => timers.add(stunt(b, name)), 180); }
-        }
-      }
-      later(act, 5000 + Math.random() * 4000);
-    };
-    later(act, 3200);
-    return () => timers.forEach(clearTimeout);
-  }, [calm, cast, stunt]);
-  live.current.stunts = stunts;
-
-  // Micro-ações quando estão parados: trocam olhares, piscam juntos,
-  // pulinho, balançam o acessório, amassadinho.
-  useEffect(() => {
-    if (calm) return undefined;
-    const timers = new Set();
-    const later = (fn, ms) => { const t = setTimeout(() => { timers.delete(t); fn(); }, ms); timers.add(t); };
-    const PAIRS = [['lila', 'coral'], ['menta', 'mel'], ['coral', 'mel'], ['lila', 'mel'], ['lila', 'menta']];
-    let n = 0;
-    const act = () => {
-      if (live.current.moodKey === 'idle' && !document.hidden) {
-        const pick2 = (n++ % 2 === 0) ? 'glance' : ['hop', 'wiggle', 'bounce', 'squish', 'blink2'][Math.floor(Math.random() * 5)];
-        if (pick2 === 'glance') {
-          const [a, b] = PAIRS[Math.floor(Math.random() * PAIRS.length)];
-          live.current.glance = { [a]: b, [b]: a, until: performance.now() + 1500 };
-          later(() => { blink(a); blink(b); }, 900);
-        } else if (pick2 === 'hop') {
-          hop(byId.mel, 14, 560);
-          later(() => hop(byId.mel, 8, 460), 560);
-        } else if (pick2 === 'wiggle') {
-          wiggleAcc(swayerId);
-        } else if (pick2 === 'bounce') {
-          bounceAcc(bouncerId);
-        } else if (pick2 === 'squish') {
-          play('coral', 'hop', [
-            { transform: 'none' }, { transform: 'scale(1.06, .93)', offset: 0.3 }, { transform: 'scale(.97, 1.04)', offset: 0.6 }, { transform: 'none' },
-          ], { duration: 700, easing: 'ease-in-out' });
-        } else {
-          blink('lila'); blink('menta');
-        }
-      }
-      later(act, 2600 + Math.random() * 2600);
-    };
-    later(act, 1800);
-    return () => timers.forEach(clearTimeout);
-  }, [calm, blink, hop, play, byId, swayerId, bouncerId, wiggleAcc, bounceAcc]);
 
   // Laço de animação: molas pro olhar, rosto e inclinação.
   useEffect(() => {
@@ -1020,13 +792,16 @@ export default function AuthCharacters({ reaction = null, scope = '.pc-auth-pane
       const fp = formPoint(now);
       const form = fp ? toVb(r, fp) : { x: VB.x + VB.w + 200, y: 120 };
       const pickPt = calm ? null : (L.caret || L.pointer);
-      const tgt = pickPt ? toVb(r, pickPt) : form;
-      const glance = L.glance && L.glance.until > now && mk === 'idle' ? L.glance : null;
+      let tgt = pickPt ? toVb(r, pickPt) : form;
+      // Sem dedo nem cursor: no celular, a inclinação manda no olhar.
+      if (!pickPt && !calm && L.tilt && mk !== 'typing') {
+        tgt = { x: VB.x + VB.w / 2 + L.tilt.gx * 260, y: 120 + L.tilt.gy * 160 };
+      }
+      const glance = L.glance && L.glance.until > now && (mk === 'idle' || mk === 'typing') ? L.glance : null;
       const formSide = Math.sign(form.x - (VB.x + VB.w / 2)) || 1;
       const out = {};
       cast.forEach((c) => {
-        const stuntName = (mk === 'idle' || mk === 'typing') ? live.current.stunts?.[c.id] : null;
-        const mood = stuntName && STUNTS[stuntName] ? { ...MOODS[mk][c.id], ...STUNTS[stuntName].face } : MOODS[mk][c.id];
+        const mood = L.poked === c.id ? { ...MOODS[mk][c.id], ...(L.petId === c.id ? PET_FACE : POKE_FACE) } : MOODS[mk][c.id];
         const ex = (c.eyes[0].x + c.eyes[1].x) / 2;
         const ey = c.eyes[0].y;
         let look = mood.look;
@@ -1067,7 +842,8 @@ export default function AuthCharacters({ reaction = null, scope = '.pc-auth-pane
       const key = `${r2(s.lean)}|${r2(s.fx)}|${r2(s.fy)}|${r2(s.px)}|${r2(s.py)}`;
       if (key === s.w) return; // nada mudou: não mexe no DOM
       s.w = key;
-      e.lean?.setAttribute('transform', `translate(${c.cx} ${FLOOR}) skewX(${r2(-s.lean)}) translate(${-c.cx} ${-FLOOR})`);
+      // Borda reta: o corpo não entorta (sem skew); só o rosto e os olhos
+      // acompanham o formulário/mouse.
       if (e.face) e.face.style.transform = `translate(${r2(s.fx)}px, ${r2(s.fy)}px)`;
       const pt = `translate(${r2(s.px)}px, ${r2(s.py)}px)`;
       e.char?.querySelectorAll('.pcc-pupil').forEach((p) => { p.style.transform = pt; });
@@ -1135,87 +911,54 @@ export default function AuthCharacters({ reaction = null, scope = '.pc-auth-pane
         focusable="false"
       >
         <defs>
-          {cast.map((c) => (
-            <g key={c.id}>
-              <radialGradient id={`${uid}-aura-${c.id}`} cx="50%" cy="60%" r="50%">
-                <stop offset="0" stopColor={c.top} stopOpacity=".55" />
-                <stop offset=".55" stopColor={c.base} stopOpacity=".28" />
-                <stop offset="1" stopColor={c.base} stopOpacity="0" />
-              </radialGradient>
-              <linearGradient id={`${uid}-g-${c.id}`} gradientUnits="userSpaceOnUse" x1={c.cx - c.w * 0.3} y1={c.bodyTop} x2={c.cx + c.w * 0.3} y2={FLOOR}>
-                <stop offset="0" stopColor={c.top} />
-                <stop offset=".5" stopColor={c.base} />
-                <stop offset="1" stopColor={c.base} />
-              </linearGradient>
-              {/* Luvinha mais clara que o corpo, pra ler como mão em cima do rosto. */}
-              <linearGradient id={`${uid}-h-${c.id}`} x1="0" y1="0" x2="0" y2="1">
-                <stop offset="0" stopColor={c.mitt} />
-                <stop offset="1" stopColor={c.top} />
-              </linearGradient>
-              <linearGradient id={`${uid}-sv-${c.id}`} gradientUnits="userSpaceOnUse" x1="0" y1={c.bodyTop} x2="0" y2={FLOOR}>
-                <stop offset=".4" stopColor={c.deep} stopOpacity="0" />
-                <stop offset="1" stopColor={c.deep} stopOpacity=".65" />
-              </linearGradient>
-              <linearGradient id={`${uid}-sh-${c.id}`} gradientUnits="userSpaceOnUse" x1={c.cx - c.w / 2} y1="0" x2={c.cx + c.w / 2} y2="0">
-                <stop offset=".5" stopColor={c.deep} stopOpacity="0" />
-                <stop offset="1" stopColor={c.deep} stopOpacity=".5" />
-              </linearGradient>
-              {/* Oclusão de contato: escurece o pezinho pra assentar no chão. */}
-              <linearGradient id={`${uid}-occ-${c.id}`} gradientUnits="userSpaceOnUse" x1="0" y1={FLOOR - 42} x2="0" y2={FLOOR}>
-                <stop offset="0" stopColor={c.deep} stopOpacity="0" />
-                <stop offset="1" stopColor={c.deep} stopOpacity=".5" />
-              </linearGradient>
-              <clipPath id={`${uid}-b-${c.id}`}><path d={c.body} /></clipPath>
-              {c.eye === 'ball' && <clipPath id={`${uid}-eye-${c.id}`}><circle r={c.r + 0.3} /></clipPath>}
-            </g>
-          ))}
-          <radialGradient id={`${uid}-sheen`}>
-            <stop offset="0" stopColor="#fff" stopOpacity=".62" />
-            <stop offset="1" stopColor="#fff" stopOpacity="0" />
-          </radialGradient>
-          <radialGradient id={`${uid}-shadow`}>
-            <stop offset="0" stopColor="#000" stopOpacity=".75" />
-            <stop offset="1" stopColor="#000" stopOpacity="0" />
-          </radialGradient>
-          <radialGradient id={`${uid}-bulb`}>
-            <stop offset=".3" stopColor="#ffd977" stopOpacity=".55" />
-            <stop offset="1" stopColor="#ffd977" stopOpacity="0" />
-          </radialGradient>
-          <radialGradient id={`${uid}-glow`}>
-            <stop offset="0" stopColor="#fff" stopOpacity=".09" />
-            <stop offset="1" stopColor="#fff" stopOpacity="0" />
-          </radialGradient>
-          <linearGradient id={`${uid}-floor`} gradientUnits="userSpaceOnUse" x1={VB.x} y1="0" x2={VB.x + VB.w} y2="0">
-            <stop offset="0" stopColor="#fff" stopOpacity="0" />
-            <stop offset=".5" stopColor="#fff" stopOpacity=".22" />
-            <stop offset="1" stopColor="#fff" stopOpacity="0" />
-          </linearGradient>
         </defs>
 
-        {/* Chão: brilho de fundo, linha e sombras de contato. */}
-        <ellipse cx="246" cy={FLOOR - 64} rx="200" ry="100" fill={`url(#${uid}-glow)`} />
-        <rect x={VB.x} y={FLOOR} width={VB.w} height="1" fill={`url(#${uid}-floor)`} />
-        <ellipse cx="248" cy={FLOOR + 3} rx="210" ry="9" fill={`url(#${uid}-shadow)`} opacity=".55" />
+        {/* Chão: só uma sombrinha lisa embaixo de cada um. */}
         {cast.map((c) => (
           <g key={c.id} transform={`translate(${c.cx} ${FLOOR + 1.5})`}>
             <ellipse
               ref={reg(c.id, 'shadow')} className="pcc-shadow"
-              rx={c.w * 0.56} ry="5.5" fill={`url(#${uid}-shadow)`}
+              rx={c.w * 0.5} ry="3" className="pcc-shadow-fill"
             />
           </g>
         ))}
 
         <g className="pcc-group">
           {cast.map((c) => (
-            <Character key={c.id} c={c} index={c.idx} mood={moods[c.id]} reg={reg} uid={uid} />
+            <Character key={c.id} c={c} index={c.idx} mood={moods[c.id]} reg={reg} uid={uid} acc={accs[c.id]} onPress={onPress} onHover={hover} />
           ))}
+        </g>
+
+        {/* Coraçõezinhos (carinho) e "puf" de brilhinhos (troca de acessório). */}
+        <g className="pcc-fx">
+          {fx.map((f) => {
+            const c = byId[f.id];
+            if (!c) return null;
+            if (f.kind === 'heart') {
+              const side = f.k % 2 ? 1 : -1;
+              return (
+                <g key={f.k} transform={`translate(${c.cx + side * c.w * 0.18} ${c.bodyTop + 6})`}>
+                  <path className="pcc-heart" d={HEART} style={{ '--sx': side }} />
+                </g>
+              );
+            }
+            return (
+              <g key={f.k} transform={`translate(${c.cx} ${c.bodyTop - 4})`} className="pcc-puff">
+                {[0, 60, 120, 180, 240, 300].map((a, i) => (
+                  <g key={a} transform={`rotate(${a})`}>
+                    <path className="pcc-puff-s" d={SPARK} style={{ '--i': i }} />
+                  </g>
+                ))}
+              </g>
+            );
+          })}
         </g>
 
         {mode === 'success' && (
           <g className="pcc-sparkles">
             {SPARKLES.map((s, i) => (
               <g key={i} transform={`translate(${s.x} ${s.y}) scale(${s.s})`}>
-                <path className="pcc-spark" d={SPARK} fill={cast[i % cast.length].top} style={{ '--i': i }} />
+                <path className="pcc-spark" d={SPARK} style={{ '--i': i }} />
               </g>
             ))}
           </g>

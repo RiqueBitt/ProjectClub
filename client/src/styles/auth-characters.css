@@ -18,9 +18,34 @@
 }
 .pcc-svg { display: block; width: 100%; height: 100%; overflow: visible; }
 
+/* ---------- Preto e branco do site ----------
+   --pcc-ink = tinta (preto na folha branca do PC), --pcc-paper = papel.
+   No fundo preto (celular) o auth-mono.css troca os dois.
+   Cheio (data-solid): corpo de tinta e rosto de papel.
+   Contorno: corpo de papel com borda de tinta e rosto de tinta. */
+.pcc-stage { --pcc-ink: #000; --pcc-paper: #fff; }
+.pcc-char { color: var(--pcc-ink); }
+.pcc-char[data-solid] { color: var(--pcc-paper); }
+.pcc-body { fill: var(--pcc-paper); stroke: var(--pcc-ink); stroke-width: 2.4; }
+.pcc-char[data-solid] .pcc-body { fill: var(--pcc-ink); }
+.pcc-mitt { fill: var(--pcc-paper); stroke: var(--pcc-ink); }
+.pcc-shadow-fill { fill: var(--pcc-ink); opacity: .12; }
+.pcc-heart, .pcc-puff-s, .pcc-spark { fill: var(--pcc-ink); }
+
+/* Acessórios (authAccessories.jsx): sempre o CONTRÁRIO do corpo — no
+   bichinho preto, acessório branco; no branco, preto. --pcc-body-c é a cor
+   do corpo; currentColor é a do rosto (= cor do acessório). */
+.pcc-char { --pcc-body-c: var(--pcc-paper); }
+.pcc-char[data-solid] { --pcc-body-c: var(--pcc-ink); }
+.pcc-acc-pop .a { fill: currentColor; stroke: var(--pcc-body-c); stroke-width: 1.6; stroke-linejoin: miter; }
+.pcc-acc-pop .d { fill: var(--pcc-body-c); stroke: none; }
+.pcc-acc-pop .ln { fill: none; stroke: currentColor; stroke-linecap: square; stroke-linejoin: miter; }
+.pcc-acc-pop .le { fill: none; stroke: var(--pcc-body-c); stroke-linecap: square; stroke-linejoin: miter; }
+
 /* Origem na própria coordenada local (0,0) de cada peça. */
 .pcc-eye, .pcc-eye-open, .pcc-blink, .pcc-pupil, .pcc-pupil-s, .pcc-lid, .pcc-eye-alt,
-.pcc-mouth, .pcc-brow, .pcc-hand, .pcc-acc, .pcc-acc-sway, .pcc-shadow, .pcc-spark {
+.pcc-mouth, .pcc-brow, .pcc-hand, .pcc-shadow, .pcc-spark,
+.pcc-acc, .pcc-acc-sway, .pcc-acc-hover, .pcc-acc-pop, .pcc-puff-s {
   transform-box: view-box;
   transform-origin: 0 0;
 }
@@ -45,18 +70,7 @@
   50% { transform: scale(.985, 1.035); }
 }
 
-/* Acessórios que balançam (antena/broto/chifre). Os que pulam (folha/
-   orelha/laço) ficam parados até uma micro-ação da Web Animations API. */
-.pcc-acc-sway { animation: pcc-sway 3.8s ease-in-out infinite; }
-.pcc-menta .pcc-acc-sway { animation-duration: 4.4s; animation-delay: -1.1s; }
-.pcc-coral .pcc-acc-sway { animation-duration: 3.3s; animation-delay: -.6s; }
-.pcc-mel .pcc-acc-sway { animation-duration: 3s; animation-delay: -.3s; }
-@keyframes pcc-sway { 0%, 100% { transform: rotate(-3deg); } 50% { transform: rotate(4deg); } }
-.pcc-antenna-glow { animation: pcc-glow 2.8s ease-in-out infinite; transform-box: fill-box; transform-origin: 50% 50%; }
-@keyframes pcc-glow { 0%, 100% { opacity: .12; transform: scale(.9); } 50% { opacity: .32; transform: scale(1.2); } }
-
 /* ---------- rosto ---------- */
-.pcc-rim { opacity: .5; }
 
 .pcc-eye { transition: transform .45s var(--pcc-spring) var(--d); }
 .pcc-eye-open { transition: transform .32s var(--pcc-soft) var(--d), opacity .2s ease var(--d); }
@@ -68,7 +82,7 @@
 }
 .pcc-lidline { opacity: 0; transition: opacity .2s ease var(--d); }
 .pcc-eye-alt {
-  fill: none; stroke: #1d1631; stroke-width: 2.8; stroke-linecap: round; stroke-linejoin: round;
+  fill: none; stroke: currentColor; stroke-width: 2.6; stroke-linecap: round; stroke-linejoin: round;
   opacity: 0; transform: scale(.6, .2);
   transition: opacity .18s ease var(--d), transform .4s var(--pcc-spring) var(--d);
 }
@@ -89,10 +103,9 @@
 .pcc-menta .pcc-eye[data-state='half'] .pcc-blink,
 .pcc-coral .pcc-eye[data-state='half'] .pcc-blink { transform: translateY(1.5px) scale(1, .62); }
 
-/* Piscada: pálpebra desce (olhos com esclera) ou o olho achata. */
-.pcc-char[data-blink] .pcc-lid { transform: translateY(calc(var(--r, 10) * 1px + 3px)); transition-duration: .07s; }
-.pcc-coral[data-blink] .pcc-blink,
-.pcc-menta[data-blink] .pcc-blink { transform: scale(1, .1); transition-duration: .07s; }
+/* Piscada: o olho (bolinha) achata. */
+.pcc-char[data-blink] .pcc-blink { transform: scale(1, .1); transition-duration: .07s; }
+.pcc-eye[data-state='half'] .pcc-blink { transform: translateY(1px) scale(1, .55); }
 
 /* Bocas: troca com um "pop" de mola. */
 .pcc-mouth {
@@ -178,22 +191,48 @@ html[data-lite] .pcc-stage .pcc-spark { opacity: 1; }
   .pc-auth-showcase-chars .pc-showcase-copy p { font-size: 15.5px; }
 }
 
-/* ---- stunts (truques aleatórios) ---- */
-.pcc-aura { pointer-events: none; mix-blend-mode: screen; }
-.pcc-aura-p path { filter: drop-shadow(0 0 3px rgba(255, 255, 255, .6)); }
-/* tchauzinho: a mão direita balança sozinha enquanto a pose durar */
-.pcc-hands[data-pose='wave'] .pcc-hand:nth-child(2) { animation: pcc-wave .55s ease-in-out infinite alternate; }
-@keyframes pcc-wave { from { rotate: -14deg; } to { rotate: 16deg; } }
-/* dedinho batendo no queixo */
-.pcc-hands[data-pose='think'] .pcc-hand:nth-child(2) { animation: pcc-tap .5s ease-in-out infinite alternate; }
-@keyframes pcc-tap { from { translate: 0 0; } to { translate: 0 -1.5px; } }
-/* coração: as mãos pulsam */
-.pcc-hands[data-pose='heart'] .pcc-hand { animation: pcc-heart .6s ease-in-out infinite alternate; }
-@keyframes pcc-heart { from { scale: 1; } to { scale: 1.12; } }
-/* sayajin/flex: tremidinha nas mãos */
-.pcc-hands[data-pose='flex'] .pcc-hand { animation: pcc-tremble .12s linear infinite alternate; }
-@keyframes pcc-tremble { from { translate: 0 0; } to { translate: .8px -.6px; } }
-@media (prefers-reduced-motion: reduce) {
-  .pcc-hands .pcc-hand { animation: none !important; }
+/* ---- interação: mouse em cima / cutucão ---- */
+/* O palco não bloqueia cliques; só os corpos dos bichinhos recebem. */
+.pcc-char { pointer-events: visiblePainted; cursor: pointer; -webkit-tap-highlight-color: transparent; touch-action: none; }
+.pcc-char[data-touch='pet'] { cursor: grabbing; }
+
+/* ---- acessórios (authAccessories.jsx) ---- */
+/* Balanço fixo (antena, broto, flor): cada um no seu ritmo, sem sorteio. */
+.pcc-acc-sway { animation: pcc-sway 3.6s ease-in-out infinite; }
+.pcc-menta .pcc-acc-sway { animation-duration: 4.2s; animation-delay: -1.1s; }
+.pcc-coral .pcc-acc-sway { animation-duration: 3.2s; animation-delay: -.6s; }
+.pcc-mel .pcc-acc-sway { animation-duration: 2.8s; animation-delay: -.3s; }
+@keyframes pcc-sway { 0%, 100% { transform: rotate(-4deg); } 50% { transform: rotate(5deg); } }
+.pcc-antenna-glow { animation: pcc-glow 2.8s ease-in-out infinite; transform-box: fill-box; transform-origin: 50% 50%; }
+@keyframes pcc-glow { 0%, 100% { opacity: .15; transform: scale(.9); } 50% { opacity: .4; transform: scale(1.2); } }
+/* Acessório novo entra com um "pop" (troca ao tocar). */
+.pcc-acc-pop { animation: pcc-acc-pop .6s var(--pcc-spring) both; }
+@keyframes pcc-acc-pop { from { transform: translateY(-10px) scale(0) rotate(-30deg); opacity: 0; } 60% { opacity: 1; } to { transform: none; opacity: 1; } }
+/* Mouse em cima: ergue o chapéu; carinho: o acessório balança junto. */
+.pcc-acc-hover { transition: transform .4s var(--pcc-spring); }
+.pcc-char[data-touch='hover'] .pcc-acc-hover { transform: translateY(-5px) rotate(-9deg); }
+.pcc-char[data-touch='pet'] .pcc-acc-hover { animation: pcc-acc-pet .42s ease-in-out infinite alternate; }
+@keyframes pcc-acc-pet { from { transform: rotate(-8deg); } to { transform: rotate(8deg); } }
+.pcc-char[data-touch='hover'] .pcc-face, .pcc-char[data-touch='pet'] .pcc-face { filter: saturate(1.1); }
+
+/* ---- coraçõezinhos (carinho) e "puf" (troca de acessório) ---- */
+.pcc-fx { pointer-events: none; }
+.pcc-heart { transform-box: fill-box; transform-origin: 50% 50%; animation: pcc-heart-up 1.3s cubic-bezier(.2, .7, .3, 1) forwards; }
+@keyframes pcc-heart-up {
+  0% { transform: translate(0, 0) scale(.3); opacity: 0; }
+  20% { transform: translate(calc(var(--sx, 1) * 4px), -10px) scale(1.15); opacity: 1; }
+  100% { transform: translate(calc(var(--sx, 1) * 16px), -52px) scale(.8) rotate(calc(var(--sx, 1) * 14deg)); opacity: 0; }
 }
-html[data-lite] .pcc-hands .pcc-hand { animation: none !important; }
+.pcc-puff-s { animation: pcc-puff .7s cubic-bezier(.2, .8, .3, 1) forwards; animation-delay: calc(var(--i) * 15ms); opacity: 0; }
+@keyframes pcc-puff {
+  0% { transform: translateY(0) scale(.2); opacity: 0; }
+  30% { opacity: 1; }
+  100% { transform: translateY(-30px) scale(.55); opacity: 0; }
+}
+.pcc-stage[data-calm] .pcc-fx,
+.pcc-stage[data-calm] .pcc-acc-sway,
+.pcc-stage[data-calm] .pcc-acc-pop,
+.pcc-stage[data-calm] .pcc-antenna-glow { animation: none; }
+.pcc-stage[data-calm] .pcc-fx { display: none; }
+
+.pcc-char[data-touch='hover'] .pcc-breathe { animation-duration: 1.6s; }

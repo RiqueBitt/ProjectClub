@@ -3,10 +3,22 @@ import { Link } from 'react-router-dom';
 import logo from '../assets/icons/logo-project-club.png';
 import { ArrowLeftIcon } from '../components/auth/AuthIcons.jsx';
 import AuthCharacters from '../components/auth/AuthCharacters.jsx';
-import { useIconStunts, playIconStunt } from '../components/auth/iconStunts.js';
+import '../styles/auth-mono.css';
 
-const SHOWCASE_APPS = ['gameproject', 'photoproject', 'projectmc', 'hyproject', 'davinciproject', 'waveproject', 'texelproject', 'forgeproject', 'canvasproject'];
-const TICKER = ['Chat e voz', 'Fórum', 'Conquistas', 'Jogos', 'Imagem', 'Vídeo', 'Áudio', '3D'];
+// Mesma faixa e mesma frase do site de download (LandingPage, .lp-mono).
+const MARQUEE = ['Chat', 'Voz', 'Fórum', 'Mods', 'RPG'];
+const STATEMENT = 'Comunidade, mods e RPG. De graça.';
+
+// Nome com as letras subindo de dentro de uma máscara (igual ao site).
+function Wordmark({ text, offset = 0 }) {
+  return (
+    <span className="pc-wm-line">
+      {[...text].map((ch, i) => (
+        <span key={i} className="pc-wm-mask"><span className="pc-wm-ch" style={{ '--i': i + offset }}>{ch}</span></span>
+      ))}
+    </span>
+  );
+}
 
 const isNativeApp = () =>
   typeof window !== 'undefined' && (!!window.electronAPI || !!window.Capacitor?.isNativePlatform?.());
@@ -41,7 +53,6 @@ function useIsWide() {
 // characters: mostra a turminha (AuthCharacters). reaction: { type:
 // 'error' | 'success', key } pra eles reagirem ao resultado do formulário.
 export default function AuthLayout({ title, subtitle, children, footer, wide = false, showcase = true, characters = true, reaction = null }) {
-  const appsRef = useIconStunts();
   useEffect(() => {
     const html = document.documentElement;
     html.classList.add('auth-no-zoom');
@@ -54,7 +65,7 @@ export default function AuthLayout({ title, subtitle, children, footer, wide = f
   const charsAboveForm = characters && !charsInShowcase;
 
   return (
-    <div className={`pc-auth${wide ? ' pc-auth-wide' : ''}${showcase ? '' : ' pc-auth-solo'}`}>
+    <div className={`pc-auth pc-auth-mono${wide ? ' pc-auth-wide' : ''}${showcase ? '' : ' pc-auth-solo'}`}>
       <div className="pc-auth-glow" aria-hidden="true" />
       {/* O grão é maior que a tela (pra poder "tremer"); a moldura recorta,
           senão ele aumentava a área rolável do <body> e qualquer rolagem
@@ -69,31 +80,32 @@ export default function AuthLayout({ title, subtitle, children, footer, wide = f
           </div>
 
           {charsInShowcase && (
-            <div className="pc-showcase-chars"><AuthCharacters reaction={reaction} /></div>
+            <div className="pc-showcase-chars">
+              <AuthCharacters reaction={reaction} />
+              <p className="pc-chars-hint">Toque pra trocar o acessório · arraste pra fazer carinho</p>
+            </div>
           )}
 
           <div className="pc-showcase-copy">
-            <span className="pc-eyebrow">▶ comunidade · apps · grátis</span>
             <h2 className="pc-showcase-title" aria-label="Project Club">
-              {['Project', 'Club'].map((w, wi) => (
-                <span key={w} className="pc-word">
-                  {[...w].map((ch, i) => <span key={i} className="pc-char" style={{ '--d': `${wi * 360 + i * 45}ms` }}>{ch}</span>)}
-                </span>
-              ))}
+              <Wordmark text="Project" />
+              <Wordmark text="Club" offset={7} />
             </h2>
-            <p>Chat, voz, fórum, conquistas e nove programas de criação, numa conta só.</p>
+            <p className="pc-statement" aria-label={STATEMENT}>
+              {STATEMENT.split(' ').map((w, i) => <span key={i} aria-hidden="true" style={{ '--i': i }}>{w} </span>)}
+            </p>
           </div>
 
-          <div className="pc-showcase-apps" ref={appsRef}>
-            {SHOWCASE_APPS.map((id, i) => (
-              <img key={id} src={`/apps/${id}/icon.png`} alt="" style={{ '--i': i }} loading="lazy" data-app={id} onPointerEnter={(e) => playIconStunt(e.currentTarget)} />
+          <div className="pc-marquee">
+            {[false, true].map((rev) => (
+              <div key={String(rev)} className={`pc-marquee-row${rev ? ' is-rev' : ''}`}>
+                {[0, 1].map((k) => (
+                  <span key={k} className="pc-marquee-track">
+                    {MARQUEE.map((w) => <span key={w} className="pc-marquee-item">{w}<i>✳</i></span>)}
+                  </span>
+                ))}
+              </div>
             ))}
-          </div>
-
-          <div className="pc-ticker">
-            <div className="pc-ticker-track">
-              {[...TICKER, ...TICKER].map((t, i) => <span key={i}>{t}<i>✦</i></span>)}
-            </div>
           </div>
         </aside>
       )}
