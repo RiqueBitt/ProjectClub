@@ -92,7 +92,10 @@ async fn configuracoes() {
     assert_eq!(s["textScale"], 1.2);
     assert_eq!(s["saturation"], 50);
     assert_eq!(s["showAvatars"], false);
-    assert_eq!(s["layoutPrefs"], json!({ "density": "compact", "visual": "club", "theme": "claro" }));
+    assert_eq!(
+        s["layoutPrefs"],
+        json!({ "density": "compact", "visual": "club", "theme": "claro" })
+    );
     assert_eq!(s["extraPrefs"]["quietHours"]["days"], json!([1, 3]));
     assert_eq!(s["voiceVolumes"], json!({ "amigo": 150 }));
     let raw: String = sqlx::query_scalar("SELECT extraPrefs FROM UserSettings WHERE userId = ?")
