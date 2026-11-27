@@ -61,6 +61,8 @@ jobs:
           done
       - id: v
         shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: |
           set -e
           # Só tags de versão (vX.Y.Z): a release fixa "android-nativo" (app nativo)
@@ -73,24 +75,29 @@ jobs:
             COMMITS=$(git log "$LAST_TAG"..HEAD --pretty=format:"%s")
           fi
 
-          MAJOR=$(echo "$LAST_TAG" | sed 's/^v//' | cut -d. -f1)
-          MINOR=$(echo "$LAST_TAG" | sed 's/^v//' | cut -d. -f2)
-          PATCH=$(echo "$LAST_TAG" | sed 's/^v//' | cut -d. -f3)
-
-          # Convenção: "feat!:" ou "BREAKING CHANGE" no corpo = versão
-          # maior (quebra compatibilidade); "feat:" sozinho = versão
-          # média (recurso novo); qualquer outra coisa (fix:, chore:,
-          # docs:, ou sem prefixo nenhum) = versão de correção — sempre
-          # sobe PELO MENOS o patch, nunca gera a mesma versão duas vezes.
-          if echo "$COMMITS" | grep -qiE "^feat!|BREAKING CHANGE"; then
-            MAJOR=$((MAJOR + 1)); MINOR=0; PATCH=0
-          elif echo "$COMMITS" | grep -qiE "^feat(\(|:)"; then
-            MINOR=$((MINOR + 1)); PATCH=0
-          else
-            PATCH=$((PATCH + 1))
+          # Convenção: "feat!:" ou "BREAKING CHANGE" = versão maior (quebra
+          # compatibilidade); "feat:" sozinho = versão média (recurso novo);
+          # qualquer outra coisa (fix:, chore:, docs:, ou sem prefixo nenhum)
+          # = versão de correção.
+          #
+          # BUG CORRIGIDO ("o download do site parou numa versão velha"): a
+          # conta partia só da última tag do histórico. Quando o número
+          # calculado já existia (a v1.45.0 tinha saído antes da v1.44.40),
+          # todo build novo era publicado DENTRO da release antiga, que não é
+          # a "mais recente" do GitHub — e é a "mais recente" que os links do
+          # site e a atualização automática dos apps leem. Agora a conta parte
+          # da MAIOR versão que já existe (tags e releases), então a versão
+          # nova nunca repete uma que já saiu. Ver .github/scripts/next-version.js.
+          EXISTING="$(git tag -l 'v[0-9]*'; gh release list --repo "${{ github.repository }}" --limit 300 --json tagName -q '.[].tagName' || true)"
+          VERSION=$(printf '%s\n' "$COMMITS" | LAST_TAG="$LAST_TAG" EXISTING="$EXISTING" node .github/scripts/next-version.js)
+          case "$VERSION" in
+            v[0-9]*.[0-9]*.[0-9]*) ;;
+            *) echo "::error::Não deu pra calcular a versão nova (veio '$VERSION')."; exit 1 ;;
+          esac
+          if printf '%s\n' "$EXISTING" | grep -qx "$VERSION"; then
+            echo "::error::A versão $VERSION já existe; publicar nela de novo deixaria os downloads parados."; exit 1
           fi
-          VERSION="v${MAJOR}.${MINOR}.${PATCH}"
-          echo "Última versão: $LAST_TAG -> Nova versão: $VERSION"
+          echo "Última versão no histórico: $LAST_TAG -> Nova versão: $VERSION"
 
           # Changelog = lista dos commits desde a última tag, sem os hashes
           # de merge automáticos do GitHub e sem linhas vazias — em
@@ -123,6 +130,11 @@ jobs:
     defaults:
       run:
         working-directory: desktop
+    env:
+      VERSION: ${{ needs.compute-version.outputs.version }}
+      REPO: ${{ github.repository }}
+      # Endereço fixo da release DESTA versão: é dele que o instalador baixa o app.
+      PACKAGE_BASE: https://github.com/${{ github.repository }}/releases/download/${{ needs.compute-version.outputs.version }}
     steps:
       - uses: actions/checkout@v4
       # Desktop sem mudança: reaproveita o instalador da versão anterior
@@ -138,18 +150,24 @@ jobs:
         run: |
           set -e
           PREV="${{ needs.compute-version.outputs.last_tag }}"
-          VERSION="${{ needs.compute-version.outputs.version }}"
-          REPO="${{ github.repository }}"
           mkdir -p "$RUNNER_TEMP/prev"
-          if ! gh release download "$PREV" --repo "$REPO" --dir "$RUNNER_TEMP/prev" -p 'ProjectClub-Setup-Windows.exe' -p 'ProjectClub-Setup-Windows.exe.blockmap' -p 'latest.yml' --clobber; then
+          if ! gh release download "$PREV" --repo "$REPO" --dir "$RUNNER_TEMP/prev" -p 'ProjectClub-Setup-Windows.exe' -p 'latest.yml' --clobber; then
             echo "Versão anterior sem os arquivos; vai gerar de novo."; exit 0
           fi
-          for f in ProjectClub-Setup-Windows.exe ProjectClub-Setup-Windows.exe.blockmap latest.yml; do [ -f "$RUNNER_TEMP/prev/$f" ] || { echo "Falta $f na $PREV; vai gerar de novo."; exit 0; }; done
+          for f in ProjectClub-Setup-Windows.exe latest.yml; do [ -f "$RUNNER_TEMP/prev/$f" ] || { echo "Falta $f na $PREV; vai gerar de novo."; exit 0; }; done
+          # O instalador é pequeno e baixa o app (.7z) da release em que foi gerado, e o
+          # latest.yml aponta pro mesmo lugar. Só dá pra reaproveitar os dois se esse
+          # pacote continuar no ar (e se a versão anterior já era desse tipo de instalador).
+          PKG_URL=$(grep -oE "https://[^ \"']+\.7z" "$RUNNER_TEMP/prev/latest.yml" | head -n 1 || true)
+          # (Pede só o primeiro byte: o GitHub recusa pedido "HEAD" nos arquivos de release.)
+          if [ -z "$PKG_URL" ] || ! curl -fsSL --retry 3 -r 0-0 -o /dev/null "$PKG_URL"; then
+            echo "A $PREV não tem o pacote do app no ar; vai gerar de novo."; exit 0
+          fi
           gh release view "$VERSION" --repo "$REPO" >/dev/null 2>&1 || \
-            gh release create "$VERSION" --repo "$REPO" --title "$VERSION" --notes "Gerado automaticamente pelo GitHub Actions." --latest || true
-          for f in ProjectClub-Setup-Windows.exe ProjectClub-Setup-Windows.exe.blockmap latest.yml; do
-            for i in 1 2 3; do gh release upload "$VERSION" "$RUNNER_TEMP/prev/$f" --repo "$REPO" --clobber && break || sleep 10; done
-          done
+            gh release create "$VERSION" --repo "$REPO" --target "${{ github.sha }}" --title "$VERSION" --notes "Gerado automaticamente pelo GitHub Actions." --latest=false || true
+          upload() { for i in 1 2 3; do gh release upload "$VERSION" "$1" --repo "$REPO" --clobber && return 0; echo "Tentativa $i falhou, esperando..."; sleep 10; done; return 1; }
+          upload "$RUNNER_TEMP/prev/ProjectClub-Setup-Windows.exe"
+          upload "$RUNNER_TEMP/prev/latest.yml"
           echo "ok=true" >> "$GITHUB_OUTPUT"
       - uses: actions/setup-node@v4
         if: steps.reuse.outputs.ok != 'true'
@@ -161,110 +179,84 @@ jobs:
       - name: Gravar a versão no app
         if: steps.reuse.outputs.ok != 'true'
         shell: bash
-        run: npm version "${{ needs.compute-version.outputs.version }}" --no-git-tag-version --allow-same-version
+        run: |
+          set -e
+          npm version "$VERSION" --no-git-tag-version --allow-same-version
+          node scripts/installer-manifest.js set-package-url "$PACKAGE_BASE"
       # VPN do app (vpnManager.js): o OpenVPN oficial vai dentro do instalador.
       - name: Baixar e conferir o OpenVPN embutido
         if: steps.reuse.outputs.ok != 'true'
         shell: pwsh
         run: ./scripts/fetch-openvpn.ps1
+      # Sai em desktop/dist/nsis-web:
+      #   ProjectClub-Setup-Windows.exe          o instalador (pequeno; é o que o site oferece)
+      #   project-club-desktop-<versão>-x64.nsis.7z   o app inteiro, que o instalador baixa
+      #   latest.yml                             o que os apps instalados leem pra se atualizar
+      # Ver "win", "nsis" e "nsisWeb" no desktop/package.json e desktop/build/installer.nsh.
       - name: Gerar o instalador .exe
         if: steps.reuse.outputs.ok != 'true'
         run: npm run build:win
-      # Item pedido: sistema de atualização automática (electron-updater,
-      # mesma biblioteca usada pelo GoldApple Launcher — confirmei pelo
-      # formato dos arquivos publicados nas releases dele no GitHub:
-      # latest.yml + .blockmap, a marca registrada dessa biblioteca).
-      #
-      # O electron-builder já gera esse latest.yml sozinho durante o
-      # build acima — só que ele aponta pro nome ORIGINAL do instalador
-      # (com a versão no nome, tipo "Project Club Setup 1.0.27.exe"). Só
-      # que o passo seguinte RENOMEIA o .exe pra um nome FIXO (pra
-      # manter uma URL de download sempre igual pro site) — sem corrigir
-      # o latest.yml pra apontar pro nome novo, o electron-updater dos
-      # apps já instalados tentaria baixar um arquivo com o nome errado,
-      # que não existe na release. Esse passo corrige o latest.yml pra
-      # apontar pro nome fixo certo (o hash sha512 continua o mesmo —
-      # é do CONTEÚDO do arquivo, não do nome dele).
-      - name: Corrigir latest.yml pro nome fixo do instalador
+      # Sistema de atualização automática (electron-updater): o latest.yml que o
+      # electron-builder gera lista o pacote do app só pelo NOME, e o app instalado
+      # iria procurar esse nome em .../releases/latest/download/, que só responde
+      # enquanto esta for a versão mais nova. Aqui o nome vira o endereço completo
+      # dentro da release desta versão.
+      - name: Apontar o latest.yml pro pacote desta versão
         if: steps.reuse.outputs.ok != 'true'
         shell: bash
         run: |
           set -e
-          # No runner Windows o comando certo é "python" (sem o 3) — e
-          # o módulo PyYAML não vem garantido pré-instalado, então
-          # instala explicitamente antes de usar, pra não arriscar o
-          # passo falhar por um módulo faltando.
-          pip install pyyaml --quiet
-          python -c "
-          import yaml, glob, os
-          exe_name = os.path.basename(glob.glob('dist/*.exe')[0])
-          with open('dist/latest.yml') as f:
-              data = yaml.safe_load(f)
-          data['path'] = 'ProjectClub-Setup-Windows.exe'
-          for entry in data.get('files', []):
-              entry['url'] = 'ProjectClub-Setup-Windows.exe'
-          with open('dist/latest.yml', 'w') as f:
-              yaml.safe_dump(data, f, default_flow_style=False, sort_keys=False)
-          blockmap_src = f'dist/{exe_name}.blockmap'
-          if os.path.exists(blockmap_src):
-              os.rename(blockmap_src, 'dist/ProjectClub-Setup-Windows.exe.blockmap')
-          print('latest.yml corrigido, exe original era:', exe_name)
-          "
-      # Publica como asset de uma GitHub Release (não mais como arquivo
-      # dentro de uma pasta comum do repositório) — sem limite de 100MB
-      # (releases aceitam até 2GB por arquivo), e sem risco de corrida
-      # com os outros dois jobs rodando ao mesmo tempo: cada um só sobe
-      # o SEU PRÓPRIO arquivo pra dentro da mesma release "latest", sem
-      # precisar dar git push (que é o que causava a disputa antes).
+          ls -la dist/nsis-web
+          node scripts/installer-manifest.js pin dist/nsis-web/latest.yml "$PACKAGE_BASE"
+          cat dist/nsis-web/latest.yml
+      # Instala e desinstala de verdade nesta máquina antes de publicar qualquer coisa:
+      # tamanho do instalador, pasta "Project Club", registro, atalhos, desinstalação.
+      - name: Testar o instalador (instala e desinstala de verdade)
+        if: steps.reuse.outputs.ok != 'true'
+        run: node scripts/check-installer.js --dist dist/nsis-web --scenarios manifest,fresh
+      # Publica como asset de uma GitHub Release (sem limite de 100MB, e sem disputa
+      # com os outros dois jobs: cada um só sobe o SEU arquivo pra mesma release).
       #
-      # BUG CORRIGIDO ("o .apk e o .AppImage não estavam baixando pelo
-      # site"): antes o nome final do arquivo publicado vinha da sintaxe
-      # "caminho#Rótulo" do `gh release upload` — só que isso troca só o
-      # RÓTULO exibido na tela do GitHub, não o nome de verdade do
-      # arquivo (que é o que forma a URL de download). O site linkava pra
-      # "ProjectClub-Setup-Windows.exe", mas o arquivo publicado
-      # continuava com o nome que o electron-builder/gradle geram sozinhos
-      # (ex: "Project.Club.Setup.1.0.0.exe") — 404 pra quem clicava no
-      # site. Agora o arquivo é copiado/renomeado de verdade ANTES de
-      # subir, então o nome publicado é exatamente o que o site espera.
-      - name: Publicar na Release "latest"
+      # A ordem importa: primeiro o pacote do app, depois um teste em que o instalador
+      # baixa esse pacote do GitHub de verdade, e só então o instalador e o latest.yml.
+      # Assim ninguém recebe um instalador que aponta pra um pacote que ainda não subiu.
+      # A release nasce SEM ser a "mais recente": quem troca isso é o job finalize, no
+      # fim, com tudo no lugar — os links do site nunca apontam pra uma release pela metade.
+      - name: Publicar o pacote do app na release
         if: steps.reuse.outputs.ok != 'true'
         shell: bash
         env:
-          OWN_TOKEN: ${{ github.token }}
+          GH_TOKEN: ${{ github.token }}
         run: |
           set -e
-          EXE_PATH=$(ls dist/*.exe | head -n 1)
-          cp "$EXE_PATH" "$RUNNER_TEMP/ProjectClub-Setup-Windows.exe"
-          cp "dist/ProjectClub-Setup-Windows.exe.blockmap" "$RUNNER_TEMP/ProjectClub-Setup-Windows.exe.blockmap"
-          cp "dist/latest.yml" "$RUNNER_TEMP/latest.yml"
-          # Publica neste repositório (lugar oficial dos downloads).
-          publish() {
-            REPO="$1"
-            # Item pedido: "não quero que apague as versões antigas" — cada
-            # build agora cria a SUA PRÓPRIA release (marcada com a versão
-            # de verdade, tipo v1.2.3), em vez de sempre reescrever a
-            # mesma release fixa "latest" por cima. --latest marca essa
-            # release nova como a mais recente pro GitHub (então o link
-            # .../releases/latest/download/... — usado tanto pelo site
-            # quanto pelo electron-updater — continua funcionando sozinho,
-            # sempre apontando pra versão mais nova automaticamente) — mas
-            # as releases anteriores continuam existindo, intactas,
-            # acessíveis pra quem quiser baixar uma versão antiga.
-            VERSION="${{ needs.compute-version.outputs.version }}"
-            gh release view "$VERSION" --repo "$REPO" >/dev/null 2>&1 || \
-              gh release create "$VERSION" --repo "$REPO" --title "$VERSION" \
-                --notes "Gerado automaticamente pelo GitHub Actions." --latest || true
-            for i in 1 2 3; do gh release upload "$VERSION" "$RUNNER_TEMP/ProjectClub-Setup-Windows.exe" --repo "$REPO" --clobber && break || { echo "Tentativa $i falhou, esperando..."; sleep 10; }; done
-            # Item pedido: sistema de atualização automática — esses 2
-            # arquivos são o que o electron-updater, já instalado nos
-            # apps das pessoas, vai procurar sozinho pra saber se tem
-            # versão nova (latest.yml) e baixar só a diferença de bytes
-            # em vez do instalador inteiro de novo (.blockmap).
-            for i in 1 2 3; do gh release upload "$VERSION" "$RUNNER_TEMP/ProjectClub-Setup-Windows.exe.blockmap" --repo "$REPO" --clobber && break || { echo "Tentativa $i falhou, esperando..."; sleep 10; }; done
-            for i in 1 2 3; do gh release upload "$VERSION" "$RUNNER_TEMP/latest.yml" --repo "$REPO" --clobber && break || { echo "Tentativa $i falhou, esperando..."; sleep 10; }; done
-          }
-          export GH_TOKEN="$OWN_TOKEN"; publish "${{ github.repository }}"
+          # Item pedido: "não quero que apague as versões antigas" — cada build
+          # cria a SUA PRÓPRIA release (v1.2.3); as anteriores continuam lá.
+          gh release view "$VERSION" --repo "$REPO" >/dev/null 2>&1 || \
+            gh release create "$VERSION" --repo "$REPO" --target "${{ github.sha }}" --title "$VERSION" \
+              --notes "Gerado automaticamente pelo GitHub Actions." --latest=false || true
+          PACKAGE=$(ls dist/nsis-web/*.nsis.7z | head -n 1)
+          for i in 1 2 3; do gh release upload "$VERSION" "$PACKAGE" --repo "$REPO" --clobber && break; echo "Tentativa $i falhou, esperando..."; sleep 10; done
+          # Espera o GitHub começar a servir o arquivo.
+          URL="$PACKAGE_BASE/$(basename "$PACKAGE")"
+          # (pede só o primeiro byte: o GitHub recusa pedido "HEAD" nos arquivos de release)
+          for i in $(seq 1 30); do curl -fsSL -r 0-0 -o /dev/null "$URL" && { echo "No ar: $URL"; exit 0; }; sleep 5; done
+          echo "::error::O pacote do app não ficou disponível em $URL"; exit 1
+      - name: Testar o instalador baixando o app do GitHub
+        if: steps.reuse.outputs.ok != 'true'
+        run: node scripts/check-installer.js --dist dist/nsis-web --scenarios download
+      - name: Publicar o instalador e o latest.yml na release
+        if: steps.reuse.outputs.ok != 'true'
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -e
+          upload() { for i in 1 2 3; do gh release upload "$VERSION" "$1" --repo "$REPO" --clobber && return 0; echo "Tentativa $i falhou, esperando..."; sleep 10; done; return 1; }
+          # O nome do instalador é fixo (nsisWeb.artifactName), pra URL de download do
+          # site ser sempre a mesma. O latest.yml vai por último: é ele que avisa os
+          # apps instalados que tem versão nova.
+          upload dist/nsis-web/ProjectClub-Setup-Windows.exe
+          upload dist/nsis-web/latest.yml
 
   build-linux:
     needs: compute-version
@@ -297,7 +289,7 @@ jobs:
           fi
           for f in ProjectClub-Linux.AppImage latest-linux.yml; do [ -f "$RUNNER_TEMP/prev/$f" ] || { echo "Falta $f na $PREV; vai gerar de novo."; exit 0; }; done
           gh release view "$VERSION" --repo "$REPO" >/dev/null 2>&1 || \
-            gh release create "$VERSION" --repo "$REPO" --title "$VERSION" --notes "Gerado automaticamente pelo GitHub Actions." --latest || true
+            gh release create "$VERSION" --repo "$REPO" --target "${{ github.sha }}" --title "$VERSION" --notes "Gerado automaticamente pelo GitHub Actions." --latest=false || true
           for f in ProjectClub-Linux.AppImage latest-linux.yml; do
             for i in 1 2 3; do gh release upload "$VERSION" "$RUNNER_TEMP/prev/$f" --repo "$REPO" --clobber && break || sleep 10; done
           done
@@ -360,8 +352,8 @@ jobs:
             # sempre a mesma release "latest" por cima.
             VERSION="${{ needs.compute-version.outputs.version }}"
             gh release view "$VERSION" --repo "$REPO" >/dev/null 2>&1 || \
-              gh release create "$VERSION" --repo "$REPO" --title "$VERSION" \
-                --notes "Gerado automaticamente pelo GitHub Actions." --latest || true
+              gh release create "$VERSION" --repo "$REPO" --target "${{ github.sha }}" --title "$VERSION" \
+                --notes "Gerado automaticamente pelo GitHub Actions." --latest=false || true
             for i in 1 2 3; do gh release upload "$VERSION" "$RUNNER_TEMP/ProjectClub-Linux.AppImage" --repo "$REPO" --clobber && break || { echo "Tentativa $i falhou, esperando..."; sleep 10; }; done
             for i in 1 2 3; do gh release upload "$VERSION" "$RUNNER_TEMP/latest-linux.yml" --repo "$REPO" --clobber && break || { echo "Tentativa $i falhou, esperando..."; sleep 10; }; done
             # O .blockmap só existe se o electron-builder decidiu gerar um
@@ -483,8 +475,8 @@ jobs:
             # reescrever sempre a mesma release "latest" por cima.
             VERSION="${{ needs.compute-version.outputs.version }}"
             gh release view "$VERSION" --repo "$REPO" >/dev/null 2>&1 || \
-              gh release create "$VERSION" --repo "$REPO" --title "$VERSION" \
-                --notes "Gerado automaticamente pelo GitHub Actions." --latest || true
+              gh release create "$VERSION" --repo "$REPO" --target "${{ github.sha }}" --title "$VERSION" \
+                --notes "Gerado automaticamente pelo GitHub Actions." --latest=false || true
             for i in 1 2 3; do gh release upload "$VERSION" "$RUNNER_TEMP/ProjectClub.apk" --repo "$REPO" --clobber && break || { echo "Tentativa $i falhou, esperando..."; sleep 10; }; done
             # Diz ao servidor (GET /api/mobile/update) se este .apk é
             # obrigatório ou se os apps já instalados continuam servindo.
@@ -553,6 +545,72 @@ jobs:
           gh release edit "${{ needs.compute-version.outputs.version }}" --repo "${{ github.repository }}" \
             --title "Project Club ${{ needs.compute-version.outputs.version }}" \
             --notes-file /tmp/changelog.txt || true
+
+      # As releases nascem sem ser a "mais recente" (ver os jobs de build). Só aqui,
+      # com os arquivos de PC já publicados, esta vira a "mais recente" — e é nessa
+      # hora que os links .../releases/latest/download/... do site e a atualização
+      # automática dos apps passam pra versão nova, todos de uma vez. Se um build
+      # de PC falhar, este job nem roda e os downloads continuam na versão anterior.
+      #
+      # Se o build do Android falhou, a release nova sai sem o .apk e o link do site
+      # daria erro: copia o .apk (e o android-native.json dele) da release anterior.
+      - name: Completar com o app Android anterior (se o build dele falhou)
+        if: needs.build-android.result != 'success'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          VERSION="${{ needs.compute-version.outputs.version }}"
+          REPO="${{ github.repository }}"
+          CURRENT=$(gh api "repos/$REPO/releases/latest" --jq .tag_name || true)
+          HAVE=$(gh api "repos/$REPO/releases/tags/$VERSION" --jq '[.assets[].name] | join(" ")' || true)
+          for f in ProjectClub.apk android-native.json; do
+            case " $HAVE " in *" $f "*) continue ;; esac
+            if [ -n "$CURRENT" ] && gh release download "$CURRENT" --repo "$REPO" -p "$f" --dir /tmp/android-anterior --clobber \
+              && gh release upload "$VERSION" "/tmp/android-anterior/$f" --repo "$REPO" --clobber; then
+              echo "Copiado $f da $CURRENT."
+            else
+              echo "::warning::Não deu pra copiar $f da release anterior; o download do Android pode falhar até o próximo build."
+            fi
+          done
+
+      - name: Marcar esta release como a mais recente
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          VERSION="${{ needs.compute-version.outputs.version }}"
+          REPO="${{ github.repository }}"
+          NOW=""
+          for i in 1 2 3 4 5 6; do
+            gh release edit "$VERSION" --repo "$REPO" --latest || true
+            NOW=$(gh api "repos/$REPO/releases/latest" --jq .tag_name || true)
+            [ "$NOW" = "$VERSION" ] && break
+            echo "A mais recente ainda é '$NOW'; tentando de novo..."; sleep 10
+          done
+          if [ "$NOW" != "$VERSION" ]; then
+            echo "::error::A release $VERSION não virou a mais recente (continua '$NOW'): o site e os apps seguiriam na versão anterior."
+            exit 1
+          fi
+          echo "Release mais recente: $NOW"
+
+      # Confere os mesmos links que o site e os apps usam, já pela release nova.
+      # (Pede só o primeiro byte de cada arquivo: o GitHub recusa pedido "HEAD" neles.)
+      - name: Conferir os links de download
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          REPO="${{ github.repository }}"
+          BASE="https://github.com/$REPO/releases/latest/download"
+          FAILED=0
+          for f in ProjectClub-Setup-Windows.exe latest.yml ProjectClub-Linux.AppImage latest-linux.yml; do
+            if curl -fsSL --retry 6 --retry-delay 5 --retry-all-errors -r 0-0 -o /dev/null "$BASE/$f"; then echo "ok   $f"; else echo "::error::O link de download de $f não responde."; FAILED=1; fi
+          done
+          curl -fsSL --retry 3 --retry-delay 5 --retry-all-errors -r 0-0 -o /dev/null "$BASE/ProjectClub.apk" && echo "ok   ProjectClub.apk" || echo "::warning::O link de download do ProjectClub.apk não responde."
+          echo "Versão que os apps de Windows instalados vão enxergar:"
+          curl -fsSL --retry 3 "$BASE/latest.yml" | grep -E '^version:' || true
+          SIZE=$(gh api "repos/$REPO/releases/latest" --jq '.assets[] | select(.name == "ProjectClub-Setup-Windows.exe") | .size' || echo 0)
+          echo "Tamanho do instalador do Windows: ${SIZE:-0} bytes"
+          if [ "${SIZE:-0}" -gt 52428800 ]; then echo "::error::O instalador do Windows passou de 50 MB ($SIZE bytes)."; FAILED=1; fi
+          exit $FAILED
 
       - name: Avisar o site (Atualizações + verificação de versão nova)
         if: needs.compute-version.outputs.apps_changed == 'true'

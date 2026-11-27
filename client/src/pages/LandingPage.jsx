@@ -277,7 +277,7 @@ export default function LandingPage() {
             </div>
             <ul className="lc-dl-list">
               {[
-                { key: 'windows', name: 'Windows', desc: 'Instalador .exe, Windows 10 e 11', href: DOWNLOADS.windows },
+                { key: 'windows', name: 'Windows', desc: 'Instalador .exe que baixa o app, Windows 10 e 11', href: DOWNLOADS.windows },
                 { key: 'linux', name: 'Linux', desc: 'AppImage, roda na maioria das distros', href: DOWNLOADS.linux },
                 { key: 'android', name: 'Android', desc: 'Arquivo .apk', href: DOWNLOADS.android },
                 { key: 'browser', name: 'Navegador', desc: 'Sem instalar nada' },

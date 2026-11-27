@@ -124,7 +124,7 @@ function UpdateButton() {
     {failMsg && !askOld && (
       <div className="app-update-pop" role="alertdialog" aria-label="A atualização não funcionou">
         <strong>Não deu pra atualizar pelo botão</strong>
-        <p>{failMsg} Baixe a versão {status?.version || latest || 'nova'} e abra o arquivo: {isLinux ? 'substitua o .AppImage antigo pelo novo (dê permissão de execução).' : 'ele fecha o Project Club, instala e abre de novo.'}</p>
+        <p>{failMsg} Baixe a versão {status?.version || latest || 'nova'} e abra o arquivo: {isLinux ? 'substitua o .AppImage antigo pelo novo (dê permissão de execução).' : 'clique em Instalar e ele fecha o Project Club, instala e abre de novo.'}</p>
         <div className="app-update-pop-actions">
           <button type="button" className="app-update-pop-btn primary" onClick={() => { window.electronAPI?.openExternal?.(INSTALLER_URL); setFailMsg(''); }}>{isLinux ? 'Baixar AppImage' : 'Baixar instalador'}</button>
           <button type="button" className="app-update-pop-btn" onClick={() => { setFailMsg(''); run(); }}>Tentar de novo</button>
@@ -135,7 +135,7 @@ function UpdateButton() {
     {askOld && (
       <div className="app-update-pop" role="dialog" aria-label="Atualizar o Project Club">
         <strong>Atualizar para a {latest || 'versão nova'}</strong>
-        <p>Sua versão ({current}) ainda não atualiza com um clique. Baixe o instalador da versão nova e abra o arquivo — ele fecha o Project Club, instala e abre de novo. Depois disso, as próximas atualizações são automáticas e por este botão.</p>
+        <p>Sua versão ({current}) ainda não atualiza com um clique. Baixe o instalador da versão nova, abra o arquivo{isLinux ? '' : ' e clique em Instalar'} — ele fecha o Project Club, instala e abre de novo. Depois disso, as próximas atualizações são automáticas e por este botão.</p>
         <div className="app-update-pop-actions">
           <button type="button" className="app-update-pop-btn primary" onClick={downloadInstaller}>Baixar instalador</button>
           <button type="button" className="app-update-pop-btn" onClick={closeAndInstall} title="Instala a atualização que o app já baixou (pode ser uma versão intermediária) e fecha — abra de novo depois de alguns segundos">Fechar e instalar o que já baixou</button>
