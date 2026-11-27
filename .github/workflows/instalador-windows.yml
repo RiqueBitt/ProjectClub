@@ -1,0 +1,109 @@
+name: Instalador do Windows (teste)
+
+# Gera o instalador do Windows e instala de verdade numa máquina limpa, em todas as situações:
+# instalação nova, baixando o app, com as telas, por cima da versão antiga (atualização automática
+# e instalador aberto pela pessoa) e desinstalação. Roda em Pull Requests que mexem no instalador;
+# nada daqui é publicado (o build de verdade é o build-apps.yml, na main).
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'desktop/package.json'
+      - 'desktop/build/**'
+      - 'desktop/scripts/**'
+      - '.github/workflows/instalador-windows.yml'
+  workflow_dispatch:
+
+concurrency:
+  group: instalador-windows-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  instalador:
+    runs-on: windows-latest
+    timeout-minutes: 45
+    defaults:
+      run:
+        working-directory: desktop
+    env:
+      # Versão de mentira, maior que qualquer uma de verdade, pra atualização "subir".
+      TEST_VERSION: 99.0.0
+      # O instalador de teste baixa o pacote do app de um servidor nesta própria máquina.
+      TEST_PORT: 48765
+      # Última versão com o instalador antigo ("um clique", pasta project-club-desktop).
+      LEGACY_TAG: v1.44.40
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Instalar dependências
+        run: npm install
+      - name: Gravar a versão de teste no app
+        shell: bash
+        run: |
+          set -e
+          npm version "$TEST_VERSION" --no-git-tag-version --allow-same-version
+          node scripts/installer-manifest.js set-package-url "http://127.0.0.1:$TEST_PORT"
+      - name: Baixar e conferir o OpenVPN embutido
+        shell: pwsh
+        run: ./scripts/fetch-openvpn.ps1
+      - name: Gerar o instalador .exe
+        run: npm run build:win
+      - name: Apontar o latest.yml pro pacote da versão
+        shell: bash
+        run: |
+          set -e
+          ls -la dist/nsis-web
+          node scripts/installer-manifest.js pin dist/nsis-web/latest.yml "https://github.com/${{ github.repository }}/releases/download/v$TEST_VERSION"
+          cat dist/nsis-web/latest.yml
+      - name: Baixar o instalador antigo (pra testar a passagem)
+        shell: bash
+        working-directory: .
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -e
+          mkdir -p "$RUNNER_TEMP/antigo"
+          gh release download "$LEGACY_TAG" --repo "${{ github.repository }}" -p 'ProjectClub-Setup-Windows.exe' --dir "$RUNNER_TEMP/antigo" --clobber
+          ls -la "$RUNNER_TEMP/antigo"
+      - name: Instalar, atualizar e desinstalar de verdade
+        shell: pwsh
+        run: >
+          node scripts/check-installer.js --dist dist/nsis-web --serve $env:TEST_PORT
+          --legacy "$env:RUNNER_TEMP\antigo\ProjectClub-Setup-Windows.exe" --shots "$env:RUNNER_TEMP\fotos"
+          --scenarios manifest,fresh,start-stress,download,ui,legacy-update,legacy-manual,launch
+      # As mesmas fotos, menores, dentro do log: dá pra conferir as telas sem baixar o arquivo.
+      - name: Mostrar as fotos das telas no log
+        if: always()
+        shell: pwsh
+        run: |
+          $dir = Join-Path $env:RUNNER_TEMP 'fotos'
+          if (-not (Test-Path $dir)) { Write-Host 'Sem fotos.'; exit 0 }
+          Add-Type -AssemblyName System.Drawing
+          $jpeg = [System.Drawing.Imaging.ImageCodecInfo]::GetImageEncoders() | Where-Object { $_.MimeType -eq 'image/jpeg' }
+          $quality = New-Object System.Drawing.Imaging.EncoderParameters 1
+          $quality.Param[0] = New-Object System.Drawing.Imaging.EncoderParameter ([System.Drawing.Imaging.Encoder]::Quality, [long]70)
+          foreach ($file in Get-ChildItem $dir -Filter *.png) {
+            $image = [System.Drawing.Image]::FromFile($file.FullName)
+            $scale = [Math]::Min(1.0, 900.0 / $image.Width)
+            $small = New-Object System.Drawing.Bitmap $image, ([int]($image.Width * $scale)), ([int]($image.Height * $scale))
+            $stream = New-Object System.IO.MemoryStream
+            $small.Save($stream, $jpeg, $quality)
+            $text = [Convert]::ToBase64String($stream.ToArray())
+            Write-Host "FOTO-INICIO $($file.BaseName)"
+            for ($i = 0; $i -lt $text.Length; $i += 4000) { Write-Host $text.Substring($i, [Math]::Min(4000, $text.Length - $i)) }
+            Write-Host "FOTO-FIM $($file.BaseName)"
+            $image.Dispose(); $small.Dispose(); $stream.Dispose()
+          }
+      - name: Guardar as fotos das telas do instalador
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: telas-do-instalador
+          path: ${{ runner.temp }}/fotos
+          if-no-files-found: ignore
+          retention-days: 14

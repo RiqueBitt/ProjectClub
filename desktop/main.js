@@ -2177,9 +2177,10 @@ if (!gotLock) {
       } catch (err) { console.warn('[inicialização] não deu pra configurar:', err.message); }
       writeLocalState({ autoStartInitialized: true });
     }
-    // Saiu de "Arquivos de Programas" pra instalação por usuário (sem aviso do
-    // Windows nas atualizações — ver build/installer.nsh): o "Iniciar com o
-    // Windows" apontava pro .exe antigo; passa pro novo, se estava ligado.
+    // O instalador mudou o app de pasta (ver build/installer.nsh: saiu de
+    // "Arquivos de Programas", ou da pasta antiga "project-club-desktop" pra
+    // "Project Club"): o "Iniciar com o Windows" e o ícone fixado na barra de
+    // tarefas apontavam pro .exe antigo; passam pro novo.
     if (process.platform === 'win32') {
       try {
         const { execFileSync } = require('child_process');
@@ -2191,6 +2192,9 @@ if (!gotLock) {
             app.setLoginItemSettings({ openAtLogin: false, path: oldExe });
             app.setLoginItemSettings({ openAtLogin: true, openAsHidden: true });
           }
+          try {
+            require('./pinnedShortcuts').repointPinnedShortcuts({ oldExe, newExe: process.execPath, appData: app.getPath('appData'), fs, shell });
+          } catch (err) { console.warn('[atalhos] não deu pra corrigir o ícone fixado:', err?.message || err); }
         }
         execFileSync('reg', ['delete', 'HKCU\\Software\\ProjectClub', '/v', 'OldExe', '/f'], { windowsHide: true });
       } catch { /* nada pra migrar */ }

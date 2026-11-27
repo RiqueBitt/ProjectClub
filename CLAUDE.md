@@ -29,6 +29,22 @@ Responda sempre em **português do Brasil**. Dono: RiqueBitt.
    e reinicie o app.
 4. Confira: `curl https://projectclub.shardweb.app/api/system/deployed` mostra o SHA no ar.
 
+## Apps (Windows, Linux, Android)
+
+Mudou `desktop/**`, `android-nativo/**` ou `client/src/**` na `main`? O `build-apps.yml` gera os apps e publica
+numa release nova (`vX.Y.Z`).
+
+- A versão sai de `.github/scripts/next-version.js`: parte da **maior** versão que já existe, nunca repete número.
+  (Antes repetia, os builds caíam dentro de uma release antiga e os downloads ficavam parados numa versão velha.)
+- A release nasce **sem** ser a "mais recente". O job `finalize` troca isso no fim, com tudo publicado, e confere os
+  links. Só aí os links `.../releases/latest/download/...` do site e a atualização automática passam pra ela.
+- O que está no ar: `curl -sL https://github.com/RiqueBitt/ProjectClub/releases/latest/download/latest.yml`.
+- Windows: instalador pequeno (`ProjectClub-Setup-Windows.exe`, tipo "nsis-web") com telas em português. Ele baixa
+  o app (`.7z`) da release da própria versão e instala em `%LOCALAPPDATA%\Programs\Project Club`, sem pedir
+  administrador. Configuração: `desktop/package.json` (`win`, `nsis`, `nsisWeb`) e `desktop/build/installer.nsh`.
+- Mexeu no instalador? O workflow "Instalador do Windows (teste)" roda no Pull Request e instala de verdade num
+  Windows limpo, inclusive por cima da versão antiga (`desktop/scripts/check-installer.js`).
+
 O Club Penguin (Praça e Mini-Jogos) foi **removido** em nov/2026 — só as emojis `:cp_*:`
 ficaram (`client/public/emoji-sets/clubpenguin`, `server/src/services/cpEmotes.js`).
 As tabelas dele no banco (`Plaza*`, `WaddlePenguin`…) ficaram (o `db push` roda sem
