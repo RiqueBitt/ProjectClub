@@ -16,7 +16,28 @@
 !ifndef BUILD_UNINSTALLER
   ; Pasta antiga que esta instalação está substituindo ("" = nenhuma).
   Var pcLegacyDir
+  ; "1" = a pasta que está no registro é só a anotação temporária do preInit.
+  Var pcTempLocation
 !endif
+
+; Defeito do modelo do electron-builder: numa máquina sem o app, o instalador às vezes fechava
+; sozinho logo ao abrir (erro 0xC0000005 do Windows). Pra descobrir a pasta padrão, o modelo lê
+; 16 KB de memória a partir de um texto de poucos bytes (multiUser.nsh, logo depois do
+; "SHGetKnownFolderPath"); quando esse pedaço passa do fim da memória do programa, o Windows
+; encerra o instalador. Esse trecho só roda quando o registro não tem a pasta de instalação.
+; Então, na instalação nova, a pasta padrão (a mesma que o modelo calcularia) é anotada no
+; registro por um instante aqui e apagada logo em seguida, no customInit: o modelo acha a pasta
+; no registro e não chega no trecho com defeito.
+!macro preInit
+  !ifndef BUILD_UNINSTALLER
+    StrCpy $pcTempLocation ""
+    ReadRegStr $R8 HKCU "${INSTALL_REGISTRY_KEY}" InstallLocation
+    ${If} $R8 == ""
+      WriteRegStr HKCU "${INSTALL_REGISTRY_KEY}" InstallLocation "$LOCALAPPDATA\Programs\${APP_FILENAME}"
+      StrCpy $pcTempLocation "1"
+    ${EndIf}
+  !endif
+!macroend
 
 !macro customInit
   ; Antes ainda, o app instalava pra todos os usuários (C:\Program Files\Project Club) e toda
@@ -36,11 +57,23 @@
   ${EndIf}
 
   ; Sempre "só para mim". Sem isto, um resto de instalação antiga em "Arquivos de Programas" faria
-  ; o instalador escolher "todos os usuários" sozinho e pedir administrador.
+  ; o instalador pedir administrador numa atualização silenciosa.
   !ifndef ONE_CLICK
     StrCpy $hasPerMachineInstallation "0"
   !endif
-  !insertmacro setInstallModePerUser
+  ${If} $installMode != "CurrentUser"
+    !insertmacro setInstallModePerUser
+  ${EndIf}
+
+  ; Apaga a anotação temporária do preInit: o registro volta a ficar como estava.
+  ${If} $pcTempLocation == "1"
+    DeleteRegValue HKCU "${INSTALL_REGISTRY_KEY}" InstallLocation
+    DeleteRegKey /ifempty HKCU "${INSTALL_REGISTRY_KEY}"
+    StrCpy $perUserInstallationFolder ""
+    !ifndef ONE_CLICK
+      StrCpy $hasPerUserInstallation "0"
+    !endif
+  ${EndIf}
 
   ; Pasta antiga -> pasta "Project Club" (só quando a pessoa abriu o instalador; ver o topo).
   ; $INSTDIR aqui é a pasta gravada no registro pela instalação anterior, ou a padrão nova.

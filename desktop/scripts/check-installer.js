@@ -269,6 +269,20 @@ async function installSilently(args, text, timeoutMs, file = installer) {
   return ok;
 }
 
+// O instalador antigo (o que estava publicado) tem o defeito que o novo corrige: numa máquina sem
+// o app, de vez em quando ele fecha sozinho logo ao abrir. Aqui ele só serve pra montar a
+// situação "versão antiga instalada", então tenta de novo até instalar.
+async function installLegacy() {
+  if (!LEGACY_INSTALLER) throw new Error('Passe --legacy <instalador antigo .exe>.');
+  for (let attempt = 1; attempt <= 10; attempt++) {
+    const { code } = await run(LEGACY_INSTALLER, ['/S']);
+    if (code === 0) {
+      return check(true, `instalador antigo (de um clique) instalou${attempt > 1 ? ` (na ${attempt}ª tentativa: nas outras ele fechou sozinho ao abrir)` : ''}`);
+    }
+  }
+  return check(false, 'instalador antigo (de um clique) instalou');
+}
+
 // ---------------------------------------------------------------------------------------------
 // Cenários
 // ---------------------------------------------------------------------------------------------
@@ -415,9 +429,8 @@ const scenarios = {
   },
 
   async 'legacy-update'() {
-    if (!LEGACY_INSTALLER) throw new Error('Passe --legacy <instalador antigo .exe>.');
     await cleanMachine();
-    equal((await run(LEGACY_INSTALLER, ['/S'])).code, 0, 'instalador antigo (de um clique) instalou');
+    if (!await installLegacy()) return;
     const before = snapshot();
     samePath(before.installLocation, LEGACY_DIR, 'a versão antiga fica em "project-club-desktop"');
     check(!!before.legacyVersion && exeVersion(before.legacyVersion) !== version, `versão antiga instalada: ${exeVersion(before.legacyVersion)}`);
@@ -440,9 +453,8 @@ const scenarios = {
   },
 
   async 'legacy-manual'() {
-    if (!LEGACY_INSTALLER) throw new Error('Passe --legacy <instalador antigo .exe>.');
     await cleanMachine();
-    equal((await run(LEGACY_INSTALLER, ['/S'])).code, 0, 'instalador antigo (de um clique) instalou');
+    if (!await installLegacy()) return;
     samePath(snapshot().installLocation, LEGACY_DIR, 'a versão antiga fica em "project-club-desktop"');
 
     // A pessoa baixou o instalador novo do site e abriu (aqui em silêncio pra não depender das telas).
