@@ -23,7 +23,32 @@ export const DEFAULT_LAYOUT_PREFS = Object.freeze({
   colorblindStrength: 100, // 0–100: o quanto as cores trocam (e o filtro age)
   colorblindFilter: false, // filtro de correção de cor no app inteiro (afeta imagens)
   statusShapes: false, // ícones além de cores nas bolinhas de status
+  // Visual (nov/2026): "club" é o visual novo (preto e branco do site +
+  // grafite do app, ver styles/club.css); "classic" volta pro de antes.
+  visual: 'club', // club | classic
+  theme: 'preto', // preto | grafite | meianoite | claro (só no visual novo)
+  accent: 'azul', // cor de destaque: ver CLUB_ACCENTS
 });
+
+// Temas e cores de destaque do visual novo (Configurações → Aparência).
+export const CLUB_THEMES = [
+  { id: 'preto', label: 'Preto', bg: '#0B0B0C', panel: '#111215', ink: '#ECEDEF' },
+  { id: 'grafite', label: 'Grafite', bg: '#18191C', panel: '#1F2024', ink: '#ECEDEF' },
+  { id: 'meianoite', label: 'Meia-noite', bg: '#0A0F1C', panel: '#0F1626', ink: '#E8ECF5' },
+  { id: 'claro', label: 'Claro', bg: '#FFFFFF', panel: '#F4F4F5', ink: '#0B0B0C' },
+];
+export const CLUB_ACCENTS = [
+  { id: 'azul', label: 'Azul', color: '#4C9FFF' },
+  { id: 'roxo', label: 'Roxo', color: '#A970FF' },
+  { id: 'verde', label: 'Verde', color: '#3DD68C' },
+  { id: 'laranja', label: 'Laranja', color: '#FF8A3D' },
+  { id: 'rosa', label: 'Rosa', color: '#FF6FAE' },
+  { id: 'vermelho', label: 'Vermelho', color: '#FF5A5F' },
+  { id: 'amarelo', label: 'Amarelo', color: '#F5C518' },
+  { id: 'mono', label: 'Preto e branco', color: '#FFFFFF' },
+];
+const CLUB_THEME_IDS = CLUB_THEMES.map((t) => t.id);
+const CLUB_ACCENT_IDS = CLUB_ACCENTS.map((a) => a.id);
 
 export const COLORBLIND_MODES = ['none', 'protanopia', 'deuteranopia', 'tritanopia', 'achromatopsia'];
 
@@ -58,6 +83,9 @@ export function normalizeLayoutPrefs(raw) {
     colorblindStrength: clampInt(p.colorblindStrength, 0, 100, d.colorblindStrength),
     colorblindFilter: typeof p.colorblindFilter === 'boolean' ? p.colorblindFilter : d.colorblindFilter,
     statusShapes: typeof p.statusShapes === 'boolean' ? p.statusShapes : d.statusShapes,
+    visual: ['club', 'classic'].includes(p.visual) ? p.visual : d.visual,
+    theme: CLUB_THEME_IDS.includes(p.theme) ? p.theme : d.theme,
+    accent: CLUB_ACCENT_IDS.includes(p.accent) ? p.accent : d.accent,
   };
 }
 
@@ -272,6 +300,12 @@ export function applyLayoutPrefs(prefs, { reducedMotion = false } = {}) {
 
   const season = p.seasonal ? currentSeason() : null;
   setAttr('data-pc-season', !!season, season || '');
+
+  // Visual novo + tema + cor de destaque (styles/club.css).
+  setAttr('data-visual', p.visual === 'club', 'club');
+  setAttr('data-club-theme', p.visual === 'club', p.theme);
+  setAttr('data-accent', p.visual === 'club', p.accent);
+  html.style.colorScheme = p.visual === 'club' && p.theme === 'claro' ? 'light' : 'dark';
 
   applyColorVision(p);
   return { prefs: p, season, motionOff };

@@ -18,6 +18,7 @@ import errorIcon from '../assets/icons/error.png';
 import ListSkeleton from './ListSkeleton.jsx';
 import { conversationPath } from '../utils/prettyLinks';
 import RoleIcon from './RoleIcon.jsx';
+import AgoraPanel from './AgoraPanel.jsx';
 
 function highestRole(member, roles) {
   const mine = (roles || []).filter((r) => !r.isDefault && member.roleIds?.includes(r.id));
@@ -65,8 +66,12 @@ export default function MembersList({ onToggle }) {
   }
   const restOnline = online.filter((m) => !used.has(m.user.id));
 
+  // Visual novo: "Agora" (calls, quem está jogando, eventos) em cima da lista.
+  const club = useStore((s) => s.layoutPrefs.visual) === 'club';
+
   return (
-    <aside className="members-list" aria-label="Membros">
+    <aside className={`members-list${club ? ' has-agora' : ''}`} aria-label="Membros">
+      {club && <AgoraPanel />}
       <div className="members-list-head">
         <span className="members-list-title">
           Membros{communityLoaded ? ` — ${members.length}` : ''}

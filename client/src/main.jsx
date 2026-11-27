@@ -33,6 +33,8 @@ import './styles/voice.css';
 import './styles/presence.css';
 // Telas de login/inscrição — por último, isoladas sob .pc-auth.
 import './styles/auth.css';
+// Visual novo (nov/2026): só vale com <html data-visual="club">, por cima de tudo.
+import './styles/club.css';
 import './i18n/index.js';
 import { isChunkLoadError, reloadForNewVersion } from './utils/lazyWithRetry';
 import { installProfilePrefetch } from './api/profileCache';

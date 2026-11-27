@@ -233,6 +233,10 @@ const LAYOUT_PREF_RULES = {
   colorblindStrength: (v) => Number.isInteger(v) && v >= 0 && v <= 100,
   colorblindFilter: (v) => typeof v === 'boolean',
   statusShapes: (v) => typeof v === 'boolean',
+  // Visual novo (nov/2026): visual, tema e cor de destaque (client/src/utils/appearance.js).
+  visual: (v) => ['club', 'classic'].includes(v),
+  theme: (v) => ['preto', 'grafite', 'meianoite', 'claro'].includes(v),
+  accent: (v) => ['azul', 'roxo', 'verde', 'laranja', 'rosa', 'vermelho', 'amarelo', 'mono'].includes(v),
 };
 function sanitizeLayoutPrefs(v) {
   if (!v || typeof v !== 'object' || Array.isArray(v)) return undefined;

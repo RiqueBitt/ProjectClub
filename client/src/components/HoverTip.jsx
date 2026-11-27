@@ -39,6 +39,11 @@ export default function HoverTip() {
       if (!text) return;
       const r = el.getBoundingClientRect();
       const z = parseFloat(getComputedStyle(document.documentElement).zoom) || 1;
+      // data-tip-side="right": dica ao lado (barra de ícones da esquerda).
+      if (el.getAttribute('data-tip-side') === 'right') {
+        setTip({ text, x: (r.right + 10) / z, y: (r.top + r.height / 2) / z, side: 'right' });
+        return;
+      }
       const below = r.top < 60;
       setTip({ text, x: (r.left + r.width / 2) / z, y: (below ? r.bottom + 8 : r.top - 8) / z, below });
     };
@@ -75,7 +80,7 @@ export default function HoverTip() {
 
   if (!tip) return null;
   return createPortal(
-    <div className={`hover-tip${tip.below ? ' below' : ''}`} role="tooltip" style={{ left: tip.x, top: tip.y }}>{tip.text}</div>,
+    <div className={`hover-tip${tip.below ? ' below' : ''}${tip.side === 'right' ? ' right' : ''}`} role="tooltip" style={{ left: tip.x, top: tip.y }}>{tip.text}</div>,
     document.body,
   );
 }

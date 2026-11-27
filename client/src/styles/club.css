@@ -1,0 +1,663 @@
+/* ============================================================
+   Visual novo do Project Club (nov/2026) — "estilo fundido"
+   ------------------------------------------------------------
+   O preto e branco do site (fonte Archivo larga nos títulos, folha
+   branca, linhas finas) com o grafite e o azul do app. Uma regra só
+   pra tudo: o item ATIVO vira uma pílula "de papel" (branca no escuro,
+   preta no claro); a cor de destaque fica só nos botões de ação.
+
+   Liga com <html data-visual="club"> (utils/appearance.js) e é o
+   padrão. "Visual clássico" em Configurações → Aparência tira o
+   atributo e tudo volta ao de antes — por isso TODA regra daqui começa
+   com html[data-visual='club'].
+
+   Temas: data-club-theme = preto | grafite | meianoite | claro
+   Destaque: data-accent = azul | roxo | verde | laranja | rosa |
+             vermelho | amarelo | mono
+   As páginas já usam as variáveis de tema (--bg-*, --text-*, --brand),
+   então trocar os tokens aqui muda o app inteiro de uma vez.
+   ============================================================ */
+
+@import '@fontsource-variable/archivo/wdth.css';
+@import '@fontsource/jetbrains-mono/400.css';
+@import '@fontsource/jetbrains-mono/500.css';
+
+/* ---------------------------------------------------------------
+   1. Tokens
+   --------------------------------------------------------------- */
+html[data-visual='club'] {
+  --club-font: 'Archivo Variable', 'Archivo', system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, 'Apple Color Emoji', 'Segoe UI Emoji', 'Noto Color Emoji', sans-serif;
+  --club-mono: 'JetBrains Mono', ui-monospace, 'SFMono-Regular', Menlo, Consolas, monospace;
+  --club-r-sm: 10px;
+  --club-r-md: 14px;
+  --club-r-lg: 20px;
+  --club-r-xl: 28px;
+  --club-rail-w: 68px;
+  --club-ease: cubic-bezier(.2, .8, .2, 1);
+
+  /* Preto (padrão) */
+  --bg-deepest: #0B0B0C;
+  --bg-secondary: #0E0F11;
+  --bg-primary: #0B0B0C;
+  --bg-primary-solid: #0B0B0C;
+  --bg-elevated: #17181C;
+  --bg-elevated-solid: #17181C;
+  --bg-floating: #141518;
+  --bg-floating-solid: #141518;
+  --bg-modifier-hover: rgba(255, 255, 255, .06);
+  --header-primary: #F4F4F5;
+  --header-secondary: #A6A8AF;
+  --text-normal: #DCDDE0;
+  --text-muted: #7D8088;
+  --interactive-active: #FFFFFF;
+  --border: rgba(255, 255, 255, .08);
+  --divider-strong: rgba(255, 255, 255, .14);
+  --scrollbar: #26272C;
+  --green: #2DBE6C;
+  --red: #F04848;
+
+  --club-surface: #121316;
+  --club-surface-2: #1A1B1F;
+  --club-line: rgba(255, 255, 255, .08);
+  --club-line-2: rgba(255, 255, 255, .15);
+  --club-sel-bg: #FFFFFF;
+  --club-sel-fg: #0B0B0C;
+  --club-paper: #FFFFFF;
+  --club-paper-fg: #0B0B0C;
+  --club-paper-muted: #5C5E66;
+  --club-paper-line: #E4E4E7;
+  --club-icon-filter: none; /* ícones PNG já vêm cinza-claro */
+  --club-icon-sel-filter: brightness(0);
+  --club-shadow: 0 18px 50px rgba(0, 0, 0, .5);
+
+  --club-accent: #4C9FFF;
+  --brand: var(--club-accent);
+  --brand-hover: color-mix(in srgb, var(--club-accent) 82%, #000);
+  --club-on-brand: #0B0B0C;
+  --text-link: color-mix(in srgb, var(--club-accent) 80%, #fff);
+  color-scheme: dark;
+}
+
+html[data-visual='club'][data-club-theme='grafite'] {
+  --bg-deepest: #141518;
+  --bg-secondary: #18191C;
+  --bg-primary: #1B1C20;
+  --bg-primary-solid: #1B1C20;
+  --bg-elevated: #24252A;
+  --bg-elevated-solid: #24252A;
+  --bg-floating: #212227;
+  --bg-floating-solid: #212227;
+  --text-muted: #8A8D95;
+  --scrollbar: #33343A;
+  --club-surface: #202126;
+  --club-surface-2: #282A30;
+}
+
+html[data-visual='club'][data-club-theme='meianoite'] {
+  --bg-deepest: #070B16;
+  --bg-secondary: #0A0F1D;
+  --bg-primary: #0B1222;
+  --bg-primary-solid: #0B1222;
+  --bg-elevated: #141D33;
+  --bg-elevated-solid: #141D33;
+  --bg-floating: #111A2E;
+  --bg-floating-solid: #111A2E;
+  --header-secondary: #A3ACC2;
+  --text-normal: #D8DEEC;
+  --text-muted: #7C88A6;
+  --scrollbar: #1D2842;
+  --club-surface: #101A2E;
+  --club-surface-2: #172238;
+  --club-line: rgba(160, 180, 255, .1);
+  --club-line-2: rgba(160, 180, 255, .18);
+  --border: rgba(160, 180, 255, .1);
+  --divider-strong: rgba(160, 180, 255, .18);
+}
+
+html[data-visual='club'][data-club-theme='claro'] {
+  --bg-deepest: #F4F4F5;
+  --bg-secondary: #FAFAFA;
+  --bg-primary: #FFFFFF;
+  --bg-primary-solid: #FFFFFF;
+  --bg-elevated: #F1F1F3;
+  --bg-elevated-solid: #F1F1F3;
+  --bg-floating: #FFFFFF;
+  --bg-floating-solid: #FFFFFF;
+  --bg-modifier-hover: rgba(11, 11, 12, .05);
+  --header-primary: #0B0B0C;
+  --header-secondary: #4B4D55;
+  --text-normal: #1D1E22;
+  --text-muted: #6B6E76;
+  --interactive-active: #0B0B0C;
+  --border: rgba(11, 11, 12, .09);
+  --divider-strong: rgba(11, 11, 12, .16);
+  --scrollbar: #D4D4D8;
+  --club-surface: #F6F6F7;
+  --club-surface-2: #EDEDEF;
+  --club-line: rgba(11, 11, 12, .09);
+  --club-line-2: rgba(11, 11, 12, .16);
+  --club-sel-bg: #0B0B0C;
+  --club-sel-fg: #FFFFFF;
+  --club-paper: #0B0B0C;
+  --club-paper-fg: #FFFFFF;
+  --club-paper-muted: #A6A8AF;
+  --club-paper-line: rgba(255, 255, 255, .14);
+  --club-icon-filter: brightness(0) opacity(.6);
+  --club-icon-sel-filter: brightness(0) invert(1);
+  --club-shadow: 0 18px 50px rgba(11, 11, 12, .14);
+  --text-link: color-mix(in srgb, var(--club-accent) 70%, #000);
+  --green: #16A34A;
+  color-scheme: light;
+}
+
+/* Temas coloridos (Configurações → Aparência → Temas coloridos, utils/extraPrefs.js):
+   eles pintam --bg-* e --brand direto no <html>; aqui o visual novo segue
+   as cores deles — superfícies tingidas, destaque do tema e sempre escuro. */
+html[data-visual='club'][data-pc-ctheme] {
+  --club-accent: var(--brand);
+  --club-surface: color-mix(in srgb, var(--bg-elevated) 55%, var(--bg-secondary));
+  --club-surface-2: var(--bg-elevated);
+  --club-line: rgba(255, 255, 255, .09);
+  --club-line-2: rgba(255, 255, 255, .16);
+  --club-sel-bg: #FFFFFF;
+  --club-sel-fg: #0B0B0C;
+  --club-paper: #FFFFFF;
+  --club-paper-fg: #0B0B0C;
+  --club-paper-muted: #5C5E66;
+  --club-paper-line: #E4E4E7;
+  --club-icon-filter: none;
+  --club-icon-sel-filter: brightness(0);
+  --club-on-brand: #0B0B0C;
+  --header-primary: #F4F4F5;
+  --header-secondary: #B5B8C0;
+  --text-normal: #DCDDE0;
+  --text-muted: #9A9DA6;
+  --interactive-active: #FFFFFF;
+  color-scheme: dark;
+}
+html[data-visual='club'][data-pc-ctheme] .club-rail,
+html[data-visual='club'][data-pc-ctheme] .n2-sidebar,
+html[data-visual='club'][data-pc-ctheme] .members-list { background: color-mix(in srgb, var(--bg-secondary) 88%, transparent); }
+
+/* Cores de destaque */
+html[data-visual='club'][data-accent='roxo'] { --club-accent: #A970FF; }
+html[data-visual='club'][data-accent='verde'] { --club-accent: #3DD68C; }
+html[data-visual='club'][data-accent='laranja'] { --club-accent: #FF8A3D; }
+html[data-visual='club'][data-accent='rosa'] { --club-accent: #FF6FAE; }
+html[data-visual='club'][data-accent='vermelho'] { --club-accent: #FF5A5F; }
+html[data-visual='club'][data-accent='amarelo'] { --club-accent: #F5C518; }
+html[data-visual='club'][data-accent='mono'] { --club-accent: #FFFFFF; --text-link: #FFFFFF; }
+html[data-visual='club'][data-club-theme='claro'][data-accent='mono'] { --club-accent: #0B0B0C; --club-on-brand: #FFFFFF; --text-link: #0B0B0C; }
+html[data-visual='club'][data-club-theme='claro'][data-accent='amarelo'] { --club-accent: #E0B000; }
+html[data-visual='club'][data-club-theme='claro'][data-accent='verde'] { --club-accent: #1FB86E; }
+
+/* ---------------------------------------------------------------
+   2. Base: tipografia, rolagem, foco
+   --------------------------------------------------------------- */
+html[data-visual='club'] body {
+  font-family: var(--club-font);
+  font-stretch: 100%;
+  -webkit-font-smoothing: antialiased;
+  background: var(--bg-deepest);
+}
+html[data-visual='club'].pc-legible-font body { font-family: 'Atkinson Hyperlegible', var(--club-font); }
+html[data-visual='club'] :is(code, kbd, pre, .md-inline-code, .md-codeblock code) { font-family: var(--club-mono); }
+html[data-visual='club'] ::selection { background: color-mix(in srgb, var(--club-accent) 35%, transparent); }
+html[data-visual='club'] :focus-visible { outline: 2px solid var(--club-accent); outline-offset: 2px; }
+html[data-visual='club'] ::-webkit-scrollbar-thumb { background: var(--scrollbar); border-radius: 999px; border: 3px solid transparent; background-clip: padding-box; }
+html[data-visual='club'] ::-webkit-scrollbar-track { background: transparent; }
+
+/* Títulos de página na Archivo larga (a "voz" do site) */
+html[data-visual='club'] :is(h1, .club-wide, .chat-title, .sidebar-header-name, .gh-brand-name, .settings-modal-content h2, .modal-header h2, .modal-title) {
+  font-family: var(--club-font);
+  font-stretch: 125%;
+  font-weight: 800;
+  letter-spacing: -0.035em;
+}
+html[data-visual='club'] h2 { letter-spacing: -0.02em; }
+
+/* Ícones PNG (cinza-claro): no tema claro ficam escuros. */
+html[data-visual='club'] img:is(.ui-icon, .ui-icon-sm, .ui-icon-lg) { filter: var(--club-icon-filter); }
+
+/* ---------------------------------------------------------------
+   3. Peças comuns: botões, campos, chips, menus, janelas
+   --------------------------------------------------------------- */
+html[data-visual='club'] .btn-primary {
+  background: var(--brand); color: var(--club-on-brand);
+  border-radius: 999px; font-weight: 650; padding-left: 18px; padding-right: 18px;
+  box-shadow: none;
+}
+html[data-visual='club'] .btn-primary:hover { background: var(--brand-hover); box-shadow: none; transform: none; }
+html[data-visual='club'] .btn-primary :is(img, svg) { filter: none; }
+html[data-visual='club'] .btn-secondary {
+  background: transparent; color: var(--header-primary);
+  border: 1px solid var(--club-line-2); border-radius: 999px; font-weight: 600;
+}
+html[data-visual='club'] .btn-secondary:hover { background: var(--bg-modifier-hover); transform: none; }
+html[data-visual='club'] .btn-danger { border-radius: 999px; font-weight: 600; }
+
+html[data-visual='club'] :is(input[type='text'], input[type='search'], input[type='email'], input[type='password'], input[type='number'], input[type='url'], input:not([type]), textarea, select):not(.message-input):not([class*='range']) {
+  border-radius: 12px;
+}
+html[data-visual='club'] :is(input, textarea, select):focus-visible { outline-color: var(--club-accent); }
+
+html[data-visual='club'] .chip { border-radius: 999px; background: var(--bg-elevated); }
+
+html[data-visual='club'] .modal-overlay { background: rgba(5, 5, 6, .62); backdrop-filter: blur(6px); }
+html[data-visual='club'][data-club-theme='claro'] .modal-overlay { background: rgba(11, 11, 12, .28); }
+html[data-visual='club'] .modal-box {
+  background: var(--bg-floating); border: 1px solid var(--club-line);
+  border-radius: 24px; box-shadow: var(--club-shadow);
+}
+
+html[data-visual='club'] :is(.context-menu, .dropdown-menu, .popover) {
+  background: var(--bg-floating); border: 1px solid var(--club-line-2);
+  border-radius: 14px; box-shadow: var(--club-shadow); padding: 6px;
+}
+html[data-visual='club'] :is(.context-menu-item, .dropdown-menu button) { border-radius: 9px; }
+html[data-visual='club'] :is(.context-menu-item:hover:not(:disabled), .dropdown-menu button:hover) {
+  background: var(--club-sel-bg); color: var(--club-sel-fg);
+}
+html[data-visual='club'] .context-menu-item:hover:not(:disabled) :is(img) { filter: var(--club-icon-sel-filter); }
+html[data-visual='club'] .context-menu-item.danger:hover:not(:disabled) { background: var(--red); color: #fff; }
+
+html[data-visual='club'] .hover-tip {
+  background: var(--club-sel-bg); color: var(--club-sel-fg); border: 0;
+  border-radius: 9px; font-weight: 600; box-shadow: var(--club-shadow);
+}
+
+/* ---------------------------------------------------------------
+   4. Barra do topo
+   --------------------------------------------------------------- */
+html[data-visual='club'] .layout-n2 .top-search-bar {
+  background: var(--bg-deepest);
+  border-bottom: 1px solid var(--club-line);
+}
+html[data-visual='club'] .layout-n2 .top-search-bar-input {
+  height: 30px; border-radius: 999px; border: 0;
+  background: var(--bg-elevated); font-size: 13px; padding-left: 34px;
+}
+html[data-visual='club'] .layout-n2 .top-search-bar-icon-btn { border-radius: 10px; color: var(--text-muted); }
+html[data-visual='club'] .layout-n2 .top-search-bar-icon-btn:hover { color: var(--header-primary); }
+html[data-visual='club'] .n2-top-title { font-weight: 600; color: var(--header-secondary); font-size: 13.5px; }
+
+/* ---------------------------------------------------------------
+   5. Coluna da esquerda: barra de ícones + canais
+   --------------------------------------------------------------- */
+@media (min-width: 601px) {
+  html[data-visual='club'].layout-n2-root { --n2-sidebar-width: 320px; }
+  html[data-visual='club'].layout-n2-root[data-pc-sidebar] { --n2-sidebar-width: max(288px, var(--pc-sidebar-w)); }
+}
+@media (max-width: 1100px) and (min-width: 601px) {
+  html[data-visual='club'].layout-n2-root:not([data-pc-sidebar]) { --n2-sidebar-width: 296px; }
+}
+
+html[data-visual='club'] .n2-sidebar { background: var(--bg-secondary); border-right: 1px solid var(--club-line); }
+html[data-visual='club'] .n2-sidebar.has-club-rail { flex-direction: row; }
+html[data-visual='club'] .n2-sidebar.has-club-rail > .sidebar { flex: 1 1 auto; min-width: 0; }
+
+.club-rail {
+  flex: 0 0 var(--club-rail-w, 68px); width: var(--club-rail-w, 68px);
+  display: flex; flex-direction: column; align-items: center; gap: 6px;
+  padding: 12px 0 14px; background: var(--bg-deepest);
+  border-right: 1px solid var(--club-line, var(--border));
+  overflow-y: auto; overflow-x: hidden; scrollbar-width: none;
+}
+.club-rail::-webkit-scrollbar { display: none; }
+.club-rail-group { display: flex; flex-direction: column; align-items: center; gap: 6px; }
+.club-rail-grow { flex: 1 1 auto; min-height: 8px; }
+.club-rail-sep { width: 24px; height: 1px; background: var(--club-line-2, var(--border)); margin: 4px 0; flex-shrink: 0; }
+.club-rail-btn {
+  position: relative; width: 44px; height: 44px; flex-shrink: 0;
+  display: grid; place-items: center; border-radius: 14px;
+  color: var(--text-muted); background: transparent;
+  transition: background-color .15s var(--club-ease), color .15s var(--club-ease), border-radius .2s var(--club-ease);
+}
+.club-rail-btn:hover { background: var(--bg-modifier-hover); color: var(--header-primary); }
+.club-rail-btn.is-active { background: var(--club-sel-bg); color: var(--club-sel-fg); }
+.club-rail-btn.is-gold { color: #E9B949; }
+.club-rail-btn.is-gold.is-active { color: var(--club-sel-fg); }
+.club-rail-dot {
+  position: absolute; top: 8px; right: 8px; width: 8px; height: 8px; border-radius: 50%;
+  background: var(--header-primary); box-shadow: 0 0 0 2.5px var(--bg-deepest);
+}
+.club-rail-dot.is-live { background: var(--red); }
+.club-rail-count {
+  position: absolute; top: 2px; right: 0; min-width: 18px; height: 18px; padding: 0 5px;
+  border-radius: 999px; display: grid; place-items: center;
+  background: var(--red); color: #fff; font-size: 10.5px; font-weight: 700; line-height: 1;
+  box-shadow: 0 0 0 2.5px var(--bg-deepest);
+}
+@media (max-width: 600px) {
+  .club-rail { display: none; }
+}
+/* Com a barra de ícones, os destaques saem da lista de canais (no PC). */
+@media (min-width: 601px) {
+  html[data-visual='club'] .n2-sidebar.has-club-rail .featured-channels { display: none; }
+}
+
+/* Cabeçalho e banner da comunidade */
+html[data-visual='club'] .n2-sidebar .sidebar-header { font-size: 17px; padding: 14px 14px 12px 18px; }
+html[data-visual='club'] .n2-sidebar .sidebar-header-name,
+html[data-visual='club'] .n2-sidebar .sidebar-header > span:first-child { font-stretch: 125%; font-weight: 800; letter-spacing: -0.035em; }
+@media (min-width: 601px) {
+  html[data-visual='club'] .n2-sidebar .sidebar-banner-img { max-height: 104px; }
+}
+
+/* Categorias e canais */
+html[data-visual='club'] .n2-sidebar .sidebar-list { padding: 6px 12px 16px 12px; }
+html[data-visual='club'] .n2-sidebar .category-block { margin-top: 14px; }
+html[data-visual='club'] .n2-sidebar .category-label {
+  font-size: 12px; font-weight: 600; color: var(--text-muted);
+  padding: 6px 8px 6px 10px; letter-spacing: 0;
+}
+html[data-visual='club'] .n2-sidebar .channel-item {
+  min-height: 36px; padding: 7px 12px 7px 10px; border-radius: 999px;
+  font-size: 14.5px; font-weight: 500; gap: 10px; color: var(--text-muted);
+  transition: background-color .12s var(--club-ease), color .12s var(--club-ease);
+}
+html[data-visual='club'] .n2-sidebar .channel-item:hover { background: var(--bg-modifier-hover); color: var(--text-normal); }
+html[data-visual='club'] .n2-sidebar .channel-item.active {
+  background: var(--club-sel-bg); color: var(--club-sel-fg); font-weight: 650;
+}
+html[data-visual='club'] .n2-sidebar .channel-item.active :is(img.ui-icon, .channel-hash) { filter: var(--club-icon-sel-filter); opacity: .55; }
+html[data-visual='club'] .n2-sidebar .channel-item.active .icon-btn-small img { filter: var(--club-icon-sel-filter); }
+html[data-visual='club'] .n2-sidebar .channel-item .ui-icon { width: 17px; height: 17px; opacity: .8; }
+html[data-visual='club'] .n2-sidebar .channel-item.unread,
+html[data-visual='club'] .n2-sidebar .channel-item.has-unread { color: var(--header-primary); font-weight: 650; }
+
+/* Destaques (celular / sem barra de ícones): lista limpa, ativo vira pílula */
+html[data-visual='club'] .featured-channel { border-radius: 999px; }
+html[data-visual='club'] .featured-channel.active { background: var(--club-sel-bg) !important; color: var(--club-sel-fg) !important; }
+html[data-visual='club'] .featured-channel.active .featured-channel-icon { color: var(--club-sel-fg) !important; background: transparent !important; }
+
+/* Rodapé do usuário */
+html[data-visual='club'] .n2-sidebar .user-status-bar {
+  background: transparent; border-top: 1px solid var(--club-line);
+  margin: 0; padding: 10px 10px 10px 14px; border-radius: 0;
+}
+html[data-visual='club'] .user-status-bar .usb-btn { border-radius: 10px; color: var(--text-muted); }
+html[data-visual='club'] .user-status-bar .usb-btn:hover { background: var(--bg-modifier-hover); color: var(--header-primary); }
+
+/* ---------------------------------------------------------------
+   6. Chat
+   --------------------------------------------------------------- */
+html[data-visual='club'] .app-main { background: var(--bg-primary); }
+html[data-visual='club'] .chat-header {
+  min-height: 56px; background: var(--bg-primary);
+  border-bottom: 1px solid var(--club-line); box-shadow: none; padding-left: 28px;
+}
+html[data-visual='club'] .chat-title { font-size: 18px; }
+html[data-visual='club'] .chat-header-icon { background: transparent !important; color: var(--text-muted); width: auto; height: auto; padding: 0; margin-right: -2px; border-radius: 0; }
+html[data-visual='club'] .chat-header-icon :is(svg, img) { opacity: .8; }
+html[data-visual='club'] .chat-header-sub { color: var(--text-muted); }
+html[data-visual='club'] .chat-header-btn { border-radius: 10px; color: var(--text-muted); }
+html[data-visual='club'] .chat-header-btn:hover { background: var(--bg-modifier-hover); color: var(--header-primary); }
+
+html[data-visual='club'] .chat-intro { padding-left: 28px; padding-right: 28px; }
+html[data-visual='club'] .chat-intro-icon { display: none; }
+html[data-visual='club'] .chat-intro-title {
+  font-stretch: 125%; font-weight: 800; letter-spacing: -0.045em;
+  font-size: clamp(26px, 2.6vw, 36px); line-height: 1.05;
+}
+html[data-visual='club'] .chat-intro-text { color: var(--text-muted); }
+
+html[data-visual='club'] .chat-day-sep { color: var(--text-muted); }
+html[data-visual='club'] .chat-day-sep :is(span, .chat-day-sep-label) {
+  background: transparent; border: 0; font-size: 12px; font-weight: 500; color: var(--text-muted);
+}
+html[data-visual='club'] .message-list .message { border-radius: 14px; }
+html[data-visual='club'] .message-list .message:hover { background: color-mix(in srgb, var(--header-primary) 3.5%, transparent); }
+html[data-visual='club'] .message-meta :is(.message-time, time, .timestamp) { font-family: var(--club-mono); font-size: 11px; color: var(--text-muted); letter-spacing: 0; }
+html[data-visual='club'] .message-content { line-height: 1.5; }
+html[data-visual='club'] .message-hover-actions {
+  background: var(--bg-floating); border: 1px solid var(--club-line-2);
+  border-radius: 12px; box-shadow: var(--club-shadow); padding: 3px;
+}
+html[data-visual='club'] .message-hover-action { border-radius: 9px; }
+
+html[data-visual='club'] .reaction-chip {
+  border-radius: 999px; background: transparent;
+  border: 1px solid var(--club-line-2); padding: 2px 9px; min-height: 26px;
+}
+html[data-visual='club'] .reaction-chip:hover { background: var(--bg-modifier-hover); }
+html[data-visual='club'] .reaction-chip.mine {
+  border-color: var(--club-accent); color: var(--club-accent);
+  background: color-mix(in srgb, var(--club-accent) 9%, transparent);
+}
+
+html[data-visual='club'] .chat-composer { background: transparent; padding-left: 24px; padding-right: 24px; }
+html[data-visual='club'] .chat-composer .message-input-row {
+  background: var(--bg-elevated); border: 1px solid transparent; border-radius: 18px;
+  min-height: 50px; box-shadow: none;
+}
+html[data-visual='club'] .chat-composer .message-input-row:focus-within { border-color: var(--club-line-2); }
+html[data-visual='club'] .chat-composer-btn { border-radius: 10px; color: var(--text-muted); }
+html[data-visual='club'] .chat-send-btn { border-radius: 999px; background: var(--brand); color: var(--club-on-brand); }
+html[data-visual='club'] .chat-send-btn :is(img, svg) { filter: none; }
+html[data-visual='club'] .chat-typing { color: var(--text-muted); font-size: 12px; }
+
+/* ---------------------------------------------------------------
+   7. Painel da direita: Agora + membros
+   --------------------------------------------------------------- */
+html[data-visual='club'] .layout-n2 .members-list {
+  background: var(--bg-secondary); border-left: 1px solid var(--club-line); padding: 0 0 14px;
+}
+html[data-visual='club'] .layout-n2 .members-list.has-agora { --members-width: 280px; }
+@media (min-width: 1101px) {
+  html[data-visual='club'] .app-shell.layout-n2:has(.members-list.has-agora) { --members-width: 284px; }
+}
+html[data-visual='club'] .members-list-head {
+  padding: 16px 18px 6px 20px; border-top: 1px solid var(--club-line);
+  font-size: 13px; font-weight: 600; color: var(--header-secondary);
+}
+html[data-visual='club'] .members-list.has-agora .members-list-head { margin-top: 4px; }
+html[data-visual='club'] .layout-n2 .member-group-label { font-size: 12px; font-weight: 600; color: var(--text-muted); padding: 12px 20px 6px; }
+html[data-visual='club'] .layout-n2 .member-row { border-radius: 12px; margin: 0 8px 1px; padding: 6px 12px; }
+
+.agora { padding: 0 0 6px; }
+.agora-head { height: 56px; display: flex; align-items: center; gap: 10px; padding: 0 20px; }
+.agora-title { font-stretch: 125%; font-weight: 800; font-size: 18px; letter-spacing: -0.035em; color: var(--header-primary); }
+.agora-live { width: 7px; height: 7px; border-radius: 50%; background: var(--green); box-shadow: 0 0 0 4px color-mix(in srgb, var(--green) 22%, transparent); }
+.agora-empty { margin: 0 20px 12px; font-size: 12.5px; line-height: 1.5; color: var(--text-muted); }
+.agora-block { padding: 14px 20px 14px; border-top: 1px solid var(--club-line, var(--border)); }
+.agora-label { font-size: 12px; font-weight: 500; color: var(--text-muted); margin-bottom: 10px; }
+.agora-call + .agora-call { margin-top: 12px; }
+.agora-call-name {
+  display: flex; align-items: center; gap: 8px; width: 100%; min-width: 0;
+  font-size: 14px; font-weight: 650; color: var(--header-primary); background: none; padding: 0; text-align: left;
+}
+.agora-call-name svg { color: var(--green); flex-shrink: 0; }
+.agora-tag { margin-left: auto; font-size: 10.5px; font-weight: 700; border-radius: 999px; padding: 2px 8px; background: var(--club-sel-bg); color: var(--club-sel-fg); }
+.agora-call-row { display: flex; align-items: center; gap: 8px; margin-top: 8px; min-width: 0; }
+.agora-faces { display: inline-flex; align-items: center; flex-shrink: 0; }
+.agora-faces .avatar, .agora-faces img { border-radius: 50%; box-shadow: 0 0 0 2px var(--bg-secondary); }
+.agora-faces > * + * { margin-left: -8px; }
+.agora-more { font-size: 11px; font-weight: 700; color: var(--text-muted); margin-left: 4px !important; }
+.agora-sub { font-size: 12px; color: var(--text-muted); min-width: 0; flex: 1 1 auto; }
+.agora-join {
+  margin-left: auto; flex-shrink: 0; height: 28px; padding: 0 12px; border-radius: 999px;
+  background: var(--brand); color: var(--club-on-brand, #fff); font-size: 12.5px; font-weight: 650;
+}
+.agora-join:hover { background: var(--brand-hover); }
+.agora-here { margin-left: auto; font-size: 11.5px; color: var(--green); font-weight: 600; flex-shrink: 0; }
+.agora-game { display: flex; align-items: center; gap: 12px; padding: 5px 0; min-width: 0; }
+.agora-game-art { width: 34px; height: 34px; border-radius: 10px; object-fit: cover; flex-shrink: 0; background: var(--bg-elevated); }
+.agora-game-art.is-glyph { display: grid; place-items: center; color: var(--text-muted); }
+.agora-game-text { display: flex; flex-direction: column; min-width: 0; }
+.agora-game-text b { font-size: 13.5px; font-weight: 600; color: var(--header-primary); }
+.agora-event {
+  display: grid; grid-template-columns: 76px minmax(0, 1fr); gap: 8px; align-items: baseline;
+  width: 100%; padding: 6px 0; background: none; text-align: left; color: var(--text-normal);
+}
+.agora-event:hover .agora-event-title { color: var(--header-primary); text-decoration: underline; text-underline-offset: 3px; }
+.agora-when { font-family: var(--club-mono, monospace); font-size: 11.5px; color: var(--header-secondary); }
+.agora-when.is-live { color: var(--red); font-family: inherit; font-weight: 700; }
+.agora-event-title { font-size: 13.5px; font-weight: 600; }
+
+/* ---------------------------------------------------------------
+   8. Barra da call (embaixo do chat)
+   --------------------------------------------------------------- */
+html[data-visual='club'] .call-bar { background: var(--bg-secondary); border-top: 1px solid var(--club-line); }
+
+/* ---------------------------------------------------------------
+   9. Páginas — peças compartilhadas (PagesKit, Game Hub, Progresso,
+      Suporte, Social, Assinatura, Mods, Central, Loja)
+   Regra única: herói liso (sem degradê), ícone num quadrado de papel,
+   título na Archivo larga, abas com o ativo em pílula.
+   --------------------------------------------------------------- */
+html[data-visual='club'] :is(.pk-hero, .sp-hero, .pg-hero, .mdx-lib-hero, .jogos-page-header, .jh-hero, .jh-promo, .social-hero) {
+  background: var(--club-surface) !important;
+  border: 1px solid var(--club-line) !important;
+  border-radius: 24px; box-shadow: none !important;
+}
+html[data-visual='club'] :is(.pk-hero, .sp-hero, .pg-hero, .mdx-lib-hero, .jogos-page-header, .jh-hero, .jh-promo, .social-hero)::before,
+html[data-visual='club'] :is(.pk-hero, .sp-hero, .mdx-lib-hero, .jogos-page-header, .jh-hero, .jh-promo)::after {
+  background-image: none !important; opacity: 0 !important;
+}
+html[data-visual='club'] :is(.pk-hero-icon, .sp-hero-icon, .jogos-page-header-icon, .mdx-lib-hero-icon) {
+  background: var(--club-sel-bg) !important; color: var(--club-sel-fg) !important; box-shadow: none !important;
+  border-radius: 16px;
+}
+html[data-visual='club'] :is(.pk-hero-icon, .sp-hero-icon, .jogos-page-header-icon) :is(img) { filter: var(--club-icon-sel-filter); }
+html[data-visual='club'] :is(.pk-hero-text h1, .sp-hero h1, .mdx-lib-hero h1, .jogos-page-header h1, .jogos-page-header h2, .jh-hero h2, .social-hero h1, .pg-hero h1, .pg-name) {
+  font-stretch: 125%; font-weight: 800; letter-spacing: -0.04em;
+}
+html[data-visual='club'] :is(.pk-eyebrow, .jh-eyebrow, .mdx-eyebrow) {
+  text-transform: none; letter-spacing: 0; font-weight: 500; font-size: 12.5px; color: var(--text-muted);
+}
+
+/* Abas em pílula: o ativo vira papel */
+html[data-visual='club'] .pk-tabs { background: transparent; border: 1px solid var(--club-line); border-radius: 999px; padding: 4px; }
+html[data-visual='club'] .pk-tab { border-radius: 999px; }
+html[data-visual='club'] .pk-tab.active { background: var(--club-sel-bg); color: var(--club-sel-fg); box-shadow: none; }
+html[data-visual='club'] .pk-tab.active svg { color: currentColor; }
+html[data-visual='club'] .pk-tab-count { background: var(--red); color: #fff; }
+html[data-visual='club'] .pk-tab.pk-tab-gold { border-radius: 999px; }
+html[data-visual='club'] .sx-tab { border-radius: 999px; }
+html[data-visual='club'] .sx-tab.active { background: var(--club-sel-bg); color: var(--club-sel-fg); box-shadow: none; }
+html[data-visual='club'] .sx-tab.active svg { color: currentColor; }
+
+/* Abas sublinhadas (Progresso, Social): a linha fica na cor do texto */
+html[data-visual='club'] :is(.pg-tab, .social-tab).active svg { color: currentColor; }
+html[data-visual='club'] .pg-tab.active::after { background: var(--header-primary); }
+html[data-visual='club'] .social-tab.active::after { background: var(--header-primary); }
+
+/* Filtros e chips */
+html[data-visual='club'] .pk-filter { border-color: var(--club-line); background: transparent; }
+html[data-visual='club'] .pk-filter.active { background: var(--club-sel-bg); color: var(--club-sel-fg); border-color: transparent; }
+html[data-visual='club'] .pk-chip.brand { background: color-mix(in srgb, var(--club-accent) 16%, transparent); color: var(--text-link); }
+
+/* Botões das páginas */
+html[data-visual='club'] .pk-btn { border-radius: 999px; font-weight: 650; background: transparent; border-color: var(--club-line-2); }
+html[data-visual='club'] .pk-btn:hover:not(:disabled) { background: var(--bg-modifier-hover); border-color: var(--club-line-2); }
+html[data-visual='club'] .pk-btn.primary,
+html[data-visual='club'] :is(.gh-btn.is-primary, .sp-primary, .fx-add) {
+  background: var(--brand) !important; color: var(--club-on-brand) !important;
+  border-color: transparent; box-shadow: none !important; background-image: none !important; border-radius: 999px;
+}
+html[data-visual='club'] :is(.pk-btn.primary, .gh-btn.is-primary, .sp-primary, .fx-add):hover:not(:disabled) { background: var(--brand-hover) !important; }
+html[data-visual='club'] :is(.pk-btn.primary, .gh-btn.is-primary, .sp-primary, .fx-add) :is(svg) { color: currentColor; }
+html[data-visual='club'] .gh-btn { border-radius: 999px; }
+
+/* Cartões e títulos de seção */
+html[data-visual='club'] .pk-card { background: var(--club-surface); border-color: var(--club-line); border-radius: 20px; }
+html[data-visual='club'] .pk-section-title { font-size: 16px; font-weight: 700; }
+html[data-visual='club'] .pk-section-title svg { color: var(--text-muted); }
+html[data-visual='club'] .pk-empty { border-color: var(--club-line-2); border-radius: 20px; }
+html[data-visual='club'] .pk-empty-icon { background: var(--bg-elevated); color: var(--text-muted); }
+html[data-visual='club'] .pk-toast { border-color: var(--club-line-2); border-radius: 999px; }
+html[data-visual='club'] .pk-toast svg { color: var(--green); }
+
+/* Game Hub */
+html[data-visual='club'] .gh-shell { --gh-accent: var(--club-accent); }
+html[data-visual='club'] .gh-bar { background: var(--bg-primary); border-bottom: 1px solid var(--club-line); }
+html[data-visual='club'] .gh-brand-mark { background: var(--club-sel-bg) !important; color: var(--club-sel-fg) !important; box-shadow: none !important; }
+html[data-visual='club'] .gh-brand-name { font-size: 17px; }
+html[data-visual='club'] .gh-tab { border-radius: 999px; font-weight: 600; }
+html[data-visual='club'] .gh-tab.on { background: var(--club-sel-bg); color: var(--club-sel-fg); box-shadow: none; }
+html[data-visual='club'] .gh-tab.on svg { color: currentColor; }
+
+/* Assinatura: tira o roxo, fica o dourado */
+html[data-visual='club'] .sub-hero {
+  background: radial-gradient(ellipse 55% 70% at 50% 0%, rgba(233, 185, 73, .14), transparent 70%), var(--club-surface) !important;
+  border: 1px solid var(--club-line); border-radius: 28px;
+}
+html[data-visual='club'] .sub-hero-glow { opacity: .35; }
+html[data-visual='club'] :is(.sub-hero h1, .sub-final h2) { font-stretch: 125%; font-weight: 800; letter-spacing: -0.045em; }
+html[data-visual='club'] .sub-plan { background: var(--club-surface) !important; border: 1px solid var(--club-line-2) !important; border-radius: 24px; box-shadow: none !important; }
+html[data-visual='club'] .sub-plan.is-best { border-color: rgba(233, 185, 73, .55) !important; }
+html[data-visual='club'] .sub-final { background: var(--club-surface) !important; border: 1px solid var(--club-line); border-radius: 28px; }
+
+/* Central */
+html[data-visual='club'] .home-section-title,
+html[data-visual='club'] .an-section-title { font-weight: 700; }
+
+/* Notificações e listas */
+html[data-visual='club'] .pk-hero .pk-btn:not(.primary) { background: transparent; }
+
+/* Configurações: barra lateral com o ativo em pílula */
+html[data-visual='club'] .settings-modal-box.modal-box { border-radius: 24px; }
+html[data-visual='club'] .settings-modal-sidebar { background: var(--bg-secondary); border-right: 1px solid var(--club-line); }
+html[data-visual='club'] .settings-modal-sidebar-item { border-radius: 999px; }
+html[data-visual='club'] .settings-modal-sidebar-item.active { background: var(--club-sel-bg); color: var(--club-sel-fg); }
+html[data-visual='club'] .settings-modal-sidebar-item.active :is(svg, .settings-modal-sidebar-icon) { color: currentColor; }
+html[data-visual='club'] .settings-modal-sidebar-item.active img { filter: var(--club-icon-sel-filter); }
+html[data-visual='club'] .settings-block { border-radius: 20px; }
+html[data-visual='club'] .pc-seg button.active { background: var(--club-sel-bg); color: var(--club-sel-fg); }
+
+/* Seletor de visual (Configurações → Aparência) */
+.club-visual-body { display: flex; flex-direction: column; gap: 18px; padding-top: 6px; }
+.club-theme-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(118px, 1fr)); gap: 10px; }
+.club-theme-card {
+  display: flex; flex-direction: column; gap: 8px; padding: 8px 8px 10px; border-radius: 16px;
+  border: 1px solid var(--border); background: transparent; text-align: left; color: var(--text-normal);
+}
+.club-theme-card:hover { border-color: var(--divider-strong); }
+.club-theme-card.is-on { border-color: var(--club-accent, var(--brand)); box-shadow: 0 0 0 1px var(--club-accent, var(--brand)); }
+.club-theme-swatch {
+  position: relative; display: block; height: 58px; border-radius: 10px; overflow: hidden;
+  background: var(--sw-bg); border: 1px solid rgba(128, 128, 128, .25);
+}
+.club-theme-swatch i:nth-child(1) { position: absolute; left: 0; top: 0; bottom: 0; width: 30%; background: var(--sw-panel); }
+.club-theme-swatch i:nth-child(2) { position: absolute; left: 7%; top: 30%; width: 16%; height: 12%; border-radius: 99px; background: var(--sw-ink); }
+.club-theme-swatch i:nth-child(3) { position: absolute; left: 38%; top: 34%; width: 46%; height: 9%; border-radius: 99px; background: var(--sw-ink); opacity: .35; box-shadow: 0 12px 0 var(--sw-ink); }
+.club-theme-name { font-size: 13px; font-weight: 600; padding-left: 2px; }
+.club-accent-row { display: flex; flex-wrap: wrap; gap: 10px; }
+.club-accent-dot {
+  width: 30px; height: 30px; border-radius: 50%; background: var(--dot);
+  box-shadow: inset 0 0 0 1px rgba(128, 128, 128, .35); transition: transform .12s ease;
+}
+.club-accent-dot:hover { transform: scale(1.08); }
+.club-accent-dot.is-on { box-shadow: 0 0 0 2px var(--bg-floating, #111), 0 0 0 4px var(--header-primary); }
+
+/* Tema claro: textos que eram brancos fixos nos heróis */
+html[data-visual='club'] .jh-hero-content { color: var(--header-primary); }
+html[data-visual='club'] .jh-hero-art { color: var(--text-muted); opacity: .25; filter: none; }
+html[data-visual='club'] .jh-promo-btn { background: var(--club-sel-bg); color: var(--club-sel-fg); border-radius: 999px; }
+html[data-visual='club'] :is(.sub-hero h1, .sub-final h2) { color: var(--header-primary); }
+html[data-visual='club'] :is(.sub-hero p, .sub-final p) { color: var(--text-muted); }
+html[data-visual='club'] .jh-title { color: var(--header-primary); font-stretch: 125%; font-weight: 800; letter-spacing: -0.045em; }
+html[data-visual='club'] .jh-blackout .jh-title { letter-spacing: .12em; }
+html[data-visual='club'] .jh-text { color: var(--text-muted); }
+html[data-visual='club'] .jh-kicker { color: var(--text-muted); text-transform: none; letter-spacing: 0; font-weight: 600; }
+html[data-visual='club'] .jh-cta { background: var(--club-sel-bg); color: var(--club-sel-fg); border-radius: 999px; }
+html[data-visual='club'] .jh-dot { background: var(--club-line-2); }
+html[data-visual='club'] .jh-dot.on { background: var(--header-primary); }
+
+/* Barra de baixo do celular: o ativo vira pílula de papel */
+@media (max-width: 900px) {
+  html[data-visual='club'] .mtb { background: var(--bg-deepest); border-top: 1px solid var(--club-line); }
+  html[data-visual='club'] .mtb-item.active .mtb-icon { background: var(--club-sel-bg); color: var(--club-sel-fg); }
+  html[data-visual='club'] .mtb-item.active .mtb-icon img { filter: var(--club-icon-sel-filter); }
+  html[data-visual='club'] .mtb-item.active .mtb-avatar > * { box-shadow: 0 0 0 2px var(--header-primary); }
+}
+
+/* App de PC (Electron): barra de título no mesmo preto da barra do topo */
+html[data-visual='club'] .app-title-bar { background: var(--bg-deepest); border-bottom: 1px solid var(--club-line); }
+html[data-visual='club'] .app-title-bar-btn { color: var(--text-muted); }
+html[data-visual='club'] .app-title-bar-btn:hover { background: var(--bg-modifier-hover); color: var(--header-primary); }
+html[data-visual='club'] .app-title-bar-btn--close:hover { background: #E81123; color: #fff; }
+html[data-visual='club'] .app-update-pop { background: var(--bg-floating); border: 1px solid var(--club-line-2); border-radius: 16px; box-shadow: var(--club-shadow); }
+html[data-visual='club'] .app-update-pop-btn { border-radius: 999px; }
+html[data-visual='club'] .app-update-pop-btn.primary { background: var(--brand); color: var(--club-on-brand); }

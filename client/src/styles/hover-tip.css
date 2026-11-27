@@ -8,5 +8,6 @@
   animation: hover-tip-in .12s ease-out;
 }
 .hover-tip.below { transform: translate(-50%, 0); }
+.hover-tip.right { transform: translate(0, -50%); }
 @keyframes hover-tip-in { from { opacity: 0; } to { opacity: 1; } }
 @media (prefers-reduced-motion: reduce) { .hover-tip { animation: none; } }
