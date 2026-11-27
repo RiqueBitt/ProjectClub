@@ -360,7 +360,10 @@ html[data-visual='club'] .n2-sidebar .channel-item:hover { background: var(--bg-
 html[data-visual='club'] .n2-sidebar .channel-item.active {
   background: var(--club-sel-bg); color: var(--club-sel-fg); font-weight: 650;
 }
-html[data-visual='club'] .n2-sidebar .channel-item.active :is(img.ui-icon, .channel-hash) { filter: var(--club-icon-sel-filter); opacity: .55; }
+/* Só o ícone padrão (#, alto-falante) escurece no canal aberto; emoji e
+   imagem que a staff escolheu pro canal ficam com as cores de verdade. */
+html[data-visual='club'] .n2-sidebar .channel-item.active :is(img.ui-icon:not(.custom-icon), span.channel-hash:not(.custom-icon)) { filter: var(--club-icon-sel-filter); opacity: .55; }
+html[data-visual='club'] .n2-sidebar .channel-item .custom-icon { filter: none !important; opacity: 1 !important; }
 html[data-visual='club'] .n2-sidebar .channel-item.active .icon-btn-small img { filter: var(--club-icon-sel-filter); }
 html[data-visual='club'] .n2-sidebar .channel-item .ui-icon { width: 17px; height: 17px; opacity: .8; }
 html[data-visual='club'] .n2-sidebar .channel-item.unread,
@@ -389,7 +392,8 @@ html[data-visual='club'] .chat-header {
 }
 html[data-visual='club'] .chat-title { font-size: 18px; }
 html[data-visual='club'] .chat-header-icon { background: transparent !important; color: var(--text-muted); width: auto; height: auto; padding: 0; margin-right: -2px; border-radius: 0; }
-html[data-visual='club'] .chat-header-icon :is(svg, img) { opacity: .8; }
+html[data-visual='club'] .chat-header-icon svg { opacity: .8; }
+html[data-visual='club'] .chat-header-icon .custom-icon { filter: none; opacity: 1; }
 html[data-visual='club'] .chat-header-sub { color: var(--text-muted); }
 html[data-visual='club'] .chat-header-btn { border-radius: 10px; color: var(--text-muted); }
 html[data-visual='club'] .chat-header-btn:hover { background: var(--bg-modifier-hover); color: var(--header-primary); }
@@ -670,3 +674,89 @@ html[data-visual='club'] :is(.app-shell, .modal-overlay, .pk-modal-backdrop) :is
   letter-spacing: 0 !important;
 }
 html[data-visual='club'] :is(.settings-modal-sidebar-group-label, .pc-field-label, .member-group-label, .category-label) { font-size: 12px; }
+
+/* ---------------------------------------------------------------
+   10. Menos enfeite (nov/2026, 2ª passada)
+   Cartões lisos (sem borda nem sombra), títulos sem ícone colorido,
+   selos discretos. O conteúdo (capas, artes, avatares) é que dá a cor.
+   --------------------------------------------------------------- */
+
+/* Cartões: superfície lisa, sem contorno nem sombra */
+html[data-visual='club'] :is(.home-card, .home-event, .an-feature, .home-update, .pk-card, .fx-card, .anp-card, .jh-empty, .sp-item, .pg-card, .gh-party, .app-card, .room-col, .nt-list) {
+  border-color: transparent !important;
+  box-shadow: none !important;
+}
+html[data-visual='club'] :is(.home-card, .home-event, .an-feature, .home-update, .pk-card, .fx-card, .anp-card, .jh-empty) {
+  background: var(--club-surface) !important;
+  border-radius: 20px;
+}
+html[data-visual='club'] :is(.home-hero, .home-carousel, .jh-hot-art, .gh-bcard, .gh-free, .jh-tool, .room-card, .room-grid, .room-btn) { box-shadow: none !important; }
+html[data-visual='club'] :is(.home-hero, .home-carousel) { border-color: transparent !important; border-radius: 24px; }
+html[data-visual='club'] .home-empty { border: 0; background: var(--bg-modifier-hover); border-radius: 14px; }
+
+/* Títulos de seção: só o texto, na fonte larga */
+html[data-visual='club'] .home-section-head h2 svg,
+html[data-visual='club'] .pk-section-title > svg,
+html[data-visual='club'] .an-section-head svg { display: none; }
+html[data-visual='club'] .home-section-head h2,
+html[data-visual='club'] .pk-section-title {
+  font-stretch: 118%; font-weight: 800; letter-spacing: -0.03em; font-size: 17px;
+}
+html[data-visual='club'] .home-card .home-section-head h2 { font-size: 15px; }
+html[data-visual='club'] .home-link { color: var(--text-muted); font-weight: 500; }
+html[data-visual='club'] .home-link:hover { color: var(--header-primary); }
+html[data-visual='club'] .home-pill { background: transparent; box-shadow: inset 0 0 0 1px var(--club-line-2); }
+
+/* Calls na lista de canais: selos e cronômetro discretos */
+html[data-visual='club'] .voice-roster-live {
+  background: transparent; color: var(--red); padding: 0; border-radius: 0;
+  font-size: 11px; font-weight: 600; letter-spacing: 0; text-transform: lowercase;
+}
+html[data-visual='club'] .voice-roster-live svg { display: none; }
+html[data-visual='club'] .voice-roster-live::before {
+  content: ''; width: 6px; height: 6px; border-radius: 50%; background: currentColor; margin-right: 5px;
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--red) 20%, transparent);
+}
+html[data-visual='club'] .voice-roster-servermod { background: transparent; color: var(--text-muted); padding: 0; font-weight: 600; }
+html[data-visual='club'] .voice-channel-timer {
+  background: transparent !important; color: var(--text-muted) !important; border: 0 !important;
+  font-family: var(--club-mono); font-size: 11px; font-weight: 400; padding: 0; margin-left: auto;
+}
+html[data-visual='club'] .channel-user-limit {
+  background: transparent !important; color: var(--text-muted) !important; border: 0 !important;
+  font-family: var(--club-mono); font-size: 11px; font-weight: 400; padding: 0 2px;
+}
+html[data-visual='club'] .n2-sidebar .channel-item.active :is(.voice-channel-timer, .channel-user-limit) { color: var(--club-sel-fg) !important; opacity: .55; }
+
+/* Placa de perfil (decoração) na lista de membros: mais suave */
+html[data-visual='club'] .layout-n2 .member-row.has-id-card::before { opacity: .45; }
+
+/* Banner da comunidade: um cartão arredondado em vez de faixa de ponta a ponta */
+@media (min-width: 601px) {
+  html[data-visual='club'] .n2-sidebar .sidebar-banner { margin: 10px 10px 0; width: calc(100% - 20px); border-radius: 16px; overflow: hidden; box-sizing: border-box; }
+  html[data-visual='club'] .n2-sidebar .sidebar-banner::after { background: none; }
+  html[data-visual='club'] .n2-sidebar .sidebar-banner-img { max-height: 92px; }
+}
+
+/* Chat: anexos e cartões com cantos do mesmo jeito, sem contorno */
+html[data-visual='club'] .attachment-image { border: 0; border-radius: 16px; }
+html[data-visual='club'] .message-hover-actions { box-shadow: 0 8px 24px rgba(0, 0, 0, .35); }
+
+/* Botões de ação nas páginas: sem degradê nem brilho */
+html[data-visual='club'] :is(.hc-cta:not(.is-live), .jh-cta, .room-btn.light) { box-shadow: none !important; }
+
+/* Calendário: só uma bolinha nos dias com evento; hoje e o dia escolhido em pílula */
+html[data-visual='club'] .evcal-day { border-radius: 999px; }
+html[data-visual='club'] .evcal-day.has-events,
+html[data-visual='club'] .evcal-day.is-live { background: transparent; }
+html[data-visual='club'] .evcal-day.is-today { box-shadow: inset 0 0 0 1px var(--club-line-2); }
+html[data-visual='club'] .evcal-day.is-picked { background: var(--club-sel-bg); color: var(--club-sel-fg); box-shadow: none; }
+html[data-visual='club'] .evcal-day .evcal-dot { background: var(--header-primary); }
+html[data-visual='club'] .evcal-day.is-live .evcal-dot { background: var(--red); }
+html[data-visual='club'] .evcal-day.is-picked .evcal-dot { background: var(--club-sel-fg); }
+html[data-visual='club'] .evcal-ev-date { background: var(--bg-modifier-hover); border-radius: 12px; }
+html[data-visual='club'] .evcal-ev-date.is-live { background: transparent; box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--red) 45%, transparent); }
+html[data-visual='club'] .an-head-icon { display: none; }
+html[data-visual='club'] .an-head h2 { font-stretch: 118%; font-weight: 800; letter-spacing: -0.03em; font-size: 17px; }
+html[data-visual='club'] :is(.evcal-list-head, .evcal-ev-date.is-live b) { text-transform: none !important; letter-spacing: 0 !important; }
+html[data-visual='club'] .evcal-list-head { font-size: 12px; font-weight: 600; color: var(--text-muted); }
