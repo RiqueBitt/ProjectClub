@@ -1,4 +1,5 @@
 const { guardSocket } = require('./guardHandler');
+const { limitSocketEvents } = require('./eventRateLimit');
 const { Server } = require('socket.io');
 const { verifyAccessToken } = require('../services/tokens');
 const tokenRevocation = require('../services/tokenRevocation');
@@ -318,6 +319,8 @@ function initSockets(httpServer) {
     // handler que lança (ou rejeita) fica registrado com o nome do evento
     // em vez de virar unhandledRejection anônimo — ver guardHandler.js.
     guardSocket(socket);
+    // Limite de eventos por conexão (ver eventRateLimit.js).
+    limitSocketEvents(socket);
     const userId = socket.userId;
     // Reconexão rápida: cancela já (antes de qualquer await) o "marcar
     // offline" atrasado da conexão anterior — ver OFFLINE_GRACE_MS.

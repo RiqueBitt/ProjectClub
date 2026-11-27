@@ -11,6 +11,7 @@
 // A sessão do WebView aparece na lista de sessões como o mesmo aparelho (o
 // WebView usa o mesmo User-Agent do app) e vive sozinha dali em diante.
 const crypto = require('crypto');
+const { safeLocalPath } = require('../utils/safeLocalPath');
 const prisma = require('../config/prisma');
 const { hashToken } = require('../services/tokens');
 const auth = require('./authController');
@@ -48,8 +49,7 @@ async function create(req, res, next) {
 }
 
 function safePath(to) {
-  const p = typeof to === 'string' ? to : '';
-  return p.startsWith('/') && !p.startsWith('//') ? p : '/inicio';
+  return safeLocalPath(to) || '/inicio';
 }
 
 async function consume(req, res, next) {

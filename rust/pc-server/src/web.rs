@@ -37,8 +37,13 @@ upgrade-insecure-requests";
 
 /// Cabeçalhos que o Node manda em toda resposta da API (helmet), copiados
 /// de uma resposta de produção em 21/11/2026.
-const SECURITY_HEADERS: [(&str, &str); 12] = [
+const SECURITY_HEADERS: [(&str, &str); 13] = [
     ("content-security-policy", CSP),
+    // `PERMISSIONS_POLICY` de server/src/app.js
+    (
+        "permissions-policy",
+        "geolocation=(), payment=(), usb=(), serial=(), hid=(), midi=(), browsing-topics=()",
+    ),
     ("cross-origin-opener-policy", "same-origin"),
     ("cross-origin-resource-policy", "same-origin"),
     ("origin-agent-cluster", "?1"),

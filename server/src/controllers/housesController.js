@@ -1,4 +1,5 @@
 const prisma = require('../config/prisma');
+const { spendCoins, takeFromStock } = require('../utils/atomicSpend');
 const { createIgnoreDuplicate } = require('../utils/prismaSafe');
 const achievements = require('../services/achievements');
 
@@ -35,11 +36,9 @@ async function buyHouse(req, res, next) {
     if (existing) return res.status(400).json({ error: 'Você já tem esta casa.' });
 
     const result = await prisma.$transaction(async (tx) => {
-      const user = await tx.user.findUnique({ where: { id: req.user.id }, select: { coins: true } });
-      if (user.coins < house.price) { const e = new Error('Moedas insuficientes.'); e.status = 400; throw e; }
-
-      await tx.user.update({ where: { id: req.user.id }, data: { coins: { decrement: house.price } } });
-      if (house.stock !== null) await tx.houseCatalog.update({ where: { id }, data: { stock: { decrement: 1 } } });
+      // conferir e descontar num comando só (ver utils/atomicSpend.js)
+      await spendCoins(tx, req.user.id, house.price);
+      if (house.stock !== null) await takeFromStock(tx.houseCatalog, id, 'Essa casa está fora de estoque.');
       const hasAnyHouse = await tx.userHouse.count({ where: { userId: req.user.id } });
       const userHouse = await tx.userHouse.create({
         data: { userId: req.user.id, houseId: id, isActive: hasAnyHouse === 0 },
@@ -75,10 +74,7 @@ async function buyFurniture(req, res, next) {
     if (!item) return res.status(404).json({ error: 'Móvel não encontrado.' });
 
     const result = await prisma.$transaction(async (tx) => {
-      const user = await tx.user.findUnique({ where: { id: req.user.id }, select: { coins: true } });
-      if (user.coins < item.price) { const e = new Error('Moedas insuficientes.'); e.status = 400; throw e; }
-
-      await tx.user.update({ where: { id: req.user.id }, data: { coins: { decrement: item.price } } });
+      await spendCoins(tx, req.user.id, item.price);
       const owned = await tx.userFurniture.upsert({
         where: { userId_furnitureId: { userId: req.user.id, furnitureId: id } },
         update: { quantity: { increment: 1 } },
@@ -147,14 +143,11 @@ async function buyMapBackground(req, res, next) {
     const already = await prisma.userMapBackground.findUnique({ where: { userId_mapBackgroundId: { userId: req.user.id, mapBackgroundId: id } } });
     if (already || map.price === 0) return res.status(400).json({ error: 'Você já tem este fundo.' });
 
-    const user = await prisma.user.findUnique({ where: { id: req.user.id }, select: { coins: true } });
-    if (user.coins < map.price) return res.status(400).json({ error: 'Moedas insuficientes.' });
-
-    await prisma.$transaction([
-      prisma.user.update({ where: { id: req.user.id }, data: { coins: { decrement: map.price } } }),
-      prisma.userMapBackground.create({ data: { userId: req.user.id, mapBackgroundId: id } }),
-      ...(map.stock !== null ? [prisma.mapBackground.update({ where: { id }, data: { stock: { decrement: 1 } } })] : []),
-    ]);
+    await prisma.$transaction(async (tx) => {
+      await spendCoins(tx, req.user.id, map.price);
+      if (map.stock !== null) await takeFromStock(tx.mapBackground, id, 'Esse fundo está fora de estoque.');
+      await tx.userMapBackground.create({ data: { userId: req.user.id, mapBackgroundId: id } });
+    });
     res.json({ ok: true });
   } catch (err) { next(err); }
 }

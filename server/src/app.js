@@ -6,6 +6,8 @@ const path = require('path');
 const helmet = require('helmet');
 const compression = require('compression');
 const rateLimit = require('express-rate-limit');
+
+const PERMISSIONS_POLICY = 'geolocation=(), payment=(), usb=(), serial=(), hid=(), midi=(), browsing-topics=()';
 const { createRateLimitStore } = require('./config/rateLimitStore');
 const { verifyAccessToken } = require('./services/tokens');
 const { redactUrl } = require('./utils/redactUrl');
@@ -98,6 +100,9 @@ function createApp() {
   // bucket for everyone). `1` means "trust exactly one hop" — the
   // platform's own proxy — which matches this deployment topology.
   app.set('trust proxy', 1);
+  // Não anuncia "Express" em nenhuma resposta (o helmet já tirava, mas só nas
+  // respostas que passavam por ele — as de antes dele ainda mostravam).
+  app.disable('x-powered-by');
   // ETag fraco (padrão do Express, deixado explícito): todo GET de JSON
   // sai com ETag e, se o cliente mandar If-None-Match igual, volta 304 sem
   // corpo — o refresh ao vivo que não mudou nada quase não gasta banda.
@@ -187,6 +192,12 @@ function createApp() {
       },
     },
   }));
+
+  // Recursos do navegador que o Project Club nunca usa ficam desligados pra
+  // página e pra qualquer iframe dentro dela (localização, pagamento, USB…).
+  // Câmera, microfone, tela e chaves de acesso continuam no padrão. Igual em
+  // rust/pc-server/src/web.rs (SECURITY_HEADERS).
+  app.use((req, res, next) => { res.setHeader('Permissions-Policy', PERMISSIONS_POLICY); next(); });
 
   app.use(cors({ origin: env.CLIENT_ORIGIN, credentials: true }));
   // Item pedido: otimização/velocidade — o pacote "compression" já

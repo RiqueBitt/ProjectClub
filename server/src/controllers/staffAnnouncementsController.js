@@ -1,4 +1,5 @@
 const prisma = require('../config/prisma');
+const { safeLocalPath } = require('../utils/safeLocalPath');
 
 // Canal "Anúncios": a staff publica avisos com banner; todo mundo lê.
 const AUTHOR_FIELDS = { id: true, displayName: true, username: true, avatarUrl: true, avatarDecoration: true, profileColor: true, platformRole: true };
@@ -7,7 +8,7 @@ const clean = (v, max) => (v == null ? null : String(v).trim().slice(0, max) || 
 const safeLink = (v) => {
   const s = clean(v, 500);
   if (!s) return null;
-  if (s.startsWith('/') && !s.startsWith('//')) return s;
+  if (s.startsWith('/')) return safeLocalPath(s);
   try { const u = new URL(s); return ['http:', 'https:'].includes(u.protocol) ? u.toString() : null; } catch { return null; }
 };
 

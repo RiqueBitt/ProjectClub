@@ -257,6 +257,12 @@ async fn login_certo_abre_sessao() {
     assert_eq!(r.headers["access-control-allow-credentials"], "true");
     assert_eq!(r.headers["x-frame-options"], "SAMEORIGIN");
     assert!(
+        r.headers["permissions-policy"]
+            .to_str()
+            .unwrap()
+            .starts_with("geolocation=()")
+    );
+    assert!(
         r.headers["content-security-policy"]
             .to_str()
             .unwrap()
