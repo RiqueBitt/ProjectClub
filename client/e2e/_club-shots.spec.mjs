@@ -62,6 +62,8 @@ export function createMediasoupEngine(cb) {
         cb.onRemoteSpeaking && cb.onRemoteSpeaking('5', true);
         if (window.__fakeScreen) cb.onRemoteVideo && cb.onRemoteVideo('5', screenStream(), 'screen');
       }, 60);
+      // Quem fala: de novo depois que a lista de participantes chegou pelo socket.
+      setTimeout(() => cb.onRemoteSpeaking && cb.onRemoteSpeaking('5', true), 800);
       return true;
     },
     getNode() { return null; }, getLocalMicTrack() { return null; }, getInboundAudioBytes() { return 0; },

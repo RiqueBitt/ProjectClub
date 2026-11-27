@@ -71,7 +71,7 @@ function useCallElapsed(startedAt) {
 // MESMA lógica já validada lá (switchMicrophone, getPreferred*Id),
 // só que acessível com um clique direto na barra de chamada — sem
 // sair de onde já está.
-function AudioDeviceQuickMenu({ voice }) {
+export function AudioDeviceQuickMenu({ voice }) {
   const [open, setOpen] = useState(false);
   usePopoverCoordination(open, () => setOpen(false));
   const [mics, setMics] = useState([]);
