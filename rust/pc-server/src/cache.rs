@@ -21,6 +21,11 @@ pub struct Cache {
     inflight: Arc<Mutex<HashMap<String, broadcast::Sender<String>>>>,
 }
 
+/// Erro de conexão caída (o Redis fechou a conexão parada, rede piscou).
+fn dropped(e: &redis::RedisError) -> bool {
+    e.is_connection_dropped() || e.is_io_error()
+}
+
 impl Cache {
     pub async fn connect(url: Option<&str>) -> Self {
         let redis = match url {
@@ -61,7 +66,12 @@ impl Cache {
     /// `Some(None)` = a chave não existe.
     pub async fn get_raw(&self, key: &str) -> Option<Option<String>> {
         let mut conn = self.redis.clone()?;
-        conn.get::<_, Option<String>>(key).await.ok()
+        match conn.get::<_, Option<String>>(key).await {
+            Ok(v) => Some(v),
+            // Mesma reconexão do `eval` (ler de novo não tem efeito colateral).
+            Err(e) if dropped(&e) => conn.get::<_, Option<String>>(key).await.ok(),
+            Err(_) => None,
+        }
     }
 
     /// `SET key value EX ttl` direto. Falha só vai pro log.
@@ -100,10 +110,24 @@ impl Cache {
         for a in args {
             inv.arg(*a);
         }
-        inv.invoke_async(&mut conn)
-            .await
-            .map_err(|e| tracing::warn!("redis eval: {e}"))
-            .ok()
+        match inv.invoke_async(&mut conn).await {
+            Ok(v) => Some(v),
+            // Conexão que o Redis derrubou depois de um tempo parada ("broken
+            // pipe"): o ConnectionManager já está reconectando — tenta mais
+            // uma vez em vez de devolver erro (antes o 1º pedido depois de
+            // ~1 h sem uso dava 500 no Rust e caía pro Node).
+            Err(e) if dropped(&e) => {
+                let mut conn = self.redis.clone()?;
+                inv.invoke_async(&mut conn)
+                    .await
+                    .map_err(|e| tracing::warn!("redis eval (2ª tentativa): {e}"))
+                    .ok()
+            }
+            Err(e) => {
+                tracing::warn!("redis eval: {e}");
+                None
+            }
+        }
     }
 
     pub async fn get_or_set<T, F, Fut>(&self, key: &str, ttl_secs: u64, compute: F) -> T

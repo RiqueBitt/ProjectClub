@@ -132,15 +132,15 @@ const PAGES = [
     await page.locator('.message .avatar.clickable').first().click();
   }],
   ...[['cfg-conta', /Informação de conta/], ['cfg-seguranca', /Senha e segurança/], ['cfg-privacidade', /^Dados e privacidade$/], ['cfg-notif', /^Notificações$/], ['cfg-voz', /Voz e vídeo/], ['cfg-acess', /Acessibilidade/], ['cfg-sistema', /^Sistema$/], ['cfg-idioma', /Idioma/], ['cfg-jogos', /^Jogos e apps$/]].map(([n, label]) => [n, '/channels/ch2', '.chat-header', async (page) => {
-    await page.locator('.club-rail-btn[aria-label="Configurações"]').click();
+    await page.locator('.club-rail-btn[aria-label="Configurações"], .usb-btn[aria-label="Configurações"]').first().click();
     await page.locator('.settings-modal-sidebar-item', { hasText: label }).first().click();
   }]),
   ['cfg-perfil', '/channels/ch2', '.chat-header', async (page) => {
-    await page.locator('.club-rail-btn[aria-label="Configurações"]').click();
+    await page.locator('.club-rail-btn[aria-label="Configurações"], .usb-btn[aria-label="Configurações"]').first().click();
     await page.locator('.settings-modal-sidebar-header').click();
   }],
   ['config', '/channels/ch2', '.chat-header', async (page) => {
-    await page.locator('.club-rail-btn[aria-label="Configurações"]').click();
+    await page.locator('.club-rail-btn[aria-label="Configurações"], .usb-btn[aria-label="Configurações"]').first().click();
     await page.getByRole('button', { name: /Aparência/ }).first().click().catch(() => {});
   }],
 ];

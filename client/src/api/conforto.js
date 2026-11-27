@@ -9,7 +9,9 @@ let onboardingLast = null;
 let onboardingAt = 0;
 export const getOnboarding = ({ fresh = false } = {}) => {
   if (onboardingInflight) return onboardingInflight;
-  if (!fresh && onboardingLast && Date.now() - onboardingAt < 2000) return Promise.resolve(onboardingLast);
+  // 15 s: a abertura do app ainda pedia de novo 2 s depois (ao ganhar foco).
+  // Mudança de verdade chega pelo socket (fresh) ou pelo resgate (limpa).
+  if (!fresh && onboardingLast && Date.now() - onboardingAt < 15000) return Promise.resolve(onboardingLast);
   onboardingInflight = api.get('/onboarding')
     .then((r) => { onboardingLast = r.data; onboardingAt = Date.now(); return r.data; })
     .finally(() => { onboardingInflight = null; });

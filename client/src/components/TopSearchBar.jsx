@@ -36,6 +36,10 @@ function useSectionTitle() {
   if (isDmPath(pathname)) return { label: t('nav.amigos') };
   if (pathname === '/notifications') return { label: 'Notificações' };
   if (pathname === '/search') return { label: 'Busca' };
+  // Seções do menu lateral que não estão em ITEMS (antes o topo ficava vazio).
+  if (pathname.startsWith('/jogos')) return { label: 'Game Hub' };
+  if (pathname.startsWith('/assinatura')) return { label: 'Assinatura' };
+  if (pathname.startsWith('/cartas')) return { label: 'Guerra das Cartas' };
   const item = [...ITEMS, STAFF_ITEM].find((i) => i.to !== '/' && i.match(pathname));
   return item ? { icon: item.icon, label: t(item.labelKey, item.label) } : null;
 }

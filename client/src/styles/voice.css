@@ -330,6 +330,19 @@ body:has(.vc-dock) .call-bar.cb .cb-controls { display: none; }
   .vc-ctrl { width: 41px; height: 44px; border-radius: 13px; }
   .vc-leave { width: 52px; margin-left: 3px; }
   .vc-ctrl-label { display: none; }
+  /* Todo mundo cabe na tela, acima da barra de controles: 2 pessoas uma
+     embaixo da outra, 3–4 em 2×2, 5 ou mais em 2 colunas. O quadrado
+     encolhe na altura quando precisa (antes a 5ª pessoa ficava escondida
+     atrás da barra). */
+  .vc-grid-2 { --cols: 1; --rows: 2; }
+  .vc-grid-3, .vc-grid-4 { --cols: 2; --rows: 2; }
+  .vc-grid-5 { --cols: 2; --rows: 3; }
+  .vc-stage:not(.vc-stage-scroll):not(.is-spotlight):not(.is-rpg) .vc-grid > .vc-tile {
+    max-height: calc((100cqh - (var(--rows) - 1) * var(--vc-gap-x)) / var(--rows)); min-height: 104px;
+  }
+  /* Dentro da call a barra de baixo ("Conectado por voz") repete o que o
+     topo e a barra de controles já mostram: some e sobra espaço pra call. */
+  body:has(.vc-dock) .call-bar.cb { display: none; }
 }
 @media (prefers-reduced-motion: reduce) {
   .vc-live { animation: none; }

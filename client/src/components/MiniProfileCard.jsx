@@ -60,6 +60,10 @@ export default function MiniProfileCard({ preview = null } = {}) {
   const [mutualFriends, setMutualFriends] = useState([]);
   // "Amigos desde ..." — o servidor só manda quando quem vê é amigo.
   const [friendsSince, setFriendsSince] = useState(null);
+  // Falhou ao buscar (sem nada guardado): mostra "Tentar de novo" em vez de
+  // ficar pra sempre em "Carregando...".
+  const [loadError, setLoadError] = useState(false);
+  const [retry, setRetry] = useState(0);
   const cardRef = useRef(null);
   // Posição só fica pronta depois de medir a altura real do card (abaixo),
   // então começa escondido pra não "piscar" no canto errado antes de flipar.
@@ -123,13 +127,14 @@ export default function MiniProfileCard({ preview = null } = {}) {
     // atualiza por trás — ver api/profileCache.js. Antes sempre voltava
     // pra "Carregando..." até a resposta do servidor (EUA) chegar.
     const cached = peekProfile(userId);
+    setLoadError(false);
     if (cached) apply(cached);
     else { setUser(null); setBadges([]); setMutualFriends([]); setFriendsSince(null); }
     fetchProfile(userId)
       .then((d) => { if (alive) apply(d); })
-      .catch(() => { if (alive && !cached) { setUser(null); setBadges([]); setMutualFriends([]); } });
+      .catch(() => { if (alive && !cached) { setUser(null); setBadges([]); setMutualFriends([]); setLoadError(true); } });
     return () => { alive = false; };
-  }, [userId]);
+  }, [userId, retry]);
 
   useEffect(() => {
     if (!userId || preview) return;
@@ -358,7 +363,26 @@ export default function MiniProfileCard({ preview = null } = {}) {
         ...(user ? profileAccentVars(user.profileColor) : {}),
       }}
     >
-      {!user && <p className="dim" style={{ padding: 16 }}>Carregando...</p>}
+      {!user && (loadError ? (
+        <div className="mini-profile-loading is-error" role="alert">
+          <p>Não deu pra abrir o perfil agora.</p>
+          <button type="button" className="btn-secondary" onClick={() => setRetry((n) => n + 1)}>Tentar de novo</button>
+        </div>
+      ) : (
+        // Esqueleto do card enquanto o perfil chega: já mostra a foto e o
+        // nome de quem está na lista de membros, o resto pisca de leve.
+        <div className="mini-profile-loading" aria-busy="true" aria-label="Carregando perfil">
+          <div className="mpl-banner" />
+          <div className="mpl-avatar">{member?.user?.avatarUrl && <img src={member.user.avatarUrl} alt="" />}</div>
+          <div className="mpl-body">
+            {member?.user
+              ? <strong className="mpl-name truncate">{member.user.displayName || member.user.username}</strong>
+              : <span className="mpl-line" style={{ width: '55%' }} />}
+            <span className="mpl-line" style={{ width: '35%' }} />
+            <span className="mpl-line" style={{ width: '80%' }} />
+          </div>
+        </div>
+      ))}
       {/* Efeitos de perfil saíram (no lugar: efeitos de texto no nome). */}
       {/* Seu próprio miniperfil: atalho discreto pro Editor de perfil. */}
       {user && !preview && isMine && (

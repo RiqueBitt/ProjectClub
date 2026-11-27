@@ -224,7 +224,7 @@ html.reduced-motion-pref .pc-season-badge { animation: none; }
   transition: background-color .15s ease, color .15s ease;
 }
 .pc-seg button:hover { color: var(--header-primary); }
-.pc-seg button.active { background: var(--bg-primary); color: var(--header-primary); box-shadow: 0 1px 4px rgba(0, 0, 0, .18); }
+.pc-seg button.active { background: var(--brand); color: #fff; box-shadow: 0 2px 8px color-mix(in srgb, var(--brand) 35%, transparent); }
 
 .pc-range { width: 100%; accent-color: var(--brand); }
 .pc-switch-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; }

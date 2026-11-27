@@ -16,6 +16,12 @@
   .hub-tabs-bar { justify-content: flex-start; padding: 8px 10px; }
   .hub-tabs-bar .pk-tabs { width: 100%; }
 }
+/* Celular estreito: sem os ícones (menos a coroa do Passe) todas as abas
+   cabem na tela — antes a última ficava cortada na borda. */
+@media (max-width: 440px) {
+  .hub-tabs-bar .pk-tab:not(.pk-tab-gold) > svg { display: none; }
+  .hub-tabs-bar .pk-tab { padding: 0 8px; }
+}
 
 /* Passe do clube: botão dourado (exclusivo de Assinantes). */
 .pk-tab.pk-tab-gold { color: #3a2a00; background: linear-gradient(135deg, #ffe7a3, #f2bf3d 58%, #d9a019); border: 1px solid rgba(214, 158, 20, .55); font-weight: 700; box-shadow: inset 0 1px 0 rgba(255, 255, 255, .5); }
