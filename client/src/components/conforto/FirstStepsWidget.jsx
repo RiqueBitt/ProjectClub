@@ -50,7 +50,7 @@ export default function FirstStepsWidget({ data, setData, hidden }) {
   // Configurações (onde se troca foto/tema/notificações).
   useEffect(() => {
     if (!socket) return undefined;
-    const on = () => refresh();
+    const on = () => getOnboarding({ fresh: true }).then(setData).catch(() => {});
     socket.on('onboarding:update', on);
     return () => socket.off('onboarding:update', on);
   }, [socket, refresh]);

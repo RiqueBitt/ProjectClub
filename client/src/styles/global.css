@@ -6741,3 +6741,7 @@ h2 > .ui-stroke-icon:first-child, h3 > .ui-stroke-icon:first-child, h4 > .ui-str
 .channel-rpg-toggle { display: flex; flex-direction: column; gap: 6px; padding: 12px; border-radius: 10px; background: var(--bg-secondary); border: 1px solid var(--border); }
 .channel-rpg-row { display: flex; align-items: center; gap: 10px; color: var(--text-normal); font-size: 14px; text-transform: none; }
 .channel-rpg-row input { width: 18px; height: 18px; margin: 0; accent-color: var(--brand); }
+
+/* Contador elevado ao lado do título das páginas: só aparece no visual
+   Minimalista (styles/club.css, que vem sob demanda). */
+.club-count { display: none; }

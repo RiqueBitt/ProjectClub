@@ -125,7 +125,7 @@ export default function InboxPopover({ onClose }) {
         {tab === 'replies' && (!data.replies ? <Loading /> : data.replies.length === 0 ? <Empty icon="reply" text="Ninguém respondeu suas mensagens ainda." /> : (
           <ul className="ibx-list">{data.replies.map((m) => <MessageRow key={m.id} m={m} onOpen={open} showReplyTo />)}</ul>
         ))}
-        {tab === 'saved' && (!data.saved ? <Loading /> : data.saved.length === 0 ? <Empty icon="star" text="Clique com o botão direito numa mensagem → Salvar para depois pra guardar aqui." /> : (
+        {tab === 'saved' && (!data.saved ? <Loading /> : data.saved.length === 0 ? <Empty icon="star" text="Clique com o botão direito (ou segure, no celular) numa mensagem → Salvar para depois pra guardar aqui." /> : (
           <ul className="ibx-list">
             {data.saved.map((m) => (
               <MessageRow
@@ -135,7 +135,7 @@ export default function InboxPopover({ onClose }) {
             ))}
           </ul>
         ))}
-        {tab === 'reminders' && (!data.reminders ? <Loading /> : data.reminders.length === 0 ? <Empty icon="clock" text="Sem lembretes. Clique com o botão direito numa mensagem → Lembrar-me." /> : (
+        {tab === 'reminders' && (!data.reminders ? <Loading /> : data.reminders.length === 0 ? <Empty icon="clock" text="Sem lembretes. Clique com o botão direito (ou segure, no celular) numa mensagem → Lembrar-me." /> : (
           <ul className="ibx-list">
             {data.reminders.map((r) => (
               <li key={r.id} className="ibx-room">

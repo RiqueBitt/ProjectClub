@@ -692,7 +692,22 @@ export function VoiceProvider({ children }) {
         useStore.getState().pushNotice(serverMsg || 'Não foi possível conectar à chamada de voz agora. Tente de novo em instantes.');
         return;
       }
-      await connectEngine({ serverId, channelId, channelName, channelType, creds, isSwitch: false });
+      // A primeira tentativa vai em silêncio: se o servidor de mídia não
+      // responder ou a conexão cair na hora (rede do celular trocando, servidor
+      // acordando), tenta mais uma vez com credenciais novas antes de avisar.
+      // Só quando a falha foi rápida — esperar o dobro de um tempo limite longo
+      // deixaria a pessoa olhando "Entrando…" tempo demais.
+      const t0 = Date.now();
+      const ok = await connectEngine({ serverId, channelId, channelName, channelType, creds, isSwitch: false, quiet: true });
+      if (ok || joinStopRef.current || joiningChannelIdRef.current !== channelId) return;
+      if (Date.now() - t0 > 12_000) {
+        useStore.getState().pushNotice('Não foi possível conectar à chamada de voz agora. Tente de novo em instantes.');
+        return;
+      }
+      await new Promise((r) => { setTimeout(r, 1500); });
+      if (joiningChannelIdRef.current !== channelId) return;
+      const again = await getVoiceJoin(channelId).catch(() => null);
+      await connectEngine({ serverId, channelId, channelName, channelType, creds: (again && readJoinResponse(again)) || creds, isSwitch: false });
     } finally {
       if (joiningChannelIdRef.current === channelId) joiningChannelIdRef.current = null;
       setJoiningChannelId((c) => (c === channelId ? null : c));

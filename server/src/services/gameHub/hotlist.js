@@ -35,10 +35,22 @@ async function computeHotlist({ db = getPrisma(), now = Date.now() } = {}) {
   };
 }
 
+let refreshing = null;
+
 async function getHotlist(deps = {}) {
   const now = deps.now || Date.now();
   const month = monthStartKey(now);
   if (!deps.db && memo && memo.month === month && now - memo.at < TTL) return memo.value;
+  // Venceu no mesmo mês: devolve a lista guardada na hora e recalcula por
+  // trás (a soma do mês + capas levava ~1,4 s pra quem abria o Game Hub).
+  if (!deps.db && memo && memo.month === month) {
+    if (!refreshing) refreshing = buildHotlist(deps, now, month).catch(() => {}).finally(() => { refreshing = null; });
+    return memo.value;
+  }
+  return buildHotlist(deps, now, month);
+}
+
+async function buildHotlist(deps, now, month) {
   const value = await computeHotlist({ ...deps, now });
   // Capa de cada jogo (Steam, ou a arte da Twitch pros que não são da Steam: WoW, Roblox…).
   if (!deps.db) {

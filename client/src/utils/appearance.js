@@ -264,6 +264,18 @@ export function currentSeason() {
 
 // ---------- Fonte legível ----------
 const LEGIBLE_FONT_HREF = 'https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible:ital,wght@0,400;0,700;1,400&display=swap';
+// Visual Minimalista: a folha dele (styles/club.css) vem sob demanda.
+let clubCssPromise = null;
+export function loadClubCss() {
+  if (!clubCssPromise) clubCssPromise = import('../styles/club.css').catch((err) => { clubCssPromise = null; throw err; });
+  return clubCssPromise;
+}
+
+// Preferências salvas neste aparelho (sem passar pelo store), pro começo do app.
+export function readLocalLayoutPrefs() {
+  try { return normalizeLayoutPrefs(JSON.parse(localStorage.getItem(LOCAL_KEY) || 'null')); } catch { return normalizeLayoutPrefs(null); }
+}
+
 export function ensureLegibleFontLoaded() {
   if (document.getElementById('pc-legible-font')) return;
   const link = document.createElement('link');
@@ -302,7 +314,8 @@ export function applyLayoutPrefs(prefs, { reducedMotion = false } = {}) {
   const season = p.seasonal ? currentSeason() : null;
   setAttr('data-pc-season', !!season, season || '');
 
-  // Visual novo + tema + cor de destaque (styles/club.css).
+  // Visual novo + tema + cor de destaque (styles/club.css, baixado sob demanda).
+  if (p.visual === 'novo') loadClubCss().catch(() => {});
   setAttr('data-visual', p.visual === 'novo', 'club');
   setAttr('data-club-theme', p.visual === 'novo', p.theme);
   setAttr('data-accent', p.visual === 'novo', p.accent);

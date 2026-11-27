@@ -98,6 +98,25 @@ test('cache: devolve o valor antigo se a fonte cair', async () => {
   remote._resetForTests();
 });
 
+test('cache remoto: vencido há pouco devolve o guardado na hora e atualiza por trás', async () => {
+  remote._resetForTests();
+  let t = 0;
+  let calls = 0;
+  await remote.cached('k', 10, async () => { calls += 1; return 'velho'; }, { now: () => t });
+  t = 25; // venceu (ttl 10), mas dentro de 6×
+  const slow = async () => { calls += 1; await new Promise((r) => { setTimeout(r, 20); }); return 'novo'; };
+  const a = await remote.cached('k', 10, slow, { now: () => t });
+  assert.equal(a, 'velho');
+  await remote._settle();
+  assert.equal(calls, 2);
+  const b = await remote.cached('k', 10, slow, { now: () => t });
+  assert.equal(b, 'novo');
+  t = 1000; // venceu demais: espera a busca nova
+  const c = await remote.cached('k', 10, async () => 'novíssimo', { now: () => t });
+  assert.equal(c, 'novíssimo');
+  remote._resetForTests();
+});
+
 // ---------- Clipes ----------
 test('clipes: aceita YouTube, Twitch, Medal e Streamable e limpa o link', () => {
   const c = (u) => clips.parseClipUrl(u);

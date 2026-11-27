@@ -5,6 +5,9 @@
 // só por vez pra cada chave (quem chega junto espera o mesmo); se a busca
 // falhar e tiver um valor antigo, devolve o antigo (melhor promoção de uma
 // hora atrás do que tela vazia). Sem valor nenhum, o erro sobe.
+// Venceu há pouco (até 6× o tempo de validade): devolve o guardado NA HORA e
+// atualiza por trás — quem abre a tela não espera a loja de fora responder
+// (era o "[lento] /api/game-hub/deals 800ms" dos logs a cada meia hora).
 
 const UA = 'ProjectClub/1.0 (+https://projectclub.shardweb.app)';
 const store = new Map(); // key -> { at, value }
@@ -20,10 +23,21 @@ async function fetchJson(url, { timeoutMs = 10_000, fetchImpl = globalThis.fetch
   } finally { clearTimeout(t); }
 }
 
+const STALE_FACTOR = 6;
+
 async function cached(key, ttlMs, loader, { now = Date.now } = {}) {
   const hit = store.get(key);
-  if (hit && now() - hit.at < ttlMs) return hit.value;
+  const age = hit ? now() - hit.at : Infinity;
+  if (hit && age < ttlMs) return hit.value;
+  if (hit && age < ttlMs * STALE_FACTOR) {
+    if (!inflight.has(key)) refresh(key, loader, now, hit).catch(() => {});
+    return hit.value;
+  }
   if (inflight.has(key)) return inflight.get(key);
+  return refresh(key, loader, now, hit);
+}
+
+function refresh(key, loader, now, hit) {
   const p = (async () => {
     try {
       const value = await loader();
@@ -38,6 +52,9 @@ async function cached(key, ttlMs, loader, { now = Date.now } = {}) {
   return p;
 }
 
+// Espera a atualização por trás terminar (testes).
+function _settle() { return Promise.allSettled([...inflight.values()]); }
+
 function _resetForTests() { store.clear(); inflight.clear(); }
 
-module.exports = { fetchJson, cached, UA, _resetForTests };
+module.exports = { fetchJson, cached, UA, _resetForTests, _settle };

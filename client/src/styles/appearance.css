@@ -434,3 +434,28 @@ html[data-pc-status-shapes] .status-dot.status-dot-invisible {
 .pc-cb-mention b { color: var(--header-primary); }
 @media (prefers-reduced-motion: reduce) { .pc-cb-mode { transition: none; } }
 @media (max-width: 600px) { .pc-cb-modes { grid-template-columns: 1fr 1fr; } }
+
+/* Seletor de visual (Configurações → Aparência) */
+.club-visual-body { display: flex; flex-direction: column; gap: 18px; padding-top: 6px; }
+.club-theme-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(118px, 1fr)); gap: 10px; }
+.club-theme-card {
+  display: flex; flex-direction: column; gap: 8px; padding: 8px 8px 10px; border-radius: 16px;
+  border: 1px solid var(--border); background: transparent; text-align: left; color: var(--text-normal);
+}
+.club-theme-card:hover { border-color: var(--divider-strong); }
+.club-theme-card.is-on { border-color: var(--club-accent, var(--brand)); box-shadow: 0 0 0 1px var(--club-accent, var(--brand)) !important; }
+.club-theme-swatch {
+  position: relative; display: block; height: 58px; border-radius: 10px; overflow: hidden;
+  background: var(--sw-bg); border: 1px solid rgba(128, 128, 128, .25);
+}
+.club-theme-swatch i:nth-child(1) { position: absolute; left: 0; top: 0; bottom: 0; width: 30%; background: var(--sw-panel); }
+.club-theme-swatch i:nth-child(2) { position: absolute; left: 7%; top: 30%; width: 16%; height: 12%; border-radius: 99px; background: var(--sw-ink); }
+.club-theme-swatch i:nth-child(3) { position: absolute; left: 38%; top: 34%; width: 46%; height: 9%; border-radius: 99px; background: var(--sw-ink); opacity: .35; box-shadow: 0 12px 0 var(--sw-ink); }
+.club-theme-name { font-size: 13px; font-weight: 600; padding-left: 2px; }
+.club-accent-row { display: flex; flex-wrap: wrap; gap: 10px; }
+.club-accent-dot {
+  width: 30px; height: 30px; border-radius: 50%; background: var(--dot);
+  box-shadow: inset 0 0 0 1px rgba(128, 128, 128, .35); transition: transform .12s ease;
+}
+.club-accent-dot:hover { transform: scale(1.08); }
+.club-accent-dot.is-on { box-shadow: 0 0 0 2px var(--bg-floating, #111), 0 0 0 4px var(--header-primary); }
