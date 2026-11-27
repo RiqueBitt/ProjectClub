@@ -56,6 +56,13 @@
       ${EndIf}
     ${EndIf}
   ${EndIf}
+
+  ; Só pros testes (desktop/scripts/check-installer.js): faz tudo que acontece ao abrir o
+  ; instalador e sai antes de instalar, pra dar pra conferir a partida centenas de vezes.
+  ${StdUtils.TestParameter} $R8 "check-start"
+  ${If} $R8 == "true"
+    !insertmacro quitSuccess
+  ${EndIf}
 !macroend
 
 ; Página "para quem instalar": não aparece. No instalador, o modo e a pasta já foram decididos no

@@ -75,7 +75,7 @@ jobs:
         run: >
           node scripts/check-installer.js --dist dist/nsis-web --serve $env:TEST_PORT
           --legacy "$env:RUNNER_TEMP\antigo\ProjectClub-Setup-Windows.exe" --shots "$env:RUNNER_TEMP\fotos"
-          --scenarios manifest,fresh,download,ui,legacy-update,legacy-manual,launch
+          --scenarios manifest,fresh,start-stress,download,ui,legacy-update,legacy-manual,launch
       # As mesmas fotos, menores, dentro do log: dá pra conferir as telas sem baixar o arquivo.
       - name: Mostrar as fotos das telas no log
         if: always()

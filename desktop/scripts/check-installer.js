@@ -10,6 +10,7 @@
 //   download       instalação nova em que o instalador baixa o pacote sozinho
 //   ui             instalação com as telas, clicando em "Instalar" (salva fotos das telas)
 //   launch         o app instalado abre e continua aberto
+//   start-stress   abre o instalador centenas de vezes numa máquina sem o app (ele nunca pode fechar com erro)
 //   legacy-update  versão antiga instalada + atualização automática: fica na pasta em que estava
 //   legacy-manual  versão antiga instalada + instalador aberto pela pessoa: vai pra "Project Club"
 //
@@ -374,6 +375,26 @@ const scenarios = {
     expectInstalled(state, { dir: MODERN_DIR, version });
     check(await uninstall(), 'a desinstalação terminou');
     expectGone(snapshot());
+  },
+
+  // Abrir o instalador numa máquina sem o app é o caminho de quem está instalando pela primeira
+  // vez. Um erro que só aparece de vez em quando não é pego por uma instalação só: aqui ele abre
+  // muitas vezes seguidas (com --check-start ele faz a partida inteira e sai antes de instalar).
+  async 'start-stress'() {
+    await cleanMachine();
+    const runs = Number(option('stress-runs', 300));
+    const started = new Date();
+    const bad = {};
+    for (let i = 0; i < runs; i++) {
+      const { code } = await run(installer, ['/S', '--check-start'], { timeoutMs: 60 * 1000 });
+      if (code !== 0) bad[code] = (bad[code] || 0) + 1;
+    }
+    const failures = Object.values(bad).reduce((a, b) => a + b, 0);
+    const detail = Object.entries(bad).map(([code, n]) => `${n}x código ${code} (0x${(Number(code) >>> 0).toString(16)})`).join(', ');
+    check(failures === 0, `o instalador abriu ${runs} vezes sem fechar com erro (${((Date.now() - started) / 1000).toFixed(0)}s)`, `${failures} de ${runs}: ${detail}`);
+    if (failures) crashReport(started);
+    const state = snapshot();
+    check(!state.guid && !state.modernDir && !state.legacyDir, 'só abrir o instalador não instala nem deixa nada pra trás');
   },
 
   async launch() {
