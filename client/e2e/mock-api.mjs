@@ -106,6 +106,14 @@ export function handler(route) {
     { id: 'f4', status: 'PENDING', isIncoming: true, user: U('6', 'Nico', { c1: '#e67e22', c2: '#6e2c00' }) },
   ] });
 
+  // Economia: saldo, sequência do baú diário, baús possíveis e o passe do mês.
+  if (p === '/economy') return json({ coins: 2480, gems: 12, accountLevel: 7, dailyStreak: 3, streakRequired: 7, lastDailyAt: new Date(now - 26 * 3600000).toISOString(), nextDailyAt: null, cardStyle: 'default', cardStyles: ['default', 'gold'] });
+  if (p === '/economy/chests') {
+    const chest = (a, b) => svg(120, 96, `<rect x="14" y="30" width="92" height="58" rx="8" fill="${a}"/><rect x="10" y="14" width="100" height="26" rx="10" fill="${b}"/><rect x="52" y="34" width="16" height="20" rx="3" fill="#ffd34d"/>`);
+    return json({ chests: [['ch-1', 'Madeira', '#8a5a2b', '#a8713a'], ['ch-2', 'Prata', '#8f9bab', '#b9c3cf'], ['ch-3', 'Ouro', '#c8961e', '#e7b93c'], ['ch-4', 'Cristal', '#3b82c4', '#7cc3f0']].map(([id, name, a, b]) => ({ id, name, imageClosed: chest(a, b), imageOpened: chest(b, a) })) });
+  }
+  if (p === '/missions/season') return json({ key: '2026-11', name: 'Temporada de Novembro', endsAt: new Date(now + 4 * 86400000).toISOString(), isSupporter: true, level: 6, maxLevel: 30, points: 640, levelPoints: 100, pointsPerMission: { daily: 20, weekly: 60 },
+    tiers: Array.from({ length: 30 }, (_, i) => ({ level: i + 1, unlocked: i < 6, claimedFree: i < 4, claimedPlus: i < 3, free: { coins: 100 + i * 20, gems: (i + 1) % 5 === 0 ? 2 : 0 }, plus: { coins: 200 + i * 30, gems: (i + 1) % 5 === 0 ? 5 : 1 } })) });
   if (p === '/economy/rank') return json({ level: 7, levelTitle: 'Veterano', levelName: 'Lv.7', position: 12, xp: 18420, progress: 64, xpInLevel: 1280, xpNeeded: 2000, nextLevel: 8, isMaxLevel: false });
   if (p === '/economy/leaderboard') return json({ leaderboard: [
     { ...users[1], accountLevel: 24, accountXp: 152300 }, { ...users[4], accountLevel: 19, accountXp: 98210 }, { ...users[2], accountLevel: 15, accountXp: 61200 },

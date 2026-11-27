@@ -389,6 +389,7 @@ export default function NotificationsPage() {
       <div className="pk-inner narrow">
         <PageHero
           icon="bell" eyebrow="Central" title="Notificações"
+          count={items.length > 0 ? `${items.length} ${items.length === 1 ? 'nova' : 'novas'}` : null}
           desc="Menções, mensagens, pedidos, eventos, missões e novidades da Loja — tudo num lugar só."
           aside={canMarkAll && (
             <button className="pk-btn" onClick={markAllRead}><Ico name="checkAll" size={18} /> Marcar tudo como lido</button>
