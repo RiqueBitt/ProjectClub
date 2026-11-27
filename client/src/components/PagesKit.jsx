@@ -120,7 +120,10 @@ export function PillTabs({ tabs, value, onChange, label, className = '' }) {
           className={`pk-tab ${value === t.id ? 'active' : ''}${t.className ? ` ${t.className}` : ''}`} onClick={() => onChange(t.id)}
         >
           {t.icon && <Ico name={t.icon} size={17} />}
-          <span>{t.label}</span>
+          {t.shortLabel ? (
+            // Rótulo curto em tela estreita (ver .pk-tab-short em pages-kit.css).
+            <span><span className="pk-tab-long">{t.label}</span><span className="pk-tab-short" aria-hidden="true">{t.shortLabel}</span></span>
+          ) : <span>{t.label}</span>}
           {t.count > 0 && <span className="pk-tab-count">{t.count > 99 ? '99+' : t.count}</span>}
         </button>
       ))}

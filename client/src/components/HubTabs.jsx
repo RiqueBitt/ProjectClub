@@ -16,7 +16,7 @@ export const ECONOMY_HUB_TABS = [
   { id: 'loja', label: 'Loja', icon: 'store', to: '/loja' },
   // Fase 8: criações dos membros (LojaCriadoresPage.jsx).
   { id: 'criadores', label: 'Criadores', icon: 'sparkles', to: '/loja/criadores' },
-  { id: 'temporada', label: 'Passe do clube', icon: 'crown', to: '/economia?aba=temporada', className: 'pk-tab-gold' },
+  { id: 'temporada', label: 'Passe do clube', shortLabel: 'Passe', icon: 'crown', to: '/economia?aba=temporada', className: 'pk-tab-gold' },
 ];
 
 export function hubPathFor(tabs, id) {

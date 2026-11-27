@@ -211,7 +211,13 @@
 @media (prefers-reduced-motion: reduce) {
   .social-tabs-line, .fx-filters-pill { transition: none; }
 }
-/* "Adicionar amigo" na mesma linha dos filtros, discreto (não compete com a lista) */
-.fx-bar { flex-wrap: nowrap; }
+/* "Adicionar amigo" na mesma linha dos filtros, discreto (não compete com a lista).
+   Com a coluna "Ativo agora" aberta sobra pouco espaço: o botão vira só
+   "Adicionar" e, se ainda não couber, desce pra linha de baixo (antes
+   ficava cortado pela metade). */
+.friends-panel.fx { container: fx-panel / inline-size; }
+.fx-bar { flex-wrap: wrap; row-gap: 10px; }
 .fx-add { height: 36px; padding: 0 14px; font-size: 14px; flex-shrink: 0; }
-@media (max-width: 560px) { .fx-bar { flex-wrap: wrap; } }
+@container fx-panel (max-width: 620px) { .fx-add-long { display: none; } }
+/* No celular o botão ocupa a linha toda: cabe o nome inteiro. */
+@media (max-width: 700px) { .fx-add-long { display: inline; } }

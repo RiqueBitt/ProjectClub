@@ -169,8 +169,22 @@ function isEmbeddedBrowserFetch(req) {
   return !!dest && dest !== 'document';
 }
 
+// Endereço da própria máquina ou de rede interna: nunca é um scanner de
+// fora. Bloquear um desses tirava do ar o tráfego interno (checagem de
+// saúde, o Rust repassando pro Node sem o IP real) — e, se o proxy um dia
+// deixar de mandar o IP de quem acessa, todo mundo apareceria com o mesmo
+// endereço interno e um bloqueio derrubaria o site inteiro.
+function isLocalOrPrivateIp(ip) {
+  const a = String(ip || '').trim().toLowerCase().replace(/^::ffff:/, '');
+  if (!a || a === 'unknown' || a === '::1' || a === 'localhost') return true;
+  if (/^(127|10)\./.test(a) || /^192\.168\./.test(a) || /^172\.(1[6-9]|2\d|3[01])\./.test(a)) return true;
+  if (/^(fc|fd)[0-9a-f]{2}:/.test(a) || /^fe80:/.test(a)) return true;
+  return false;
+}
+
 async function recordHitAndMaybeBlock(req, ip) {
   const userAgent = req.headers['user-agent'] || null;
+  if (isLocalOrPrivateIp(ip)) return;
   if (isEmbeddedBrowserFetch(req)) return;
   if (await hasValidSession(req)) return;
 
@@ -242,5 +256,5 @@ module.exports = {
   honeypotMiddleware, blockedIpGuard, invalidateBlockedIpCache,
   BLOCK_AFTER_HITS, BLOCK_AFTER_DISTINCT_PATHS, HIT_WINDOW_MS,
   // exportados pra testes
-  isEmbeddedBrowserFetch,
+  isEmbeddedBrowserFetch, isLocalOrPrivateIp,
 };

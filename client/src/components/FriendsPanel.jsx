@@ -112,7 +112,7 @@ export default function FriendsPanel() {
           ))}
         </div>
         <button type="button" className={`fx-add${tab === 'ADD' ? ' active' : ''}`} onClick={() => setTab('ADD')}>
-          <SocialIcon name="add" size={17} /> Adicionar amigo
+          <SocialIcon name="add" size={17} /> Adicionar<span className="fx-add-long"> amigo</span>
         </button>
       </div>
 

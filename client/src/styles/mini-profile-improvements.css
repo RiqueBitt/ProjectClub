@@ -123,3 +123,21 @@
 @media (max-width: 400px) {
   .mini-profile-card { width: min(320px, calc(100vw - 16px)); }
 }
+
+/* Esqueleto enquanto o perfil carrega (no lugar do "Carregando...") e o
+   aviso com "Tentar de novo" quando a busca falha. */
+.mini-profile-loading { position: relative; display: flex; flex-direction: column; }
+.mini-profile-loading .mpl-banner { height: 100px; background: color-mix(in srgb, var(--text-muted) 16%, transparent); }
+.mini-profile-loading .mpl-avatar {
+  width: 84px; height: 84px; margin: -42px 0 0 16px; border-radius: 50%; overflow: hidden;
+  background: color-mix(in srgb, var(--text-muted) 22%, var(--bg-floating, #111)); border: 6px solid var(--bg-floating, #111);
+}
+.mini-profile-loading .mpl-avatar img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.mini-profile-loading .mpl-body { display: flex; flex-direction: column; gap: 9px; padding: 12px 16px 18px; }
+.mini-profile-loading .mpl-name { font-size: 18px; font-weight: 800; color: var(--header-primary); }
+.mini-profile-loading .mpl-line { display: block; height: 10px; border-radius: 6px; background: color-mix(in srgb, var(--text-muted) 20%, transparent); }
+.mini-profile-loading:not(.is-error) :is(.mpl-banner, .mpl-line) { animation: mpl-pulse 1.2s ease-in-out infinite alternate; }
+@keyframes mpl-pulse { from { opacity: .55; } to { opacity: 1; } }
+.mini-profile-loading.is-error { align-items: center; gap: 12px; padding: 28px 20px; text-align: center; }
+.mini-profile-loading.is-error p { margin: 0; font-size: 14px; color: var(--text-normal); }
+@media (prefers-reduced-motion: reduce) { .mini-profile-loading :is(.mpl-banner, .mpl-line) { animation: none; } }
