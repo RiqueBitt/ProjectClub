@@ -121,13 +121,29 @@ test('configurações: tema colorido, ícone, modo streamer, sons, privacidade',
   expect(errors).toEqual([]);
 });
 
-test('canais em destaque: Assinatura no topo leva pra página de planos', async ({ page }, info) => {
+test('barra de ícones (visual novo): Assinatura leva pra página de planos', async ({ page }, info) => {
+  test.skip(info.project.name !== 'pc', 'barra de ícones conferida no PC');
+  await page.goto('/inicio');
+  // No PC os destaques saem da lista de canais e viram a barra de ícones.
+  await expect(page.locator('.club-rail')).toBeVisible({ timeout: 20_000 });
+  await expect(page.locator('.n2-sidebar .featured-channels')).toBeHidden();
+  const sub = page.locator('.club-rail-btn[aria-label^="Assinatura"]');
+  await sub.click();
+  await expect(page).toHaveURL(/\/assinatura$/);
+  await expect(sub).toHaveClass(/is-active/);
+  await expect(page.locator('.sub-hero h1')).toContainText('Assinatura');
+  // Comunidade volta pro chat.
+  await page.locator('.club-rail-btn[aria-label^="Comunidade"]').click();
+  await expect(page.locator('.chat-header')).toBeVisible({ timeout: 20_000 });
+});
+
+test('visual clássico: canais em destaque com a Assinatura no topo e sem barra de ícones', async ({ page }, info) => {
   test.skip(info.project.name !== 'pc', 'barra de canais conferida no PC');
+  await page.addInitScript(() => { try { localStorage.setItem('pc-layout-prefs', JSON.stringify({ visual: 'classic' })); } catch { /* */ } });
   await page.goto('/inicio');
   const first = page.locator('.featured-channels .featured-channel').first();
   await expect(first).toBeVisible({ timeout: 20_000 });
   await expect(first).toContainText('Assinatura');
-  await first.click();
-  await expect(page).toHaveURL(/\/assinatura$/);
-  await expect(page.locator('.sub-hero h1')).toContainText('Assinatura');
+  await expect(page.locator('.club-rail')).toHaveCount(0);
+  await expect(page.locator('html')).not.toHaveAttribute('data-visual', 'club');
 });

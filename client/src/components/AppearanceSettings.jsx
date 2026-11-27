@@ -3,7 +3,7 @@
 // e salva sozinho na conta — ver utils/appearance.js.
 import { useStore } from '../store/useStore';
 import {
-  layoutOnlyDefaults, isDefaultLayoutOnly, SEASONS, seasonForDate,
+  layoutOnlyDefaults, isDefaultLayoutOnly, SEASONS, seasonForDate, CLUB_THEMES, CLUB_ACCENTS,
   SIDEBAR_WIDTH_MIN, SIDEBAR_WIDTH_MAX, FONT_SIZE_MIN, FONT_SIZE_MAX, colorVisionPalette,
 } from '../utils/appearance';
 import PresenceDot from './PresenceDot.jsx';
@@ -84,6 +84,79 @@ function LivePreview({ prefs }) {
       </div>
       <p className="pc-preview-note">As mudanças já aparecem no app atrás desta janela.</p>
     </div>
+  );
+}
+
+// Visual do app (nov/2026): o visual novo com tema e cor de destaque, ou o
+// clássico de antes. Aplica na hora e salva na conta (layoutPrefs).
+export function ClubVisualPicker() {
+  const prefs = useStore((s) => s.layoutPrefs);
+  const setPrefs = useStore((s) => s.setLayoutPrefs);
+  // Com um tema colorido ligado (bloco "Temas coloridos" mais abaixo), as
+  // cores dele mandam por cima do tema e do destaque daqui.
+  const colorTheme = useStore((s) => s.userSettings?.extraPrefs?.colorTheme);
+  const hasColorTheme = !!colorTheme && colorTheme !== 'none';
+  const club = prefs.visual === 'club';
+  const accentColor = (a) => (a.id === 'mono' && prefs.theme === 'claro' ? '#0B0B0C' : a.color);
+  return (
+    <section className="pc-layout-panel club-visual-panel" aria-labelledby="club-visual-title">
+      <div className="pc-layout-head">
+        <div>
+          <h4 id="club-visual-title">Visual</h4>
+          <p>O jeito do app: cores, tema e cor de destaque. Salvo na sua conta.</p>
+        </div>
+      </div>
+      <div className="club-visual-body">
+        <div className="pc-field">
+          <span className="pc-field-label">Estilo</span>
+          <Seg
+            label="Estilo" value={prefs.visual} onChange={(v) => setPrefs({ visual: v })}
+            options={[{ value: 'club', label: 'Novo' }, { value: 'classic', label: 'Clássico' }]}
+          />
+        </div>
+        {club && (
+          <>
+            <div className="pc-field">
+              <span className="pc-field-label">Tema</span>
+              <div className="club-theme-grid" role="radiogroup" aria-label="Tema">
+                {CLUB_THEMES.map((t) => (
+                  <button
+                    key={t.id} type="button" role="radio" aria-checked={prefs.theme === t.id}
+                    className={`club-theme-card${prefs.theme === t.id ? ' is-on' : ''}`}
+                    onClick={() => setPrefs({ theme: t.id })}
+                  >
+                    <span className="club-theme-swatch" style={{ '--sw-bg': t.bg, '--sw-panel': t.panel, '--sw-ink': t.ink }} aria-hidden="true">
+                      <i /><i /><i />
+                    </span>
+                    <span className="club-theme-name">{t.label}</span>
+                  </button>
+                ))}
+              </div>
+            </div>
+            <div className="pc-field">
+              <span className="pc-field-label">Cor de destaque</span>
+              <div className="club-accent-row" role="radiogroup" aria-label="Destaque do visual">
+                {CLUB_ACCENTS.map((a) => (
+                  <button
+                    key={a.id} type="button" role="radio" aria-checked={prefs.accent === a.id} aria-label={a.label}
+                    data-tip={a.label}
+                    className={`club-accent-dot${prefs.accent === a.id ? ' is-on' : ''}${a.id === 'mono' ? ' is-mono' : ''}`}
+                    style={{ '--dot': accentColor(a) }}
+                    onClick={() => setPrefs({ accent: a.id })}
+                  />
+                ))}
+              </div>
+              <p className="pc-field-hint">Usada nos botões, links e no que está selecionado.</p>
+            </div>
+            {hasColorTheme && (
+              <p className="pc-field-hint club-visual-note">
+                Você está com um tema colorido ligado: o fundo e a cor de destaque vêm dele. Pra usar o tema e a cor daqui, escolha "Nenhum" em Temas coloridos.
+              </p>
+            )}
+          </>
+        )}
+      </div>
+    </section>
   );
 }
 

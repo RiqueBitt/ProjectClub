@@ -72,7 +72,7 @@ import youtubeConnIcon from '../../assets/icons/social-youtube.png';
 import steamConnIcon from '../../assets/icons/social-steam.png';
 import { useVoice } from '../../context/VoiceContext.jsx';
 import { CUSTOM_BACKGROUND_ENABLED } from '../../utils/featureFlags';
-import { LayoutCustomizer, AccessibilityExtras, ColorVisionSettings } from '../AppearanceSettings.jsx';
+import { LayoutCustomizer, AccessibilityExtras, ColorVisionSettings, ClubVisualPicker } from '../AppearanceSettings.jsx';
 import { trackSave, useSaveStatus } from '../../utils/saveIndicator';
 import { useShallow } from 'zustand/react/shallow';
 import { chatZoomSaver, interfaceZoomSaver } from '../../utils/zoomSave';
@@ -1597,6 +1597,8 @@ export default function UserSettingsModal({ onClose, mode = 'settings', initialT
 
       {tab === 'APPEARANCE' && (
         <div className="settings-grid">
+          {/* Visual novo / clássico, tema e cor de destaque (nov/2026). */}
+          <ClubVisualPicker />
           {/* Item pedido: "em aparência adicione uma nova opção de
               layout, a opção normal (a atual) e a opção de layout
               discord — o layout discord faz os canais/categorias

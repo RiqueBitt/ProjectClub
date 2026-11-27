@@ -5,6 +5,7 @@ import { CATEGORIES, POSTS, categoryLabel, featuredPost, fmtDate, postBySlug } f
 import { BannerArt } from './blog/bannerArt.jsx';
 import '../styles/landing.css';
 import '../styles/landing-mono.css';
+import '../styles/landing-club.css';
 import '../styles/public-docs.css';
 import '../styles/blog.css';
 

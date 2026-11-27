@@ -335,11 +335,20 @@ fn layout_rule(key: &str, v: &Value) -> bool {
             ],
         ),
         "colorblindStrength" => int_in(v, 0, 100),
+        // Visual novo (nov/2026): igual ao LAYOUT_PREF_RULES do Node.
+        "visual" => is_str_in(v, &["club", "classic"]),
+        "theme" => is_str_in(v, &["preto", "grafite", "meianoite", "claro"]),
+        "accent" => is_str_in(
+            v,
+            &[
+                "azul", "roxo", "verde", "laranja", "rosa", "vermelho", "amarelo", "mono",
+            ],
+        ),
         _ => false,
     }
 }
 
-const LAYOUT_KEYS: [&str; 13] = [
+const LAYOUT_KEYS: [&str; 16] = [
     "density",
     "corners",
     "sidebarWidth",
@@ -353,6 +362,9 @@ const LAYOUT_KEYS: [&str; 13] = [
     "colorblindStrength",
     "colorblindFilter",
     "statusShapes",
+    "visual",
+    "theme",
+    "accent",
 ];
 
 fn sanitize_layout_prefs(v: &Value) -> Option<Value> {
