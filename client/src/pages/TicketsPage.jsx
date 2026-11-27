@@ -90,7 +90,7 @@ export default function TicketsPage() {
       <header className="sp-hero">
         <span className="sp-hero-icon"><PageIcon name="headset" size={28} /></span>
         <div className="sp-hero-text">
-          <h1>Central de suporte</h1>
+          <h1>Central de suporte{counts.OPEN > 0 && <> <sup className="club-count">{counts.OPEN} {counts.OPEN === 1 ? 'aberto' : 'abertos'}</sup></>}</h1>
           <p>Fale direto com a equipe do Project Club. A resposta chega aqui e nas suas notificações.</p>
         </div>
         <button type="button" className="sp-primary" onClick={() => startNew()}>

@@ -92,14 +92,16 @@ export function Ico({ name, size = 18, strokeWidth = 1.8, className }) {
 
 // Cabeçalho "herói" — ícone + título + descrição curta; `aside` vai à
 // direita (saldo, progresso...) e desce pra baixo no celular.
-export function PageHero({ icon, eyebrow, title, desc, aside, children }) {
+// `count`: contador ao vivo que o visual novo mostra elevado ao lado do
+// título (como o "Call ¹" da lista de canais). No clássico fica escondido.
+export function PageHero({ icon, eyebrow, title, count, desc, aside, children }) {
   return (
     <header className="pk-hero">
       <div className="pk-hero-main">
         <span className="pk-hero-icon"><Ico name={icon} size={26} /></span>
         <div className="pk-hero-text">
           {eyebrow && <span className="pk-eyebrow">{eyebrow}</span>}
-          <h1>{title}</h1>
+          <h1>{title}{count ? <> <sup className="club-count">{count}</sup></> : null}</h1>
           {desc && <p>{desc}</p>}
         </div>
       </div>

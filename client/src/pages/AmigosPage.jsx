@@ -54,7 +54,7 @@ export default function AmigosPage() {
     <div className="social">
       <header className="social-hero">
         <div>
-          <h1>Amigos</h1>
+          <h1>Amigos{onlineCount > 0 && <> <sup className="club-count"><i className="social-dot" aria-hidden="true" />{onlineCount} online</sup></>}</h1>
           <p className="social-stats">
             <span>{accepted.length} amigo{accepted.length === 1 ? '' : 's'}</span>
             <span className="social-online"><span className="social-dot" /> {onlineCount} online</span>

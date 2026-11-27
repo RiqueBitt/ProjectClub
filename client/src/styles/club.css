@@ -927,3 +927,154 @@ html[data-visual='club'] .sub-final .sub-btn-gold { background: var(--sub-gold);
   html[data-visual='club'] .sub-highlight:nth-last-child(-n+3) { border-bottom: 1px solid var(--club-line); }
   html[data-visual='club'] .sub-highlight:nth-last-child(-n+2) { border-bottom: 0; }
 }
+
+/* ---------------------------------------------------------------
+   12. Menus repaginados: a "capa" de cada página
+   Toda página de menu abre do mesmo jeito: sem caixa e sem ícone,
+   título largo e grande, a contagem ao vivo elevada ao lado (como o
+   "Call ¹" da lista de canais), uma linha de texto e as abas em
+   pílula logo embaixo. O resto vem solto: listas em linhas, sem
+   moldura tracejada, sem fundo tingido, ícones só onde ajudam.
+   --------------------------------------------------------------- */
+.club-count { display: none; }
+html[data-visual='club'] .club-count {
+  display: inline-flex; align-items: center; gap: 6px; vertical-align: top;
+  margin: .32em 0 0 .05em; font-size: 13px; line-height: 1; font-weight: 650;
+  font-stretch: 100%; letter-spacing: 0; color: var(--text-link); white-space: nowrap;
+}
+html[data-visual='club'] .club-count .social-dot { width: 7px; height: 7px; animation: none; box-shadow: none; }
+
+/* Capa: sem caixa, sem ícone, sem rótulo em cima */
+html[data-visual='club'] .app-shell :is(.pk-hero, .sp-hero, .mdx-lib-hero, .social-hero) {
+  background: none !important; border: 0 !important; border-radius: 0 !important;
+  padding: 10px 2px 4px !important; box-shadow: none !important; align-items: flex-end;
+}
+html[data-visual='club'] .app-shell :is(.pk-hero-icon, .sp-hero-icon, .mdx-lib-hero-icon) { display: none; }
+html[data-visual='club'] .app-shell :is(.pk-hero .pk-eyebrow, .mdx-lib-hero .mdx-eyebrow) { display: none; }
+html[data-visual='club'] .app-shell .pk-hero-main { gap: 0; }
+html[data-visual='club'] .app-shell :is(.pk-hero-text h1, .sp-hero-text h1, .mdx-lib-hero h1, .social-hero h1) {
+  font-size: clamp(34px, 3.3vw, 46px); line-height: 1.04; font-weight: 800; font-stretch: 125%; letter-spacing: -0.045em;
+}
+html[data-visual='club'] .app-shell :is(.pk-hero-text p, .sp-hero-text p, .mdx-lib-hero p, .social-hero p) {
+  margin-top: 8px; font-size: 14.5px; line-height: 1.5; max-width: 58ch; color: var(--text-muted);
+}
+html[data-visual='club'] .app-shell .pk-hero-aside { padding-bottom: 4px; }
+
+/* Abas de todos os menus no mesmo trilho: o ativo vira papel */
+html[data-visual='club'] :is(.social-tabs, .pg-tabs, .sp-modes, .fx-filters) {
+  display: inline-flex; gap: 2px; width: fit-content; max-width: 100%; padding: 4px;
+  background: transparent; border: 1px solid var(--club-line); border-radius: 999px; box-shadow: none;
+  overflow-x: auto; scrollbar-width: none;
+}
+html[data-visual='club'] :is(.social-tab, .pg-tab, .sp-mode, .fx-filter) {
+  height: 34px; padding: 0 14px; border-radius: 999px; font-size: 13.5px; font-weight: 600; color: var(--text-muted); box-shadow: none;
+}
+html[data-visual='club'] :is(.social-tab, .pg-tab, .sp-mode, .fx-filter):hover:not(.active) { color: var(--header-primary); background: var(--bg-modifier-hover); }
+html[data-visual='club'] :is(.social-tab, .pg-tab, .sp-mode, .fx-filter).active { background: var(--club-sel-bg); color: var(--club-sel-fg); box-shadow: none; }
+html[data-visual='club'] :is(.social-tab, .pg-tab, .sp-mode, .fx-filter).active :is(svg, .pg-tab-count, .fx-count:not(.alert)) { color: currentColor; }
+html[data-visual='club'] :is(.social-tab, .pg-tab).active::after,
+html[data-visual='club'] .social-tabs-line { display: none; }
+html[data-visual='club'] .fx-filters-pill { display: none; }
+html[data-visual='club'] .pk-tabs { max-width: 100%; overflow-x: auto; scrollbar-width: none; }
+html[data-visual='club'] .pk-tabs::-webkit-scrollbar { display: none; }
+
+/* ---------- Amigos ---------- */
+html[data-visual='club'] .app-shell .social-hero {
+  display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 18px 24px; border-bottom: 0;
+}
+html[data-visual='club'] .social-hero .social-tabs { grid-column: 1 / -1; margin-top: 4px; }
+html[data-visual='club'] .social-stats .social-online { display: none; }
+html[data-visual='club'] .social-content { margin-top: 26px; }
+html[data-visual='club'] .fx-bar { flex-wrap: wrap; }
+html[data-visual='club'] .fx-add { border-radius: 999px; box-shadow: none !important; }
+html[data-visual='club'] .fx-card + .fx-card::before { background: var(--club-line); }
+html[data-visual='club'] .app-shell .fx-card { background: transparent !important; border: 0 !important; border-radius: 16px; }
+html[data-visual='club'] .app-shell .fx-card:hover { background: var(--bg-modifier-hover) !important; }
+html[data-visual='club'] .fx-icon { border-radius: 999px; }
+html[data-visual='club'] .fx-icon.brand { background: transparent; color: var(--header-primary); }
+html[data-visual='club'] .fx-icon.brand:hover { background: var(--bg-modifier-hover); filter: none; }
+html[data-visual='club'] .anp { border-left-color: var(--club-line); }
+html[data-visual='club'] .anp-empty { border: 0; padding: 4px 0; text-align: left; }
+html[data-visual='club'] .anp-empty strong { font-size: 14px; }
+
+/* ---------- Suporte ---------- */
+html[data-visual='club'] .app-shell .sp-hero { gap: 20px; }
+html[data-visual='club'] .sp-modes { margin-top: 6px; }
+html[data-visual='club'] .sp-list-panel { background: transparent; border: 0; border-radius: 0; }
+html[data-visual='club'] .sp-list-tools { padding: 0 0 12px; border-bottom: 1px solid var(--club-line); }
+html[data-visual='club'] .sp-search { border-radius: 999px; background: var(--club-surface); border-color: transparent; }
+html[data-visual='club'] .sp-filter { border-radius: 999px; }
+html[data-visual='club'] .sp-filter.active { background: var(--club-sel-bg); color: var(--club-sel-fg); }
+html[data-visual='club'] .sp-filter.active span { background: transparent; color: inherit; }
+html[data-visual='club'] .sp-pane { background: var(--club-surface); border: 0; border-radius: 24px; }
+html[data-visual='club'] .sp-welcome-icon { display: none; }
+html[data-visual='club'] .sp-welcome h2 { font-stretch: 125%; letter-spacing: -0.035em; font-size: 24px; }
+html[data-visual='club'] .sp-tag { background: none !important; padding: 0; font-weight: 600; }
+html[data-visual='club'] .sp-tag + .sp-tag::before { content: ''; display: inline-block; width: 3px; height: 3px; border-radius: 50%; margin: 0 8px 2px 0; background: var(--text-muted); vertical-align: middle; }
+
+/* ---------- Notificações ---------- */
+html[data-visual='club'] .nt .pk-tab svg { display: none; }
+html[data-visual='club'] .nt .nt-list { background: transparent !important; border: 0; padding: 0; gap: 0; border-radius: 0; }
+html[data-visual='club'] .nt .nt-item { border-radius: 16px; padding: 12px 12px; }
+html[data-visual='club'] .nt .nt-item.unread { background: transparent; }
+html[data-visual='club'] .nt .nt-item.clickable:hover,
+html[data-visual='club'] .nt .notifications-item-testimonial:hover { background: var(--bg-modifier-hover); }
+html[data-visual='club'] .nt-icon-solo { background: var(--club-surface); border-radius: 999px; }
+html[data-visual='club'] .nt-icon-badge { box-shadow: 0 0 0 3px var(--bg-primary); }
+html[data-visual='club'] .nt-dot { background: var(--club-accent); box-shadow: none; width: 8px; height: 8px; }
+html[data-visual='club'] .nt .nt-group h3 { margin: 8px 0 6px 12px; font-size: 13px; font-weight: 700; color: var(--header-primary); }
+html[data-visual='club'] .nt .nt-group h3 span { background: none; padding: 0; color: var(--text-muted); font-weight: 600; }
+html[data-visual='club'] .nt .nt-group h3::after { content: ''; flex: 1; height: 1px; background: var(--club-line); }
+html[data-visual='club'] .nt .nt-quote { background: var(--club-surface); border-left: 0; border-radius: 14px; }
+
+/* ---------- Progresso ---------- */
+html[data-visual='club'] .app-shell .pg-hero { border: 0 !important; border-radius: 28px; }
+html[data-visual='club'] .pg-stats > div { border-left-color: var(--club-line); }
+html[data-visual='club'] .pg-stats dt svg { color: var(--text-muted); }
+html[data-visual='club'] .pg-stats dd { font-stretch: 125%; letter-spacing: -0.03em; }
+html[data-visual='club'] .pg-tabs { margin-top: 26px; }
+
+/* ---------- Mods ---------- */
+html[data-visual='club'] .mdx-home-head-icon { display: none; }
+html[data-visual='club'] .mdx-home-head h2 { font-size: 19px; letter-spacing: -0.02em; }
+html[data-visual='club'] .mdx-home-empty { background: none; border: 0; padding: 4px 0 0; }
+html[data-visual='club'] .mdx-home-empty .mdx-empty-icon { display: none; }
+html[data-visual='club'] .mdx-empty { background: var(--club-surface); border: 0; border-radius: 24px; }
+html[data-visual='club'] .mdx-empty-icon { background: var(--bg-primary); color: var(--header-primary); border-radius: 999px; }
+
+/* ---------- Game Hub e Promoções: títulos de seção sem ícone colorido ---------- */
+html[data-visual='club'] :is(.jh-h2, .gh-h2) { font-stretch: 112%; letter-spacing: -0.03em; }
+html[data-visual='club'] :is(.jh-h2, .gh-h2) :is(svg, .gh-ico) { display: none; }
+html[data-visual='club'] .app-shell .jh-hero { border: 0 !important; border-radius: 28px; }
+
+/* ---------- Economia e Loja ---------- */
+html[data-visual='club'] .eco :is(.eco-daily, .eco-panel) { border-color: transparent; box-shadow: none !important; border-radius: 28px; }
+html[data-visual='club'] .eco .eco-chest { border-color: transparent; background: var(--club-surface); border-radius: 20px; }
+html[data-visual='club'] .room-nav-pill { background: var(--club-sel-bg); box-shadow: none; border-radius: 999px; }
+html[data-visual='club'] .room-nav-item { border-radius: 999px; }
+html[data-visual='club'] .room-nav-item.active { color: var(--club-sel-fg); }
+html[data-visual='club'] .room-nav-item.active :is(svg, em) { color: currentColor; }
+
+/* ---------- Central ---------- */
+html[data-visual='club'] .home-empty { background: none; border: 0; padding: 0; text-align: left; }
+
+/* ---------- Configurações: blocos lisos, sem traço azul no título ---------- */
+html[data-visual='club'] :is(.settings-block, .pc-layout-panel) {
+  background: var(--club-surface); border: 0; border-radius: 20px; box-shadow: none;
+}
+html[data-visual='club'] .settings-block:hover { border-color: transparent; }
+html[data-visual='club'] .settings-block h4::before { display: none; }
+html[data-visual='club'] .settings-page-head-icon { display: none; }
+html[data-visual='club'] .settings-page-head { margin-bottom: 22px; }
+html[data-visual='club'] .settings-page-head h2 { font-size: 30px; line-height: 1.05; font-stretch: 125%; letter-spacing: -0.045em; }
+html[data-visual='club'] .settings-page-head p { margin-top: 6px; font-size: 14px; }
+html[data-visual='club'] .settings-modal-wide .settings-modal-sidebar-item .settings-modal-sidebar-icon { background: transparent; }
+html[data-visual='club'] .settings-modal-wide .settings-modal-sidebar-item.active { box-shadow: none; }
+html[data-visual='club'] .settings-modal-wide .settings-modal-sidebar-item.active .settings-modal-sidebar-icon { background: transparent; color: currentColor; }
+html[data-visual='club'] .settings-block.danger-zone { box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--red) 35%, transparent); }
+
+@media (max-width: 700px) {
+  html[data-visual='club'] .app-shell :is(.pk-hero-text h1, .sp-hero-text h1, .mdx-lib-hero h1, .social-hero h1) { font-size: 32px; }
+  html[data-visual='club'] .app-shell .social-hero { grid-template-columns: minmax(0, 1fr); }
+  html[data-visual='club'] .club-count { font-size: 12px; }
+}
