@@ -125,27 +125,20 @@ test('barra do topo: só a barra de busca, sem lupa solta e sem "Ctrl K"', async
   }
 });
 
-test('Game Hub: canal em destaque com o BLACKOUT público (sem instância) e o Mod Manager dentro', async ({ page }, info) => {
+test('Game Hub: canal em destaque com o BLACKOUT público (sem instância) e o Mod Manager dentro', async ({ page }) => {
   let sessions = 0;
   await page.route('**/api/blackout/session', (r) => { sessions += 1; return r.fulfill({ status: 200, contentType: 'application/json', body: '{"ok":true,"url":"/blackout/"}' }); });
   await page.route(/\/blackout\/$/, (r) => r.fulfill({ status: 200, contentType: 'text/html', body: '<!DOCTYPE html><title>BLACKOUT</title><h1 id="bo">Compêndio BLACKOUT</h1>' }));
 
   await page.goto('/');
+  await expect(page.locator('.featured-channels')).toBeVisible({ timeout: 20_000 });
   // BLACKOUT e Mod Manager não são mais itens soltos: ficam dentro de Jogos.
   await expect(page.locator('.featured-blackout')).toHaveCount(0);
   await expect(page.locator('.featured-mods')).toHaveCount(0);
-  if (info.project.name === 'pc') {
-    // PC (visual novo): os destaques viram a barra de ícones da esquerda.
-    const jogos = page.locator('.club-rail-btn[aria-label^="Game Hub"]');
-    await expect(jogos).toBeVisible({ timeout: 20_000 });
-    await jogos.click();
-  } else {
-    await expect(page.locator('.featured-channels')).toBeVisible({ timeout: 20_000 });
-    const jogos = page.locator('.featured-jogos');
-    await expect(jogos).toBeVisible();
-    // No celular o item fica numa gaveta que anima e nunca "para": clique direto.
-    await jogos.dispatchEvent('click');
-  }
+  const jogos = page.locator('.featured-jogos');
+  await expect(jogos).toBeVisible();
+  // No celular o item fica numa gaveta que anima e nunca "para": clique direto.
+  await jogos.dispatchEvent('click');
   await expect(page).toHaveURL(/\/jogos$/);
   await expect(page.locator('.gh-bar')).toBeVisible();
   await expect(page.locator('.gh-tab', { hasText: 'Mods' })).toBeVisible();

@@ -9,7 +9,7 @@ test.skip(!process.env.CLUB_SHOTS, 'só com CLUB_SHOTS');
 const OUT = process.env.CLUB_SHOTS;
 const THEME = process.env.CLUB_THEME || 'preto';
 const ACCENT = process.env.CLUB_ACCENT || 'azul';
-const VISUAL = process.env.CLUB_VISUAL || 'club';
+const VISUAL = process.env.CLUB_VISUAL || 'novo';
 const ONLY = (process.env.CLUB_ONLY || '').split(',').filter(Boolean);
 
 const now = Date.now();

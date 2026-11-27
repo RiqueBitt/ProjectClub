@@ -57,12 +57,12 @@ test('canal: bolinha vermelha só com menção ou resposta (mensagem comum não 
   await expect(red).toHaveText('@2');
   // ch3 tem 7 mensagens novas, nenhuma pra mim: sem vermelho nenhum.
   await expect(page.locator('.unread-count-badge', { hasText: '7' })).toHaveCount(0);
-  // Novidades entrou na Central (na barra de ícones do visual novo): a
+  // Novidades entrou na Central (canal em destaque no topo da lista): a
   // bolinha soma Anúncios + Eventos; abrir a Central marca como visto.
-  const central = page.locator('.club-rail-btn[aria-label^="Central"]');
-  const novo = central.locator('.club-rail-count');
+  const novo = page.locator('.featured-inicio .section-new-badge');
   await expect(novo).toHaveText('3');
-  await central.click();
+  await expect(page.locator('.featured-inicio')).toContainText('Central');
+  await page.locator('.featured-inicio').click();
   await expect(page).toHaveURL(/\/inicio/);
   await expect.poll(() => seen).toContain('/section-badges/anuncios/seen');
   await expect(novo).toHaveCount(0);

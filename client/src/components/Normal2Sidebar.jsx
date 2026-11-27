@@ -24,7 +24,7 @@ export { useBadges } from '../utils/navBadges';
 // lado dos canais, dentro da mesma coluna — no celular ela some (CSS) e a
 // gaveta continua com os canais em destaque de sempre.
 export default function Normal2Sidebar({ activeChannelId }) {
-  const club = useStore((s) => s.layoutPrefs.visual) === 'club';
+  const club = useStore((s) => s.layoutPrefs.visual) === 'novo';
   return (
     <aside className={`main-sidebar n2-sidebar${club ? ' has-club-rail' : ''}`}>
       {club && <ClubRail />}

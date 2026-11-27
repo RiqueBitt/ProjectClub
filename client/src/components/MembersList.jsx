@@ -67,7 +67,7 @@ export default function MembersList({ onToggle }) {
   const restOnline = online.filter((m) => !used.has(m.user.id));
 
   // Visual novo: "Agora" (calls, quem está jogando, eventos) em cima da lista.
-  const club = useStore((s) => s.layoutPrefs.visual) === 'club';
+  const club = useStore((s) => s.layoutPrefs.visual) === 'novo';
 
   return (
     <aside className={`members-list${club ? ' has-agora' : ''}`} aria-label="Membros">

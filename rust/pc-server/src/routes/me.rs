@@ -336,7 +336,7 @@ fn layout_rule(key: &str, v: &Value) -> bool {
         ),
         "colorblindStrength" => int_in(v, 0, 100),
         // Visual novo (nov/2026): igual ao LAYOUT_PREF_RULES do Node.
-        "visual" => is_str_in(v, &["club", "classic"]),
+        "visual" => is_str_in(v, &["classic", "novo", "club"]),
         "theme" => is_str_in(v, &["preto", "grafite", "meianoite", "claro"]),
         "accent" => is_str_in(
             v,

@@ -78,7 +78,7 @@ async fn configuracoes() {
             "textScale": 1.2,
             "saturation": 50,
             "showAvatars": false,
-            "layoutPrefs": { "density": "compact", "fontSize": 30, "x": 1, "theme": "claro", "accent": "neon", "visual": "club" },
+            "layoutPrefs": { "density": "compact", "fontSize": 30, "x": 1, "theme": "claro", "accent": "neon", "visual": "novo" },
             "extraPrefs": { "soundPack": "retro", "quietHours": { "enabled": true, "start": "22:00", "end": "07:00", "days": [3, 1], "timezone": "America/Sao_Paulo" } },
             "voiceVolumes": { "amigo": 150, "outro": 100 },
             "streamFPS": 45
@@ -94,7 +94,7 @@ async fn configuracoes() {
     assert_eq!(s["showAvatars"], false);
     assert_eq!(
         s["layoutPrefs"],
-        json!({ "density": "compact", "visual": "club", "theme": "claro" })
+        json!({ "density": "compact", "visual": "novo", "theme": "claro" })
     );
     assert_eq!(s["extraPrefs"]["quietHours"]["days"], json!([1, 3]));
     assert_eq!(s["voiceVolumes"], json!({ "amigo": 150 }));
