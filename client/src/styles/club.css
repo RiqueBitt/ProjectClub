@@ -1064,6 +1064,7 @@ html[data-visual='club'] :is(.settings-block, .pc-layout-panel) {
 }
 html[data-visual='club'] .settings-block:hover { border-color: transparent; }
 html[data-visual='club'] .settings-block h4::before { display: none; }
+/* (as Configurações do usuário viram lista: ver a seção 14) */
 html[data-visual='club'] .settings-page-head-icon { display: none; }
 html[data-visual='club'] .settings-page-head { margin-bottom: 22px; }
 html[data-visual='club'] .settings-page-head h2 { font-size: 30px; line-height: 1.05; font-stretch: 125%; letter-spacing: -0.045em; }
@@ -1071,10 +1072,334 @@ html[data-visual='club'] .settings-page-head p { margin-top: 6px; font-size: 14p
 html[data-visual='club'] .settings-modal-wide .settings-modal-sidebar-item .settings-modal-sidebar-icon { background: transparent; }
 html[data-visual='club'] .settings-modal-wide .settings-modal-sidebar-item.active { box-shadow: none; }
 html[data-visual='club'] .settings-modal-wide .settings-modal-sidebar-item.active .settings-modal-sidebar-icon { background: transparent; color: currentColor; }
-html[data-visual='club'] .settings-block.danger-zone { box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--red) 35%, transparent); }
 
 @media (max-width: 700px) {
   html[data-visual='club'] .app-shell :is(.pk-hero-text h1, .sp-hero-text h1, .mdx-lib-hero h1, .social-hero h1) { font-size: 32px; }
   html[data-visual='club'] .app-shell .social-hero { grid-template-columns: minmax(0, 1fr); }
   html[data-visual='club'] .club-count { font-size: 12px; }
+}
+
+/* ---------------------------------------------------------------
+   13. Canais de voz: a sala
+   Lista da barra lateral como um "fio" saindo do canal; o lobby sem
+   cartão (o nome da sala grande, quem está dentro e um botão); na
+   call, quadrados lisos, quem fala ganha um anel verde que pulsa como
+   onda de som, e os controles numa pílula só. A barra de chamada de
+   baixo, dentro da própria sala, fica só com a linha de status.
+   --------------------------------------------------------------- */
+
+/* Barra lateral: quem está em cada canal */
+html[data-visual='club'] .voice-roster {
+  margin: 2px 0 8px 27px; padding: 2px 0 2px 10px; gap: 1px;
+  border-left: 1px solid var(--club-line-2);
+}
+html[data-visual='club'] .voice-roster-item {
+  height: 28px; padding: 0 10px 0 6px; border-radius: 999px; gap: 9px;
+  font-size: 13px; font-weight: 500; color: var(--text-muted); transition: background-color .14s ease, color .14s ease;
+}
+html[data-visual='club'] .voice-roster-item:hover { background: var(--bg-modifier-hover); color: var(--header-primary); }
+html[data-visual='club'] .voice-roster-item .avatar.tiny { width: 20px; height: 20px; transition: box-shadow .14s ease; }
+html[data-visual='club'] .voice-roster-item.speaking { color: var(--header-primary); }
+html[data-visual='club'] .voice-roster-item.speaking .avatar.tiny {
+  transform: none; animation: none;
+  box-shadow: 0 0 0 2px var(--bg-secondary), 0 0 0 3.5px var(--green);
+}
+html[data-visual='club'] .voice-roster-ico,
+html[data-visual='club'] .voice-roster-ico.is-muted { color: var(--text-muted); opacity: .8; }
+
+/* Lobby */
+html[data-visual='club'] .vc { background: var(--bg-primary); }
+html[data-visual='club'] .vc-lobby-card {
+  width: min(100%, 620px); gap: 12px; padding: 24px 16px;
+  background: none; border: 0; box-shadow: none !important;
+}
+html[data-visual='club'] .vc-lobby-icon { display: none; }
+html[data-visual='club'] .vc-lobby-card h2 {
+  font-size: clamp(38px, 4.4vw, 62px); line-height: 1.02; font-weight: 800; font-stretch: 125%; letter-spacing: -0.045em;
+}
+html[data-visual='club'] .vc-lobby-topic { font-size: 15px; max-width: 46ch; }
+html[data-visual='club'] .vc-lobby-people { margin: 22px 0 4px; gap: 12px; }
+html[data-visual='club'] .vc-stack > * { box-shadow: 0 0 0 4px var(--bg-primary); }
+html[data-visual='club'] .vc-stack > * + * { margin-left: -12px; }
+html[data-visual='club'] .vc-stack-more { background: var(--club-surface); }
+html[data-visual='club'] .vc-lobby-people p { color: var(--text-muted); font-size: 14.5px; }
+html[data-visual='club'] .vc-chip-live { background: none !important; border: 0 !important; padding: 0; height: auto; color: var(--red); font-weight: 650; }
+html[data-visual='club'] .vc-chip-live svg { display: none; }
+html[data-visual='club'] .vc-chip-live::before { content: ''; width: 7px; height: 7px; border-radius: 50%; background: currentColor; }
+html[data-visual='club'] .vc-lobby-empty { font-size: 15px; margin-top: 14px; }
+html[data-visual='club'] .vc-join {
+  width: auto; min-width: 280px; height: 54px; padding: 0 30px; margin-top: 16px;
+  border-radius: 999px; box-shadow: none; font-size: 15.5px; color: #fff;
+}
+html[data-visual='club'] .vc-join:hover:not(:disabled) { transform: none; filter: brightness(1.08); }
+html[data-visual='club'] .vx-mictest { margin-top: 6px; }
+html[data-visual='club'] .vx-btn { border: 0; background: transparent; border-radius: 999px; color: var(--text-muted); }
+html[data-visual='club'] .vx-btn:hover:not(:disabled) { background: var(--bg-modifier-hover); color: var(--header-primary); }
+html[data-visual='club'] .vc-lobby .tvr-bar { margin: 2px 0 0; }
+
+/* Cabeçalho da call: só texto, sem caixinhas */
+html[data-visual='club'] .vc-head { padding: 12px 22px; gap: 16px; border-bottom-color: var(--club-line); }
+html[data-visual='club'] .vc-head .vc-chip { height: auto; padding: 0; background: none; border: 0; color: var(--text-muted); font-weight: 600; }
+html[data-visual='club'] .vc-head .vc-chip:has(.vc-live) { color: var(--header-primary); }
+html[data-visual='club'] .vc-head .vc-chip.vc-goal { padding: 0 10px; height: 26px; background: var(--club-surface); border-radius: 999px; }
+html[data-visual='club'] .ce-viewmode { background: transparent; border: 1px solid var(--club-line); border-radius: 999px; padding: 3px; }
+html[data-visual='club'] .ce-viewmode button { border-radius: 999px; padding: 5px 12px; }
+html[data-visual='club'] .ce-viewmode button.active { background: var(--club-sel-bg); color: var(--club-sel-fg); }
+
+/* Quadrados de quem está na call */
+html[data-visual='club'] .vc-stage { padding: 22px 22px 112px; gap: 14px; }
+html[data-visual='club'] .vc-grid { gap: 14px; }
+html[data-visual='club'] .vc-tile {
+  background: var(--club-surface); border: 0; border-radius: 28px; box-shadow: none;
+  transition: box-shadow .18s ease;
+}
+html[data-visual='club'] .vc-tile.has-banner {
+  background: linear-gradient(180deg, rgba(0, 0, 0, .25), rgba(0, 0, 0, .7)), var(--tile-banner) center / cover no-repeat, var(--club-surface);
+}
+html[data-visual='club'] .vc-tile.is-speaking { border-color: transparent; box-shadow: inset 0 0 0 2px var(--green); }
+html[data-visual='club'] .vc-tile-avatar { position: relative; }
+html[data-visual='club'] .vc-tile-avatar > * { box-shadow: none; }
+html[data-visual='club'] .vc-tile.has-banner .vc-tile-avatar > * { box-shadow: 0 0 0 4px rgba(0, 0, 0, .3); }
+html[data-visual='club'] .vc-tile.is-speaking .vc-tile-avatar { transform: none; }
+html[data-visual='club'] .vc-tile.is-speaking .vc-tile-avatar::before,
+html[data-visual='club'] .vc-tile.is-speaking .vc-tile-avatar::after {
+  content: ''; position: absolute; inset: -5px; border-radius: 50%; pointer-events: none;
+  border: 2px solid var(--green); animation: club-voice-wave 1.8s cubic-bezier(.2, .6, .3, 1) infinite;
+}
+html[data-visual='club'] .vc-tile.is-speaking .vc-tile-avatar::after { animation-delay: .9s; }
+@keyframes club-voice-wave { 0% { transform: scale(1); opacity: .75; } 100% { transform: scale(1.5); opacity: 0; } }
+@media (prefers-reduced-motion: reduce) {
+  html[data-visual='club'] .vc-tile.is-speaking .vc-tile-avatar::before { animation: none; opacity: 1; }
+  html[data-visual='club'] .vc-tile.is-speaking .vc-tile-avatar::after { display: none; }
+}
+html.reduced-motion-pref[data-visual='club'] .vc-tile.is-speaking .vc-tile-avatar::before { animation: none; opacity: 1; }
+html.reduced-motion-pref[data-visual='club'] .vc-tile.is-speaking .vc-tile-avatar::after { display: none; }
+
+/* Nome: texto solto no quadrado liso; pílula escura só sobre banner/vídeo */
+html[data-visual='club'] .vc-label:not(.has-id-card) {
+  left: 18px; bottom: 16px; height: 24px; padding: 0; gap: 7px;
+  background: none; backdrop-filter: none; border-radius: 999px;
+  color: var(--header-primary); font-size: 14px; font-weight: 650;
+}
+html[data-visual='club'] :is(.vc-tile.has-video, .vc-tile.has-banner, .vc-screen) .vc-label:not(.has-id-card) {
+  left: 12px; bottom: 12px; height: 30px; padding: 0 12px;
+  background: rgba(0, 0, 0, .5); backdrop-filter: blur(10px); color: #fff;
+}
+html[data-visual='club'] .vc-label.has-id-card { border-radius: 999px; height: 30px; left: 12px; bottom: 12px; }
+html[data-visual='club'] .vc-label-muted:not(.vc-label-servermuted) { color: var(--red); }
+html[data-visual='club'] :is(.vc-tile.has-video, .vc-tile.has-banner) .vc-label-muted:not(.vc-label-servermuted) { color: #ff8a8d; }
+html[data-visual='club'] :is(.vc-tile-mod, .vc-vol-btn, .vc-screen-close, .vc-fullscreen) { border-radius: 999px; }
+
+/* Tela transmitida e a fileira embaixo */
+html[data-visual='club'] .vc-screen { border: 0; border-radius: 28px; }
+html[data-visual='club'] .vc-strip { gap: 12px; }
+html[data-visual='club'] .vc-strip .vc-tile { border-radius: 22px; }
+html[data-visual='club'] .vc-strip .vc-label:not(.has-id-card) { left: 14px; bottom: 12px; font-size: 13px; }
+html[data-visual='club'] .vc-section { font-weight: 650; color: var(--text-muted); }
+
+/* Controles: uma pílula, botões redondos */
+html[data-visual='club'] .vc-dock {
+  gap: 4px; padding: 6px; border-radius: 999px;
+  background: color-mix(in srgb, var(--bg-elevated) 86%, transparent); backdrop-filter: blur(16px);
+  border: 1px solid var(--club-line); box-shadow: 0 24px 60px -28px rgba(0, 0, 0, .75);
+}
+html[data-visual='club'] .vc-ctrl { width: 48px; height: 48px; border-radius: 999px; background: transparent; }
+html[data-visual='club'] .vc-ctrl:hover:not(:disabled) { background: var(--bg-modifier-hover); transform: none; }
+html[data-visual='club'] .vc-ctrl.is-active { background: var(--club-sel-bg); color: var(--club-sel-fg); }
+html[data-visual='club'] .vc-ctrl.is-danger { background: color-mix(in srgb, var(--red) 18%, transparent); color: var(--red); }
+html[data-visual='club'] .vc-leave { width: 72px; margin-left: 4px; background: var(--red); color: #fff; }
+html[data-visual='club'] .vc-leave:hover:not(:disabled) { background: var(--red); filter: brightness(1.1); }
+html[data-visual='club'] .vc-dock-sep { height: 22px; background: var(--club-line-2); margin: 0 2px; }
+html[data-visual='club'] .vc-ctrl-label { border-radius: 999px; background: var(--club-sel-bg); color: var(--club-sel-fg); box-shadow: none; padding: 6px 11px; }
+html[data-visual='club'] .vc-hand-btn { border-radius: 999px; }
+
+/* Barra de chamada (embaixo): status em texto, botões redondos */
+html[data-visual='club'] .call-bar.cb { background: var(--bg-primary); border-top-color: var(--club-line); }
+html[data-visual='club'] .call-bar.cb .cb-btn { border: 0; border-radius: 999px; background: var(--club-surface); }
+html[data-visual='club'] .call-bar.cb .cb-btn:hover:not(:disabled) { background: var(--bg-modifier-hover); border-color: transparent; }
+html[data-visual='club'] .call-bar.cb .cb-btn.is-off { background: color-mix(in srgb, var(--red) 16%, transparent); }
+html[data-visual='club'] .call-bar.cb .cb-btn.is-on { background: color-mix(in srgb, var(--green) 16%, transparent); }
+html[data-visual='club'] .call-bar.cb .cb-btn.cb-hangup { background: var(--red); }
+html[data-visual='club'] .call-bar.cb .cb-split > .cb-btn:first-child:not(:only-child) { border-radius: 999px 0 0 999px; }
+html[data-visual='club'] .call-bar.cb .cb-split > .cb-btn:last-child:not(:only-child) { border-radius: 0 999px 999px 0; }
+html[data-visual='club'] .call-bar.cb :is(.cb-time, .cb-count) { background: none; border: 0; padding: 0 2px; }
+html[data-visual='club'] .app-shell:has(.vc-dock) .call-bar.cb .cb-controls { display: none; }
+html[data-visual='club'] .tvr-btn { border-radius: 999px; background: transparent; color: var(--text-muted); padding: 6px 12px; font-size: 12.5px; }
+html[data-visual='club'] .tvr-btn:hover { background: var(--bg-modifier-hover); color: var(--header-primary); }
+html[data-visual='club'] .tvr-tag { border-style: solid; border-color: var(--club-line-2); color: var(--text-muted); }
+
+/* ---------------------------------------------------------------
+   14. Configurações do usuário: uma ficha
+   A janela fica mais alta; o título da janela vira um rótulo discreto
+   e quem manda é o título da aba. Cada opção é uma linha separada por
+   um fio fino (sem cartão em volta), campos em pílula lisa, chaves
+   liga/desliga maiores e as escolhas com o ativo em papel.
+   --------------------------------------------------------------- */
+html[data-visual='club'] .modal-overlay .settings-modal-box.settings-modal-wide.modal-box { width: min(1180px, 96vw); border-radius: 28px; }
+html[data-visual='club'] .settings-modal-wide .modal-header { padding: 16px 20px 0 26px; }
+html[data-visual='club'] .settings-modal-wide .modal-header h2 {
+  font-size: 13.5px; font-weight: 600; font-stretch: 100%; letter-spacing: 0; color: var(--text-muted);
+}
+html[data-visual='club'] .settings-save-pill { border: 0; height: 22px; }
+@media (min-width: 601px) {
+  html[data-visual='club'] .settings-modal-wide .settings-modal-layout { height: min(80vh, 860px); max-height: none; margin-top: 8px; }
+}
+
+/* Barra lateral */
+html[data-visual='club'] .settings-modal-wide .settings-modal-sidebar {
+  width: 268px; padding: 6px 14px 20px; gap: 2px; background: transparent; border-right-color: var(--club-line);
+}
+html[data-visual='club'] .settings-modal-sidebar-header {
+  margin-bottom: 8px; padding: 8px 14px 8px 8px; border-radius: 999px; background: none !important; border: 0 !important;
+}
+html[data-visual='club'] .settings-modal-sidebar-header:hover { background: var(--bg-modifier-hover) !important; }
+html[data-visual='club'] .settings-search {
+  height: 40px; margin: 0 0 8px; padding: 0 14px; border: 0; border-radius: 999px; background: var(--club-surface);
+}
+html[data-visual='club'] .settings-search:focus-within { box-shadow: 0 0 0 2px var(--club-accent); border-color: transparent; }
+html[data-visual='club'] .settings-modal-wide .settings-modal-sidebar-group { margin-top: 4px; }
+html[data-visual='club'] .settings-modal-wide .settings-modal-sidebar-group-label {
+  padding: 14px 14px 6px; font-size: 12px; font-weight: 600; letter-spacing: 0; text-transform: none; color: var(--text-muted);
+}
+html[data-visual='club'] .settings-modal-wide .settings-modal-sidebar-group-label::after { display: none; }
+html[data-visual='club'] .settings-modal-wide .settings-modal-sidebar-item { padding: 8px 14px; gap: 12px; font-size: 14px; border-radius: 999px; }
+html[data-visual='club'] .settings-modal-sidebar-divider { margin: 14px 10px; background: var(--club-line); }
+
+/* Página de cada aba */
+html[data-visual='club'] .settings-modal-wide .settings-modal-content { padding: 30px 44px 64px; }
+html[data-visual='club'] .settings-modal-wide .settings-modal-content > * { max-width: 780px; }
+html[data-visual='club'] .settings-modal-wide .settings-page-head { margin-bottom: 14px; }
+html[data-visual='club'] .settings-modal-wide .settings-page-head h2 { font-size: 34px; }
+html[data-visual='club'] .settings-modal-wide .settings-grid { gap: 0; }
+
+/* Linhas separadas por um fio, sem cartão */
+html[data-visual='club'] .settings-modal-wide .settings-modal-content :is(.settings-block, .pc-layout-panel) {
+  padding: 22px 0; gap: 12px; background: none; border: 0; border-top: 1px solid var(--club-line); border-radius: 0; box-shadow: none;
+}
+html[data-visual='club'] .settings-modal-wide .settings-modal-content :is(.settings-grid, .settings-modal-content) > :is(.settings-block, .pc-layout-panel):first-child,
+html[data-visual='club'] .settings-modal-wide .settings-page-head + :is(.settings-block, .pc-layout-panel) { border-top: 0; }
+html[data-visual='club'] .settings-modal-wide :is(.settings-block h4, .pc-layout-head h4) {
+  margin: 0; font-size: 15px; font-weight: 650; letter-spacing: -0.005em; text-transform: none; color: var(--header-primary);
+}
+html[data-visual='club'] .settings-modal-wide :is(.settings-block p.dim, .settings-block > p, .pc-layout-head p, .settings-field-hint, .settings-autosave-hint, .pc-field-hint) {
+  font-size: 13.5px; line-height: 1.5; color: var(--text-muted);
+}
+html[data-visual='club'] .settings-modal-wide .settings-block.settings-toggle-row { gap: 28px; }
+html[data-visual='club'] .settings-modal-wide .settings-block.danger-zone h4 { color: var(--red); }
+html[data-visual='club'] .danger-zone-row { border-top-color: var(--club-line); }
+html[data-visual='club'] .settings-section-title { text-transform: none; letter-spacing: 0; font-size: 13px; font-weight: 650; color: var(--text-muted); }
+html[data-visual='club'] .settings-section-title::after { background: var(--club-line); }
+
+/* Rótulos e campos */
+html[data-visual='club'] .settings-modal-wide .settings-grid label,
+html[data-visual='club'] .settings-modal-wide .pc-field-label {
+  font-size: 13px; font-weight: 600; letter-spacing: 0; text-transform: none; color: var(--text-muted); gap: 8px;
+}
+html[data-visual='club'] .settings-modal-wide .settings-modal-content :is(input:not([type=range]):not([type=checkbox]):not([type=radio]):not([type=color]), select, textarea) {
+  min-height: 44px; padding: 0 16px; border: 1px solid transparent; border-radius: 14px;
+  background: var(--club-surface); color: var(--header-primary); font-size: 14.5px; box-shadow: none;
+}
+html[data-visual='club'] .settings-modal-wide .settings-modal-content textarea { padding: 12px 16px; border-radius: 18px; }
+html[data-visual='club'] .settings-modal-wide .settings-modal-content :is(input, select, textarea):focus { border-color: var(--club-accent); outline: none; box-shadow: none; }
+html[data-visual='club'] .settings-prefix-input { border-radius: 14px; background: var(--club-surface); }
+html[data-visual='club'] .settings-prefix-input > span { background: none; border: 0; padding: 0 2px 0 16px; }
+html[data-visual='club'] .settings-modal-wide .settings-modal-content .settings-prefix-input > input { background: transparent; padding-left: 6px; }
+html[data-visual='club'] .settings-modal-wide input[type=range] { accent-color: var(--brand); }
+html[data-visual='club'] .settings-chip { height: auto; padding: 0; border: 0 !important; background: none !important; font-weight: 650; }
+html[data-visual='club'] .settings-char-count { color: var(--text-muted); font-weight: 500; }
+
+/* Liga/desliga */
+html[data-visual='club'] :is(.toggle-switch, .pc-switch) {
+  width: 46px; height: 28px; border: 0; border-radius: 999px; background: var(--club-line-2); transition: background-color .18s ease;
+}
+html[data-visual='club'] :is(.toggle-switch, .pc-switch)::after {
+  top: 4px; left: 4px; width: 20px; height: 20px; background: #fff; box-shadow: 0 1px 3px rgba(0, 0, 0, .3);
+  transition: transform .2s cubic-bezier(.3, .9, .3, 1), background-color .18s ease;
+}
+html[data-visual='club'] :is(.toggle-switch, .pc-switch).on { background: var(--brand); }
+html[data-visual='club'] :is(.toggle-switch, .pc-switch).on::after { left: 4px; transform: translateX(18px); background: var(--club-on-brand); }
+html[data-visual='club'] :is(.toggle-switch, .pc-switch):focus-visible { outline: 2px solid var(--club-accent); outline-offset: 2px; }
+
+/* Escolhas: o ativo em papel */
+html[data-visual='club'] :is(.settings-segmented, .pc-seg) { padding: 4px; gap: 2px; background: transparent; border: 1px solid var(--club-line); border-radius: 999px; }
+html[data-visual='club'] :is(.settings-segmented .chip-choice, .pc-seg button) { border-radius: 999px; height: 34px; }
+html[data-visual='club'] :is(.settings-segmented .chip-choice, .pc-seg button).active { background: var(--club-sel-bg); color: var(--club-sel-fg); box-shadow: none; }
+html[data-visual='club'] .settings-radio-cards { gap: 2px; }
+html[data-visual='club'] .settings-radio-card { padding: 12px 14px; border: 0; border-radius: 16px; background: transparent; }
+html[data-visual='club'] .settings-radio-card:hover { background: var(--bg-modifier-hover); }
+html[data-visual='club'] .settings-radio-card.active { background: var(--club-surface); }
+html[data-visual='club'] .settings-radio-dot { border-color: var(--club-line-2); }
+html[data-visual='club'] .settings-radio-card.active .settings-radio-dot { border: 6px solid var(--header-primary); background: var(--bg-primary); }
+html[data-visual='club'] .chip-choice:not(.settings-segmented .chip-choice) { border-radius: 999px; }
+html[data-visual='club'] .chip-choice.active:not(.settings-segmented .chip-choice) { background: var(--club-sel-bg); color: var(--club-sel-fg); border-color: transparent; box-shadow: none; }
+html[data-visual='club'] .xp-profiles { gap: 8px; }
+html[data-visual='club'] .xp-profile { border: 0; border-radius: 20px; background: var(--club-surface); padding: 14px 14px 14px 40px; }
+html[data-visual='club'] .xp-profile:hover { background: var(--bg-modifier-hover); }
+html[data-visual='club'] .xp-profile.on { background: var(--club-sel-bg); color: color-mix(in srgb, var(--club-sel-fg) 70%, transparent); }
+html[data-visual='club'] .xp-profile.on strong { color: var(--club-sel-fg); }
+html[data-visual='club'] .xp-profile.on .xp-profile-dot { border-color: var(--club-sel-fg); background: radial-gradient(circle, var(--club-sel-fg) 45%, transparent 50%); }
+html[data-visual='club'] .xp-entry { border: 0; border-radius: 999px; background: var(--club-surface); font-weight: 600; }
+html[data-visual='club'] .xp-entry.on { background: var(--club-sel-bg); color: var(--club-sel-fg); }
+html[data-visual='club'] .xp-sound { border-radius: 999px; padding: 6px 10px 6px 6px; }
+html[data-visual='club'] .xp-play { background: var(--club-surface); }
+html[data-visual='club'] .xp-play:hover { background: var(--club-sel-bg); color: var(--club-sel-fg); }
+html[data-visual='club'] :is(.xp-theme, .xp-icon).on { border-color: var(--header-primary); }
+html[data-visual='club'] .xp-custom { background: var(--club-surface); border: 0; border-radius: 20px; }
+html[data-visual='club'] .pc-season-chip { border-radius: 999px; }
+html[data-visual='club'] .pc-season-chip.is-now { background: var(--club-sel-bg); color: var(--club-sel-fg); border-color: transparent; }
+
+/* Botões */
+html[data-visual='club'] .settings-modal-wide :is(.btn-secondary, .btn-primary, .btn-danger, .pc-btn-ghost) {
+  min-height: 38px; padding: 0 18px; border-radius: 999px; font-weight: 650; box-shadow: none;
+}
+html[data-visual='club'] .settings-modal-wide :is(.btn-secondary, .pc-btn-ghost) { background: transparent; border: 1px solid var(--club-line-2); color: var(--header-primary); }
+html[data-visual='club'] .settings-modal-wide :is(.btn-secondary, .pc-btn-ghost):hover:not(:disabled) { background: var(--bg-modifier-hover); border-color: var(--club-line-2); }
+
+@media (max-width: 600px) {
+  html[data-visual='club'] .settings-modal-wide .settings-modal-content { padding: 18px 16px 40px; }
+  html[data-visual='club'] .settings-modal-wide .settings-page-head h2 { font-size: 26px; }
+  html[data-visual='club'] .settings-modal-wide .settings-modal-sidebar { width: 100%; padding: 10px 12px; }
+}
+
+/* Editor de perfil (aberto pelo "Editar perfil" das Configurações) */
+html[data-visual='club'] .pe-side { background: var(--bg-primary); border-right-color: var(--club-line); }
+html[data-visual='club'] .pe-side-body .settings-block { background: var(--club-surface); border: 0; border-radius: 20px; padding: 16px; box-shadow: none; }
+html[data-visual='club'] .pe-side-body .settings-block :is(input:not([type=range]):not([type=checkbox]):not([type=radio]):not([type=color]), select, textarea) {
+  border-radius: 14px; border: 1px solid transparent; background: var(--bg-primary); box-shadow: none;
+}
+html[data-visual='club'] .pe-side-body :is(.btn-secondary, .pc-btn-ghost) { border-radius: 999px; background: transparent; border: 1px solid var(--club-line-2); }
+html[data-visual='club'] .pe-view-toggle { background: transparent; border-color: var(--club-line); border-radius: 999px; }
+html[data-visual='club'] .pe-view-toggle button { border-radius: 999px; }
+html[data-visual='club'] .pe-view-toggle button.is-on { background: var(--club-sel-bg); color: var(--club-sel-fg); box-shadow: none; }
+html[data-visual='club'] :is(.pe-close, .pe-icon-btn) { border-radius: 999px; }
+
+/* ---------------------------------------------------------------
+   15. Mais um polimento nos menus
+   --------------------------------------------------------------- */
+/* Game Hub / Promoções: filtros em papel, busca e ordem em pílula */
+html[data-visual='club'] .gh-chip { border-radius: 999px; border-color: var(--club-line); background: transparent; }
+html[data-visual='club'] .gh-chip.on { background: var(--club-sel-bg); color: var(--club-sel-fg); border-color: transparent; }
+html[data-visual='club'] :is(.gh-search, .gh-select select) { border-radius: 999px; border-color: transparent; background: var(--club-surface); }
+html[data-visual='club'] .gh-search:focus-within { border-color: var(--club-accent); }
+html[data-visual='club'] .jh-hero-art { opacity: .1; }
+html[data-visual='club'] :is(.gh-deal, .gh-free) { border: 0 !important; border-radius: 22px; }
+html[data-visual='club'] :is(.gh-h1, .gh-head h1) { font-stretch: 125%; letter-spacing: -0.045em; }
+
+/* Amigos → "Ativo agora": cartões lisos, botão de entrar em pílula */
+html[data-visual='club'] .anp-card { border: 0; background: var(--club-surface); border-radius: 20px; }
+html[data-visual='club'] .anp-card:hover { border-color: transparent; transform: none; background: color-mix(in srgb, var(--club-surface) 70%, var(--bg-modifier-hover)); }
+html[data-visual='club'] .anp-head { padding: 12px 14px; }
+html[data-visual='club'] .anp-voice { padding: 10px 14px; border-top-color: var(--club-line); }
+html[data-visual='club'] .anp-voice button { border-radius: 999px; height: 32px; padding: 0 16px; }
+@media (max-width: 700px) {
+  html[data-visual='club'] .vc-stage { padding: 12px 12px 96px; }
+  html[data-visual='club'] .vc-grid { gap: 10px; }
+  html[data-visual='club'] .vc-tile { border-radius: 22px; }
+  html[data-visual='club'] .vc-dock { gap: 0; padding: 4px; max-width: calc(100vw - 16px); }
+  html[data-visual='club'] .vc-ctrl { width: 42px; height: 42px; }
+  html[data-visual='club'] .vc-leave { width: 54px; margin-left: 2px; }
+  html[data-visual='club'] .vc-dock-sep { margin: 0 1px; }
+  html[data-visual='club'] .vc-label:not(.has-id-card) { left: 14px; bottom: 12px; font-size: 13px; }
+  html[data-visual='club'] .vc-lobby-card h2 { font-size: 40px; }
+  html[data-visual='club'] .vc-join { min-width: 0; width: 100%; }
 }

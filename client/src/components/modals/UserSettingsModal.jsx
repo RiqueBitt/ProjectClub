@@ -1055,7 +1055,7 @@ export default function UserSettingsModal({ onClose, mode = 'settings', initialT
             <p className="pe-group-desc">Como seu nome aparece. Efeitos mais chamativos (néon, arco-íris, glitch…) aparecem no miniperfil e no perfil completo; em mensagens e na lista de membros ficam só a fonte e a cor.</p>
             <div className="pe-card">
               <label>
-                <span className="settings-label-row">NOME DE EXIBIÇÃO <CharCount value={form.displayName} max={32} /></span>
+                <span className="settings-label-row">Nome de exibição <CharCount value={form.displayName} max={32} /></span>
                 <input name="displayName" value={form.displayName} onChange={onChange} maxLength={32} aria-invalid={!form.displayName.trim()} />
               </label>
               {!form.displayName.trim() && <FieldError>O nome de exibição não pode ficar vazio. Enquanto estiver vazio, ele não é salvo.</FieldError>}
@@ -1141,7 +1141,7 @@ export default function UserSettingsModal({ onClose, mode = 'settings', initialT
                   {isGradientColor(form.profileColor) ? (
                     <>
                       <label>
-                        COR DO PERFIL (INÍCIO)
+                        Cor do perfil (início)
                         <input
                           type="color"
                           defaultValue={gradientStops(form.profileColor)[0]}
@@ -1149,7 +1149,7 @@ export default function UserSettingsModal({ onClose, mode = 'settings', initialT
                         />
                       </label>
                       <label>
-                        COR DO PERFIL (FIM)
+                        Cor do perfil (fim)
                         <input
                           type="color"
                           defaultValue={gradientStops(form.profileColor)[1]}
@@ -1158,7 +1158,7 @@ export default function UserSettingsModal({ onClose, mode = 'settings', initialT
                       </label>
                     </>
                   ) : (
-                    <label>COR DO PERFIL<input type="color" name="profileColor" value={form.profileColor} onChange={onChange} /></label>
+                    <label>Cor do perfil<input type="color" name="profileColor" value={form.profileColor} onChange={onChange} /></label>
                   )}
                   <label className="checkbox-row role-gradient-toggle">
                     <input
@@ -1181,11 +1181,11 @@ export default function UserSettingsModal({ onClose, mode = 'settings', initialT
             <h3 className="pe-group-title" id="pe-g-sobre">Sobre você</h3>
             <div className="pe-card">
               <label>
-                <span className="settings-label-row">PRONOMES <CharCount value={form.pronouns} max={40} /></span>
+                <span className="settings-label-row">Pronomes <CharCount value={form.pronouns} max={40} /></span>
                 <input name="pronouns" value={form.pronouns} onChange={onChange} maxLength={40} placeholder="ele/dele, ela/dela..." />
               </label>
               <label>
-                <span className="settings-label-row">BIOGRAFIA <CharCount value={form.bio} max={190} /></span>
+                <span className="settings-label-row">Biografia <CharCount value={form.bio} max={190} /></span>
                 <div className="bio-input-row">
                   <textarea name="bio" value={form.bio} onChange={onChange} maxLength={190} placeholder="Conte um pouco sobre você" />
                   <div className="composer-picker-anchor">
@@ -1284,7 +1284,7 @@ export default function UserSettingsModal({ onClose, mode = 'settings', initialT
               <h4>Cor do botão "Ver perfil completo"</h4>
               <div className="role-color-row profile-color-row">
                 <label>
-                  COR DO BOTÃO
+                  Cor do botão
                   <input type="color" value={form.miniProfileButtonColor || '#4C9FFF'} onChange={(e) => setForm((f) => ({ ...f, miniProfileButtonColor: e.target.value }))} />
                 </label>
                 {form.miniProfileButtonColor && (
@@ -1297,7 +1297,7 @@ export default function UserSettingsModal({ onClose, mode = 'settings', initialT
               <p className="dim">A barra de progresso de nível no seu perfil é verde por padrão — escolha outra cor se preferir.</p>
               <div className="role-color-row profile-color-row">
                 <label>
-                  COR DA BARRA
+                  Cor da barra
                   <input type="color" value={form.levelBarColor || '#23a55a'} onChange={(e) => setForm((f) => ({ ...f, levelBarColor: e.target.value }))} />
                 </label>
                 <span className="settings-level-preview" aria-hidden="true"><i style={{ background: form.levelBarColor || 'var(--green)' }} /></span>
@@ -1403,10 +1403,10 @@ export default function UserSettingsModal({ onClose, mode = 'settings', initialT
             {myPolls.length < 2 ? (
               <div className="profile-poll-composer">
                 <label>
-                  <span className="settings-label-row">PERGUNTA <CharCount value={pollQuestion} max={200} /></span>
+                  <span className="settings-label-row">Pergunta <CharCount value={pollQuestion} max={200} /></span>
                   <input value={pollQuestion} onChange={(e) => setPollQuestion(e.target.value)} placeholder="Ex.: Qual jogo a gente joga sábado?" maxLength={200} />
                 </label>
-                <span className="settings-label-row">OPÇÕES <span className="settings-char-count">{pollOptions.length}/10</span></span>
+                <span className="settings-label-row">Opções <span className="settings-char-count">{pollOptions.length}/10</span></span>
                 {pollOptions.map((opt, i) => (
                   <div key={i} className="settings-poll-option-row">
                     <input
@@ -1467,7 +1467,7 @@ export default function UserSettingsModal({ onClose, mode = 'settings', initialT
           <div className="settings-block">
             <h4>Informações básicas</h4>
             <label>
-              <span className="settings-label-row">E-MAIL
+              <span className="settings-label-row">E-mail
                 {user.emailVerified
                   ? <span className="settings-chip is-ok"><SIcon name="check" size={12} /> Verificado</span>
                   : <span className="settings-chip is-warn"><SIcon name="alert" size={12} /> Não verificado</span>}
@@ -1476,7 +1476,7 @@ export default function UserSettingsModal({ onClose, mode = 'settings', initialT
             </label>
             <p className="dim settings-field-hint">O e-mail não pode ser trocado por aqui. Ele é usado pra entrar e recuperar a senha.</p>
             <label>
-              <span className="settings-label-row">NOME DE USUÁRIO <CharCount value={username} max={32} /></span>
+              <span className="settings-label-row">Nome de usuário <CharCount value={username} max={32} /></span>
               <div className="settings-prefix-input">
                 <span aria-hidden="true">@</span>
                 <input value={username} minLength={4} maxLength={32} autoComplete="username" spellCheck={false} aria-invalid={!!error} onChange={(e) => setUsernameField(e.target.value.replace(/[^a-zA-Z0-9_.]/g, '').slice(0, 32))} />
@@ -1710,7 +1710,7 @@ export default function UserSettingsModal({ onClose, mode = 'settings', initialT
               {customBackground && (
                 <div className="custom-bg-row">
                   <label>
-                    COR DE CIMA
+                    Cor de cima
                     <input
                       type="color"
                       value={customBackground.top}
@@ -1718,7 +1718,7 @@ export default function UserSettingsModal({ onClose, mode = 'settings', initialT
                     />
                   </label>
                   <label>
-                    COR DE BAIXO
+                    Cor de baixo
                     <input
                       type="color"
                       value={customBackground.bottom}
@@ -1792,15 +1792,15 @@ export default function UserSettingsModal({ onClose, mode = 'settings', initialT
                 <Toggle on={userSettings.highContrast} onChange={(v) => updateUserSetting('highContrast', v)} label={TOGGLE_LABEL.highContrast} />
               </div>
               <div className="settings-block">
-                <h4 className="settings-h4-row">Tamanho do texto <span className="settings-chip">{Math.round(userSettings.textScale * 100)}%</span></h4>
+                <h4 className="settings-h4-row">Tamanho do texto <span className="settings-chip">{Math.round((Number(userSettings.textScale) || 1) * 100)}%</span></h4>
                 <p className="dim">Aumenta ou diminui o texto de toda a interface.</p>
                 <div className="chat-zoom-row">
                   <input
                     type="range" min="0.8" max="1.5" step="0.1" aria-label="Tamanho do texto"
-                    value={userSettings.textScale}
+                    value={Number(userSettings.textScale) || 1}
                     onChange={(e) => updateUserSetting('textScale', Math.round(Number(e.target.value) * 10) / 10)}
                   />
-                  {userSettings.textScale !== 1 && <button type="button" className="settings-icon-btn" title="Voltar pra 100%" aria-label="Voltar o tamanho do texto pra 100%" onClick={() => updateUserSetting('textScale', 1)}><SIcon name="reset" size={14} /></button>}
+                  {(Number(userSettings.textScale) || 1) !== 1 && <button type="button" className="settings-icon-btn" title="Voltar pra 100%" aria-label="Voltar o tamanho do texto pra 100%" onClick={() => updateUserSetting('textScale', 1)}><SIcon name="reset" size={14} /></button>}
                 </div>
                 <p className="settings-text-sample" style={{ fontSize: `${15 * userSettings.textScale}px` }}>Exemplo: Bora jogar hoje à noite?</p>
               </div>
@@ -2649,7 +2649,7 @@ function VoiceSettingsTab() {
         <h4 className="settings-h4-row"><SIcon name="mic" size={16} /> Microfone</h4>
         {permissionDenied && <FieldError>O navegador bloqueou o microfone. Libere o acesso nas permissões do site e tente de novo.</FieldError>}
         <label>
-          DISPOSITIVO
+          Dispositivo
           <select value={selectedMic} onChange={(e) => changeMic(e.target.value)}>
             <option value="">Padrão do sistema</option>
             {mics.map((d) => <option key={d.deviceId} value={d.deviceId}>{d.label || 'Microfone sem nome'}</option>)}
@@ -2676,7 +2676,7 @@ function VoiceSettingsTab() {
         <div className="settings-block">
           <h4 className="settings-h4-row"><SIcon name="speaker" size={16} /> Saída de áudio</h4>
           <label>
-            DISPOSITIVO (fones, caixa de som...)
+            Dispositivo (fones, caixa de som...)
             <select value={selectedSpeaker} onChange={(e) => changeSpeaker(e.target.value)}>
               <option value="">Padrão do sistema</option>
               {speakers.map((d) => <option key={d.deviceId} value={d.deviceId}>{d.label || 'Saída sem nome'}</option>)}
@@ -3058,7 +3058,7 @@ function TwoFactorBlock({ user, setUser }) {
   };
 
   const passwordField = (
-    <label>SENHA ATUAL
+    <label>Senha atual
       <input
         type="password" autoComplete="current-password" value={password} autoFocus
         onChange={(e) => setPassword(e.target.value)}
@@ -3107,11 +3107,11 @@ function TwoFactorBlock({ user, setUser }) {
             <div className="settings-2fa-form">
               {passwordField}
               {useRecovery ? (
-                <label>CÓDIGO DE RECUPERAÇÃO
+                <label>Código de recuperação
                   <input value={recoveryInput} placeholder="xxxxx-xxxxx" autoComplete="off" spellCheck={false} maxLength={14} onChange={(e) => setRecoveryInput(e.target.value)} />
                 </label>
               ) : (
-                <label>CÓDIGO DO APP AUTENTICADOR
+                <label>Código do app autenticador
                   <input
                     className="settings-code-input" placeholder="000000" inputMode="numeric" autoComplete="one-time-code" maxLength={6}
                     value={code} onChange={(e) => setCode(e.target.value.replace(/\D/g, '').slice(0, 6))}
@@ -3271,8 +3271,8 @@ function PasswordChangeBlock({ pwForm, setPwForm, pwError, pwSuccess, pwSaving, 
           <SIcon name={show ? 'eyeOff' : 'eye'} size={14} /> {show ? 'Esconder' : 'Mostrar'}
         </button>
       </h4>
-      <label>SENHA ATUAL<input type={type} autoComplete="current-password" value={pwForm.current} onChange={set('current')} /></label>
-      <label>SENHA NOVA<input type={type} autoComplete="new-password" value={pwForm.next} onChange={set('next')} /></label>
+      <label>Senha atual<input type={type} autoComplete="current-password" value={pwForm.current} onChange={set('current')} /></label>
+      <label>Senha nova<input type={type} autoComplete="new-password" value={pwForm.next} onChange={set('next')} /></label>
       {pwForm.next && (
         <ul className="settings-pw-rules">
           {rules.map((r) => (
@@ -3280,7 +3280,7 @@ function PasswordChangeBlock({ pwForm, setPwForm, pwError, pwSuccess, pwSaving, 
           ))}
         </ul>
       )}
-      <label>CONFIRME A SENHA NOVA<input type={type} autoComplete="new-password" value={pwForm.confirm} aria-invalid={!!mismatch} onChange={set('confirm')} /></label>
+      <label>Confirme a senha nova<input type={type} autoComplete="new-password" value={pwForm.confirm} aria-invalid={!!mismatch} onChange={set('confirm')} /></label>
       {mismatch && <FieldError>As duas senhas novas não são iguais.</FieldError>}
       <p className="dim settings-field-hint">Por segurança, trocar a senha encerra todas as outras sessões abertas (outros aparelhos e navegadores). Este dispositivo continua conectado.</p>
       <FieldError>{pwError}</FieldError>
