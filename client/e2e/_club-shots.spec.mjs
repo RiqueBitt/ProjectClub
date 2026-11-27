@@ -31,6 +31,84 @@ const MESSAGES = [
   m('s7', lori, 'Lembrete: o evento de figurinhas começa amanhã 🎉', 6, { reactions: [rx('🎉', rique), rx('🎉', nina)], reactionCounts: { '🎉': 14 } }),
 ];
 
+// Motor de voz falso (só nestas fotos): entra na call na hora e põe 4 pessoas
+// na sala — Lia falando e, na foto "tela", mostrando a tela (um canvas).
+const FAKE_ENGINE = `
+const PEOPLE = ['5', '2', '3', '4'];
+export const GATE_DEFAULTS = {}; export const RECONNECT_DELAYS_MS = [1000, 2000];
+export function micErrorReason() { return ''; }
+export function qualityFrom() { return 'good'; }
+export function preloadMediasoup() { return Promise.resolve(); }
+function screenStream() {
+  const c = document.createElement('canvas'); c.width = 1280; c.height = 720;
+  const g = c.getContext('2d');
+  const draw = () => {
+    const gr = g.createLinearGradient(0, 0, 1280, 720); gr.addColorStop(0, '#1d3b2a'); gr.addColorStop(1, '#0e1a2e');
+    g.fillStyle = gr; g.fillRect(0, 0, 1280, 720);
+    g.fillStyle = 'rgba(255,255,255,.08)'; for (let i = 0; i < 12; i++) g.fillRect(80 + i * 96, 520 - (i * 37 % 200), 60, 200 + (i * 37 % 200));
+    g.fillStyle = '#fff'; g.font = 'bold 64px Arial'; g.fillText('Minecraft — servidor do clube', 80, 140);
+    g.font = '28px Arial'; g.fillStyle = 'rgba(255,255,255,.7)'; g.fillText('construindo a vila nova', 80, 190);
+  };
+  draw(); setInterval(draw, 250);
+  return c.captureStream(4);
+}
+export function createMediasoupEngine(cb) {
+  const api = {
+    capabilities: {},
+    async join() {
+      setTimeout(() => {
+        PEOPLE.forEach((u) => cb.onMediaUser && cb.onMediaUser(u, true));
+        ['5', '2'].forEach((u) => cb.onRemoteAudio && cb.onRemoteAudio(u, new MediaStream()));
+        cb.onRemoteSpeaking && cb.onRemoteSpeaking('5', true);
+        if (window.__fakeScreen) cb.onRemoteVideo && cb.onRemoteVideo('5', screenStream(), 'screen');
+      }, 60);
+      return true;
+    },
+    getNode() { return null; }, getLocalMicTrack() { return null; }, getInboundAudioBytes() { return 0; },
+    dispose() {},
+  };
+  return new Proxy(api, { get(t, k) { if (k in t) return t[k]; if (k === 'then') return undefined; return () => Promise.resolve(true); } });
+}
+export function MediasoupEngine() {}
+export default MediasoupEngine;
+`;
+// Socket falso (WebSocket do Socket.IO): só responde o "quem está em cada
+// call" — pra a lista da barra lateral e o painel Agora terem gente.
+const ROSTERS = {
+  v1: { startedAt: now - 47 * 60000, participants: [
+    { userId: '1', muted: false, deafened: false, video: false, screenSharing: false },
+    { userId: '5', muted: false, deafened: false, video: false, screenSharing: true },
+    { userId: '2', muted: false, deafened: false, video: false, screenSharing: false },
+    { userId: '3', muted: true, deafened: false, video: false, screenSharing: false },
+    { userId: '4', muted: true, deafened: true, video: false, screenSharing: false },
+  ] },
+};
+const fakeSocket = ({ screen = false } = {}) => (ws) => {
+  ws.send('0{"sid":"fake","upgrades":[],"pingInterval":25000,"pingTimeout":60000,"maxPayload":1000000}');
+  ws.onMessage((m) => {
+    const msg = String(m);
+    if (msg.startsWith('40')) { ws.send('40{"sid":"fake-ns"}'); return; }
+    if (msg === '2') { ws.send('3'); return; }
+    if (msg.startsWith('42["voice:join"')) {
+      const others = ROSTERS.v1.participants.filter((x) => x.userId !== '1').map((x) => ({ ...x, role: 'speaker', screenSharing: x.screenSharing && screen }));
+      setTimeout(() => {
+        ws.send(`42${JSON.stringify(['voice:joined', { channelId: 'v1', participants: others, myRole: 'speaker', sync: true }])}`);
+        ws.send(`42${JSON.stringify(['voice:speaking', { channelId: 'v1', userId: '5', speaking: true }])}`);
+      }, 120);
+      return;
+    }
+    if (msg.startsWith('42["voice:rosters"')) {
+      ws.send(`42${JSON.stringify(['voice:rosters', ROSTERS])}`);
+      setTimeout(() => ws.send(`42${JSON.stringify(['voice:speaking', { channelId: 'v1', userId: '5', speaking: true }])}`), 200);
+    }
+  });
+};
+
+const joinCall = async (page) => {
+  await page.getByRole('button', { name: /Entrar na chamada/ }).click();
+  await page.waitForTimeout(1500);
+};
+
 const PAGES = [
   ['chat', '/channels/ch2', '.chat-header'],
   ['central', '/inicio', '.home-hero'],
@@ -45,9 +123,19 @@ const PAGES = [
   ['suporte', '/tickets', '.sp-item'],
   ['notificacoes', '/notifications', 'main, .app-main'],
   ['voz', '/channels/v1', '.app-main'],
+  ['call', '/channels/v1', '.app-main', joinCall],
+  ['tela', '/channels/v1', '.app-main', async (page) => { await page.evaluate(() => { window.__fakeScreen = true; }); await joinCall(page); }],
   ['clube', '/clans/mine', '.app-main'],
   ['perfil', '/channels/ch2', '.chat-header', async (page) => {
     await page.locator('.message .avatar.clickable').first().click();
+  }],
+  ...[['cfg-conta', /Informação de conta/], ['cfg-seguranca', /Senha e segurança/], ['cfg-privacidade', /^Dados e privacidade$/], ['cfg-notif', /^Notificações$/], ['cfg-voz', /Voz e vídeo/], ['cfg-acess', /Acessibilidade/], ['cfg-sistema', /^Sistema$/], ['cfg-idioma', /Idioma/], ['cfg-jogos', /^Jogos e apps$/]].map(([n, label]) => [n, '/channels/ch2', '.chat-header', async (page) => {
+    await page.locator('.club-rail-btn[aria-label="Configurações"]').click();
+    await page.locator('.settings-modal-sidebar-item', { hasText: label }).first().click();
+  }]),
+  ['cfg-perfil', '/channels/ch2', '.chat-header', async (page) => {
+    await page.locator('.club-rail-btn[aria-label="Configurações"]').click();
+    await page.locator('.settings-modal-sidebar-header').click();
   }],
   ['config', '/channels/ch2', '.chat-header', async (page) => {
     await page.locator('.club-rail-btn[aria-label="Configurações"]').click();
@@ -76,8 +164,10 @@ for (const [name, path, ready, act] of PAGES) {
       return handler(route);
     });
     await page.route('**/socket.io/**', (r) => r.abort());
+    if (process.env.CLUB_SOCKET !== '0') await page.routeWebSocket(/socket\.io/, fakeSocket({ screen: name === 'tela' }));
     await page.route('**/mock-img/**', imageHandler);
     await page.route(/fonts\.(googleapis|gstatic)\.com/, (r) => r.abort());
+    await page.route(/\/assets\/mediasoupEngine[^/]*\.js$/, (r) => r.fulfill({ status: 200, contentType: 'text/javascript', body: FAKE_ENGINE }));
     await page.goto(path);
     await page.locator(ready).first().waitFor({ timeout: 30000 }).catch(() => {});
     await page.waitForTimeout(1800);
