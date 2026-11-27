@@ -58,6 +58,24 @@ export default function AssinaturaPage() {
             <button type="button" className="sub-btn sub-btn-ghost" onClick={() => navigate('/loja')}>Ir para a Loja</button>
           </div>
         </div>
+        {/* Visual novo (styles/club.css): os dois planos como cartões de
+            membro com o seu nome. No visual clássico ficam escondidos. */}
+        <div className="sub-cards" aria-hidden="true">
+          {[...PLANS].sort((a, b) => (a.id === tier ? 1 : b.id === tier ? -1 : a.best ? 1 : -1)).map((p) => (
+            <div key={p.id} className={`sub-card t-${p.id.toLowerCase()}${tier === p.id ? ' is-mine' : ''}`}>
+              <div className="sub-card-top">
+                <img src="/apps/projectclub/icon.png" alt="" width="28" height="28" />
+                <span>Project Club</span>
+                {tier === p.id && <em>Seu plano</em>}
+              </div>
+              <strong className="sub-card-tier">{p.name}</strong>
+              <div className="sub-card-foot">
+                <span>{user?.displayName || 'Você'}</span>
+                <span className="sub-card-price">R$ {p.price}/mês</span>
+              </div>
+            </div>
+          ))}
+        </div>
       </section>
 
       <section className="sub-plans" ref={plansRef} aria-label="Planos">

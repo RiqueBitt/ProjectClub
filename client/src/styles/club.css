@@ -191,6 +191,20 @@ html[data-visual='club'][data-club-theme='claro'][data-accent='mono'] { --club-a
 html[data-visual='club'][data-club-theme='claro'][data-accent='amarelo'] { --club-accent: #E0B000; }
 html[data-visual='club'][data-club-theme='claro'][data-accent='verde'] { --club-accent: #1FB86E; }
 
+/* O tema preto antigo desenhava "bordas iluminadas" com brilho azul em
+   todo cartão, herói e janela (styles/appearance.css). No visual novo:
+   sem brilho, linha fina e uma sombra só nas janelas que flutuam. */
+html[data-visual='club'] {
+  --lit-border-color: var(--club-line);
+  --lit-glow: 0 0 0 0 transparent;
+  --lit-shadow: var(--club-shadow);
+}
+html[data-visual='club'][data-theme='amoled'] :is(
+  .settings-block, .pc-layout-panel, .poll-card, .vc-lobby-card, .error-boundary-card,
+  [class$='-card']:not(.mini-profile-card):not([class*='avatar']), [class*='-card ']:not(.mini-profile-card):not([class*='avatar']),
+  [class*='-hero'], [class*='-tile']:not([class*='gif-picker'])
+):not(.lp *) { box-shadow: none; }
+
 /* ---------------------------------------------------------------
    2. Base: tipografia, rolagem, foco
    --------------------------------------------------------------- */
@@ -582,17 +596,6 @@ html[data-visual='club'] .gh-tab { border-radius: 999px; font-weight: 600; }
 html[data-visual='club'] .gh-tab.on { background: var(--club-sel-bg); color: var(--club-sel-fg); box-shadow: none; }
 html[data-visual='club'] .gh-tab.on svg { color: currentColor; }
 
-/* Assinatura: tira o roxo, fica o dourado */
-html[data-visual='club'] .sub-hero {
-  background: radial-gradient(ellipse 55% 70% at 50% 0%, rgba(233, 185, 73, .14), transparent 70%), var(--club-surface) !important;
-  border: 1px solid var(--club-line); border-radius: 28px;
-}
-html[data-visual='club'] .sub-hero-glow { opacity: .35; }
-html[data-visual='club'] :is(.sub-hero h1, .sub-final h2) { font-stretch: 125%; font-weight: 800; letter-spacing: -0.045em; }
-html[data-visual='club'] .sub-plan { background: var(--club-surface) !important; border: 1px solid var(--club-line-2) !important; border-radius: 24px; box-shadow: none !important; }
-html[data-visual='club'] .sub-plan.is-best { border-color: rgba(233, 185, 73, .55) !important; }
-html[data-visual='club'] .sub-final { background: var(--club-surface) !important; border: 1px solid var(--club-line); border-radius: 28px; }
-
 /* Central */
 html[data-visual='club'] .home-section-title,
 html[data-visual='club'] .an-section-title { font-weight: 700; }
@@ -618,7 +621,7 @@ html[data-visual='club'] .pc-seg button.active { background: var(--club-sel-bg);
   border: 1px solid var(--border); background: transparent; text-align: left; color: var(--text-normal);
 }
 .club-theme-card:hover { border-color: var(--divider-strong); }
-.club-theme-card.is-on { border-color: var(--club-accent, var(--brand)); box-shadow: 0 0 0 1px var(--club-accent, var(--brand)); }
+.club-theme-card.is-on { border-color: var(--club-accent, var(--brand)); box-shadow: 0 0 0 1px var(--club-accent, var(--brand)) !important; }
 .club-theme-swatch {
   position: relative; display: block; height: 58px; border-radius: 10px; overflow: hidden;
   background: var(--sw-bg); border: 1px solid rgba(128, 128, 128, .25);
@@ -639,8 +642,6 @@ html[data-visual='club'] .pc-seg button.active { background: var(--club-sel-bg);
 html[data-visual='club'] .jh-hero-content { color: var(--header-primary); }
 html[data-visual='club'] .jh-hero-art { color: var(--text-muted); opacity: .25; filter: none; }
 html[data-visual='club'] .jh-promo-btn { background: var(--club-sel-bg); color: var(--club-sel-fg); border-radius: 999px; }
-html[data-visual='club'] :is(.sub-hero h1, .sub-final h2) { color: var(--header-primary); }
-html[data-visual='club'] :is(.sub-hero p, .sub-final p) { color: var(--text-muted); }
 html[data-visual='club'] .jh-title { color: var(--header-primary); font-stretch: 125%; font-weight: 800; letter-spacing: -0.045em; }
 html[data-visual='club'] .jh-blackout .jh-title { letter-spacing: .12em; }
 html[data-visual='club'] .jh-text { color: var(--text-muted); }
@@ -760,3 +761,169 @@ html[data-visual='club'] .an-head-icon { display: none; }
 html[data-visual='club'] .an-head h2 { font-stretch: 118%; font-weight: 800; letter-spacing: -0.03em; font-size: 17px; }
 html[data-visual='club'] :is(.evcal-list-head, .evcal-ev-date.is-live b) { text-transform: none !important; letter-spacing: 0 !important; }
 html[data-visual='club'] .evcal-list-head { font-size: 12px; font-weight: 600; color: var(--text-muted); }
+
+/* ---------------------------------------------------------------
+   11. Assinatura (pages/AssinaturaPage.jsx)
+   Abertura com os dois planos como cartões de membro (com o seu nome),
+   planos lado a lado — o Super em papel —, vantagens em lista limpa,
+   tabela de linhas finas e perguntas em sanfona. O dourado é a cor da
+   assinatura e aparece só na coroa e no botão do Super.
+   --------------------------------------------------------------- */
+html[data-visual='club'] .sub-page {
+  --sub-gold: #E9B949;
+  background: var(--bg-primary);
+  padding: 0 clamp(20px, 4vw, 56px) 64px;
+}
+html[data-visual='club'] .sub-page > * { max-width: 1080px; margin-left: auto; margin-right: auto; }
+
+/* Abertura */
+html[data-visual='club'] .sub-hero {
+  display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 440px); align-items: center; gap: 40px;
+  background: none !important; border: 0; border-radius: 0; overflow: visible;
+  padding: clamp(40px, 6vw, 84px) 0 clamp(36px, 5vw, 64px); text-align: left;
+}
+html[data-visual='club'] .sub-hero-glow,
+html[data-visual='club'] .sub-hero-crown { display: none; }
+html[data-visual='club'] .sub-hero-inner { margin: 0; max-width: 560px; align-items: flex-start; gap: 18px; }
+html[data-visual='club'] .sub-hero h1 {
+  color: var(--header-primary); font-size: clamp(38px, 4.6vw, 60px); line-height: .98;
+  font-stretch: 125%; font-weight: 800; letter-spacing: -0.05em;
+}
+html[data-visual='club'] .sub-hero h1 span { background: none; -webkit-background-clip: initial; background-clip: initial; color: var(--header-primary); }
+html[data-visual='club'] .sub-hero p { color: var(--text-muted); font-size: 17px; max-width: 480px; }
+html[data-visual='club'] .sub-hero .sub-hero-mine { background: transparent; border: 1px solid var(--club-line-2); color: var(--header-primary); }
+html[data-visual='club'] .sub-hero .sub-hero-mine svg { color: var(--sub-gold); }
+html[data-visual='club'] .sub-hero-ctas { justify-content: flex-start; }
+
+/* Botões */
+html[data-visual='club'] .sub-btn { font-weight: 650; min-height: 48px; box-shadow: none !important; }
+html[data-visual='club'] .sub-btn:hover { transform: none; }
+html[data-visual='club'] .sub-btn-gold { background: var(--club-sel-bg); color: var(--club-sel-fg); }
+html[data-visual='club'] .sub-btn-gold:hover { background: color-mix(in srgb, var(--club-sel-bg) 88%, var(--club-sel-fg)); }
+html[data-visual='club'] .sub-btn-ghost { background: transparent; color: var(--header-primary); box-shadow: inset 0 0 0 1px var(--club-line-2) !important; }
+html[data-visual='club'] .sub-btn-ghost:hover { background: var(--bg-modifier-hover); }
+
+/* Cartões de membro */
+html[data-visual='club'] .sub-cards { display: block; position: relative; height: 350px; }
+html[data-visual='club'] .sub-cards .sub-card {
+  position: absolute; width: min(86%, 350px); aspect-ratio: 1.586; border-radius: 22px;
+  display: flex; flex-direction: column; padding: 20px 22px; box-sizing: border-box;
+  box-shadow: 0 30px 70px rgba(0, 0, 0, .45) !important;
+}
+html[data-visual='club'] .sub-cards .sub-card:first-child { top: 0; left: 0; transform: rotate(-5deg); }
+html[data-visual='club'] .sub-cards .sub-card:last-child { top: 122px; right: 0; transform: rotate(3deg); }
+html[data-visual='club'] .sub-card.t-subscriber { background: #FFFFFF; color: #0B0B0C; }
+html[data-visual='club'] .sub-cards .sub-card.t-super {
+  background: #0B0B0C; color: #F4F4F5;
+  box-shadow: inset 0 0 0 1px rgba(233, 185, 73, .55), 0 30px 70px rgba(0, 0, 0, .55) !important;
+}
+html[data-visual='club'][data-club-theme='claro'] .sub-cards .sub-card.t-subscriber { box-shadow: inset 0 0 0 1px rgba(11, 11, 12, .12), 0 30px 60px rgba(11, 11, 12, .12) !important; }
+html[data-visual='club'] .sub-card-top { display: flex; align-items: center; gap: 10px; font-size: 14px; font-weight: 600; }
+html[data-visual='club'] .sub-card-top img { width: 28px; height: 28px; border-radius: 8px; }
+html[data-visual='club'] .sub-card.t-subscriber .sub-card-top img { filter: none; }
+html[data-visual='club'] .sub-card-top em {
+  margin-left: auto; font-style: normal; font-size: 11.5px; font-weight: 600;
+  padding: 3px 10px; border-radius: 999px; background: var(--sub-gold); color: #0B0B0C;
+}
+html[data-visual='club'] .sub-card-tier {
+  margin-top: 16px; font-size: 28px; line-height: 1; font-stretch: 125%; font-weight: 800; letter-spacing: -0.045em;
+}
+html[data-visual='club'] .sub-card.t-super .sub-card-tier { color: var(--sub-gold); }
+html[data-visual='club'] .sub-card-foot { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; margin-top: auto; font-size: 13.5px; opacity: .7; }
+html[data-visual='club'] .sub-card-price { font-family: var(--club-mono); font-size: 12px; }
+
+/* Planos */
+html[data-visual='club'] .sub-plans {
+  grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; padding: 0; margin-top: 8px; justify-content: stretch;
+}
+html[data-visual='club'] .sub-plan {
+  background: var(--club-surface) !important; border: 1px solid var(--club-line) !important;
+  box-shadow: none !important; border-radius: 28px; padding: 28px 28px 26px; gap: 16px;
+}
+html[data-visual='club'] .sub-plan.t-super { background: var(--club-paper) !important; color: var(--club-paper-fg); border-color: transparent !important; }
+html[data-visual='club'] .sub-plan.is-mine { outline: 0; box-shadow: inset 0 0 0 2px var(--sub-gold) !important; }
+html[data-visual='club'] .sub-plan-ico { display: none; }
+html[data-visual='club'] .sub-plan-ribbon {
+  position: static; order: -1; align-self: flex-start; text-transform: none; letter-spacing: 0;
+  font-size: 12px; font-weight: 600; padding: 4px 12px; box-shadow: none;
+  background: transparent; color: inherit; border: 1px solid currentColor; opacity: .75;
+}
+html[data-visual='club'] .sub-plan h2 { font-size: 24px; font-stretch: 125%; font-weight: 800; letter-spacing: -0.04em; color: inherit; }
+html[data-visual='club'] .sub-plan.t-super :is(.sub-plan-tag, .sub-plan-price small, li) { color: var(--club-paper-muted); }
+html[data-visual='club'] .sub-plan.t-super li strong { color: var(--club-paper-fg); }
+html[data-visual='club'] .sub-plan-mine { background: var(--sub-gold); color: #0B0B0C; font-weight: 600; }
+html[data-visual='club'] .sub-plan-price { padding: 6px 0 2px; }
+html[data-visual='club'] .sub-plan-price b { font-size: clamp(40px, 4vw, 52px); font-stretch: 125%; font-weight: 800; letter-spacing: -0.05em; color: inherit; }
+html[data-visual='club'] .sub-plan-note { color: inherit; font-weight: 600; opacity: .8; }
+html[data-visual='club'] .sub-plan ul { gap: 0; border-top: 1px solid var(--club-line); }
+html[data-visual='club'] .sub-plan.t-super ul { border-top-color: var(--club-paper-line); }
+html[data-visual='club'] .sub-plan li { padding: 11px 0; border-bottom: 1px solid var(--club-line); font-size: 14.5px; color: var(--text-normal); }
+html[data-visual='club'] .sub-plan.t-super li { border-bottom-color: var(--club-paper-line); }
+html[data-visual='club'] .sub-plan li svg { color: currentColor; opacity: .6; }
+html[data-visual='club'] .sub-plan-cta { margin-top: 6px; background: var(--club-sel-bg) !important; color: var(--club-sel-fg) !important; }
+html[data-visual='club'] .sub-plan.t-super .sub-plan-cta { background: var(--sub-gold) !important; color: #0B0B0C !important; }
+
+/* Seções */
+html[data-visual='club'] .sub-section { padding: 96px 0 0; }
+html[data-visual='club'] .sub-h2 {
+  text-align: left; margin-bottom: 32px !important; color: var(--header-primary);
+  font-size: clamp(30px, 3.6vw, 44px); font-stretch: 125%; font-weight: 800; letter-spacing: -0.045em; line-height: 1;
+}
+
+/* Vantagens: lista limpa em 3 colunas */
+html[data-visual='club'] .sub-highlights { column-gap: 40px; row-gap: 0; border-top: 1px solid var(--club-line-2); }
+html[data-visual='club'] .sub-highlight { background: none; border: 0; border-bottom: 1px solid var(--club-line); border-radius: 0; padding: 26px 0 30px; }
+html[data-visual='club'] .sub-highlight:nth-last-child(-n+3) { border-bottom: 0; }
+html[data-visual='club'] .sub-highlight-ico,
+html[data-visual='club'] .sub-highlight:nth-child(even) .sub-highlight-ico {
+  width: auto; height: auto; background: none; color: var(--text-muted); border-radius: 0; margin-bottom: 16px; justify-content: start;
+}
+html[data-visual='club'] .sub-highlight h3 { font-size: 17px; font-weight: 700; }
+
+/* Tabela */
+html[data-visual='club'] .sub-table-wrap { background: none; border: 0; border-radius: 0; border-top: 1px solid var(--club-line-2); }
+html[data-visual='club'] .sub-table th, html[data-visual='club'] .sub-table td { border-bottom-color: var(--club-line); padding: 16px 12px; }
+html[data-visual='club'] .sub-table thead th { text-transform: none; letter-spacing: 0; font-size: 14px; font-weight: 700; color: var(--header-primary); }
+html[data-visual='club'] .sub-table thead th:first-child { color: var(--text-muted); font-weight: 500; text-align: left; }
+html[data-visual='club'] .sub-table thead th.t-subscriber,
+html[data-visual='club'] .sub-table thead th.t-super { color: var(--header-primary); }
+html[data-visual='club'] .sub-table thead th.t-super::before { content: '♛ '; color: var(--sub-gold); }
+html[data-visual='club'] .sub-table thead th.is-mine::after {
+  display: block; width: fit-content; margin: 6px auto 0; padding: 2px 9px; border-radius: 999px; font-size: 11px; font-weight: 600;
+  background: var(--sub-gold); color: #0B0B0C;
+}
+html[data-visual='club'] .sub-table tbody th { font-weight: 500; }
+html[data-visual='club'] .sub-yes { background: none; color: var(--header-primary); }
+html[data-visual='club'] .sub-val { font-weight: 600; color: var(--header-primary); }
+
+/* Perguntas */
+html[data-visual='club'] .sub-faq { gap: 0; max-width: none; border-top: 1px solid var(--club-line-2); }
+html[data-visual='club'] .sub-faq-item { background: none; border: 0; border-bottom: 1px solid var(--club-line); border-radius: 0; }
+html[data-visual='club'] .sub-faq-item button { padding: 22px 2px; font-size: 17px; font-weight: 600; }
+html[data-visual='club'] .sub-faq-item p { padding: 0 2px 22px; font-size: 15px; max-width: 680px; }
+
+/* Fecho */
+html[data-visual='club'] .sub-final {
+  margin-top: 96px; margin-bottom: 0; text-align: left; padding: clamp(32px, 4vw, 52px);
+  background: var(--club-surface) !important; border: 0; border-radius: 28px;
+  display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 12px 32px;
+}
+html[data-visual='club'] .sub-final h2 { color: var(--header-primary); font-size: clamp(28px, 3.2vw, 40px); font-stretch: 125%; font-weight: 800; letter-spacing: -0.045em; }
+html[data-visual='club'] .sub-final p { color: var(--text-muted); margin: 6px 0 0; grid-column: 1; }
+html[data-visual='club'] .sub-final .sub-hero-ctas { grid-column: 2; grid-row: 1 / span 2; margin: 0; }
+html[data-visual='club'] .sub-final .sub-btn-gold { background: var(--sub-gold); color: #0B0B0C; }
+
+@media (max-width: 900px) {
+  html[data-visual='club'] .sub-hero { grid-template-columns: minmax(0, 1fr); }
+  html[data-visual='club'] .sub-cards { height: 300px; max-width: 420px; width: 100%; }
+  html[data-visual='club'] .sub-cards .sub-card:last-child { top: 100px; }
+  html[data-visual='club'] .sub-plans { grid-template-columns: minmax(0, 1fr); }
+  html[data-visual='club'] .sub-highlight:nth-last-child(-n+3) { border-bottom: 1px solid var(--club-line); }
+  html[data-visual='club'] .sub-final { grid-template-columns: minmax(0, 1fr); }
+  html[data-visual='club'] .sub-final .sub-hero-ctas { grid-column: 1; grid-row: auto; }
+  html[data-visual='club'] .sub-section { padding-top: 64px; }
+}
+@media (min-width: 901px) and (max-width: 1100px) {
+  html[data-visual='club'] .sub-highlight:nth-last-child(-n+3) { border-bottom: 1px solid var(--club-line); }
+  html[data-visual='club'] .sub-highlight:nth-last-child(-n+2) { border-bottom: 0; }
+}
