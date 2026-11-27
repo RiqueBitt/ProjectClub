@@ -90,7 +90,10 @@
   ; atualização, baixar só a diferença. Agora quem fica guardado é o pacote (package.7z, na mesma
   ; pasta); a cópia antiga não serve mais pra nada.
   !ifdef APP_PACKAGE_STORE_FILE
-    !searchreplace PC_OLD_INSTALLER_COPY "${APP_PACKAGE_STORE_FILE}" "package.7z" "installer.exe"
+    !searchreplace PC_OLD_INSTALLER_COPY "${APP_PACKAGE_STORE_FILE}" "\package.7z" "\installer.exe"
+    !if "${PC_OLD_INSTALLER_COPY}" == "${APP_PACKAGE_STORE_FILE}"
+      !error "APP_PACKAGE_STORE_FILE mudou de formato: ${APP_PACKAGE_STORE_FILE}"
+    !endif
     Delete "$LOCALAPPDATA\${PC_OLD_INSTALLER_COPY}"
   !endif
 
@@ -101,4 +104,31 @@
     ; barra de tarefas pro .exe da pasta nova.
     WriteRegStr HKCU "Software\ProjectClub" "OldExe" "$pcLegacyDir\${APP_EXECUTABLE_FILENAME}"
   ${EndIf}
+!macroend
+
+; Desinstalação pedida pela pessoa (não a que o instalador roda sozinho antes de atualizar).
+!macro customUnInstall
+  ; O desinstalador trabalha "dentro" da pasta do app, e o Windows não deixa apagar a pasta em que
+  ; um programa está: sobrava a pasta vazia. Sai dela e apaga (RMDir sem /r só tira pasta vazia).
+  SetOutPath "$TEMP"
+  RMDir "$INSTDIR"
+
+  ; O pacote guardado pra próxima atualização (mais de 100 MB) não serve mais pra nada. Apaga só
+  ; o que o atualizador cria ali, pelo nome; a conferência abaixo impede que a pasta saia vazia
+  ; ou com outro formato (um "RMDir /r" numa pasta errada apagaria coisa que não é do app).
+  !ifdef APP_PACKAGE_STORE_FILE
+    !searchreplace PC_UPDATER_DIR "${APP_PACKAGE_STORE_FILE}" "\package.7z" ""
+    !if "${PC_UPDATER_DIR}" == ""
+      !error "APP_PACKAGE_STORE_FILE sem pasta: ${APP_PACKAGE_STORE_FILE}"
+    !endif
+    !if "${PC_UPDATER_DIR}" == "${APP_PACKAGE_STORE_FILE}"
+      !error "APP_PACKAGE_STORE_FILE mudou de formato: ${APP_PACKAGE_STORE_FILE}"
+    !endif
+    ${IfNot} ${isUpdated}
+      Delete "$LOCALAPPDATA\${PC_UPDATER_DIR}\package.7z"
+      Delete "$LOCALAPPDATA\${PC_UPDATER_DIR}\installer.exe"
+      RMDir /r "$LOCALAPPDATA\${PC_UPDATER_DIR}\pending"
+      RMDir "$LOCALAPPDATA\${PC_UPDATER_DIR}"
+    ${EndIf}
+  !endif
 !macroend

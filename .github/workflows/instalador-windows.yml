@@ -76,6 +76,29 @@ jobs:
           node scripts/check-installer.js --dist dist/nsis-web --serve $env:TEST_PORT
           --legacy "$env:RUNNER_TEMP\antigo\ProjectClub-Setup-Windows.exe" --shots "$env:RUNNER_TEMP\fotos"
           --scenarios manifest,fresh,download,ui,legacy-update,legacy-manual,launch
+      # As mesmas fotos, menores, dentro do log: dá pra conferir as telas sem baixar o arquivo.
+      - name: Mostrar as fotos das telas no log
+        if: always()
+        shell: pwsh
+        run: |
+          $dir = Join-Path $env:RUNNER_TEMP 'fotos'
+          if (-not (Test-Path $dir)) { Write-Host 'Sem fotos.'; exit 0 }
+          Add-Type -AssemblyName System.Drawing
+          $jpeg = [System.Drawing.Imaging.ImageCodecInfo]::GetImageEncoders() | Where-Object { $_.MimeType -eq 'image/jpeg' }
+          $quality = New-Object System.Drawing.Imaging.EncoderParameters 1
+          $quality.Param[0] = New-Object System.Drawing.Imaging.EncoderParameter ([System.Drawing.Imaging.Encoder]::Quality, [long]70)
+          foreach ($file in Get-ChildItem $dir -Filter *.png) {
+            $image = [System.Drawing.Image]::FromFile($file.FullName)
+            $scale = [Math]::Min(1.0, 900.0 / $image.Width)
+            $small = New-Object System.Drawing.Bitmap $image, ([int]($image.Width * $scale)), ([int]($image.Height * $scale))
+            $stream = New-Object System.IO.MemoryStream
+            $small.Save($stream, $jpeg, $quality)
+            $text = [Convert]::ToBase64String($stream.ToArray())
+            Write-Host "FOTO-INICIO $($file.BaseName)"
+            for ($i = 0; $i -lt $text.Length; $i += 4000) { Write-Host $text.Substring($i, [Math]::Min(4000, $text.Length - $i)) }
+            Write-Host "FOTO-FIM $($file.BaseName)"
+            $image.Dispose(); $small.Dispose(); $stream.Dispose()
+          }
       - name: Guardar as fotos das telas do instalador
         if: always()
         uses: actions/upload-artifact@v4

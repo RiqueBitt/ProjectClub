@@ -54,6 +54,8 @@ const CACHE_DIR = path.join(LOCAL, 'project-club-desktop-updater');
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 const same = (a, b) => !!a && !!b && path.normalize(String(a)).toLowerCase() === path.normalize(String(b)).toLowerCase();
 const mb = (bytes) => `${(bytes / 1024 / 1024).toFixed(1)} MB`;
+// O Windows mostra a versão do .exe com quatro números ("1.2.3.0").
+const exeVersion = (v) => String(v || '').replace(/^(\d+\.\d+\.\d+)\.0$/, '$1');
 
 // ---------------------------------------------------------------------------------------------
 // Resultado
@@ -136,6 +138,7 @@ function snapshot() {
   state.legacyDir = fs.existsSync(LEGACY_DIR);
   state.cachedPackage = fs.existsSync(path.join(CACHE_DIR, 'package.7z'));
   state.cachedOldInstaller = fs.existsSync(path.join(CACHE_DIR, 'installer.exe'));
+  state.cacheDir = fs.existsSync(CACHE_DIR);
   return state;
 }
 
@@ -155,9 +158,13 @@ async function uninstall() {
   const dir = before.installLocation;
   await run(match[1], match[2].split(/\s+/).filter(Boolean), { timeoutMs: 3 * 60 * 1000 });
   // O desinstalador se copia pra pasta temporária e continua de lá: espera ele acabar.
-  for (let i = 0; i < 90; i++) {
+  for (let i = 0; i < 40; i++) {
     await sleep(1000);
     if (!snapshot().guid && !(dir && fs.existsSync(dir))) return true;
+  }
+  if (dir && fs.existsSync(dir)) {
+    const left = fs.readdirSync(dir, { recursive: true }).slice(0, 15);
+    console.log(`  sobrou em ${dir}: ${left.length ? left.join(', ') : '(pasta vazia)'}`);
   }
   return false;
 }
@@ -224,7 +231,7 @@ function expectInstalled(state, { dir, version, shortcuts = true }) {
   check(fs.existsSync(exe), `o app está em ${dir}`);
   check(fs.existsSync(path.join(dir, UNINSTALLER_NAME)), 'o desinstalador está na pasta do app');
   check(fs.existsSync(path.join(dir, 'resources', 'app.asar')), 'os arquivos do app foram extraídos (resources\\app.asar)');
-  equal(same(dir, MODERN_DIR) ? state.modernVersion : state.legacyVersion, version, `o .exe instalado é a versão ${version}`);
+  equal(exeVersion(same(dir, MODERN_DIR) ? state.modernVersion : state.legacyVersion), version, `o .exe instalado é a versão ${version}`);
   samePath(state.installLocation, dir, 'o registro aponta pra pasta certa');
   equal(state.displayVersion, version, `"Aplicativos instalados" mostra a versão ${version}`);
   check(String(state.uninstallString || '').toLowerCase().includes(path.join(dir, UNINSTALLER_NAME).toLowerCase()), 'o Windows desinstala pela pasta certa', String(state.uninstallString));
@@ -240,11 +247,25 @@ function expectGone(state) {
   check(!state.guid, 'saiu de "Aplicativos instalados"');
   check(!state.modernDir && !state.legacyDir, 'a pasta do app foi apagada');
   check(!state.startTarget && !state.desktopTarget, 'os atalhos foram apagados');
+  check(!state.cacheDir, 'o pacote guardado pra atualizações (mais de 100 MB) foi apagado');
 }
 
-async function installSilently(args, text, timeoutMs) {
-  const { code } = await run(installer, args, { timeoutMs });
-  return equal(code, 0, text);
+// Se um programa fechou com erro, o Windows anota qual parte dele quebrou: mostra isso no log.
+function crashReport(since) {
+  try {
+    const out = ps(`$ErrorActionPreference = 'SilentlyContinue'
+      Get-WinEvent -FilterHashtable @{ LogName = 'Application'; Id = 1000, 1001; StartTime = [datetime]'${since.toISOString()}' } -MaxEvents 6 |
+        ForEach-Object { $_.TimeCreated.ToString('HH:mm:ss') + ' [' + $_.Id + '] ' + ($_.Message -replace '\\s+', ' ') }`).trim();
+    console.log(out ? `  registro de erros do Windows:\n    ${out.split(/\r?\n/).join('\n    ')}` : '  (o Windows não registrou nenhum erro de programa)');
+  } catch (err) { console.log(`  (não deu pra ler o registro de erros do Windows: ${err.message.split('\n')[0]})`); }
+}
+
+async function installSilently(args, text, timeoutMs, file = installer) {
+  const started = new Date();
+  const { code } = await run(file, args, { timeoutMs });
+  const ok = equal(code, 0, `${text} (${((Date.now() - started) / 1000).toFixed(1)}s)`);
+  if (!ok) crashReport(started);
+  return ok;
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -310,8 +331,7 @@ const scenarios = {
     fs.copyFileSync(installer, copy);
     const server = SERVE_PORT ? await serve(DIST, SERVE_PORT) : null;
     try {
-      const { code } = await run(copy, ['/S'], { timeoutMs: 15 * 60 * 1000 });
-      if (!equal(code, 0, 'o instalador baixou o pacote e terminou sem erro')) return;
+      if (!await installSilently(['/S'], 'o instalador baixou o pacote e terminou sem erro', 15 * 60 * 1000, copy)) return;
     } finally {
       if (server) await server.close();
     }
@@ -379,7 +399,7 @@ const scenarios = {
     equal((await run(LEGACY_INSTALLER, ['/S'])).code, 0, 'instalador antigo (de um clique) instalou');
     const before = snapshot();
     samePath(before.installLocation, LEGACY_DIR, 'a versão antiga fica em "project-club-desktop"');
-    check(!!before.legacyVersion && before.legacyVersion !== version, `versão antiga instalada: ${before.legacyVersion}`);
+    check(!!before.legacyVersion && exeVersion(before.legacyVersion) !== version, `versão antiga instalada: ${exeVersion(before.legacyVersion)}`);
     check(before.cachedOldInstaller, 'a versão antiga guardava uma cópia inteira do instalador');
 
     // Exatamente o comando que o app antigo roda ao se atualizar (sem o --force-run, que abriria o app).
