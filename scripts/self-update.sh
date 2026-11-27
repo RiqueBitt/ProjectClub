@@ -32,6 +32,24 @@ if [ -f "$SRC/rust/bin/pc-server" ]; then
   chmod +x "$SRC/rust/bin/pc-server"
 fi
 
+# Quem está com o site aberto ainda tem a versão anterior na tela: ao abrir
+# uma parte que carrega sob demanda, o navegador pede o arquivo ANTIGO
+# (nome com código, ex.: assets/LojaPage-ab12cd.js). Antes a troca apagava
+# esses arquivos e a pessoa via erro e a página recarregava sozinha. Agora
+# os arquivos de assets/ das versões dos últimos 7 dias vão junto pra pasta
+# nova (o nome muda quando o conteúdo muda, então nunca há conflito; `cp -p`
+# mantém a data original, e é por ela que os velhos saem depois).
+keep_old_assets() {
+  old="$APP/client/dist/assets"
+  new="$SRC/client/dist/assets"
+  [ -d "$old" ] && [ -d "$new" ] || return 0
+  find "$old" -maxdepth 1 -type f -mtime -7 2>/dev/null | while IFS= read -r f; do
+    b=$(basename "$f")
+    [ -e "$new/$b" ] || cp -p "$f" "$new/$b" 2>/dev/null || true
+  done
+}
+keep_old_assets || true
+
 # Troca pasta por pasta (renomear é instantâneo: nunca fica meio copiado).
 for p in server/src server/prisma server/scripts scripts client/dist; do
   rm -rf "$APP/$p.novo" "$APP/$p.velho"

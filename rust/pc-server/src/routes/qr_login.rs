@@ -596,6 +596,16 @@ fn text(status: StatusCode, msg: &str) -> Response {
     r
 }
 
+/// Caminho de dentro do site: uma barra só no começo, sem barra invertida
+/// nem caractere de controle (o navegador lê `/\\site` e `/<tab>/site` como
+/// `//site`, que é OUTRO site). Igual a `server/src/utils/safeLocalPath.js`.
+pub fn safe_local_path(p: &str) -> bool {
+    let mut chars = p.chars();
+    chars.next() == Some('/')
+        && !matches!(chars.next(), Some('/') | Some('\\'))
+        && !p.chars().any(|c| c == '\\' || c.is_control())
+}
+
 /// `safePath`: só caminho do próprio site (nada de `//outro-site`).
 fn safe_path(query: Option<&str>) -> String {
     let to: Vec<String> = query
@@ -607,7 +617,7 @@ fn safe_path(query: Option<&str>) -> String {
         })
         .unwrap_or_default();
     match to.as_slice() {
-        [p] if p.starts_with('/') && !p.starts_with("//") => p.clone(),
+        [p] if safe_local_path(p) => p.clone(),
         _ => "/inicio".into(),
     }
 }
@@ -663,6 +673,42 @@ pub async fn handoff_consume(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn caminho_local_nao_aceita_disfarce_de_outro_site() {
+        for ok in [
+            "/inicio",
+            "/admin?aba=1",
+            "/canal/x#fim",
+            "/@fulano",
+            "/a//b",
+        ] {
+            assert!(safe_local_path(ok), "{ok}");
+        }
+        for bad in [
+            "",
+            "inicio",
+            "//mal.com",
+            "/\\mal.com",
+            "/\\/mal.com",
+            "/a\\b",
+            "/\t/mal.com",
+            "/\n/mal.com",
+            "https://mal.com",
+            "\\mal.com",
+        ] {
+            assert!(!safe_local_path(bad), "{bad:?}");
+        }
+    }
+
+    #[test]
+    fn destino_do_handoff_de_fora_vira_a_central() {
+        assert_eq!(safe_path(Some("to=%2Fadmin%3Faba%3D1")), "/admin?aba=1");
+        assert_eq!(safe_path(Some("to=%2F%5Cmal.com")), "/inicio");
+        assert_eq!(safe_path(Some("to=%2F%09%2Fmal.com")), "/inicio");
+        assert_eq!(safe_path(Some("to=//mal.com")), "/inicio");
+        assert_eq!(safe_path(None), "/inicio");
+    }
 
     #[test]
     fn caminho_seguro() {

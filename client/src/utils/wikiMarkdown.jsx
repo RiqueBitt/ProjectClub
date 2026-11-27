@@ -8,7 +8,9 @@ const INLINE_RE = /(\*\*[^*]+\*\*|\*[^*\s][^*]*\*|`[^`]+`|\[[^\]]+\]\([^)\s]+\)|
 
 function safeHref(href) {
   const h = String(href || '').trim();
-  if (h.startsWith('/') && !h.startsWith('//')) return { href: h, internal: true };
+  // `/\\site` e `/<tab>/site` viram `//site` no navegador (outro site): não é link interno.
+  if (/^\/(?![/\\])/.test(h) && !/[\\\u0000-\u001f]/.test(h)) return { href: h, internal: true };
+  if (h.startsWith('/')) return null;
   if (/^https?:\/\//i.test(h)) return { href: h, internal: false };
   return null;
 }

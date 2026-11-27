@@ -240,7 +240,7 @@ pub async fn checkout(State(state): State<AppState>, parts: Parts, body: Bytes) 
         let lines: Vec<Line> = lines.into_iter().flatten().collect();
         let user_id = uid(&c).to_string();
 
-        let mut conn = c.db.get_conn().await?;
+        let mut conn = crate::db::conn(&c.db).await?;
         let mut tx = conn.start_transaction(mysql_async::TxOpts::default()).await?;
         let result = buy_all(&mut tx, &user_id, &lines).await;
         let bought = match result {

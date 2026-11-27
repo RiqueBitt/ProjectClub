@@ -4,6 +4,7 @@ import { BrowserRouter } from 'react-router-dom';
 import App from './App.jsx';
 import { AuthProvider } from './context/AuthContext.jsx';
 import { RouteErrorBoundary } from './components/ErrorBoundary.jsx';
+import { startConsoleWarning } from './utils/consoleWarning';
 import './styles/global.css';
 import './styles/name-fx.css';
 // Correção de responsividade mobile da barra lateral de Configurações —
@@ -66,6 +67,10 @@ installProfilePrefetch();
 
 // Visual Minimalista (styles/club.css, ~90 KB): baixa só pra quem escolheu.
 // Quem escolheu espera ele chegar antes do primeiro desenho; o resto abre direto.
+// Aviso de segurança no console ("NÃO COLE NADA AQUI!"), a cada 5 s, em
+// qualquer página — ligado aqui, fora do React, pra existir um intervalo só.
+startConsoleWarning();
+
 const clubCssReady = readLocalLayoutPrefs().visual === 'novo' ? loadClubCss().catch(() => {}) : Promise.resolve();
 
 clubCssReady.then(() => ReactDOM.createRoot(document.getElementById('root')).render(

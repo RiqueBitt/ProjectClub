@@ -30,6 +30,8 @@ pub type Db = mysql_async::Pool;
 pub enum DbError {
     Driver(mysql_async::Error),
     Column(String),
+    /// Não conseguiu uma conexão a tempo (banco travado ou pool cheio).
+    Busy,
 }
 
 impl fmt::Display for DbError {
@@ -37,6 +39,7 @@ impl fmt::Display for DbError {
         match self {
             DbError::Driver(e) => write!(f, "{e}"),
             DbError::Column(c) => write!(f, "coluna {c}: tipo inesperado ou ausente"),
+            DbError::Busy => write!(f, "sem conexão livre com o banco em {CONN_WAIT_SECS}s"),
         }
     }
 }
@@ -69,21 +72,39 @@ pub fn connect_lazy(url: &str) -> anyhow::Result<Db> {
     Ok(mysql_async::Pool::new(opts))
 }
 
+/// Quanto esperar por uma conexão do pool (o Prisma do Node espera 10 s).
+const CONN_WAIT_SECS: u64 = 10;
+
+/// Pega uma conexão do pool, com prazo: com o banco travado (ou as 10
+/// conexões ocupadas) o pedido ficava esperando sem limite. Agora desiste
+/// em 10 s com erro — e leitura que dá erro no Rust é respondida pelo Node.
+pub async fn conn(db: &Db) -> DbResult<mysql_async::Conn> {
+    match tokio::time::timeout(
+        std::time::Duration::from_secs(CONN_WAIT_SECS),
+        db.get_conn(),
+    )
+    .await
+    {
+        Ok(c) => Ok(c?),
+        Err(_) => Err(DbError::Busy),
+    }
+}
+
 /// Primeira linha (ou nenhuma).
 pub async fn first(db: &Db, sql: &str, params: Vec<Value>) -> DbResult<Option<Row>> {
-    let mut c = db.get_conn().await?;
+    let mut c = conn(db).await?;
     Ok(c.exec_first(sql, params).await?)
 }
 
 /// Todas as linhas.
 pub async fn all(db: &Db, sql: &str, params: Vec<Value>) -> DbResult<Vec<Row>> {
-    let mut c = db.get_conn().await?;
+    let mut c = conn(db).await?;
     Ok(c.exec(sql, params).await?)
 }
 
 /// INSERT/UPDATE/DELETE — devolve quantas linhas mudaram.
 pub async fn exec(db: &Db, sql: &str, params: Vec<Value>) -> DbResult<u64> {
-    let mut c = db.get_conn().await?;
+    let mut c = conn(db).await?;
     c.exec_drop(sql, params).await?;
     Ok(c.affected_rows())
 }
@@ -91,7 +112,7 @@ pub async fn exec(db: &Db, sql: &str, params: Vec<Value>) -> DbResult<u64> {
 /// Vários comandos numa transação (o `prisma.$transaction([...])`): ou
 /// todos valem, ou nenhum.
 pub async fn transaction(db: &Db, steps: Vec<(&str, Vec<Value>)>) -> DbResult<()> {
-    let mut conn = db.get_conn().await?;
+    let mut conn = conn(db).await?;
     let mut tx = conn
         .start_transaction(mysql_async::TxOpts::default())
         .await?;

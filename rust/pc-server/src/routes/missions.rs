@@ -235,7 +235,7 @@ pub async fn claim_season(State(state): State<AppState>, parts: Parts, body: Byt
         let (coins, gems) = if plus { plus_reward } else { free_reward };
         let field = if plus { "claimedPlus" } else { "claimedFree" };
 
-        let mut conn = c.db.get_conn().await?;
+        let mut conn = crate::db::conn(&c.db).await?;
         let mut tx = conn.start_transaction(mysql_async::TxOpts::default()).await?;
         let result: anyhow::Result<Result<(i64, i64), Stop>> = async {
             let row: Option<mysql_async::Row> = tx

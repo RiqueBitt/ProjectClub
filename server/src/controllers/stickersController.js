@@ -1,4 +1,5 @@
 const prisma = require('../config/prisma');
+const { spendCoins } = require('../utils/atomicSpend');
 const { safeUpsert } = require('../utils/prismaSafe');
 const { CAPSULE_PRICES } = require('../data/stickersCatalog');
 
@@ -79,9 +80,8 @@ async function buyCapsules(req, res, next) {
     if (!allStickers.length) return res.status(400).json({ error: 'Nenhuma figurinha disponível no catálogo.' });
 
     const result = await prisma.$transaction(async (tx) => {
-      const user = await tx.user.findUnique({ where: { id: req.user.id }, select: { coins: true } });
-      if (user.coins < price) { const e = new Error('Moedas insuficientes.'); e.status = 400; throw e; }
-      await tx.user.update({ where: { id: req.user.id }, data: { coins: { decrement: price } } });
+      // conferir e descontar num comando só (ver utils/atomicSpend.js)
+      await spendCoins(tx, req.user.id, price);
 
       const capsules = [];
       for (let i = 0; i < quantity; i++) {

@@ -124,14 +124,71 @@ impl Counted {
     }
 }
 
+/// Contagem de reserva quando o Redis não responde: na memória deste
+/// processo, com a mesma janela fixa do script `INCREMENT`. Antes, sem
+/// Redis, toda rota com limite dava 500 (igual o Node fazia) — o site
+/// inteiro parava por causa de um contador. Igual no Node:
+/// `server/src/config/rateLimitStore.js` (createFallbackStore).
+static LOCAL: std::sync::LazyLock<
+    std::sync::Mutex<std::collections::HashMap<String, (u64, std::time::Instant)>>,
+> = std::sync::LazyLock::new(Default::default);
+static LAST_WARN: std::sync::atomic::AtomicI64 = std::sync::atomic::AtomicI64::new(0);
+
+/// `(total, ms até zerar)` da chave na memória local.
+pub fn local_increment(key: &str, window_ms: u64) -> (i64, i64) {
+    use std::time::{Duration, Instant};
+    let now = Instant::now();
+    let window = Duration::from_millis(window_ms);
+    let mut map = LOCAL.lock().unwrap_or_else(|e| e.into_inner());
+    // muita chave (muitos IPs durante a queda): tira as que já venceram
+    if map.len() > 50_000 {
+        map.retain(|_, (_, reset)| *reset > now);
+    }
+    let entry = map.entry(key.to_string()).or_insert((0, now + window));
+    if entry.1 <= now {
+        *entry = (0, now + window);
+    }
+    entry.0 += 1;
+    (
+        entry.0 as i64,
+        entry.1.saturating_duration_since(now).as_millis() as i64,
+    )
+}
+
+fn warn_fallback(prefix: &str) {
+    let now = chrono::Utc::now().timestamp();
+    let last = LAST_WARN.load(std::sync::atomic::Ordering::Relaxed);
+    if now - last >= 60
+        && LAST_WARN
+            .compare_exchange(
+                last,
+                now,
+                std::sync::atomic::Ordering::Relaxed,
+                std::sync::atomic::Ordering::Relaxed,
+            )
+            .is_ok()
+    {
+        tracing::warn!(
+            "[rate-limit] Redis indisponível — contando na memória do processo ({prefix})"
+        );
+    }
+}
+
 /// Conta mais uma requisição de `key` (o IP): os cabeçalhos e, se passou do
-/// limite, a resposta 429 pronta. Sem Redis ou com erro = `None` (o Node,
-/// com `passOnStoreError: false`, devolve 500 nesse caso).
+/// limite, a resposta 429 pronta. Sem Redis ou com erro, conta na memória
+/// do processo (`local_increment`) — o limite continua valendo.
 pub async fn hit(cache: &Cache, limit: &Limit, key: &str) -> Option<(Counted, Option<Response>)> {
     let redis_key = format!("ratelimit:{}:{key}", limit.prefix);
-    let (total, ttl_ms): (i64, i64) = cache
+    let (total, ttl_ms): (i64, i64) = match cache
         .eval(INCREMENT, &redis_key, &["0", &limit.window_ms.to_string()])
-        .await?;
+        .await
+    {
+        Some(v) => v,
+        None => {
+            warn_fallback(limit.prefix);
+            local_increment(&redis_key, limit.window_ms)
+        }
+    };
     let total = total.max(0) as u64;
     let remaining = limit.max.saturating_sub(total);
     let ttl_ms = ttl_ms.max(0);
@@ -181,8 +238,8 @@ pub async fn hit(cache: &Cache, limit: &Limit, key: &str) -> Option<(Counted, Op
     Some((Counted { headers }, blocked))
 }
 
-/// O limitador como middleware de uma rota: conta; Redis fora → 500; passou
-/// do limite → 429 (com os cabeçalhos). `Ok` traz os cabeçalhos pra pôr na
+/// O limitador como middleware de uma rota: conta (no Redis, ou na memória
+/// se ele estiver fora); passou do limite → 429 (com os cabeçalhos). `Ok` traz os cabeçalhos pra pôr na
 /// resposta da rota.
 pub async fn guard(cache: &Cache, limit: &Limit, ip: &str) -> Result<Counted, Box<Response>> {
     let Some((counted, blocked)) = hit(cache, limit, ip).await else {
@@ -196,4 +253,45 @@ pub async fn guard(cache: &Cache, limit: &Limit, ip: &str) -> Result<Counted, Bo
         return Err(Box::new(blocked));
     }
     Ok(counted)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn sem_redis_conta_na_memoria_com_janela() {
+        let k = "ratelimit:teste:1.2.3.4";
+        assert_eq!(local_increment(k, 60_000).0, 1);
+        assert_eq!(local_increment(k, 60_000).0, 2);
+        let (_, ttl) = local_increment(k, 60_000);
+        assert!(ttl > 0 && ttl <= 60_000);
+        // outra chave começa do zero
+        assert_eq!(local_increment("ratelimit:teste:5.6.7.8", 60_000).0, 1);
+    }
+
+    #[test]
+    fn sem_redis_janela_vencida_zera() {
+        let k = "ratelimit:teste-janela:9.9.9.9";
+        assert_eq!(local_increment(k, 1).0, 1);
+        std::thread::sleep(std::time::Duration::from_millis(5));
+        assert_eq!(local_increment(k, 1).0, 1);
+    }
+
+    #[tokio::test]
+    async fn sem_redis_o_limite_continua_valendo() {
+        let cache = Cache::default();
+        let limit = Limit {
+            prefix: "teste-guard",
+            window_ms: 60_000,
+            max: 2,
+            message: Some("Muitas tentativas."),
+            standard: true,
+            legacy: false,
+        };
+        assert!(guard(&cache, &limit, "1.1.1.1").await.is_ok());
+        assert!(guard(&cache, &limit, "1.1.1.1").await.is_ok());
+        let blocked = guard(&cache, &limit, "1.1.1.1").await.err().unwrap();
+        assert_eq!(blocked.status(), StatusCode::TOO_MANY_REQUESTS);
+    }
 }
