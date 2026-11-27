@@ -47,18 +47,14 @@ async function getVideoDurationSeconds(videoId) {
   }
 }
 
-async function listYoutubeVideos(req, res, next) {
-  try {
-    const now = Date.now();
-    if (cache.videos && now - cache.fetchedAt < CACHE_TTL_MS) {
-      return res.json({ videos: cache.videos });
-    }
+// Busca o feed + a duração de cada vídeo (pra tirar os Shorts). Lento (~800ms):
+// roda por trás quando já tem lista guardada.
+let refreshing = null;
+function refreshVideos() {
+  if (refreshing) return refreshing;
+  refreshing = (async () => {
     const resp = await fetch(FEED_URL);
-    if (!resp.ok) {
-      // Feed fora do ar — devolve o que tinha em cache (mesmo vencido)
-      // em vez de quebrar a página Início inteira por causa disso.
-      return res.json({ videos: cache.videos || [] });
-    }
+    if (!resp.ok) throw new Error(`feed do YouTube respondeu ${resp.status}`);
     const xml = await resp.text();
     const all = parseFeed(xml);
 
@@ -77,8 +73,27 @@ async function listYoutubeVideos(req, res, next) {
       .slice(0, 4)
       .map(({ durationSeconds, ...v }) => v); // não precisa expor esse detalhe interno pro cliente
 
-    cache = { videos, fetchedAt: now };
-    res.json({ videos });
+    cache = { videos, fetchedAt: Date.now() };
+    return videos;
+  })().finally(() => { refreshing = null; });
+  return refreshing;
+}
+
+async function listYoutubeVideos(req, res, next) {
+  try {
+    const now = Date.now();
+    if (cache.videos && now - cache.fetchedAt < CACHE_TTL_MS) {
+      return res.json({ videos: cache.videos });
+    }
+    // Venceu mas tem lista: responde na hora com ela e atualiza por trás (o
+    // "[lento] GET /api/youtube/videos 850ms" dos logs a cada meia hora).
+    if (cache.videos) {
+      refreshVideos().catch(() => {});
+      return res.json({ videos: cache.videos });
+    }
+    const videos = await refreshVideos().catch(() => null);
+    // Feed fora do ar — devolve lista vazia em vez de quebrar a página Início.
+    res.json({ videos: videos || cache.videos || [] });
   } catch (err) {
     if (cache.videos) return res.json({ videos: cache.videos });
     next(err);

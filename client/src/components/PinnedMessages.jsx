@@ -192,7 +192,7 @@ export function PinnedButton({ pins, loading, canUnpin, onJump, onUnpinned, open
               <div className="pins-empty">
                 <span className="pins-empty-icon"><NavIcon name="pin" size={22} /></span>
                 <strong>Nada fixado ainda</strong>
-                <span>Clique com o botão direito numa mensagem e escolha “Fixar” pra guardar aqui.</span>
+                <span>Clique com o botão direito (ou segure, no celular) numa mensagem e escolha “Fixar” pra guardar aqui.</span>
               </div>
             )}
             {pins.map((m) => (

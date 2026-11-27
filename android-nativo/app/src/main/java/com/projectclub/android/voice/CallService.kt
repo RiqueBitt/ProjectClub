@@ -36,6 +36,7 @@ class CallService : Service() {
     private var isForeground = false
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
+        pendingStart = false
         when (intent?.action) {
             ACTION_START -> {
                 title = intent.getStringExtra(EXTRA_TITLE) ?: title
@@ -125,6 +126,7 @@ class CallService : Service() {
         fun start(ctx: Context, title: String) {
             // Android 12+ recusa iniciar serviço em primeiro plano com o app em segundo plano.
             runCatching { ContextCompat.startForegroundService(ctx, Intent(ctx, CallService::class.java).setAction(ACTION_START).putExtra(EXTRA_TITLE, title)) }
+                .onSuccess { pendingStart = true }
                 .onFailure { Log.w("PCChamada", "não deu pra iniciar o serviço da chamada", it) }
         }
 
@@ -133,14 +135,30 @@ class CallService : Service() {
             runCatching {
                 ContextCompat.startForegroundService(ctx, Intent(ctx, CallService::class.java).setAction(ACTION_SCREEN)
                     .putExtra(EXTRA_RESULT_CODE, resultCode).putExtra(EXTRA_RESULT_DATA, data))
-            }.onFailure { Log.w("PCChamada", "não deu pra iniciar o compartilhamento", it) }
+            }.onSuccess { pendingStart = true }
+                .onFailure { Log.w("PCChamada", "não deu pra iniciar o compartilhamento", it) }
         }
 
         fun screenStopped(ctx: Context) {
             runCatching { ctx.startService(Intent(ctx, CallService::class.java).setAction(ACTION_SCREEN_STOPPED)) }
         }
 
+        /**
+         * Entrou e saiu da call rápido: o Android ainda não entregou o "start" ao
+         * serviço. Parar com stopService nessa hora derruba o app ("did not then
+         * call Service.startForeground()", visto nos relatórios de erro). Então,
+         * com um início pendente, a parada vai pelo mesmo caminho do início
+         * (ACTION_STOP via startForegroundService): o serviço entra em primeiro
+         * plano um instante e já sai.
+         */
+        @Volatile private var pendingStart = false
+
         fun stop(ctx: Context) {
+            if (pendingStart) {
+                runCatching { ContextCompat.startForegroundService(ctx, Intent(ctx, CallService::class.java).setAction(ACTION_STOP)) }
+                    .onFailure { runCatching { ctx.stopService(Intent(ctx, CallService::class.java)) } }
+                return
+            }
             // stopService não "acorda" o serviço só pra parar (e não cai na regra do startForeground).
             runCatching { ctx.stopService(Intent(ctx, CallService::class.java)) }
         }

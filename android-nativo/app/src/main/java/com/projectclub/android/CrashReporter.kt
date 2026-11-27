@@ -71,6 +71,10 @@ object CrashReporter {
             val last = prefs.getLong("exitSeen", 0L)
             val exits = am.getHistoricalProcessExitReasons(context.packageName, 0, 5)
                 .filter { it.timestamp > last && it.reason in REPORTED_REASONS }
+                // O sistema fechando o app em segundo plano pra liberar memória (importância
+                // 400+ = "em cache", fora de call) é normal no Android, não é defeito: não
+                // vira relato de erro (era a maioria dos relatos, num celular de 4 GB).
+                .filterNot { it.reason == ApplicationExitInfo.REASON_LOW_MEMORY && it.importance >= ActivityManager.RunningAppProcessInfo.IMPORTANCE_CACHED }
             exits.forEach { e ->
                 val kind = when (e.reason) {
                     ApplicationExitInfo.REASON_ANR -> "travou (ANR)"

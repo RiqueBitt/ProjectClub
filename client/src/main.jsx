@@ -33,11 +33,10 @@ import './styles/voice.css';
 import './styles/presence.css';
 // Telas de login/inscrição — por último, isoladas sob .pc-auth.
 import './styles/auth.css';
-// Visual novo (nov/2026): só vale com <html data-visual="club">, por cima de tudo.
-import './styles/club.css';
 import './i18n/index.js';
 import { isChunkLoadError, reloadForNewVersion } from './utils/lazyWithRetry';
 import { installProfilePrefetch } from './api/profileCache';
+import { loadClubCss, readLocalLayoutPrefs } from './utils/appearance';
 
 // Depois de uma atualização do site, abas abertas ainda pedem os arquivos
 // antigos (com outro nome) e a página travava com "Failed to fetch
@@ -65,7 +64,11 @@ if (window.electronAPI) {
 // Busca o perfil antes do clique (ver api/profileCache.js).
 installProfilePrefetch();
 
-ReactDOM.createRoot(document.getElementById('root')).render(
+// Visual Minimalista (styles/club.css, ~90 KB): baixa só pra quem escolheu.
+// Quem escolheu espera ele chegar antes do primeiro desenho; o resto abre direto.
+const clubCssReady = readLocalLayoutPrefs().visual === 'novo' ? loadClubCss().catch(() => {}) : Promise.resolve();
+
+clubCssReady.then(() => ReactDOM.createRoot(document.getElementById('root')).render(
   <React.StrictMode>
     {/* BUG CORRIGIDO ("mudar zoom/configuração desloga o usuário"): o
         ErrorBoundary global ficava ACIMA do AuthProvider — qualquer
@@ -87,7 +90,7 @@ ReactDOM.createRoot(document.getElementById('root')).render(
       </AuthProvider>
     </BrowserRouter>
   </React.StrictMode>
-);
+));
 
 // Service worker: SÓ pra notificações push (public/sw.js — não faz cache de
 // nada; uma versão antiga do app cacheava arquivos e servia layout velho pra

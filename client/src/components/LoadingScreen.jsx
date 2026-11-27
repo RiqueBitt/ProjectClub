@@ -25,7 +25,10 @@ const TIPS = [
   'Arquivos de código enviados no chat aparecem com cores e prévia.',
   'Mensagens de quem não é seu amigo chegam em Solicitações, sem fazer barulho.',
 ];
-const tip = TIPS[Math.floor(Math.random() * TIPS.length)];
+// No celular/tablet não tem botão direito nem Ctrl+K: essas dicas ficam de fora.
+const TOUCH_ONLY = typeof window !== 'undefined' && window.matchMedia?.('(hover: none) and (pointer: coarse)').matches;
+const tipPool = TOUCH_ONLY ? TIPS.filter((t) => !/botão direito|Ctrl\+/.test(t)) : TIPS;
+const tip = tipPool[Math.floor(Math.random() * tipPool.length)];
 
 export default function LoadingScreen() {
   return (
