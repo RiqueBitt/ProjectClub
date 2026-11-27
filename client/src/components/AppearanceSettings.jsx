@@ -96,7 +96,7 @@ export function ClubVisualPicker() {
   // cores dele mandam por cima do tema e do destaque daqui.
   const colorTheme = useStore((s) => s.userSettings?.extraPrefs?.colorTheme);
   const hasColorTheme = !!colorTheme && colorTheme !== 'none';
-  const club = prefs.visual === 'club';
+  const club = prefs.visual === 'novo';
   const accentColor = (a) => (a.id === 'mono' && prefs.theme === 'claro' ? '#0B0B0C' : a.color);
   return (
     <section className="pc-layout-panel club-visual-panel" aria-labelledby="club-visual-title">
@@ -111,7 +111,7 @@ export function ClubVisualPicker() {
           <span className="pc-field-label">Estilo</span>
           <Seg
             label="Estilo" value={prefs.visual} onChange={(v) => setPrefs({ visual: v })}
-            options={[{ value: 'club', label: 'Novo' }, { value: 'classic', label: 'Clássico' }]}
+            options={[{ value: 'classic', label: 'Clássico' }, { value: 'novo', label: 'Minimalista' }]}
           />
         </div>
         {club && (

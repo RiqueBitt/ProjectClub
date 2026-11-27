@@ -23,9 +23,10 @@ export const DEFAULT_LAYOUT_PREFS = Object.freeze({
   colorblindStrength: 100, // 0–100: o quanto as cores trocam (e o filtro age)
   colorblindFilter: false, // filtro de correção de cor no app inteiro (afeta imagens)
   statusShapes: false, // ícones além de cores nas bolinhas de status
-  // Visual (nov/2026): "club" é o visual novo (preto e branco do site +
-  // grafite do app, ver styles/club.css); "classic" volta pro de antes.
-  visual: 'club', // club | classic
+  // Visual: "classic" é o de sempre (padrão). "novo" liga o visual preto e
+  // branco (styles/club.css), só pra quem escolher em Aparência. O valor
+  // antigo "club" era o padrão automático de nov/2026 e volta pro clássico.
+  visual: 'classic', // classic | novo
   theme: 'preto', // preto | grafite | meianoite | claro (só no visual novo)
   accent: 'azul', // cor de destaque: ver CLUB_ACCENTS
 });
@@ -83,7 +84,7 @@ export function normalizeLayoutPrefs(raw) {
     colorblindStrength: clampInt(p.colorblindStrength, 0, 100, d.colorblindStrength),
     colorblindFilter: typeof p.colorblindFilter === 'boolean' ? p.colorblindFilter : d.colorblindFilter,
     statusShapes: typeof p.statusShapes === 'boolean' ? p.statusShapes : d.statusShapes,
-    visual: ['club', 'classic'].includes(p.visual) ? p.visual : d.visual,
+    visual: p.visual === 'novo' ? 'novo' : 'classic',
     theme: CLUB_THEME_IDS.includes(p.theme) ? p.theme : d.theme,
     accent: CLUB_ACCENT_IDS.includes(p.accent) ? p.accent : d.accent,
   };
@@ -302,10 +303,10 @@ export function applyLayoutPrefs(prefs, { reducedMotion = false } = {}) {
   setAttr('data-pc-season', !!season, season || '');
 
   // Visual novo + tema + cor de destaque (styles/club.css).
-  setAttr('data-visual', p.visual === 'club', 'club');
-  setAttr('data-club-theme', p.visual === 'club', p.theme);
-  setAttr('data-accent', p.visual === 'club', p.accent);
-  html.style.colorScheme = p.visual === 'club' && p.theme === 'claro' ? 'light' : 'dark';
+  setAttr('data-visual', p.visual === 'novo', 'club');
+  setAttr('data-club-theme', p.visual === 'novo', p.theme);
+  setAttr('data-accent', p.visual === 'novo', p.accent);
+  html.style.colorScheme = p.visual === 'novo' && p.theme === 'claro' ? 'light' : 'dark';
 
   applyColorVision(p);
   return { prefs: p, season, motionOff };

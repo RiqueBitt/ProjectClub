@@ -123,6 +123,7 @@ test('configurações: tema colorido, ícone, modo streamer, sons, privacidade',
 
 test('barra de ícones (visual novo): Assinatura leva pra página de planos', async ({ page }, info) => {
   test.skip(info.project.name !== 'pc', 'barra de ícones conferida no PC');
+  await page.addInitScript(() => { try { localStorage.setItem('pc-layout-prefs', JSON.stringify({ visual: 'novo' })); } catch { /* */ } });
   await page.goto('/inicio');
   // No PC os destaques saem da lista de canais e viram a barra de ícones.
   await expect(page.locator('.club-rail')).toBeVisible({ timeout: 20_000 });

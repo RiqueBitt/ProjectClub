@@ -9,6 +9,8 @@ test.beforeEach(async ({ page }) => {
     try {
       localStorage.setItem('layoutStyle', 'normal2');
       sessionStorage.setItem('inicio-redirect-done', '1');
+      // O clássico é o padrão: estes testes ligam o visual preto e branco.
+      if (!localStorage.getItem('pc-layout-prefs')) localStorage.setItem('pc-layout-prefs', JSON.stringify({ visual: 'novo' }));
     } catch { /* sem storage */ }
   });
   await page.route('**/api/**', handler);
