@@ -57,13 +57,13 @@
 /* ---------- Abertura ---------- */
 .lc-hero { padding-top: clamp(40px, 8vw, 110px); position: relative; z-index: 2; }
 .lc-wheel { display: flex; flex-direction: column; }
-.lc-hero .lc-ch { font-size: clamp(44px, 8.2vw, 104px); height: 1.17em; padding-left: .45em; }
+.lc-hero .lc-ch { font-size: clamp(44px, 8.2vw, 104px); height: 1.17em; padding-left: clamp(19.8px, 3.69vw, 46.8px); }
 .lc-hero .lc-ch.is-far { color: rgba(255, 255, 255, .07); font-size: clamp(38px, 6.8vw, 86px); }
 .lc-hero .lc-ch.is-near { color: rgba(255, 255, 255, .2); }
 .lc-sel { display: flex; align-items: center; gap: 28px; margin: 10px 0; flex-wrap: wrap; }
 .lc-hero .lc-ch.is-on {
   margin: 0; background: var(--lc-paper); color: var(--lc-ink);
-  border-radius: 999px; height: 1.42em; padding: 0 .62em 0 .45em;
+  border-radius: 999px; height: 1.42em; padding: 0 .62em 0 clamp(19.8px, 3.69vw, 46.8px);
 }
 .lc-ch.is-on > i { opacity: .3; }
 .lc-go { display: flex; flex-direction: column; gap: 14px; }
@@ -183,14 +183,15 @@
 }
 @media (max-width: 640px) {
   .lc-wrap { width: calc(100% - 32px); }
-  .lc-hero .lc-ch { padding-left: .3em; }
+  .lc-hero .lc-ch, .lc-hero .lc-ch.is-on { padding-left: 14px; }
   .lc-sel { gap: 20px; }
   .lc-go, .lc-btn.is-brand { width: 100%; }
   .lc-lede { margin-top: 28px; }
   .lc-dl-row { grid-template-columns: minmax(0, 1fr) auto; }
   .lc-dl-desc { display: none; }
-  .lc-tl li { grid-template-columns: 0 36px minmax(0, 1fr); column-gap: 12px; padding-left: 14px; }
+  .lc-tl li { grid-template-columns: 36px minmax(0, 1fr); column-gap: 12px; padding-left: 16px; }
   .lc-t { display: none; }
+  .lc-tag { grid-column: 2; }
   .lc-card { max-width: 100%; }
   .lc-day, .lc-dl, .lc-faq-sec { padding-top: 100px; }
   .lc-end { padding: 110px 0 100px; }
