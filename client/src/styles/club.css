@@ -661,3 +661,12 @@ html[data-visual='club'] .app-title-bar-btn--close:hover { background: #E81123; 
 html[data-visual='club'] .app-update-pop { background: var(--bg-floating); border: 1px solid var(--club-line-2); border-radius: 16px; box-shadow: var(--club-shadow); }
 html[data-visual='club'] .app-update-pop-btn { border-radius: 999px; }
 html[data-visual='club'] .app-update-pop-btn.primary { background: var(--brand); color: var(--club-on-brand); }
+
+/* Rótulos pequenos sem CAIXA ALTA (o visual novo escreve como se fala).
+   Vale pros rótulos de grupo/seção do app inteiro; selos como "Ao vivo"
+   continuam como estão. */
+html[data-visual='club'] :is(.app-shell, .modal-overlay, .pk-modal-backdrop) :is([class*='-label'], [class*='eyebrow'], [class*='kicker'], [class*='section-title'], [class*='group-title'], .settings-block h4, .notifications-section h3, .pc-field-label, .admin-table th, .invite-list-header, .communities-sidebar-card h4, .activity-badge-title, .profile-ig-stat span):not([class*='badge']):not([class*='live']):not([class*='tag']) {
+  text-transform: none !important;
+  letter-spacing: 0 !important;
+}
+html[data-visual='club'] :is(.settings-modal-sidebar-group-label, .pc-field-label, .member-group-label, .category-label) { font-size: 12px; }
