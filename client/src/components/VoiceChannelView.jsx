@@ -27,6 +27,7 @@ import { buildVoiceModerationItems } from './voice/voiceModerationMenu';
 import { useVideoViewport } from '../voice/useVideoViewport';
 import { TempVoiceRoomBar } from './voice/TempVoiceRoom.jsx';
 import { RadioChip, RadioSettings } from './voice/RadioSettings.jsx';
+import { AudioDeviceQuickMenu } from './CallBar.jsx';
 
 // ============================================================
 // Canal de voz — visual refeito.
@@ -96,6 +97,18 @@ function useVoiceGoal() {
   return goal;
 }
 
+function LobbyStatus({ startedAt, count }) {
+  const elapsed = useElapsed(count > 0 ? startedAt : null);
+  if (!count) return <p className="vc-lobby-status is-empty">Ninguém na sala agora</p>;
+  return (
+    <p className="vc-lobby-status">
+      <span className="vc-live" /> Ao vivo{elapsed && <span className="vc-mono">há {elapsed}</span>}
+      <span className="vc-lobby-sep" aria-hidden="true" />
+      <span className="vc-lobby-count">{count === 1 ? '1 pessoa' : `${count} pessoas`}</span>
+    </p>
+  );
+}
+
 function CallHeader({ channel, count, isStage, children }) {
   const voice = useVoice();
   const elapsed = useElapsed(voice?.rosterStartedAt?.[channel.id]);
@@ -105,10 +118,11 @@ function CallHeader({ channel, count, isStage, children }) {
       {/* Ícone personalizado do canal (emoji/imagem da staff) no lugar do genérico. */}
       <span className="vc-head-icon">{hasCustomIcon(channel) ? <CustomIcon item={channel} className="vc-head-custom-icon" /> : <Icon name={isStage ? 'stage' : 'speaker'} size={18} />}</span>
       {/* O nome do canal já está no cabeçalho do chat logo acima. */}
-      <p className="vc-head-text truncate">{channel.topic || (isStage ? 'Palco' : 'Canal de voz')}</p>
-      <span className="vc-chip"><span className="vc-live" /> Ao vivo</span>
-      <span className="vc-chip"><Icon name="people" size={15} /> {count}</span>
-      {elapsed && <span className="vc-chip vc-mono">{elapsed}</span>}
+      <p className={`vc-head-text truncate${channel.topic ? '' : ' is-default'}`}>{channel.topic || (isStage ? 'Palco' : 'Canal de voz')}</p>
+      <span className="vc-chip vc-chip-on" title="Tempo desde que a call começou">
+        <span className="vc-live" /> Ao vivo{elapsed && <span className="vc-mono">{elapsed}</span>}
+      </span>
+      <span className="vc-chip" title="Pessoas na chamada"><Icon name="people" size={15} /> {count}</span>
       {goal && (
         <span
           className={`vc-chip vc-goal${goal.reached ? ' is-done' : ''}`}
@@ -171,35 +185,44 @@ export default function VoiceChannelView({ channel }) {
     const busy = voice?.joiningChannelId === channel.id;
     const inOtherCall = !!voice?.call && !inThisCall;
 
+    const speakingNow = voice?.rosterSpeaking?.[channel.id] || {};
+    const canEditRadio = user?.platformRole === 'ADMIN' || hasPermission(getMyCommunityPermissions(roles, members, user?.id, user?.platformRole), 'MANAGE_CHANNELS');
+    const showRadio = !isStage && !channel.tempOwnerId;
+    const shown = roster.slice(0, 8);
+
     return (
       <div className="vc vc-lobby">
         <div className="vc-lobby-card">
-          <span className="vc-lobby-icon">{hasCustomIcon(channel) ? <CustomIcon item={channel} className="vc-lobby-custom-icon" /> : <Icon name={isStage ? 'stage' : 'speaker'} size={30} />}</span>
-          <h2>{channel.name}</h2>
+          <header className="vc-lobby-head">
+            <span className="vc-lobby-icon">{hasCustomIcon(channel) ? <CustomIcon item={channel} className="vc-lobby-custom-icon" /> : <Icon name={isStage ? 'stage' : 'speaker'} size={28} />}</span>
+            <div className="vc-lobby-title">
+              <h2>{channel.name}</h2>
+              <LobbyStatus startedAt={voice?.rosterStartedAt?.[channel.id]} count={roster.length} />
+            </div>
+          </header>
           {channel.topic && <p className="vc-lobby-topic">{channel.topic}</p>}
           <TempVoiceRoomBar channel={channel} myUserId={user?.id} />
-          {!isStage && !channel.tempOwnerId && (
-            <div className="tvr-bar">
-              <RadioChip channelId={channel.id} />
-              {(user?.platformRole === 'ADMIN' || hasPermission(getMyCommunityPermissions(roles, members, user?.id, user?.platformRole), 'MANAGE_CHANNELS')) && <RadioSettings channelId={channel.id} />}
-            </div>
-          )}
 
           {roster.length > 0 ? (
-            <div className="vc-lobby-people">
-              <div className="vc-stack">
-                {roster.slice(0, 6).map((p) => <UserAvatar key={p.userId} user={memberFor(p.userId)} size={44} />)}
-                {roster.length > 6 && <span className="vc-stack-more">+{roster.length - 6}</span>}
-              </div>
-              {roster.some((p) => p.screenSharing) && (
-                <span className="vc-chip vc-chip-live"><Icon name="screen" size={14} /> {roster.filter((p) => p.screenSharing).length > 1 ? `${roster.filter((p) => p.screenSharing).length} transmitindo` : `${memberFor(roster.find((p) => p.screenSharing).userId)?.displayName || 'Alguém'} está transmitindo`}</span>
-              )}
-              <p>
-                <span className="vc-live" /> {roster.length === 1
-                  ? `${memberFor(roster[0].userId)?.displayName || 'Alguém'} está na sala`
-                  : `${roster.length} pessoas na sala`}
-              </p>
-            </div>
+            <ul className="vc-lobby-people" aria-label="Quem está na sala">
+              {shown.map((p) => {
+                const person = memberFor(p.userId);
+                const speaking = !p.muted && !p.deafened && !!speakingNow[p.userId];
+                return (
+                  <li key={p.userId} className={`vc-lobby-person${speaking ? ' is-speaking' : ''}`}>
+                    <span className="vc-lobby-avatar"><UserAvatar user={person} size={32} /></span>
+                    <span className="vc-lobby-name truncate">{person?.displayName || 'Alguém'}</span>
+                    {p.screenSharing && <span className="vc-lobby-live" title="Transmitindo a tela"><Icon name="screen" size={12} /> Ao vivo</span>}
+                    {p.deafened ? (
+                      <span className="vc-lobby-state" title="Ensurdecido" aria-label="Ensurdecido"><Icon name="headphonesOff" size={15} /></span>
+                    ) : p.muted ? (
+                      <span className="vc-lobby-state" title="Microfone desligado" aria-label="Microfone desligado"><Icon name="micOff" size={15} /></span>
+                    ) : null}
+                  </li>
+                );
+              })}
+              {roster.length > shown.length && <li className="vc-lobby-more">+{roster.length - shown.length} na sala</li>}
+            </ul>
           ) : (
             <p className="vc-lobby-empty">A sala está vazia. Entre e chame o pessoal.</p>
           )}
@@ -208,12 +231,21 @@ export default function VoiceChannelView({ channel }) {
             type="button" className="vc-join" disabled={busy}
             onClick={() => voice?.joinChannel(null, channel.id, channel.name, channel.type)}
           >
-            <Icon name={isStage ? 'stage' : 'mic'} size={18} />
+            <Icon name={isStage ? 'stage' : 'mic'} size={19} />
             {busy ? 'Entrando…' : isStage ? 'Entrar no palco' : 'Entrar na chamada'}
           </button>
           {inOtherCall && <p className="vc-lobby-note">Você vai sair da chamada atual ({voice.call?.channelName || 'outra sala'}).</p>}
-          {/* Teste de microfone antes de entrar (para sozinho ao entrar). */}
-          <MicTest stopSignal={busy} />
+
+          {/* Antes de entrar: testar o microfone (para sozinho ao entrar) e o rádio da sala. */}
+          <div className="vc-lobby-tools">
+            <MicTest stopSignal={busy} />
+            {showRadio && (
+              <div className="tvr-bar">
+                <RadioChip channelId={channel.id} />
+                {canEditRadio && <RadioSettings channelId={channel.id} />}
+              </div>
+            )}
+          </div>
         </div>
       </div>
     );
@@ -625,17 +657,21 @@ function VoiceCallControls({ voice, micLocked, onActivity, screenLimitReached = 
   return (
     <div className="vc-dock-wrap">
       <div className="vc-dock" role="toolbar" aria-label="Controles da chamada">
-        <ControlButton
-          icon={micLocked ? 'hand' : (muted || micMissing ? 'micOff' : 'mic')}
-          label={micLocked ? 'Plateia' : micMissing ? 'Sem microfone' : muted ? 'Ativar mic' : 'Silenciar'}
-          title={micLocked ? lockedTitle : micMissing ? 'Microfone não encontrado: clique para tentar de novo' : undefined}
-          onClick={voice.toggleMute} disabled={micLocked} danger={muted || micMissing}
-        />
+        <div className={`vc-ctrl-split${muted || micMissing ? ' is-danger' : ''}`}>
+          <ControlButton
+            icon={micLocked ? 'hand' : (muted || micMissing ? 'micOff' : 'mic')}
+            label={micLocked ? 'Plateia' : micMissing ? 'Sem microfone' : muted ? 'Ativar mic' : 'Silenciar'}
+            title={micLocked ? lockedTitle : micMissing ? 'Microfone não encontrado: clique para tentar de novo' : undefined}
+            onClick={voice.toggleMute} disabled={micLocked} danger={muted || micMissing}
+          />
+          {!micLocked && <AudioDeviceQuickMenu voice={voice} />}
+        </div>
         <ControlButton
           icon={deafened ? 'headphonesOff' : 'headphones'}
           label={deafened ? 'Voltar a ouvir' : 'Ensurdecer'}
           onClick={voice.toggleDeafen} danger={deafened}
         />
+        <span className="vc-dock-sep" aria-hidden="true" />
         <ControlButton
           icon="camera" label={cameraOn ? 'Desligar câmera' : 'Câmera'}
           title={micLocked ? lockedTitle : undefined}
@@ -643,10 +679,9 @@ function VoiceCallControls({ voice, micLocked, onActivity, screenLimitReached = 
         />
         <ControlButton
           icon="screen" label={screenOn ? 'Parar tela' : (screenLimitReached ? 'Limite de telas' : 'Transmitir tela')}
-          title={screenLimitReached ? `A chamada já tem ${MAX_SCREEN_SHARES} telas sendo transmitidas` : undefined}
           title={micLocked ? lockedTitle
             : !screenShareSupported ? (isNativeApp ? 'Transmitir tela ainda não funciona no app Android: use o navegador' : 'Este navegador não permite transmitir a tela')
-              : undefined}
+              : screenLimitReached ? `A chamada já tem ${MAX_SCREEN_SHARES} telas sendo transmitidas` : undefined}
           onClick={() => (screenOn ? voice.toggleScreenShare() : setShowScreenShareMenu(true))}
           disabled={micLocked || !screenShareSupported || screenLimitReached} active={screenOn}
         />
@@ -655,6 +690,7 @@ function VoiceCallControls({ voice, micLocked, onActivity, screenLimitReached = 
         {/* Soundboard: agora dentro de Atividades (nov/2026). */}
         {/* Sala de estudos (Pomodoro na call) REMOVIDA da chamada (pedido do dono,
             nov/2026) — o código fica em voice/FocusRoom.jsx e server/src/sockets/focusRoom.js. */}
+        {(onActivity || !micLocked) && <span className="vc-dock-sep" aria-hidden="true" />}
         {onActivity && <ActivitiesButton onPick={onActivity} active={activeActivity} channelId={!micLocked ? voice?.call?.channelId : null} />}
         {!micLocked && <RecordButton voice={voice} />}
         <span className="vc-dock-sep" aria-hidden="true" />

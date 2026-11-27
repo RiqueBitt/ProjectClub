@@ -12,44 +12,83 @@
     var(--bg-deepest, var(--bg-primary));
 }
 
-/* ---------- Lobby ---------- */
+/* ---------- Lobby (antes de entrar) ----------
+   Cartão em três partes: cabeçalho (ícone, nome, "Ao vivo há…"), quem está
+   na sala com nome e estado, e o botão de entrar; embaixo, testar o
+   microfone e o rádio, lado a lado. */
 .vc-lobby { align-items: center; justify-content: center; padding: 24px; overflow-y: auto; }
 .vc-lobby-card {
-  width: min(100%, 440px); display: flex; flex-direction: column; align-items: center; gap: 10px; text-align: center;
-  padding: 34px 28px 28px; border-radius: 22px;
-  background: var(--bg-secondary); border: 1px solid var(--border);
+  width: min(100%, 480px); display: flex; flex-direction: column; align-items: stretch; gap: 14px;
+  padding: 24px; border-radius: 24px;
+  background:
+    radial-gradient(ellipse 90% 60% at 0% 0%, color-mix(in srgb, var(--brand) 14%, transparent), transparent 70%),
+    var(--bg-secondary);
+  border: 1px solid var(--border);
   box-shadow: 0 30px 70px -40px rgba(0, 0, 0, .7);
 }
+.vc-lobby-head { display: flex; align-items: center; gap: 14px; min-width: 0; }
 .vc-lobby-icon {
-  width: 72px; height: 72px; border-radius: 22px; display: inline-flex; align-items: center; justify-content: center;
-  background: color-mix(in srgb, var(--brand) 16%, transparent); color: var(--brand); margin-bottom: 4px;
+  width: 56px; height: 56px; border-radius: 18px; flex-shrink: 0; display: inline-flex; align-items: center; justify-content: center;
+  background: color-mix(in srgb, var(--brand) 16%, transparent); color: var(--brand);
 }
-.vc-lobby-custom-icon.custom-icon-img { width: 48px; height: 48px; border-radius: 14px; object-fit: cover; }
-.vc-lobby-custom-icon.custom-icon-emoji { font-size: 38px; line-height: 1; }
+.vc-lobby-title { min-width: 0; display: flex; flex-direction: column; gap: 5px; }
+.vc-lobby-custom-icon.custom-icon-img { width: 40px; height: 40px; border-radius: 12px; object-fit: cover; }
+.vc-lobby-custom-icon.custom-icon-emoji { font-size: 30px; line-height: 1; }
 .vc-head-custom-icon.custom-icon-img { width: 20px; height: 20px; border-radius: 6px; object-fit: cover; }
 .vc-head-custom-icon.custom-icon-emoji { font-size: 17px; line-height: 1; }
-.vc-lobby-card h2 { margin: 0; font-size: 22px; font-weight: 800; color: var(--header-primary); overflow-wrap: anywhere; }
-.vc-lobby-topic { margin: 0; font-size: 14px; color: var(--text-muted); }
-.vc-lobby-people { display: flex; flex-direction: column; align-items: center; gap: 10px; margin: 10px 0 4px; }
-.vc-lobby-people p { margin: 0; display: inline-flex; align-items: center; gap: 8px; font-size: 14px; color: var(--text-normal); }
-.vc-lobby-empty { margin: 8px 0 4px; font-size: 14px; color: var(--text-muted); }
-.vc-lobby-note { margin: 0; font-size: 12.5px; color: var(--text-muted); }
-.vc-stack { display: flex; }
-.vc-stack > * { margin-left: -10px; border-radius: 50%; box-shadow: 0 0 0 3px var(--bg-secondary); }
-.vc-stack > *:first-child { margin-left: 0; }
-.vc-stack-more {
-  width: 44px; height: 44px; display: inline-flex; align-items: center; justify-content: center;
-  background: var(--bg-elevated); color: var(--header-primary); font-size: 13px; font-weight: 700;
+.vc-lobby-card h2 { margin: 0; font-size: 21px; line-height: 1.2; font-weight: 800; color: var(--header-primary); overflow-wrap: anywhere; }
+.vc-lobby-status { margin: 0; display: flex; flex-wrap: wrap; align-items: center; gap: 7px; font-size: 13px; font-weight: 700; color: var(--green); }
+.vc-lobby-status .vc-mono { font-weight: 600; color: var(--text-muted); }
+.vc-lobby-status.is-empty { font-weight: 600; color: var(--text-muted); }
+.vc-lobby-sep { width: 3px; height: 3px; border-radius: 50%; background: var(--text-muted); }
+.vc-lobby-count { color: var(--text-normal); }
+.vc-lobby-topic { margin: -4px 0 0; font-size: 14px; line-height: 1.45; color: var(--text-muted); }
+.vc-lobby-card > .tvr-bar { margin: 0; }
+
+/* Quem está na sala */
+.vc-lobby-people {
+  list-style: none; margin: 0; padding: 6px; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 2px;
+  border-radius: 16px; background: var(--bg-primary); border: 1px solid var(--border);
 }
+.vc-lobby-person { display: flex; align-items: center; gap: 9px; min-width: 0; height: 44px; padding: 0 10px 0 6px; border-radius: 11px; }
+.vc-lobby-person:hover { background: var(--bg-modifier-hover); }
+.vc-lobby-avatar { display: inline-flex; border-radius: 50%; flex-shrink: 0; transition: box-shadow .15s ease; }
+.vc-lobby-person.is-speaking .vc-lobby-avatar { box-shadow: 0 0 0 2px var(--bg-primary), 0 0 0 4px var(--green); }
+.vc-lobby-name { flex: 1; min-width: 0; font-size: 13.5px; font-weight: 600; color: var(--text-normal); }
+.vc-lobby-person.is-speaking .vc-lobby-name { color: var(--header-primary); }
+.vc-lobby-live {
+  display: inline-flex; align-items: center; gap: 4px; height: 18px; padding: 0 6px; border-radius: 5px; flex-shrink: 0;
+  background: var(--red); color: #fff; font-size: 10px; font-weight: 800; letter-spacing: .03em; text-transform: uppercase;
+}
+.vc-lobby-state { display: inline-flex; flex-shrink: 0; color: var(--red); }
+.vc-lobby-more { grid-column: 1 / -1; padding: 6px 10px 4px; font-size: 12.5px; font-weight: 600; color: var(--text-muted); }
+.vc-lobby-empty {
+  margin: 0; padding: 18px; border-radius: 16px; text-align: center; font-size: 14px; color: var(--text-muted);
+  background: var(--bg-primary); border: 1px dashed var(--border);
+}
+.vc-lobby-note { margin: -6px 0 0; text-align: center; font-size: 12.5px; color: var(--text-muted); }
+
 .vc-join {
-  display: inline-flex; align-items: center; justify-content: center; gap: 8px; width: 100%;
-  height: 46px; margin-top: 10px; border-radius: 12px;
-  background: var(--green); color: #fff; font-size: 15px; font-weight: 700;
-  box-shadow: 0 10px 24px -12px color-mix(in srgb, var(--green) 80%, transparent);
+  display: inline-flex; align-items: center; justify-content: center; gap: 9px; width: 100%;
+  height: 50px; border-radius: 14px;
+  background: var(--green); color: #fff; font-size: 15.5px; font-weight: 800;
+  box-shadow: 0 12px 28px -14px color-mix(in srgb, var(--green) 85%, transparent), inset 0 1px 0 rgba(255, 255, 255, .18);
   transition: transform .12s ease, filter .12s ease;
 }
 .vc-join:hover:not(:disabled) { transform: translateY(-1px); filter: brightness(1.06); }
+.vc-join:active:not(:disabled) { transform: translateY(0); filter: brightness(.96); }
 .vc-join:disabled { opacity: .6; cursor: default; }
+
+/* Ferramentas: testar microfone + rádio, botões iguais lado a lado */
+.vc-lobby-tools { display: flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: 8px; }
+.vc-lobby-tools .vx-mictest { margin: 0; width: auto; max-width: none; flex: 0 1 auto; }
+.vc-lobby-tools .vx-mictest:has(.vx-meter) { flex: 1 1 100%; max-width: 320px; }
+.vc-lobby-tools .tvr-bar { margin: 0; }
+.vc-lobby-tools :is(.vx-btn, .tvr-btn) {
+  display: inline-flex; align-items: center; gap: 7px; height: 36px; padding: 0 14px; border-radius: 10px;
+  background: var(--bg-primary); border: 1px solid var(--border); color: var(--text-normal); font-size: 13px; font-weight: 600;
+}
+.vc-lobby-tools :is(.vx-btn, .tvr-btn):hover:not(:disabled) { color: var(--header-primary); border-color: color-mix(in srgb, var(--brand) 55%, var(--border)); background: var(--bg-modifier-hover); }
 
 .vc-live {
   display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: var(--green); flex-shrink: 0;
@@ -71,12 +110,26 @@
   font-size: 12.5px; font-weight: 600; color: var(--text-normal); white-space: nowrap;
 }
 .vc-mono { font-variant-numeric: tabular-nums; }
+.vc-chip-on { color: var(--green); border-color: color-mix(in srgb, var(--green) 35%, var(--border)); background: color-mix(in srgb, var(--green) 9%, var(--bg-secondary)); }
+.vc-chip-on .vc-mono { color: var(--text-normal); }
 
 /* ---------- Área dos participantes ---------- */
 .vc-stage { flex: 1; min-height: 0; display: flex; flex-direction: column; gap: 12px; padding: 16px 16px 96px; overflow-y: auto; }
-.vc-grid { flex: 1; display: grid; gap: 12px; align-content: center; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); }
-.vc-grid-1 { grid-template-columns: minmax(0, 720px); justify-content: center; }
-.vc-grid-2 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.vc-stage:not(.vc-stage-scroll):not(.is-spotlight):not(.is-rpg) { container-type: size; }
+.vc-grid {
+  --cols: 3; --rows: 2; --vc-gap-x: var(--vc-gap, 12px);
+  flex: 1; display: flex; flex-wrap: wrap; justify-content: center; align-content: center; gap: var(--vc-gap-x);
+}
+.vc-grid > .vc-tile {
+  flex: 0 1 calc((100% - (var(--cols) - 1) * var(--vc-gap-x)) / var(--cols)); min-width: 0;
+  max-width: calc(((100cqh - (var(--rows) - 1) * var(--vc-gap-x)) / var(--rows)) * 1.6);
+}
+.vc-grid-1 { --cols: 1; --rows: 1; }
+.vc-grid-1 > .vc-tile { max-width: min(720px, 100cqh * 1.6); }
+.vc-grid-2 { --cols: 2; --rows: 1; }
+.vc-grid-3 { --cols: 3; --rows: 1; }
+.vc-grid-4 { --cols: 2; --rows: 2; }
+.vc-stage-scroll .vc-grid > .vc-tile { max-width: none; }
 
 .vc-tile {
   position: relative; overflow: hidden; border-radius: 18px; aspect-ratio: 16 / 10; min-height: 150px;
@@ -87,10 +140,20 @@
   border: 1px solid var(--border);
   transition: box-shadow .15s ease, border-color .15s ease;
 }
-.vc-tile.is-speaking { border-color: var(--green); box-shadow: 0 0 0 2px var(--green), 0 0 26px -6px var(--green); }
+/* !important: o tema preto (bordas iluminadas, appearance.css) pega [class*='-tile']
+   com mais força e apagava o verde de quem está falando. */
+.vc-tile.is-speaking { border-color: var(--green) !important; box-shadow: 0 0 0 2px var(--green), 0 0 26px -6px var(--green) !important; }
 .vc-tile.is-connecting { opacity: .7; }
 .vc-tile-avatar { border-radius: 50%; transition: transform .15s ease; }
 .vc-tile.is-speaking .vc-tile-avatar { transform: scale(1.04); }
+.vc-tile-avatar { position: relative; }
+.vc-tile.is-speaking .vc-tile-avatar::before,
+.vc-tile.is-speaking .vc-tile-avatar::after {
+  content: ''; position: absolute; inset: -4px; border-radius: 50%; pointer-events: none;
+  border: 2px solid var(--green); animation: vc-wave 1.8s cubic-bezier(.2, .6, .3, 1) infinite;
+}
+.vc-tile.is-speaking .vc-tile-avatar::after { animation-delay: .9s; }
+@keyframes vc-wave { 0% { transform: scale(1); opacity: .8; } 100% { transform: scale(1.45); opacity: 0; } }
 .vc-tile-avatar > * { box-shadow: 0 10px 30px rgba(0, 0, 0, .35); border-radius: 50%; }
 .vc-tile-connecting { position: absolute; top: 12px; left: 12px; font-size: 12.5px; color: var(--text-muted); }
 
@@ -201,11 +264,39 @@
 }
 .vc-ctrl:hover:not(:disabled) { background: var(--bg-modifier-hover); transform: translateY(-1px); }
 .vc-ctrl:disabled { opacity: .45; cursor: not-allowed; }
-.vc-ctrl.is-active { background: color-mix(in srgb, var(--brand) 22%, var(--bg-primary)); color: var(--brand); }
-.vc-ctrl.is-danger { background: color-mix(in srgb, var(--red) 18%, var(--bg-primary)); color: var(--red); }
-.vc-leave { width: 64px; background: var(--red); color: #fff; }
+.vc-ctrl.is-active { background: color-mix(in srgb, var(--green) 20%, var(--bg-primary)); color: var(--green); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--green) 45%, transparent); }
+.vc-ctrl.is-danger { background: color-mix(in srgb, var(--red) 18%, var(--bg-primary)); color: var(--red); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--red) 40%, transparent); }
+.vc-leave { width: 68px; background: var(--red); color: #fff; box-shadow: 0 8px 20px -10px color-mix(in srgb, var(--red) 90%, transparent); }
 .vc-leave:hover:not(:disabled) { background: var(--red); filter: brightness(1.1); }
 .vc-dock-sep { width: 1px; height: 30px; background: var(--border); margin: 0 4px; }
+.vc-dock-sep + .vc-dock-sep { display: none; }
+/* Microfone + setinha (escolher microfone e saída de áudio) grudados */
+.vc-ctrl-split { position: relative; display: flex; align-items: stretch; }
+.vc-ctrl-split > .vc-ctrl { border-top-right-radius: 6px; border-bottom-right-radius: 6px; }
+.vc-ctrl-split .cb-devwrap { position: relative; display: flex; }
+.vc-ctrl-split .cb-caret {
+  width: 22px; height: 52px; margin-left: 2px; border: 0; border-radius: 6px 16px 16px 6px;
+  background: var(--bg-primary); color: var(--text-muted);
+}
+.vc-ctrl-split .cb-caret:hover, .vc-ctrl-split .cb-devwrap.is-open .cb-caret { background: var(--bg-modifier-hover); color: var(--header-primary); }
+.vc-ctrl-split.is-danger .cb-caret { background: color-mix(in srgb, var(--red) 18%, var(--bg-primary)); color: var(--red); }
+.vc-dock .cb-devmenu {
+  position: absolute; bottom: calc(100% + 16px); left: -8px; z-index: 30; width: 300px; max-height: min(420px, 60vh); overflow-y: auto;
+  padding: 6px; border-radius: 14px; text-align: left;
+  background: var(--bg-floating, #111); border: 1px solid var(--lit-border-color, var(--border));
+  box-shadow: 0 18px 44px -12px rgba(0, 0, 0, .7);
+}
+.vc-dock .cb-devmenu-item {
+  width: 100%; display: flex; align-items: center; gap: 8px; min-height: 34px; padding: 6px 8px; border-radius: 9px;
+  text-align: left; font-size: 13px; font-weight: 500; color: var(--text-normal); background: transparent; border: 0; cursor: pointer;
+}
+.vc-dock .cb-devmenu-item .truncate { flex: 1; min-width: 0; }
+.vc-dock .cb-devmenu-item:hover { background: var(--bg-modifier-hover); color: var(--header-primary); }
+.vc-dock .cb-devmenu-item.active { color: var(--header-primary); font-weight: 700; background: color-mix(in srgb, var(--brand) 14%, transparent); }
+.vc-dock .cb-devmenu-item.active .call-icon { color: var(--brand); flex-shrink: 0; }
+/* Na tela da própria call, a barra de chamada de baixo fica só com o status:
+   os mesmos botões já estão aqui na barra da call. */
+body:has(.vc-dock) .call-bar.cb .cb-controls { display: none; }
 /* Rótulo vira dica ao passar o mouse (e fica visível no foco do teclado) */
 .vc-ctrl-label {
   position: absolute; bottom: calc(100% + 10px); left: 50%; transform: translateX(-50%);
@@ -220,20 +311,30 @@
   .vc-head { padding: 8px 10px; flex-wrap: wrap; }
   .vc-head-text { flex-basis: 100%; order: 5; }
   .vc-stage { padding: 10px 10px 92px; }
-  .vc-grid, .vc-grid-2 { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
-  .vc-grid-1 { grid-template-columns: minmax(0, 1fr); }
+  .vc-grid, .vc-grid-2, .vc-grid-3, .vc-grid-4 { --cols: 2; --vc-gap-x: 8px; }
+  .vc-grid-1 { --cols: 1; }
+  .vc-grid > .vc-tile, .vc-grid-1 > .vc-tile { max-width: none; }
+  .vc-lobby { padding: 14px; }
+  .vc-lobby-card { padding: 18px; gap: 12px; border-radius: 20px; }
+  .vc-lobby-people { grid-template-columns: minmax(0, 1fr); }
+  .vc-ctrl-split .cb-caret { height: 44px; width: 16px; margin-left: 1px; border-radius: 5px 13px 13px 5px; }
+  .vc-dock .cb-devmenu { left: 0; width: min(300px, calc(100vw - 24px)); }
   .vc-tile { min-height: 0; aspect-ratio: 1 / 1; border-radius: 16px; }
   .vc-tile-avatar > * { transform: scale(.78); }
   .vc-screens-2, .vc-screens-3, .vc-screens-4, .vc-screens-5 { grid-template-columns: minmax(0, 1fr); grid-template-rows: none; }
   .vc-strip .vc-tile { flex-basis: 132px; aspect-ratio: 1 / 1; }
   .vc-dock-wrap { bottom: calc(10px + env(safe-area-inset-bottom, 0px)); }
-  .vc-dock { gap: 4px; padding: 6px; border-radius: 18px; }
-  .vc-ctrl { width: 46px; height: 46px; border-radius: 14px; }
-  .vc-leave { width: 54px; }
+  .vc-head-text.is-default { display: none; }
+  .vc-dock { gap: 3px; padding: 5px; border-radius: 18px; max-width: calc(100vw - 16px); }
+  .vc-dock-sep { display: none; }
+  .vc-ctrl { width: 41px; height: 44px; border-radius: 13px; }
+  .vc-leave { width: 52px; margin-left: 3px; }
   .vc-ctrl-label { display: none; }
 }
 @media (prefers-reduced-motion: reduce) {
   .vc-live { animation: none; }
+  .vc-tile.is-speaking .vc-tile-avatar::before { animation: none; opacity: 1; }
+  .vc-tile.is-speaking .vc-tile-avatar::after { display: none; }
   .vc-ctrl:hover:not(:disabled), .vc-join:hover:not(:disabled) { transform: none; }
 }
 
