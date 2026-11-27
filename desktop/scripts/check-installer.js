@@ -287,6 +287,7 @@ async function installLegacy() {
 // Cenários
 // ---------------------------------------------------------------------------------------------
 let version = null;
+let appGuid = null; // nome da chave do app no registro (descoberto na primeira instalação)
 
 const scenarios = {
   async manifest() {
@@ -331,6 +332,7 @@ const scenarios = {
     await cleanMachine();
     if (!await installSilently(['/S', `--package-file=${packageCopy()}`], 'o instalador terminou sem erro')) return;
     const state = snapshot();
+    appGuid = state.guid;
     expectInstalled(state, { dir: MODERN_DIR, version });
     check(!state.legacyDir, 'não criou a pasta antiga "project-club-desktop"');
     check(!state.oldExe, 'instalação nova não deixa marca de mudança de pasta');
@@ -408,7 +410,15 @@ const scenarios = {
     check(failures === 0, `o instalador abriu ${runs} vezes sem fechar com erro (${((Date.now() - started) / 1000).toFixed(0)}s)`, `${failures} de ${runs}: ${detail}`);
     if (failures) crashReport(started);
     const state = snapshot();
-    check(!state.guid && !state.modernDir && !state.legacyDir, 'só abrir o instalador não instala nem deixa nada pra trás');
+    check(!state.guid && !state.modernDir && !state.legacyDir, 'só abrir o instalador não instala nada');
+    if (appGuid) {
+      // A anotação temporária que evita o erro de partida (preInit do installer.nsh) tem que sumir.
+      let left = true;
+      try { execFileSync('reg', ['query', `HKCU\\Software\\${appGuid}`], { stdio: 'ignore' }); } catch { left = false; }
+      check(!left, 'abrir o instalador não deixa nada anotado no registro');
+    } else {
+      console.log('  aviso: sem o cenário "fresh" antes, não dá pra conferir o registro');
+    }
   },
 
   async launch() {

@@ -210,10 +210,11 @@ jobs:
           node scripts/installer-manifest.js pin dist/nsis-web/latest.yml "$PACKAGE_BASE"
           cat dist/nsis-web/latest.yml
       # Instala e desinstala de verdade nesta máquina antes de publicar qualquer coisa:
-      # tamanho do instalador, pasta "Project Club", registro, atalhos, desinstalação.
+      # tamanho do instalador, pasta "Project Club", registro, atalhos, desinstalação,
+      # e abre o instalador 300 vezes (ele não pode fechar sozinho nenhuma vez).
       - name: Testar o instalador (instala e desinstala de verdade)
         if: steps.reuse.outputs.ok != 'true'
-        run: node scripts/check-installer.js --dist dist/nsis-web --scenarios manifest,fresh
+        run: node scripts/check-installer.js --dist dist/nsis-web --scenarios manifest,fresh,start-stress
       # Publica como asset de uma GitHub Release (sem limite de 100MB, e sem disputa
       # com os outros dois jobs: cada um só sobe o SEU arquivo pra mesma release).
       #
