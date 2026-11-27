@@ -94,7 +94,7 @@ jobs:
             v[0-9]*.[0-9]*.[0-9]*) ;;
             *) echo "::error::Não deu pra calcular a versão nova (veio '$VERSION')."; exit 1 ;;
           esac
-          if printf '%s\n' "$EXISTING" | grep -qx "$VERSION"; then
+          if grep -qx "$VERSION" <<< "$EXISTING"; then
             echo "::error::A versão $VERSION já existe; publicar nela de novo deixaria os downloads parados."; exit 1
           fi
           echo "Última versão no histórico: $LAST_TAG -> Nova versão: $VERSION"
