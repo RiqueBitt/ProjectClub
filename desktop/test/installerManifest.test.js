@@ -8,7 +8,7 @@ const PACKAGE = 'project-club-desktop-1.45.0-x64.nsis.7z';
 // Formato que o electron-builder gera pro instalador que baixa o app.
 const built = () => ({
   version: '1.45.0',
-  files: [{ url: INSTALLER_NAME, sha512: 'aGFzaC1kby1pbnN0YWxhZG9y', size: 734003 }],
+  files: [{ url: INSTALLER_NAME, sha512: 'aGFzaC1kby1pbnN0YWxhZG9y' }],
   packages: { x64: { size: 123456789, sha512: 'aGFzaC1kby1wYWNvdGU=', blockMapSize: 130000, path: PACKAGE, file: PACKAGE } },
   path: INSTALLER_NAME,
   sha512: 'aGFzaC1kby1pbnN0YWxhZG9y',

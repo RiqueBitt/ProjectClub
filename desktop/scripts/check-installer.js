@@ -265,7 +265,6 @@ const scenarios = {
     const manifest = yaml.load(fs.readFileSync(manifestFile, 'utf8'));
     equal(manifest.version, version, 'latest.yml tem a versão do build');
     equal(manifest.files && manifest.files[0] && manifest.files[0].url, INSTALLER_NAME, 'latest.yml aponta pro instalador pelo nome fixo');
-    equal(manifest.files[0].size, size, 'latest.yml tem o tamanho certo do instalador');
     equal(manifest.files[0].sha512, await sha512(installer), 'latest.yml tem o hash certo do instalador');
     const pkg = manifest.packages && manifest.packages.x64;
     check(!!pkg, 'latest.yml lista o pacote do app');

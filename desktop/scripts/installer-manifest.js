@@ -41,7 +41,8 @@ function manifestProblems(manifest, { installerName = INSTALLER_NAME } = {}) {
   const first = Array.isArray(m.files) ? m.files[0] : null;
   if (!first || first.url !== installerName) problems.push(`o primeiro arquivo devia ser ${installerName}`);
   if (m.path !== installerName) problems.push(`"path" devia ser ${installerName}`);
-  if (!first || !first.sha512 || !(first.size > 0)) problems.push('instalador sem hash ou tamanho');
+  // (O electron-builder não grava o tamanho do instalador neste tipo de latest.yml, só o hash.)
+  if (!first || !first.sha512) problems.push('instalador sem hash');
   const pkg = m.packages && m.packages.x64;
   if (!pkg) problems.push('sem o pacote x64');
   else {
