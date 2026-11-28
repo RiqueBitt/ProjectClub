@@ -4,13 +4,24 @@
 // código "pra ganhar moedas / liberar um recurso". Esse código roda com a
 // sessão dela e pode roubar a conta.
 //
-// Como aparece (visual Clássico do Project Club: grafite, azul e o vermelho
-// de alerta):
-// - ao abrir a página: o aviso completo, em cartão (selo do Project Club,
-//   "PARE!" gigante, o que pode acontecer e o que fazer);
-// - a cada 5 s: só um lembrete curto (título + uma linha), pra continuar à
-//   vista no fim do console sem encher a tela com o cartão inteiro;
+// Como aparece (visual Clássico do Project Club: cartões grafite de canto
+// arredondado, azul da marca, vermelho de alerta e amarelo de aviso):
+// - ao abrir a página: o aviso completo, num bloco só (selo do Project Club,
+//   "PARE!" gigante, o que pode acontecer, o aviso de golpe e o que fazer);
+// - a cada 5 s: só um lembrete curto (uma linha), pra continuar à vista no
+//   fim do console sem encher a tela com o aviso inteiro;
 // - com a aba escondida (outra aba aberta) o lembrete não é escrito.
+//
+// Cada navegador desenha o texto estilizado do console (%c) de um jeito:
+// - o Chrome transforma cada trecho numa caixinha e só aceita as propriedades
+//   background, border, color, font, line-height, margin, padding e text-*;
+// - o Firefox deixa o trecho "em linha": com padding e texto em mais de uma
+//   linha, o fundo de uma linha cobria a de cima e o texto saía CORTADO. Por
+//   isso todo trecho leva `display:inline-block`, que o Firefox aceita (o
+//   Chrome ignora, porque já faz isso sozinho).
+// Um trecho sem estilo com uma quebra de linha (`%c\n`) separa os blocos nos
+// dois. Pra conferir de verdade: abrir o console no Chrome E no Firefox, com
+// a janela larga e estreita, nos temas claro e escuro.
 //
 // Um intervalo só por página: o início fica guardado em `window`, então
 // chamar de novo (troca de rota, recarga a quente no desenvolvimento) não
@@ -23,48 +34,63 @@ export const CONSOLE_WARNING_TEXT = 'Colar códigos desconhecidos no console pod
   + 'A execução de scripts maliciosos pode resultar em medidas de segurança, incluindo banimento por IP ou e-mail.';
 export const CONSOLE_WARNING_SCAM = 'Alguém pediu pra você colar algo aqui pra ganhar moedas, gemas, itens ou "liberar" alguma coisa? É golpe. Sempre.';
 export const CONSOLE_WARNING_REMINDER = 'Este espaço é para desenvolvedores. Se você não sabe o que está fazendo, feche esta janela (F12).';
+export const CONSOLE_WARNING_REPO = 'https://github.com/RiqueBitt/ProjectClub';
+// Lembrete dos 5 s: curto, pra caber numa linha mesmo com o console estreito.
+export const CONSOLE_WARNING_SHORT = 'Pediram pra você colar algo aqui? É golpe. Feche esta janela (F12).';
 
-const FONT = 'font-family:"gg sans","Segoe UI",system-ui,-apple-system,Roboto,Arial,sans-serif';
-const css = (...parts) => [...parts, FONT].join(';');
+const FONT = 'font-family:Roboto,"Segoe UI",system-ui,-apple-system,"Helvetica Neue",Arial,sans-serif';
+const block = (...parts) => ['display:inline-block', ...parts, FONT].join(';');
+const BREAK = ''; // estilo vazio: o trecho seguinte ("\n") vira só uma quebra de linha
 
-// Selo "PROJECT CLUB · Aviso de segurança" (azul da marca + grafite).
-const BADGE_STYLE = css('color:#fff', 'background:#4C9FFF', 'font-size:12px', 'font-weight:800', 'letter-spacing:2px', 'padding:4px 10px', 'border-radius:6px 0 0 6px');
-const BADGE_TAIL_STYLE = css('color:#DBDEE1', 'background:#2B2D31', 'font-size:12px', 'font-weight:600', 'padding:4px 10px', 'border-radius:0 6px 6px 0');
-// Título: vermelho de alerta do app, com contorno escuro pra ler no
-// console claro e no escuro.
-const TITLE_STYLE = css(
-  'color:#F23F43', 'font-size:56px', 'font-weight:900', 'line-height:1.15', 'letter-spacing:-1px',
-  'text-shadow:0 0 1px #000,2px 2px 0 #1E1F22,4px 4px 0 rgba(242,63,67,.25)', 'padding:6px 0',
+// Selo "PROJECT CLUB | Aviso de segurança": pílula em duas metades.
+const BADGE_STYLE = block('color:#FFFFFF', 'background:#4C9FFF', 'font-size:11px', 'font-weight:800', 'line-height:16px', 'padding:4px 9px 4px 12px', 'border-radius:999px 0 0 999px', 'margin:6px 0 0 0');
+const BADGE_TAIL_STYLE = block('color:#DBDEE1', 'background:#2B2D31', 'font-size:11px', 'font-weight:600', 'line-height:16px', 'padding:4px 12px 4px 9px', 'border-radius:0 999px 999px 0', 'margin:6px 0 0 0');
+// Título: vermelho de alerta do app, com sombra dura (cara de adesivo) pra
+// ler no console claro e no escuro. O padding guarda espaço pra sombra e
+// pro til do "NÃO", que o Firefox cortaria na borda da caixinha.
+const TITLE_STYLE = block(
+  'color:#F23F43', 'font-size:46px', 'font-weight:900', 'line-height:1.12',
+  'text-shadow:2px 2px 0 #1E1F22,5px 5px 0 rgba(242,63,67,.28)', 'padding:10px 8px 10px 0', 'margin:2px 0 0 0',
 );
-const REMINDER_TITLE_STYLE = css('color:#F23F43', 'font-size:22px', 'font-weight:900', 'text-shadow:1px 1px 0 #1E1F22');
-// Cartão grafite com a faixa vermelha à esquerda.
-const TEXT_STYLE = css(
-  'color:#F2F3F5', 'background:#2B2D31', 'font-size:15px', 'font-weight:600', 'line-height:1.6',
-  'padding:10px 14px', 'border-left:5px solid #F23F43', 'border-radius:6px',
+// Cartão grafite com a faixa vermelha à esquerda (o que pode acontecer).
+const TEXT_STYLE = block(
+  'color:#DBDEE1', 'background:#2B2D31', 'font-size:14px', 'font-weight:500', 'line-height:1.6',
+  'padding:12px 16px', 'border-left:4px solid #F23F43', 'border-radius:10px', 'margin:0 0 8px 0',
 );
-const SCAM_STYLE = css(
-  'color:#1E1F22', 'background:#F0B232', 'font-size:14px', 'font-weight:800', 'line-height:1.6',
-  'padding:8px 14px', 'border-radius:6px',
+// Aviso de golpe: amarelo de alerta do app.
+const SCAM_STYLE = block(
+  'color:#1E1F22', 'background:#F0B232', 'font-size:13px', 'font-weight:800', 'line-height:1.55',
+  'padding:9px 16px', 'border-radius:10px', 'margin:0 0 8px 0',
 );
-const TIP_STYLE = css('color:#949BA4', 'font-size:13px', 'font-weight:500', 'line-height:1.6', 'padding:2px 0');
-const TIP_STRONG_STYLE = css('color:#6FB4FF', 'font-size:13px', 'font-weight:700');
+// Rodapé: cinza que dá pra ler no console claro e no escuro.
+const TIP_STYLE = block('color:#80848E', 'font-size:12px', 'font-weight:500', 'line-height:1.6', 'padding:0 2px', 'margin:0 0 6px 0');
+// Lembrete dos 5 s: pílula vermelha com o título e, do lado, a dica curta
+// (sem fundo: se o console for estreito ela só passa pra linha de baixo).
+const REMINDER_TITLE_STYLE = block('color:#FFFFFF', 'background:#DA373C', 'font-size:12px', 'font-weight:800', 'line-height:16px', 'padding:4px 12px', 'border-radius:999px', 'margin:2px 8px 2px 0');
+const REMINDER_TEXT_STYLE = block('color:#80848E', 'font-size:12px', 'font-weight:600', 'line-height:16px', 'padding:4px 0', 'margin:2px 0');
 
 function printFull(out) {
   try {
-    out.log('%c PROJECT CLUB %c Aviso de segurança ', BADGE_STYLE, BADGE_TAIL_STYLE);
-    out.log(`%c${CONSOLE_WARNING_TITLE}`, TITLE_STYLE);
-    out.log(`%c${CONSOLE_WARNING_TEXT}`, TEXT_STYLE);
-    out.log(`%c⚠ ${CONSOLE_WARNING_SCAM}`, SCAM_STYLE);
     out.log(
-      `%c${CONSOLE_WARNING_REMINDER} Quer programar com a gente? %cgithub.com/RiqueBitt/ProjectClub`,
-      TIP_STYLE, TIP_STRONG_STYLE,
+      [
+        '%c PROJECT CLUB %c Aviso de segurança ',
+        `%c${CONSOLE_WARNING_TITLE}`,
+        `%c${CONSOLE_WARNING_TEXT}`,
+        `%c⚠ ${CONSOLE_WARNING_SCAM}`,
+        `%c${CONSOLE_WARNING_REMINDER} Quer programar com a gente? ${CONSOLE_WARNING_REPO}`,
+      ].join('%c\n'),
+      BADGE_STYLE, BADGE_TAIL_STYLE, BREAK,
+      TITLE_STYLE, BREAK,
+      TEXT_STYLE, BREAK,
+      SCAM_STYLE, BREAK,
+      TIP_STYLE,
     );
   } catch { /* console indisponível: o aviso é só um extra */ }
 }
 
 function printReminder(out) {
   try {
-    out.log(`%c${CONSOLE_WARNING_TITLE}%c  ${CONSOLE_WARNING_REMINDER}`, REMINDER_TITLE_STYLE, TIP_STYLE);
+    out.log(`%c${CONSOLE_WARNING_TITLE}%c${CONSOLE_WARNING_SHORT}`, REMINDER_TITLE_STYLE, REMINDER_TEXT_STYLE);
   } catch { /* idem */ }
 }
 
