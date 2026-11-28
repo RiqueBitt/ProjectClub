@@ -1,9 +1,12 @@
-// Aviso de segurança do console: cartão completo na hora, lembrete curto a
-// cada 5 s (só com a aba à vista) e nunca com mais de um intervalo.
+// Aviso de segurança do console: aviso completo na hora (um bloco só), lembrete
+// curto a cada 5 s (só com a aba à vista) e nunca com mais de um intervalo.
 //   node --test client/test/consoleWarning.test.mjs
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { startConsoleWarning, CONSOLE_WARNING_TITLE, CONSOLE_WARNING_TEXT, CONSOLE_WARNING_SCAM, CONSOLE_WARNING_INTERVAL_MS } from '../src/utils/consoleWarning.js';
+import {
+  startConsoleWarning, CONSOLE_WARNING_TITLE, CONSOLE_WARNING_TEXT, CONSOLE_WARNING_SCAM, CONSOLE_WARNING_SHORT, CONSOLE_WARNING_REPO,
+  CONSOLE_WARNING_INTERVAL_MS,
+} from '../src/utils/consoleWarning.js';
 
 // Janela de mentira com relógio controlado.
 function fakeWindow(userAgent = 'Mozilla/5.0 (Windows NT 10.0) Chrome/158') {
@@ -19,19 +22,74 @@ function fakeWindow(userAgent = 'Mozilla/5.0 (Windows NT 10.0) Chrome/158') {
 const logger = () => { const lines = []; return { lines, log: (...a) => lines.push(a) }; };
 const titles = (out) => out.lines.filter((l) => String(l[0]).includes(CONSOLE_WARNING_TITLE)).length;
 
-test('aparece assim que a página abre: selo, título grande e vermelho, texto e aviso de golpe', () => {
+// Divide uma chamada do console em trechos: [{ text, style }].
+function pieces(line) {
+  const [format, ...styles] = line;
+  const texts = String(format).split('%c');
+  assert.equal(texts.length - 1, styles.length, 'um estilo pra cada %c');
+  return texts.slice(1).map((text, i) => ({ text, style: styles[i] }));
+}
+const props = (style) => style.split(';').filter(Boolean).map((d) => d.slice(0, d.indexOf(':')).trim());
+
+test('aparece assim que a página abre, num bloco só: selo, título grande e vermelho, texto e aviso de golpe', () => {
   const { win } = fakeWindow();
   const out = logger();
   startConsoleWarning({ win, out });
-  assert.equal(out.lines.length, 5);
-  assert.match(out.lines[0][0], /PROJECT CLUB/);
-  assert.equal(out.lines[1][0], `%c${CONSOLE_WARNING_TITLE}`);
-  assert.match(out.lines[1][1], /color:#F23F43/);
-  assert.match(out.lines[1][1], /font-size:56px/);
-  assert.match(out.lines[1][1], /font-weight:900/);
-  assert.equal(out.lines[2][0], `%c${CONSOLE_WARNING_TEXT}`);
-  assert.match(out.lines[2][1], /font-size:15px/);
-  assert.ok(out.lines[3][0].includes(CONSOLE_WARNING_SCAM));
+  assert.equal(out.lines.length, 1, 'uma mensagem só: sem risco entre as partes nem um link de arquivo em cada linha');
+  const parts = pieces(out.lines[0]);
+  const blocks = parts.filter((p) => p.style);
+  assert.match(blocks[0].text, /PROJECT CLUB/);
+  assert.match(blocks[1].text, /Aviso de segurança/);
+  const title = blocks.find((p) => p.text === CONSOLE_WARNING_TITLE);
+  assert.match(title.style, /color:#F23F43/);
+  assert.match(title.style, /font-size:4\dpx/);
+  assert.match(title.style, /font-weight:900/);
+  const text = blocks.find((p) => p.text === CONSOLE_WARNING_TEXT);
+  assert.match(text.style, /font-size:14px/);
+  assert.ok(blocks.some((p) => p.text.includes(CONSOLE_WARNING_SCAM)));
+  assert.ok(blocks.at(-1).text.includes(CONSOLE_WARNING_REPO), 'o endereço completo vira link sozinho no console');
+});
+
+// O defeito que isto segura: no Firefox o trecho estilizado fica "em linha" e, com padding e
+// texto em mais de uma linha, o fundo de uma linha cobria a de cima (texto cortado).
+test('todo trecho com estilo é uma caixinha (display:inline-block), no aviso e no lembrete', () => {
+  const { win, tick } = fakeWindow();
+  const out = logger();
+  startConsoleWarning({ win, out });
+  tick();
+  assert.equal(out.lines.length, 2);
+  for (const line of out.lines) {
+    for (const { text, style } of pieces(line)) {
+      if (style === '') { assert.equal(text, '\n', 'trecho sem estilo só serve de quebra de linha'); continue; }
+      assert.ok(style.startsWith('display:inline-block;'), `sem caixinha: "${text.slice(0, 30)}"`);
+      assert.match(style, /line-height:/, `sem altura de linha: "${text.slice(0, 30)}"`);
+    }
+  }
+});
+
+test('os blocos do aviso ficam um embaixo do outro (quebra de linha entre eles)', () => {
+  const { win } = fakeWindow();
+  const out = logger();
+  startConsoleWarning({ win, out });
+  const parts = pieces(out.lines[0]);
+  assert.equal(parts.filter((p) => p.style === '' && p.text === '\n').length, 4);
+  assert.ok(!parts.some((p) => p.style && p.text.includes('\n')), 'quebra de linha dentro de um bloco desmonta o desenho no Chrome');
+});
+
+// O Chrome só aceita estas propriedades no %c (o resto ele joga fora em silêncio); o Firefox
+// aceita todas elas e mais o display.
+test('só usa CSS que o console do Chrome e o do Firefox aceitam', () => {
+  const { win, tick } = fakeWindow();
+  const out = logger();
+  startConsoleWarning({ win, out });
+  tick();
+  const allowed = /^(display|background|border|color|font|line|margin|padding|text)/;
+  for (const line of out.lines) {
+    for (const { style } of pieces(line)) {
+      for (const name of props(style)) assert.match(name, allowed, `propriedade que não funciona no console: ${name}`);
+      assert.doesNotMatch(style, /url\(|expression|javascript:/i);
+    }
+  }
 });
 
 test('o lembrete dos 5 s é curto (uma linha só)', () => {
@@ -41,7 +99,19 @@ test('o lembrete dos 5 s é curto (uma linha só)', () => {
   const before = out.lines.length;
   tick();
   assert.equal(out.lines.length, before + 1);
-  assert.ok(out.lines.at(-1)[0].includes(CONSOLE_WARNING_TITLE));
+  const reminder = pieces(out.lines.at(-1));
+  assert.deepEqual(reminder.map((p) => p.text), [CONSOLE_WARNING_TITLE, CONSOLE_WARNING_SHORT]);
+  assert.ok(CONSOLE_WARNING_SHORT.length <= 80);
+  assert.ok(!out.lines.at(-1)[0].includes('\n'));
+});
+
+test('o lembrete é sempre igual, pra o navegador agrupar as repetições em vez de encher o console', () => {
+  const { win, tick } = fakeWindow();
+  const out = logger();
+  startConsoleWarning({ win, out });
+  tick(); tick(); tick();
+  assert.deepEqual(out.lines[1], out.lines[2]);
+  assert.deepEqual(out.lines[2], out.lines[3]);
 });
 
 test('com a aba escondida o lembrete não é escrito', () => {
