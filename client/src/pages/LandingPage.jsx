@@ -5,10 +5,17 @@ import { useAuth } from '../context/AuthContext.jsx';
 import '../styles/landing.css';
 import '../styles/landing-mono.css';
 import '../styles/landing-club.css';
+import '../styles/public-classic.css';
 
 // Página inicial pública (vitrine + download).
 //
-// Visual novo (nov/2026, landing-club.css): a abertura é a própria lista de
+// Visual Clássico (nov/2026, public-classic.css por cima de landing-club.css):
+// as cores do app Clássico (grafite + azul #4C9FFF) com toques criativos —
+// a lista de canais da abertura gira sozinha, as mensagens de "Um dia no
+// clube" aceitam reações e o Pingu fica "digitando", os cartões acendem
+// onde o mouse passa e baixar solta um confete com as cores do clube.
+//
+// Visual anterior (nov/2026, landing-club.css): a abertura é a própria lista de
 // canais do app, parada em "# project club" (a pílula branca do canal
 // aberto), com o botão de baixar do lado. Depois a foto do app sobre a folha
 // branca dos apps, "Um dia no clube" contado como conversa, download,
@@ -32,13 +39,20 @@ const APPS = [
 ];
 
 // "Um dia no clube": cada parte do app mostrada como uma mensagem.
+// Cada mensagem traz reações (dá pra clicar, igual no app — só na tela).
 const DAY = [
-  { t: '19:02', who: 'Nina', c: '#8A5E3E', text: 'tem jogo de graça essa semana, já deixei salvo no Game Hub', tag: 'Promoções', icon: 'game' },
-  { t: '20:15', who: 'Kaio', c: '#2F6E4D', text: 'baixei o modpack pelo Mod Manager, já tá rodando aqui', tag: 'Mod Manager', icon: 'puzzle' },
-  { t: '21:40', who: 'Lia', c: '#4A55A8', text: 'troquei minhas moedas por uma moldura nova na Loja', tag: 'Loja', icon: 'bag' },
-  { t: '22:58', who: 'RiqueBitt', c: '#8E3B33', text: 'abri a call 1, vou compartilhar a tela', tag: 'Voz e tela', icon: 'voice', card: true },
-  { t: '23:24', who: 'Loritta', c: '#8A5A80', text: 'Lembrete: o evento de figurinhas começa amanhã 🎉', tag: 'Eventos', icon: 'trophy' },
+  { t: '19:02', who: 'Nina', c: '#C27C3E', text: 'tem jogo de graça essa semana, já deixei salvo no Game Hub', tag: 'Promoções', icon: 'game', reacts: [['🎮', 4], ['🔥', 2]] },
+  { t: '20:15', who: 'Kaio', c: '#23A55A', text: 'baixei o modpack pelo Mod Manager, já tá rodando aqui', tag: 'Mod Manager', icon: 'puzzle', reacts: [['⛏️', 3]] },
+  { t: '21:40', who: 'Lia', c: '#4C9FFF', text: 'troquei minhas moedas por uma moldura nova na Loja', tag: 'Loja', icon: 'bag', reacts: [['😍', 5], ['💸', 1]] },
+  { t: '22:58', who: 'RiqueBitt', c: '#F23F43', text: 'abri a call 1, vou compartilhar a tela', tag: 'Voz e tela', icon: 'voice', card: true, reacts: [['🙋', 6]] },
+  { t: '23:24', who: 'Loritta', c: '#EB459F', text: 'Lembrete: o evento de figurinhas começa amanhã 🎉', tag: 'Eventos', icon: 'trophy', reacts: [['🎉', 8], ['👀', 3]] },
 ];
+
+// Canais que passam pela "roda" da abertura (em volta do # project club).
+const WHEEL = ['chat geral', 'call das 23h', 'game hub', 'mod manager', 'novidades', 'economia', 'memes', 'clipes', 'loja', 'amigos'];
+
+// Cores do confete (as do app Clássico).
+const CONFETTI = ['#4C9FFF', '#23A55A', '#F0B232', '#F23F43', '#EB459F', '#FFFFFF'];
 
 const ICONS = {
   windows: 'M3 5.5 10 4.5v7H3zM12 4.2 21 3v8.5h-9zM3 13h7v6.5L3 18.5zM12 13h9V21l-9-1.2z',
@@ -83,6 +97,94 @@ function useReveal() {
     lp?.classList.add('is-js');
     return () => { io.disconnect(); lp?.classList.remove('is-js'); };
   }, []);
+}
+
+
+// Roda de canais: os dois de cima e os dois de baixo trocam sozinhos, como
+// a lista do app rolando devagar. Parada com "reduzir movimento".
+function useWheel() {
+  const [n, setN] = useState(0);
+  useEffect(() => {
+    if (reducedMotion()) return undefined;
+    const id = setInterval(() => { if (!document.hidden) setN((x) => x + 1); }, 2600);
+    return () => clearInterval(id);
+  }, []);
+  const at = (k) => WHEEL[(n + k) % WHEEL.length];
+  return { n, top: [at(0), at(1)], bottom: [at(2), at(3)] };
+}
+function WheelSide({ items, n, pos }) {
+  return (
+    <div className="lc-wheel" aria-hidden="true">
+      {items.map((label, i) => {
+        const far = pos === 'top' ? i === 0 : i === 1;
+        return <span key={`${n}-${pos}-${i}`} className={`lc-ch lc-spin ${far ? 'is-far' : 'is-near'}`} style={{ '--d': `${i * 70}ms` }}><i>#</i>{label}</span>;
+      })}
+    </div>
+  );
+}
+
+// Luz que segue o mouse dentro dos cartões (.lc-spot): um ouvinte só pra
+// página toda, que escreve a posição no cartão embaixo do ponteiro.
+function useSpotlight() {
+  useEffect(() => {
+    const lp = document.querySelector('.lp');
+    if (!lp || !window.matchMedia('(hover: hover)').matches) return undefined;
+    let raf = 0;
+    const onMove = (e) => {
+      cancelAnimationFrame(raf);
+      raf = requestAnimationFrame(() => {
+        const el = e.target.closest?.('.lc-spot');
+        if (!el) return;
+        const r = el.getBoundingClientRect();
+        el.style.setProperty('--sx', `${e.clientX - r.left}px`);
+        el.style.setProperty('--sy', `${e.clientY - r.top}px`);
+      });
+    };
+    lp.addEventListener('pointermove', onMove, { passive: true });
+    return () => { lp.removeEventListener('pointermove', onMove); cancelAnimationFrame(raf); };
+  }, []);
+}
+
+// Confete saindo do botão de baixar (só elementos soltos, somem sozinhos).
+function confettiFrom(el) {
+  if (!el || reducedMotion()) return;
+  const r = el.getBoundingClientRect();
+  const x = r.left + r.width / 2; const y = r.top + r.height / 2;
+  const layer = document.createElement('div');
+  layer.className = 'lc-confetti';
+  layer.setAttribute('aria-hidden', 'true');
+  for (let i = 0; i < 26; i += 1) {
+    const p = document.createElement('i');
+    const ang = (Math.PI * 2 * i) / 26 + Math.random() * 0.4;
+    const dist = 70 + Math.random() * 120;
+    p.style.left = `${x}px`; p.style.top = `${y}px`;
+    p.style.setProperty('--dx', `${Math.cos(ang) * dist}px`);
+    p.style.setProperty('--dy', `${Math.sin(ang) * dist - 60}px`);
+    p.style.setProperty('--r', `${Math.round(Math.random() * 720 - 360)}deg`);
+    p.style.background = CONFETTI[i % CONFETTI.length];
+    if (i % 3 === 0) p.style.borderRadius = '50%';
+    layer.appendChild(p);
+  }
+  document.body.appendChild(layer);
+  setTimeout(() => layer.remove(), 1300);
+}
+
+// Reações de uma mensagem de "Um dia no clube" (só na tela, nada é salvo).
+function Reactions({ list }) {
+  const [mine, setMine] = useState(() => new Set());
+  const toggle = (e) => setMine((m) => { const n = new Set(m); if (n.has(e)) n.delete(e); else n.add(e); return n; });
+  return (
+    <div className="lc-reacts">
+      {list.map(([emoji, count]) => {
+        const on = mine.has(emoji);
+        return (
+          <button key={emoji} type="button" className={`lc-react${on ? ' is-on' : ''}`} aria-pressed={on} onClick={() => toggle(emoji)} aria-label={`Reagir com ${emoji}`}>
+            <span aria-hidden="true">{emoji}</span><b key={on ? 'on' : 'off'}>{count + (on ? 1 : 0)}</b>
+          </button>
+        );
+      })}
+    </div>
+  );
 }
 
 // ---------- Dados ao vivo ----------
@@ -133,7 +235,19 @@ export default function LandingPage() {
   const location = useLocation();
   useReveal();
   usePublicScrollChrome();
+  useSpotlight();
+  const wheel = useWheel();
   const [platform] = useState(detectPlatform);
+  const [dlToast, setDlToast] = useState(null);
+  const toastTimer = useRef(0);
+  useEffect(() => () => clearTimeout(toastTimer.current), []);
+  // Baixou: confete + aviso do que fazer depois (some sozinho).
+  const onDownload = (e, key) => {
+    confettiFrom(e.currentTarget);
+    setDlToast(key);
+    clearTimeout(toastTimer.current);
+    toastTimer.current = setTimeout(() => setDlToast(null), 6000);
+  };
   const [cmdOpen, setCmdOpen] = useState(false);
   useEffect(() => {
     const onKey = (e) => {
@@ -169,7 +283,7 @@ export default function LandingPage() {
 
   // Botão principal: baixar pro sistema detectado (ou entrar, se não deu pra saber).
   const mainCta = platform ? (
-    <a className="lc-btn is-brand" href={DOWNLOADS[platform]} download>
+    <a className="lc-btn is-brand" href={DOWNLOADS[platform]} download onClick={(e) => onDownload(e, platform)}>
       <Mark name="download" size={18} /> Baixar para {PLATFORM_LABEL[platform]}
     </a>
   ) : (
@@ -182,7 +296,7 @@ export default function LandingPage() {
   ].filter((d) => d.key !== platform);
 
   return (
-    <div className="lp lp-mono lp-club">
+    <div className="lp lp-mono lp-club lp-classic">
       <a className="lp-skip" href="#conteudo">Pular para o conteúdo</a>
       <div className="lp-progress" aria-hidden="true" />
 
@@ -192,24 +306,19 @@ export default function LandingPage() {
         {/* Abertura: a lista de canais do app, parada em "project club". */}
         <section className="lc-hero" aria-labelledby="titulo">
           <div className="lc-wrap">
-            <div className="lc-wheel" aria-hidden="true">
-              <span className="lc-ch is-far"><i>#</i>chat geral</span>
-              <span className="lc-ch is-near"><i>#</i>call das 23h</span>
-            </div>
+            <div className="lc-aurora" aria-hidden="true"><i /><i /><i /></div>
+            <WheelSide items={wheel.top} n={wheel.n} pos="top" />
             <div className="lc-sel">
               <h1 id="titulo" className="lc-ch is-on"><i aria-hidden="true">#</i>project club</h1>
               <div className="lc-go">
                 {mainCta}
                 <div className="lc-alt">
-                  {others.map((d) => <a key={d.key} href={d.href} download><Mark name={d.key} size={16} />{d.name}</a>)}
+                  {others.map((d) => <a key={d.key} href={d.href} download onClick={(e) => onDownload(e, d.key)}><Mark name={d.key} size={16} />{d.name}</a>)}
                   <button type="button" onClick={goLogin}><Mark name="browser" size={16} />Navegador</button>
                 </div>
               </div>
             </div>
-            <div className="lc-wheel" aria-hidden="true">
-              <span className="lc-ch is-near"><i>#</i>game hub</span>
-              <span className="lc-ch is-far"><i>#</i>mod manager</span>
-            </div>
+            <WheelSide items={wheel.bottom} n={wheel.n} pos="bottom" />
             <p className="lc-lede">Canais, voz, jogos e a loja da comunidade num app só, no PC, no celular ou no navegador. De graça.</p>
           </div>
           <div className="lc-wrap lc-shot">
@@ -226,7 +335,7 @@ export default function LandingPage() {
             </div>
             <ul className="lc-apps">
               {APPS.map((a, i) => (
-                <li key={a.id} className="lp-reveal" style={{ '--i': i }}>
+                <li key={a.id} className="lp-reveal lc-spot" style={{ '--i': i }}>
                   <img src={`/apps/${a.id}/icon.png`} alt="" width="88" height="88" loading="lazy" />
                   <h3>{a.name}</h3>
                   <span className="lc-what">{a.what}</span>
@@ -251,7 +360,7 @@ export default function LandingPage() {
                   <span className="lc-t">{m.t}</span>
                   <span className="lc-av" style={{ background: m.c }} aria-hidden="true">{m.who[0]}</span>
                   <div className="lc-msg">
-                    <b>{m.who}</b>
+                    <b style={{ color: m.c }}>{m.who}<time>hoje às {m.t}</time></b>
                     <p>{m.text}</p>
                     {m.card && (
                       <div className="lc-card">
@@ -261,10 +370,16 @@ export default function LandingPage() {
                         <small><span>Minecraft Java, 23:00</span><b>6 de 6 vagas</b></small>
                       </div>
                     )}
+                    {m.reacts && <Reactions list={m.reacts} />}
                   </div>
                   <span className="lc-tag"><Mark name={m.icon} size={14} />{m.tag}</span>
                 </li>
               ))}
+              <li className="lc-typing lp-reveal" style={{ '--i': DAY.length }} aria-label="Pingu está digitando">
+                <span className="lc-t">23:31</span>
+                <span className="lc-av is-pingu" aria-hidden="true">P</span>
+                <p><span className="lc-dots" aria-hidden="true"><i /><i /><i /></span><b>Pingu</b> está digitando…</p>
+              </li>
             </ol>
           </div>
         </section>
@@ -292,8 +407,8 @@ export default function LandingPage() {
                 return (
                   <li key={d.key} className="lp-reveal" style={{ '--i': i }}>
                     {d.href
-                      ? <a className={`lc-dl-row${platform === d.key ? ' is-mine' : ''}`} href={d.href} download>{inner}</a>
-                      : <button type="button" className="lc-dl-row" onClick={goLogin}>{inner}</button>}
+                      ? <a className={`lc-dl-row lc-spot${platform === d.key ? ' is-mine' : ''}`} href={d.href} download onClick={(e) => onDownload(e, d.key)}>{inner}</a>
+                      : <button type="button" className="lc-dl-row lc-spot" onClick={goLogin}>{inner}</button>}
                   </li>
                 );
               })}
@@ -332,6 +447,17 @@ export default function LandingPage() {
           </div>
         </section>
       </main>
+
+      {dlToast && (
+        <div className="lc-toast" role="status">
+          <span className="lc-toast-ico" aria-hidden="true"><Mark name="download" size={18} /></span>
+          <span>
+            <strong>Download começando{PLATFORM_LABEL[dlToast] ? ` para ${PLATFORM_LABEL[dlToast]}` : ''}</strong>
+            <small>{dlToast === 'android' ? 'Abra o .apk e permita instalar apps deste navegador.' : dlToast === 'linux' ? 'Dê permissão de execução ao AppImage e abra.' : 'Abra o instalador, ele baixa o resto e já entra no app.'}</small>
+          </span>
+          <button type="button" onClick={() => setDlToast(null)} aria-label="Fechar aviso">×</button>
+        </div>
+      )}
 
       <CommandPalette open={cmdOpen} onClose={() => setCmdOpen(false)} onPickApp={() => jump('apps')} actions={cmdActions} />
 

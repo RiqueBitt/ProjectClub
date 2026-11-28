@@ -1,0 +1,463 @@
+/* ============================================================
+   Páginas públicas no visual CLÁSSICO do app (nov/2026)
+   ------------------------------------------------------------
+   Vale para o site de download (LandingPage.jsx) e o Blog
+   (BlogPage.jsx), sempre com .lp.lp-classic. Fica por cima de
+   landing.css + landing-mono.css + landing-club.css (+ blog.css).
+
+   As cores são as do app Clássico (global.css): grafite
+   #1E1F22 / #2B2D31 / #313338 / #383A40, texto #F2F3F5 / #DBDEE1,
+   cinza #949BA4 e o azul da marca #4C9FFF. Verde, amarelo,
+   vermelho e rosa do app entram como "personalidade": avatares,
+   reações, categorias do blog e o confete.
+
+   Toques criativos (todos param com "reduzir movimento"):
+   - aurora azul/verde respirando atrás da abertura;
+   - roda de canais trocando sozinha em volta do # project club;
+   - cartões (.lc-spot) com uma luz que segue o mouse;
+   - reações clicáveis e o Pingu "digitando" em Um dia no clube;
+   - confete e aviso ao baixar.
+   ============================================================ */
+
+.lp.lp-classic {
+  --pc-deep: #1E1F22;
+  --pc-2: #2B2D31;
+  --pc-1: #313338;
+  --pc-elev: #383A40;
+  --pc-text: #F2F3F5;
+  --pc-text-2: #DBDEE1;
+  --pc-muted: #949BA4;
+  --pc-faint: #6D6F78;
+  --pc-line: rgba(255, 255, 255, .07);
+  --pc-line-2: rgba(255, 255, 255, .13);
+  --pc-brand: #4C9FFF;
+  --pc-brand-2: #2E7FE0;
+  --pc-green: #23A55A;
+  --pc-yellow: #F0B232;
+  --pc-red: #F23F43;
+  --pc-pink: #EB459F;
+  --pc-radius: 18px;
+
+  /* Tokens da página nova (landing-club.css) */
+  --lc-ink: var(--pc-deep);
+  --lc-panel: var(--pc-2);
+  --lc-paper: var(--pc-2);
+  --lc-text: var(--pc-text);
+  --lc-muted: var(--pc-muted);
+  --lc-dim: var(--pc-faint);
+  --lc-line: var(--pc-line);
+  --lc-line-2: var(--pc-line-2);
+  --lc-paper-line: var(--pc-line-2);
+  --lc-brand: var(--pc-brand);
+
+  /* Tokens antigos (landing.css), usados no cabeçalho, rodapé e busca */
+  --bg: var(--pc-deep);
+  --bg-2: var(--pc-2);
+  --bg-3: var(--pc-1);
+  --text: var(--pc-text);
+  --text-2: var(--pc-text-2);
+  --text-3: var(--pc-muted);
+  --line: var(--pc-line);
+  --line-2: var(--pc-line-2);
+
+  background: var(--pc-deep);
+  color: var(--pc-text);
+  color-scheme: dark;
+}
+.lp.lp-classic ::selection { background: var(--pc-brand); color: #fff; }
+html .lp.lp-classic :focus-visible { outline: 2px solid var(--pc-brand) !important; outline-offset: 3px; }
+
+/* ---------- Barra de progresso: gradiente da marca ---------- */
+.lp.lp-classic .lp-progress {
+  mix-blend-mode: normal; height: 3px; z-index: 41;
+  background: linear-gradient(90deg, var(--pc-brand), var(--pc-green) 60%, var(--pc-yellow));
+  box-shadow: 0 0 12px rgba(76, 159, 255, .55);
+}
+
+/* ---------- Cabeçalho: vidro grafite (sem inverter cores) ---------- */
+.lp.lp-classic .lp-top { mix-blend-mode: normal; color: var(--pc-text); }
+.lp.lp-classic.is-scrolled .lp-top,
+.lp.lp-classic .lp-top.is-menu-open {
+  background: rgba(30, 31, 34, .78);
+  backdrop-filter: blur(18px) saturate(1.5); -webkit-backdrop-filter: blur(18px) saturate(1.5);
+  border-bottom-color: var(--pc-line);
+}
+.lp.lp-classic .lp-logo img,
+.lp.lp-classic .lp-foot-brand img { filter: none; }
+.lp.lp-classic .lp-logo img { filter: drop-shadow(0 4px 14px rgba(76, 159, 255, .35)); }
+.lp.lp-classic .lp-menu a { color: var(--pc-muted); opacity: 1; font-weight: 600; }
+.lp.lp-classic .lp-menu a::after { background: var(--pc-brand); height: 2px; border-radius: 2px; }
+.lp.lp-classic .lp-menu a:hover,
+.lp.lp-classic .lp-menu a.is-current { color: var(--pc-text); }
+.lp.lp-classic .lp-link { color: var(--pc-text-2); font-weight: 600; }
+.lp.lp-classic .lp-link:hover { color: #fff; }
+.lp.lp-classic .lp-btn { border-radius: 10px; }
+.lp.lp-classic .lp-btn.is-accent {
+  background: var(--pc-brand); color: #fff; box-shadow: 0 8px 24px -10px rgba(76, 159, 255, .8);
+  transition: background-color .2s, box-shadow .2s, transform .2s;
+}
+.lp.lp-classic .lp-btn.is-accent:hover { background: var(--pc-brand-2); transform: translateY(-1px); }
+.lp.lp-classic .lp-btn.is-line,
+.lp.lp-classic .lp-btn.is-ghost { border-radius: 10px; }
+.lp.lp-classic .lp-search {
+  border-radius: 10px; color: var(--pc-muted); background: var(--pc-2); border-color: var(--pc-line);
+}
+.lp.lp-classic .lp-search:hover { color: var(--pc-text); border-color: var(--pc-line-2); }
+.lp.lp-classic kbd { border-radius: 6px; background: var(--pc-1); border-color: var(--pc-line-2); color: var(--pc-text-2); }
+.lp.lp-classic .lp-burger { border-radius: 10px !important; background: var(--pc-2); border-color: var(--pc-line-2); }
+
+/* Menu do celular */
+.lp.lp-classic .lp-sheet {
+  background: var(--pc-2); border-radius: 16px; border: 1px solid var(--pc-line-2); padding: 8px;
+  box-shadow: 0 30px 80px -20px rgba(0, 0, 0, .8);
+}
+.lp.lp-classic .lp-sheet a {
+  border-radius: 10px; color: var(--pc-text-2); padding: 14px 14px;
+  font: 600 16px/1.2 var(--lc-font, system-ui, sans-serif); text-transform: none; letter-spacing: 0;
+}
+.lp.lp-classic .lp-sheet a:hover,
+.lp.lp-classic .lp-sheet a[aria-current='page'] { background: rgba(76, 159, 255, .14); color: #fff; }
+.lp.lp-classic .lp-sheet .lp-sheet-login {
+  margin-top: 6px; border-radius: 10px; border-top: 0; background: var(--pc-brand); color: #fff; text-align: center;
+}
+.lp.lp-classic .lp-sheet .lp-sheet-login:hover { background: var(--pc-brand-2); }
+
+/* Busca rápida (Ctrl K) */
+.lp.lp-classic .lp-cmd { background: rgba(0, 0, 0, .6); }
+.lp.lp-classic .lp-cmd-box { background: var(--pc-2); border-color: var(--pc-line-2); border-radius: 16px; }
+.lp.lp-classic .lp-cmd-input { border-bottom-color: var(--pc-line); }
+.lp.lp-classic .lp-cmd-list li.is-on { background: rgba(76, 159, 255, .16); }
+.lp.lp-classic .lp-cmd-glyph { background: var(--pc-1); color: var(--pc-brand); }
+
+/* ---------- Rodapé ---------- */
+.lp.lp-classic .lp-foot {
+  background: var(--pc-2); color: var(--pc-muted); border-top: 1px solid var(--pc-line);
+  position: relative; z-index: 1;
+}
+.lp.lp-classic .lp-foot::before {
+  content: ''; position: absolute; left: 0; right: 0; top: -1px; height: 2px;
+  background: linear-gradient(90deg, transparent, var(--pc-brand), var(--pc-green), transparent);
+  opacity: .6;
+}
+.lp.lp-classic .lp-foot-nav a, .lp.lp-classic .lp-foot-nav button { color: var(--pc-text-2); }
+.lp.lp-classic .lp-foot-nav a:hover { color: var(--pc-brand); }
+.lp.lp-classic .lp-foot-meta a { color: var(--pc-text); }
+
+/* ============================================================
+   SITE DE DOWNLOAD (.lp-club)
+   ============================================================ */
+
+/* Botões em "pílula" do app */
+.lp-classic .lc-btn { border-radius: 12px; height: 56px; }
+.lp-classic .lc-btn.is-brand {
+  background: var(--pc-brand); color: #fff;
+  box-shadow: 0 14px 34px -14px rgba(76, 159, 255, .9), inset 0 -2px 0 rgba(0, 0, 0, .18);
+  position: relative; overflow: hidden; isolation: isolate;
+}
+.lp-classic .lc-btn.is-brand::after {
+  content: ''; position: absolute; inset: 0; z-index: -1;
+  background: linear-gradient(110deg, transparent 30%, rgba(255, 255, 255, .35) 50%, transparent 70%);
+  transform: translateX(-120%); transition: transform .7s cubic-bezier(.16, 1, .3, 1);
+}
+.lp-classic .lc-btn.is-brand:hover { background: var(--pc-brand-2); transform: translateY(-1px); }
+.lp-classic .lc-btn.is-brand:hover::after { transform: translateX(120%); }
+.lp-classic .lc-btn.is-line { box-shadow: inset 0 0 0 1px var(--pc-line-2); background: var(--pc-2); }
+.lp-classic .lc-btn.is-line:hover { background: var(--pc-1); }
+
+/* ---------- Abertura ---------- */
+.lp-classic .lc-hero { overflow: clip; padding-bottom: 2px; }
+.lp-classic .lc-hero > .lc-wrap:first-child { position: relative; }
+.lc-aurora { position: absolute; inset: -30% -20% -10%; z-index: -1; pointer-events: none; filter: blur(70px); opacity: .55; }
+.lc-aurora i { position: absolute; border-radius: 50%; display: block; }
+.lc-aurora i:nth-child(1) { width: 46%; height: 60%; left: 34%; top: 8%; background: radial-gradient(circle, rgba(76, 159, 255, .55), transparent 70%); animation: lc-drift 16s ease-in-out infinite alternate; }
+.lc-aurora i:nth-child(2) { width: 34%; height: 46%; left: 64%; top: 38%; background: radial-gradient(circle, rgba(35, 165, 90, .38), transparent 70%); animation: lc-drift 21s ease-in-out -6s infinite alternate-reverse; }
+.lc-aurora i:nth-child(3) { width: 28%; height: 38%; left: 8%; top: 52%; background: radial-gradient(circle, rgba(235, 69, 159, .26), transparent 70%); animation: lc-drift 25s ease-in-out -3s infinite alternate; }
+@keyframes lc-drift { from { transform: translate(0, 0) scale(1); } to { transform: translate(6%, -8%) scale(1.15); } }
+
+.lp-classic .lc-hero .lc-ch.is-far { color: rgba(219, 222, 225, .1); }
+.lp-classic .lc-hero .lc-ch.is-near { color: rgba(219, 222, 225, .28); }
+.lp-classic .lc-hero .lc-ch.is-on {
+  background: var(--pc-brand); color: #fff;
+  box-shadow: 0 24px 60px -24px rgba(76, 159, 255, .95), inset 0 -4px 0 rgba(0, 0, 0, .16);
+}
+.lp-classic .lc-ch.is-on > i { opacity: .55; }
+/* Roda girando: cada troca entra de baixo, embaçada. */
+.lc-spin { animation: lc-spin-in .7s cubic-bezier(.16, 1, .3, 1) both; animation-delay: var(--d, 0ms); }
+@keyframes lc-spin-in { from { opacity: 0; transform: translateY(40%); filter: blur(6px); } to { opacity: 1; transform: none; filter: none; } }
+
+.lp-classic .lc-alt a, .lp-classic .lc-alt button { color: var(--pc-muted); }
+.lp-classic .lc-alt a:hover, .lp-classic .lc-alt button:hover { color: var(--pc-brand); }
+.lp-classic .lc-lede { color: var(--pc-text-2); }
+.lp-classic .lc-lede::first-line { color: var(--pc-text); }
+.lp-classic .lc-shot img {
+  border-color: var(--pc-line-2); background: var(--pc-2); border-radius: 18px;
+  box-shadow: 0 50px 140px -30px rgba(0, 0, 0, .9), 0 0 0 1px rgba(76, 159, 255, .14), 0 0 120px -40px rgba(76, 159, 255, .55);
+}
+
+/* ---------- Apps: "folha" grafite com grade de pontinhos ---------- */
+.lp-classic .lc-sheet {
+  background:
+    radial-gradient(rgba(255, 255, 255, .05) 1px, transparent 1.4px) 0 0 / 22px 22px,
+    linear-gradient(180deg, var(--pc-2), var(--pc-deep));
+  color: var(--pc-text);
+  border: 1px solid var(--pc-line);
+}
+.lp-classic .lc-sheet h2 { color: var(--pc-text); }
+.lp-classic .lc-head p { color: var(--pc-muted); }
+.lp-classic .lc-apps li {
+  padding: 26px 24px 24px; border-radius: var(--pc-radius); background: var(--pc-1);
+  border: 1px solid var(--pc-line); transition: transform .35s cubic-bezier(.16, 1, .3, 1), border-color .3s, box-shadow .35s;
+}
+.lp-classic .lc-apps li:hover { transform: translateY(-4px); border-color: rgba(76, 159, 255, .35); box-shadow: 0 26px 60px -30px rgba(76, 159, 255, .6); }
+.lp-classic .lc-apps img { box-shadow: 0 12px 30px -10px rgba(0, 0, 0, .7); transition: transform .45s cubic-bezier(.16, 1, .3, 1); }
+.lp-classic .lc-apps li:hover img { transform: rotate(-6deg) scale(1.06); }
+.lp-classic .lc-apps h3 { color: var(--pc-text); }
+.lp-classic .lc-what { color: var(--pc-brand); font-weight: 600; }
+.lp-classic .lc-apps p { color: var(--pc-text-2); }
+.lp-classic .lc-note { color: var(--pc-muted); border-color: var(--pc-line-2); background: var(--pc-2); }
+.lp-classic .lc-apps li:nth-child(2) .lc-what { color: var(--pc-green); }
+.lp-classic .lc-apps li:nth-child(3) .lc-what { color: var(--pc-red); }
+
+/* Luz que segue o mouse (useSpotlight) */
+.lc-spot { position: relative; isolation: isolate; }
+.lc-spot::before {
+  content: ''; position: absolute; inset: 0; z-index: -1; border-radius: inherit; pointer-events: none;
+  background: radial-gradient(420px circle at var(--sx, 50%) var(--sy, -100px), rgba(76, 159, 255, .16), transparent 45%);
+  opacity: 0; transition: opacity .3s;
+}
+.lc-spot:hover::before { opacity: 1; }
+
+/* ---------- Um dia no clube: igual ao chat do app ---------- */
+.lp-classic .lc-tl { border-left-color: var(--pc-line-2); }
+.lp-classic .lc-tl li::before { background: var(--pc-brand); box-shadow: 0 0 0 4px rgba(76, 159, 255, .16); }
+.lp-classic .lc-tl li { border-radius: 12px; transition: background-color .2s; }
+.lp-classic .lc-tl li:hover { background: rgba(255, 255, 255, .025); }
+.lp-classic .lc-av { box-shadow: inset 0 -3px 0 rgba(0, 0, 0, .2); color: #fff; }
+.lp-classic .lc-msg b { display: inline-flex; align-items: baseline; gap: 8px; }
+.lp-classic .lc-msg b time { font-size: 11.5px; font-weight: 500; color: var(--pc-faint); }
+.lp-classic .lc-msg p { color: var(--pc-text-2); }
+.lp-classic .lc-tag { color: var(--pc-text-2); background: var(--pc-2); border-color: var(--pc-line); }
+.lp-classic .lc-tag svg { color: var(--pc-brand); }
+.lp-classic .lc-card {
+  background: var(--pc-2); color: var(--pc-text); border: 1px solid var(--pc-line-2);
+  border-left: 4px solid var(--pc-brand); border-radius: 10px;
+}
+.lp-classic .lc-card > span { color: var(--pc-muted); }
+.lp-classic .lc-card > i { background: linear-gradient(90deg, var(--pc-green), var(--pc-brand)); }
+.lp-classic .lc-card small { color: var(--pc-muted); }
+.lp-classic .lc-card small b { color: var(--pc-green); }
+
+.lc-reacts { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+.lp .lc-react {
+  display: inline-flex; align-items: center; gap: 6px; height: 28px; padding: 0 9px;
+  border-radius: 8px; border: 1px solid transparent; background: var(--pc-1, #313338);
+  font-size: 14px; color: var(--pc-text-2, #DBDEE1); transition: background-color .15s, border-color .15s, transform .15s;
+}
+.lp .lc-react b { font-size: 12.5px; font-weight: 700; display: inline-block; animation: lc-count .35s cubic-bezier(.16, 1, .3, 1); }
+.lp .lc-react:hover { border-color: var(--pc-line-2, rgba(255, 255, 255, .13)); transform: translateY(-1px); }
+.lp .lc-react.is-on { background: rgba(76, 159, 255, .18); border-color: var(--pc-brand, #4C9FFF); color: #fff; }
+.lp .lc-react.is-on span { animation: lc-pop .4s cubic-bezier(.16, 1, .3, 1); }
+@keyframes lc-pop { 0% { transform: scale(.6); } 60% { transform: scale(1.35); } 100% { transform: none; } }
+@keyframes lc-count { from { transform: translateY(60%); opacity: 0; } to { transform: none; opacity: 1; } }
+
+/* Pingu digitando no fim da conversa */
+.lc-tl .lc-typing { align-items: center; }
+.lc-typing p { margin: 0; font-size: 14px; color: var(--pc-muted, #949BA4); display: inline-flex; align-items: center; gap: 8px; }
+.lc-typing p b { color: var(--pc-text, #F2F3F5); font-weight: 700; }
+.lp-classic .lc-av.is-pingu { background: linear-gradient(135deg, var(--pc-brand), #1d4f8f); }
+.lc-dots { display: inline-flex; gap: 3px; }
+.lc-dots i { width: 6px; height: 6px; border-radius: 50%; background: var(--pc-text-2, #DBDEE1); animation: lc-dot 1.2s ease-in-out infinite; }
+.lc-dots i:nth-child(2) { animation-delay: .15s; }
+.lc-dots i:nth-child(3) { animation-delay: .3s; }
+@keyframes lc-dot { 0%, 60%, 100% { transform: none; opacity: .4; } 30% { transform: translateY(-4px); opacity: 1; } }
+
+/* ---------- Download: cartões que acendem ---------- */
+.lp-classic .lc-dl-list { border-top: 0; display: grid; gap: 10px; }
+.lp-classic .lc-dl-row {
+  border: 1px solid var(--pc-line); border-radius: 14px; background: var(--pc-2); padding: 22px 22px;
+}
+.lp-classic .lc-dl-row:hover { padding-left: 26px; padding-right: 26px; background: var(--pc-1); border-color: var(--pc-line-2); }
+.lp-classic .lc-dl-name svg { color: var(--pc-brand); }
+.lp-classic .lc-dl-name em { background: rgba(35, 165, 90, .18); color: #57D98C; }
+.lp-classic .lc-dl-go { box-shadow: inset 0 0 0 1px var(--pc-line-2); border-radius: 10px; }
+.lp-classic .lc-dl-row:hover .lc-dl-go { background: var(--pc-elev); }
+.lp-classic .lc-dl-row.is-mine { border-color: rgba(76, 159, 255, .45); background: linear-gradient(100deg, rgba(76, 159, 255, .14), var(--pc-2) 55%); }
+.lp-classic .lc-dl-row.is-mine .lc-dl-go { background: var(--pc-brand); color: #fff; }
+
+/* ---------- Perguntas ---------- */
+.lp-classic .lc-faq { border-top: 0; display: grid; gap: 10px; }
+.lp-classic .lc-faq details { border: 1px solid var(--pc-line); border-radius: 14px; background: var(--pc-2); padding: 0 20px; transition: border-color .2s, background-color .2s; }
+.lp-classic .lc-faq details[open] { border-color: rgba(76, 159, 255, .35); background: var(--pc-1); }
+.lp-classic .lc-faq summary { padding: 20px 0; }
+.lp-classic .lc-faq summary i { color: var(--pc-brand); }
+.lp-classic .lc-faq-a p { color: var(--pc-text-2); margin-bottom: 20px; }
+.lp-classic .lc-more { color: var(--pc-brand); text-decoration-color: rgba(76, 159, 255, .4); }
+
+/* ---------- Convite final ---------- */
+.lp-classic .lc-end { position: relative; isolation: isolate; }
+.lp-classic .lc-end::before {
+  content: ''; position: absolute; inset: 10% 0 0; z-index: -1; pointer-events: none;
+  background: radial-gradient(60% 60% at 30% 50%, rgba(76, 159, 255, .2), transparent 70%);
+}
+.lp-classic .lc-end h2 .lc-ch.is-on {
+  background: var(--pc-brand); color: #fff; box-shadow: 0 20px 50px -20px rgba(76, 159, 255, .9);
+}
+
+/* ---------- Confete e aviso de download (fora da .lp) ---------- */
+.lc-confetti { position: fixed; inset: 0; z-index: 90; pointer-events: none; overflow: hidden; }
+.lc-confetti i {
+  position: absolute; width: 9px; height: 13px; border-radius: 2px; margin: -6px 0 0 -4px;
+  animation: lc-confetti 1.15s cubic-bezier(.16, 1, .3, 1) forwards;
+}
+@keyframes lc-confetti {
+  0% { transform: translate(0, 0) rotate(0); opacity: 1; }
+  70% { opacity: 1; }
+  100% { transform: translate(var(--dx), calc(var(--dy) + 140px)) rotate(var(--r)); opacity: 0; }
+}
+.lc-toast {
+  position: fixed; left: 50%; bottom: max(20px, env(safe-area-inset-bottom)); z-index: 80; translate: -50% 0;
+  width: min(460px, calc(100% - 24px)); display: grid; grid-template-columns: auto 1fr auto; align-items: center; gap: 14px;
+  padding: 14px 14px 14px 16px; border-radius: 14px; background: #2B2D31; color: #F2F3F5;
+  border: 1px solid rgba(255, 255, 255, .13); box-shadow: 0 24px 60px -20px rgba(0, 0, 0, .9);
+  animation: lc-toast-in .45s cubic-bezier(.16, 1, .3, 1);
+}
+.lc-toast-ico { width: 38px; height: 38px; border-radius: 10px; display: grid; place-items: center; background: #4C9FFF; color: #fff; }
+.lc-toast strong { display: block; font-size: 15px; }
+.lc-toast small { display: block; margin-top: 2px; font-size: 13px; color: #B5BAC1; line-height: 1.4; }
+.lc-toast button { width: 32px; height: 32px; border-radius: 8px; font-size: 22px; line-height: 1; color: #949BA4; }
+.lc-toast button:hover { background: rgba(255, 255, 255, .08); color: #fff; }
+@keyframes lc-toast-in { from { opacity: 0; transform: translateY(16px) scale(.97); } to { opacity: 1; transform: none; } }
+
+/* ---------- Celular ---------- */
+@media (max-width: 640px) {
+  .lp-classic .lc-apps li { padding: 22px 18px; }
+  .lp-classic .lc-dl-row { padding: 18px 16px; }
+  .lp-classic .lc-dl-row:hover { padding-left: 16px; padding-right: 16px; }
+  .lp-classic .lc-faq details { padding: 0 16px; }
+  .lp-classic .lc-tl li { padding-right: 6px; }
+  .lc-aurora { inset: -10% -40% -10%; opacity: .45; }
+  .lp-classic .lc-btn { height: 54px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .lc-aurora i, .lc-spin, .lc-dots i, .lp .lc-react b, .lp .lc-react.is-on span, .lc-toast { animation: none !important; }
+  .lp-classic .lc-apps li, .lp-classic .lc-apps img { transition: none; }
+}
+
+/* ============================================================
+   BLOG (.lp-blog.lp-classic)
+   As seções "brancas" (lm-sec) viram grafite claro; as escuras
+   (lm-dark) ficam no grafite fundo. Os banners ganham a cor da
+   categoria do artigo.
+   ============================================================ */
+.lp-blog.lp-classic {
+  --ink: var(--pc-text); --paper: var(--pc-deep);
+  --ink-2: var(--pc-text-2); --ink-3: var(--pc-muted); --rule: var(--pc-line-2);
+  --wide: 'Archivo Variable', 'Archivo', system-ui, -apple-system, 'Segoe UI', sans-serif;
+}
+.lp-blog.lp-classic .lm-dark {
+  --ink: var(--pc-text); --paper: var(--pc-deep); --ink-2: var(--pc-text-2); --ink-3: var(--pc-muted); --rule: var(--pc-line-2);
+  background: var(--pc-deep);
+}
+.lp-blog.lp-classic .lm-sec:not(.lm-dark) {
+  --ink: var(--pc-text); --paper: var(--pc-2); --ink-2: var(--pc-text-2); --ink-3: var(--pc-muted); --rule: var(--pc-line-2);
+  background: var(--pc-2); color: var(--pc-text);
+}
+.lp-blog.lp-classic .bl-hero { position: relative; isolation: isolate; overflow: clip; }
+.lp-blog.lp-classic .bl-hero::before {
+  content: ''; position: absolute; inset: -20% -10% auto 30%; height: 80%; z-index: -1; pointer-events: none;
+  background: radial-gradient(closest-side, rgba(76, 159, 255, .22), transparent), radial-gradient(closest-side at 80% 60%, rgba(35, 165, 90, .14), transparent);
+  filter: blur(40px);
+}
+.lp-blog.lp-classic .lm-eyebrow b { color: var(--pc-brand); }
+
+/* Botões do blog (lm-btn) no jeito do app */
+.lp-blog.lp-classic .lm-btn {
+  border-radius: 10px; border-width: 1px; padding: 16px 22px;
+  font: 700 13px/1 var(--wide); text-transform: none; letter-spacing: 0;
+}
+.lp-blog.lp-classic .lm-btn.is-solid { background: var(--pc-brand); border-color: var(--pc-brand); color: #fff; }
+.lp-blog.lp-classic .lm-btn.is-solid::before { background: var(--pc-brand-2); }
+.lp-blog.lp-classic .lm-btn.is-solid:hover { color: #fff; }
+.lp-blog.lp-classic .lm-btn.is-line { color: var(--pc-text); border-color: var(--pc-line-2); background: var(--pc-1); }
+.lp-blog.lp-classic .lm-btn.is-line::before { background: var(--pc-elev); }
+.lp-blog.lp-classic .lm-btn.is-line:hover { color: #fff; border-color: var(--pc-line-2); }
+
+/* Banners com a cor da categoria */
+.lp-classic .bl-banner { border-radius: 14px; --fg: #fff; --bg: var(--pc-1); }
+.lp-classic .bl-banner.is-light { --fg: #fff; --bg: var(--cat, var(--pc-brand)); }
+.lp-classic .bl-banner.is-dark { --fg: var(--cat, var(--pc-brand)); --bg: var(--pc-1); }
+.lp-classic .bl-banner[data-cat='novidades'] { --cat: #4C9FFF; }
+.lp-classic .bl-banner[data-cat='primeiros-passos'] { --cat: #23A55A; }
+.lp-classic .bl-banner[data-cat='tutoriais'] { --cat: #F0B232; }
+.lp-classic .bl-banner[data-cat='apps'] { --cat: #EB459F; }
+.lp-classic .bl-banner[data-cat='seguranca'] { --cat: #F23F43; }
+.lp-classic .bl-banner.is-light[data-cat='tutoriais'] { --fg: #1E1F22; }
+.lp-classic .bl-banner-cat { border-radius: 8px; font-family: var(--wide); text-transform: none; letter-spacing: 0; font-size: 12px; padding: 7px 10px; }
+.lp-blog.lp-classic .bl-feature .bl-banner,
+.lp-blog.lp-classic .bl-card .bl-banner { border: 1px solid var(--pc-line-2); }
+.lp-blog.lp-classic .bl-feature .bl-banner { box-shadow: 0 40px 100px -40px rgba(76, 159, 255, .5); }
+
+.lp-blog.lp-classic .bl-card a {
+  padding: 12px 12px 18px; border-radius: 18px; background: var(--pc-1); border: 1px solid var(--pc-line);
+  transition: transform .3s cubic-bezier(.16, 1, .3, 1), border-color .25s, box-shadow .3s; height: 100%;
+}
+.lp-blog.lp-classic .bl-card a > :not(.bl-banner) { padding-inline: 6px; }
+.lp-blog.lp-classic .bl-card a:hover { transform: translateY(-4px); border-color: rgba(76, 159, 255, .35); box-shadow: 0 26px 60px -30px rgba(76, 159, 255, .55); }
+.lp-blog.lp-classic .bl-card a:hover h3 { text-decoration: none; color: var(--pc-brand); }
+.lp-blog.lp-classic .bl-card-meta { font-family: var(--wide); text-transform: none; letter-spacing: 0; font-size: 12.5px; }
+.lp-blog.lp-classic .bl-card-meta b { color: var(--pc-brand); }
+
+/* Filtros */
+.lp-blog.lp-classic .bl-tabs button {
+  border-radius: 999px; border: 1px solid var(--pc-line-2); background: var(--pc-1);
+  font: 600 13.5px/1 var(--wide); text-transform: none; letter-spacing: 0; color: var(--pc-text-2); padding: 10px 16px;
+}
+.lp-blog.lp-classic .bl-tabs button:hover { border-color: var(--pc-brand); color: #fff; }
+.lp-blog.lp-classic .bl-tabs button.is-on { background: var(--pc-brand); border-color: var(--pc-brand); color: #fff; }
+.lp-blog.lp-classic .bl-search { border-radius: 10px; border: 1px solid var(--pc-line-2); background: var(--pc-deep); }
+.lp-blog.lp-classic .bl-search:focus-within { border-color: var(--pc-brand); box-shadow: 0 0 0 3px rgba(76, 159, 255, .2); }
+
+/* Artigo */
+.lp-blog.lp-classic .bl-crumb { font-family: var(--wide); text-transform: none; letter-spacing: 0; font-size: 14px; }
+.lp-blog.lp-classic .bl-crumb a, .lp-blog.lp-classic .bl-crumb button { color: var(--pc-brand); }
+.lp-blog.lp-classic .bl-post-meta { font-family: var(--wide); text-transform: none; letter-spacing: 0; font-size: 13.5px; }
+.lp-blog.lp-classic .bl-post-body { background: var(--pc-2); color: var(--pc-text); }
+.lp-blog.lp-classic .bl-toc a { color: var(--pc-muted); }
+.lp-blog.lp-classic .bl-toc a:hover { color: #fff; border-left-color: var(--pc-brand); }
+.lp-blog.lp-classic .bl-toc p { font-family: var(--wide); text-transform: none; letter-spacing: 0; font-size: 13px; }
+.lp-blog.lp-classic .bl-prose {
+  --text: var(--pc-text-2); --text-2: #C4C9CE; --text-3: var(--pc-muted);
+  --line: var(--pc-line); --line-2: var(--pc-line-2);
+  --bg: var(--pc-2); --bg-2: var(--pc-1); --bg-3: var(--pc-elev);
+  color: var(--pc-text-2); font-size: 17px; line-height: 1.75;
+}
+.lp-blog.lp-classic .bl-prose h2 { color: var(--pc-text); }
+.lp-blog.lp-classic .bl-prose a { color: var(--pc-brand); text-decoration-color: rgba(76, 159, 255, .4); }
+.lp-blog.lp-classic .bl-prose img { filter: none; border-radius: 12px; }
+.lp-blog.lp-classic .bl-prose .wk-note { background: rgba(76, 159, 255, .08); border-color: var(--pc-brand); color: var(--pc-text-2); border-radius: 10px; }
+.lp-blog.lp-classic .bl-prose code, .lp-blog.lp-classic .bl-prose kbd { background: var(--pc-deep); color: var(--pc-text); border-color: var(--pc-line-2); border-radius: 6px; }
+.lp-blog.lp-classic .bl-prose .wk-steps li::before {
+  width: 38px; height: 38px; display: grid; place-items: center; align-self: start;
+  background: var(--pc-brand); color: #fff; border-radius: 10px;
+  font: 800 15px/1 var(--wide); box-shadow: 0 8px 20px -8px rgba(76, 159, 255, .8);
+}
+.lp-blog.lp-classic .bl-prose :is(.wk-facts, .wk-gallery figure, .wk-fig img, .tm-badges > div, .wk-app, .wk-faq details, .tm-rights li, .tm-store > div, .wk-facts > div) { border-radius: 12px !important; }
+
+.lp-blog.lp-classic .bl-pager { background: var(--pc-line); border-top-color: var(--pc-line); }
+.lp-blog.lp-classic .bl-pager > * { background: var(--pc-deep); color: var(--pc-text); }
+.lp-blog.lp-classic .bl-pager small { color: var(--pc-muted); font-family: var(--wide); text-transform: none; letter-spacing: 0; font-size: 13px; }
+.lp-blog.lp-classic .bl-pager a:hover { background: var(--pc-1); color: var(--pc-brand); }
+.lp-blog.lp-classic .bl-pager a:hover small { color: var(--pc-text-2); }
+.lp-blog.lp-classic .bl-related { border-top-color: var(--pc-line); }
+
+@media (max-width: 640px) {
+  .lp-blog.lp-classic .bl-prose { font-size: 16px; }
+  .lp-blog.lp-classic .bl-card a { padding: 10px 10px 16px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .lp-blog.lp-classic .bl-card a { transition: none; }
+}
+
+/* O reset ".lp button" (landing.css) zerava o respiro dos botões em pílula. */
+.lp.lp-classic button.lc-btn { padding: 0 28px; }
