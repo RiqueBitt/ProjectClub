@@ -21,6 +21,8 @@ const DOWNLOADS = {
   linux: `${DOWNLOADS_BASE}/ProjectClub-Linux.AppImage`,
   // ProjectClub.apk = app Android nativo (mesmo pacote do app antigo, que atualiza para ele).
   android: `${DOWNLOADS_BASE}/ProjectClub.apk`,
+  // Project Club Lite: Windows 7, 8 e 10, 32 ou 64 bits, PC antigo (desktop-lite/).
+  lite: `${DOWNLOADS_BASE}/ProjectClub-Lite-Setup-Windows.exe`,
 };
 
 // Apps da vitrine (o próprio Project Club, o Mod Manager e o RPG Blackout).
@@ -63,11 +65,13 @@ const reducedMotion = () => typeof window !== 'undefined' && window.matchMedia('
 function detectPlatform() {
   const ua = typeof navigator !== 'undefined' ? navigator.userAgent : '';
   if (/android/i.test(ua)) return 'android';
+  // Windows 7/8/8.1 (NT 6.x) ou de 32 bits: o app completo não roda, vai o Lite.
+  if (/windows nt 6\./i.test(ua) || (/windows/i.test(ua) && !/win64|wow64|x64|amd64/i.test(ua))) return 'lite';
   if (/windows/i.test(ua)) return 'windows';
   if (/linux/i.test(ua)) return 'linux';
   return null;
 }
-const PLATFORM_LABEL = { windows: 'Windows', linux: 'Linux', android: 'Android' };
+const PLATFORM_LABEL = { windows: 'Windows', lite: 'Windows (PC antigo)', linux: 'Linux', android: 'Android' };
 
 // Revela blocos ao entrarem na tela (uma vez só).
 function useReveal() {
@@ -278,13 +282,14 @@ export default function LandingPage() {
             <ul className="lc-dl-list">
               {[
                 { key: 'windows', name: 'Windows', desc: 'Instalador .exe que baixa o app, Windows 10 e 11', href: DOWNLOADS.windows },
+                { key: 'lite', icon: 'windows', name: 'Windows Lite', desc: 'PC antigo: Windows 7, 8 e 10, 32 ou 64 bits, 2 GB de RAM', href: DOWNLOADS.lite },
                 { key: 'linux', name: 'Linux', desc: 'AppImage, roda na maioria das distros', href: DOWNLOADS.linux },
-                { key: 'android', name: 'Android', desc: 'Arquivo .apk', href: DOWNLOADS.android },
+                { key: 'android', name: 'Android', desc: 'Arquivo .apk, Android 6 ou mais novo', href: DOWNLOADS.android },
                 { key: 'browser', name: 'Navegador', desc: 'Sem instalar nada' },
               ].map((d, i) => {
                 const inner = (
                   <>
-                    <span className="lc-dl-name"><Mark name={d.key} size={22} />{d.name}{platform === d.key && <em>seu sistema</em>}</span>
+                    <span className="lc-dl-name"><Mark name={d.icon || d.key} size={22} />{d.name}{platform === d.key && <em>seu sistema</em>}</span>
                     <span className="lc-dl-desc">{d.desc}</span>
                     <span className="lc-dl-go">{d.href ? 'Baixar' : (user ? 'Abrir' : 'Entrar')}</span>
                   </>
@@ -309,7 +314,7 @@ export default function LandingPage() {
                 {[
                   ['Custa alguma coisa?', 'Não. A conta, a comunidade e os apps são gratuitos, sem anúncio. A Assinatura é opcional e só dá vantagens extras.'],
                   ['Preciso instalar?', 'Só para o Mod Manager. A comunidade funciona no navegador e no Android.'],
-                  ['Roda em PC fraco?', 'Sim. Abre em qualquer navegador atual, e o app roda em Windows 10 e 11 e em Linux.'],
+                  ['Roda em PC fraco?', 'Sim. O Project Club Lite roda no Windows 7, 8 e 10 (32 ou 64 bits) com 2 GB de RAM, e o app de Android vai do Android 6 em diante, com 1 GB de RAM.'],
                 ].map(([q, a], i) => (
                   <details key={q} className="lp-reveal" style={{ '--i': i }}>
                     <summary><span>{q}</span><i aria-hidden="true" /></summary>

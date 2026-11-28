@@ -4,6 +4,8 @@ import android.util.Log
 import com.projectclub.android.Config
 import com.projectclub.android.data.AppJson
 import com.projectclub.android.net.Api
+import com.projectclub.android.net.LegacyTls
+import com.projectclub.android.net.legacyTls
 import com.projectclub.android.net.RefreshResult
 import io.socket.client.Ack
 import io.socket.client.IO
@@ -57,6 +59,13 @@ class Realtime(private val api: Api, private val scope: CoroutineScope) {
             .setReconnectionDelayMax(15000)
             .setTimeout(20000)
             .build()
+        // Android 6/7.0: o mesmo cliente HTTP do socket.io, mas com as raízes
+        // de certificado novas somadas (ver LegacyTls). Nos outros, o padrão.
+        if (LegacyTls.needed) {
+            val c = okhttp3.OkHttpClient.Builder().legacyTls().readTimeout(1, java.util.concurrent.TimeUnit.MINUTES).build()
+            opts.callFactory = c
+            opts.webSocketFactory = c
+        }
         val s = IO.socket(Config.baseUrl, opts)
         s.on(Socket.EVENT_CONNECT) {
             retry = 0

@@ -1,5 +1,6 @@
 package com.projectclub.android.ui.chat
 
+import com.projectclub.android.net.legacyTls
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -67,7 +68,7 @@ import java.util.concurrent.TimeUnit
 
 private data class GifResult(val id: String, val preview: String, val full: String)
 
-private val gifHttp by lazy { OkHttpClient.Builder().callTimeout(12, TimeUnit.SECONDS).build() }
+private val gifHttp by lazy { OkHttpClient.Builder().legacyTls().callTimeout(12, TimeUnit.SECONDS).build() }
 
 /** Busca GIFs na KLIPY (a mesma do site). Só funciona com a chave configurada no build. */
 private suspend fun searchGifs(term: String): List<GifResult> = withContext(Dispatchers.IO) {

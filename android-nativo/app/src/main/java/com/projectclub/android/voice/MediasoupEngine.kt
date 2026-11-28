@@ -1,5 +1,6 @@
 package com.projectclub.android.voice
 
+import com.projectclub.android.net.legacyTls
 import android.app.Application
 import android.content.ComponentCallbacks
 import android.content.Context
@@ -139,6 +140,7 @@ class MediasoupEngine(private val context: Context, private val events: Events) 
     }
     private val scope = CoroutineScope(SupervisorJob() + worker.asCoroutineDispatcher() + crashGuard)
     private val http = OkHttpClient.Builder()
+        .legacyTls()
         .pingInterval(15, TimeUnit.SECONDS)
         .connectTimeout(10, TimeUnit.SECONDS)
         .readTimeout(0, TimeUnit.MILLISECONDS)
@@ -820,7 +822,7 @@ class MediasoupEngine(private val context: Context, private val events: Events) 
                 scope.launch { onNetworkChanged() }
             }
         }
-        runCatching { cm.registerDefaultNetworkCallback(cb) }.onSuccess { netCallback = cb }
+        runCatching { com.projectclub.android.net.registerDefaultCompat(cm, cb) }.onSuccess { netCallback = cb }
             .onFailure { Log.w(TAG, "monitor de rede", it) }
     }
 

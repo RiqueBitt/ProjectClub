@@ -76,6 +76,7 @@ class Api(context: Context) {
     private val refreshLock = Any()
 
     val http: OkHttpClient = OkHttpClient.Builder()
+        .legacyTls()
         .cookieJar(cookies)
         .connectTimeout(15, TimeUnit.SECONDS)
         .readTimeout(30, TimeUnit.SECONDS)
