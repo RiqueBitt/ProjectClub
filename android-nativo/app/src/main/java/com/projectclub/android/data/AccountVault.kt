@@ -22,21 +22,27 @@ data class SavedAccount(
 
 /**
  * Contas guardadas no aparelho (só no armazenamento privado do app, igual aos
- * cookies da conta ativa). No máximo 5, igual ao site.
+ * cookies da conta ativa, e criptografadas do mesmo jeito: ver SessionSecrets.kt).
+ * No máximo 5, igual ao site.
  */
-class AccountVault(context: Context) {
+class AccountVault(context: Context, sealer: Sealer = SessionKey.sealer) {
     private val prefs = context.applicationContext.getSharedPreferences("pc_accounts", Context.MODE_PRIVATE)
+    private val stored = SealedValue(
+        load = { prefs.getString(KEY, null) },
+        save = { value -> prefs.edit().apply { if (value == null) remove(KEY) else putString(KEY, value) }.commit() },
+        sealer = sealer,
+    )
     private val ser = ListSerializer(SavedAccount.serializer())
     private val _list = MutableStateFlow(load())
     val list: StateFlow<List<SavedAccount>> = _list
 
     private fun load(): List<SavedAccount> =
-        runCatching { AppJson.decodeFromString(ser, prefs.getString(KEY, null) ?: "[]") }.getOrDefault(emptyList())
+        runCatching { AppJson.decodeFromString(ser, stored.read() ?: "[]") }.getOrDefault(emptyList())
 
     @Synchronized
     private fun write(l: List<SavedAccount>) {
         _list.value = l
-        prefs.edit().putString(KEY, AppJson.encodeToString(ser, l)).commit()
+        stored.write(AppJson.encodeToString(ser, l))
     }
 
     @Synchronized

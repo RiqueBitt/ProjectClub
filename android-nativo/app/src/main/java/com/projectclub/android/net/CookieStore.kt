@@ -1,6 +1,9 @@
 package com.projectclub.android.net
 
 import android.content.Context
+import com.projectclub.android.data.Sealer
+import com.projectclub.android.data.SealedValue
+import com.projectclub.android.data.SessionKey
 import okhttp3.Cookie
 import okhttp3.CookieJar
 import okhttp3.HttpUrl
@@ -12,13 +15,21 @@ import org.json.JSONObject
  * aparelho. Diferente do WebView, grava no disco NA HORA (commit síncrono)
  * a cada cookie novo: a sessão é renovada (o cookie troca) a cada abertura,
  * e perder o cookie novo era o que mandava pra tela de login.
+ *
+ * O que vai pro disco vai criptografado (ver data/SessionSecrets.kt); o que uma
+ * versão antiga gravou sem proteção é lido e regravado protegido.
  */
-class PersistentCookieJar(context: Context) : CookieJar {
+class PersistentCookieJar(context: Context, sealer: Sealer = SessionKey.sealer) : CookieJar {
     private val prefs = context.getSharedPreferences("pc_cookies", Context.MODE_PRIVATE)
+    private val stored = SealedValue(
+        load = { prefs.getString(KEY, null) },
+        save = { value -> prefs.edit().apply { if (value == null) remove(KEY) else putString(KEY, value) }.commit() },
+        sealer = sealer,
+    )
     private val cookies = LinkedHashMap<String, Cookie>()
 
     init {
-        CookieCodec.decodeAll(prefs.getString(KEY, null)).forEach { cookies[CookieCodec.key(it)] = it }
+        CookieCodec.decodeAll(stored.read()).forEach { cookies[CookieCodec.key(it)] = it }
     }
 
     @Synchronized
@@ -46,7 +57,7 @@ class PersistentCookieJar(context: Context) : CookieJar {
     @Synchronized
     fun clear() {
         cookies.clear()
-        prefs.edit().remove(KEY).commit()
+        stored.write(null)
     }
 
     /** Foto dos cookies de login (pra trocar de conta sem sair). */
@@ -62,7 +73,7 @@ class PersistentCookieJar(context: Context) : CookieJar {
     }
 
     private fun persist() {
-        prefs.edit().putString(KEY, CookieCodec.encodeAll(cookies.values)).commit()
+        stored.write(CookieCodec.encodeAll(cookies.values))
     }
 
     private companion object {
