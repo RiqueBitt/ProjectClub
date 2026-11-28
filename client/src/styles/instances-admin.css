@@ -1,0 +1,72 @@
+/* Painel da Equipe → Instâncias */
+.inst-admin { display: flex; flex-direction: column; gap: 16px; max-width: 1100px; }
+.inst-intro { margin: 0; font-size: 13.5px; line-height: 1.55; color: var(--text-muted); max-width: 760px; }
+.inst-intro strong { color: var(--header-primary); }
+.inst-layout { display: grid; grid-template-columns: 300px minmax(0, 1fr); gap: 16px; align-items: start; }
+@media (max-width: 860px) { .inst-layout { grid-template-columns: 1fr; } }
+
+.inst-list { display: flex; flex-direction: column; gap: 8px; }
+.inst-card {
+  display: flex; align-items: center; gap: 12px; width: 100%; text-align: left;
+  padding: 12px 14px; border-radius: 12px; cursor: pointer;
+  background: var(--bg-secondary); border: 1px solid var(--border); color: var(--text-normal);
+}
+.inst-card:hover { border-color: color-mix(in srgb, var(--brand) 55%, var(--border)); }
+.inst-card.active { border-color: var(--brand); background: color-mix(in srgb, var(--brand) 10%, var(--bg-secondary)); }
+.inst-card.is-public { cursor: default; opacity: .85; border-style: dashed; }
+.inst-card-icon { font-size: 22px; width: 30px; text-align: center; }
+.inst-card-text { min-width: 0; display: flex; flex-direction: column; }
+.inst-card-text strong { font-size: 14px; color: var(--header-primary); }
+.inst-card-text small { font-size: 12px; color: var(--text-muted); }
+
+.inst-new, .inst-detail-head, .inst-add { display: flex; gap: 8px; align-items: center; }
+.inst-new input, .inst-detail-head input {
+  min-width: 0; flex: 1; height: 36px; padding: 0 10px; border-radius: 8px;
+  background: var(--bg-tertiary, var(--bg-primary)); border: 1px solid var(--border); color: var(--text-normal);
+}
+.inst-new .inst-new-icon, .inst-detail-head .inst-new-icon { flex: 0 0 46px; text-align: center; font-size: 16px; }
+.inst-name-input { font-size: 16px; font-weight: 700; }
+
+.inst-detail {
+  display: flex; flex-direction: column; gap: 12px; padding: 18px;
+  border-radius: 12px; background: var(--bg-secondary); border: 1px solid var(--border);
+}
+.inst-meta { margin: 0; font-size: 12.5px; color: var(--text-muted); }
+.inst-subtitle { margin: 6px 0 0; font-size: 14px; color: var(--header-primary); }
+.inst-add { align-items: flex-start; }
+.inst-add-picker { flex: 1; min-width: 0; }
+.inst-members { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; }
+.inst-members li {
+  display: flex; align-items: center; gap: 10px; padding: 8px 10px; border-radius: 9px;
+  background: var(--bg-primary); border: 1px solid var(--border);
+}
+.inst-member-name { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+.inst-member-name strong { font-size: 13.5px; color: var(--header-primary); }
+.inst-member-name small { font-size: 12px; color: var(--text-muted); }
+.inst-danger { display: flex; align-items: center; gap: 12px; margin-top: 8px; padding-top: 12px; border-top: 1px solid var(--border); }
+.inst-danger small { font-size: 12px; color: var(--text-muted); }
+.inst-error { margin: 0; color: var(--red, #f23f43); font-size: 13px; }
+
+/* Painel da Equipe → Música (components/admin/MusicKeysAdmin.jsx) */
+.mk-admin { display: flex; flex-direction: column; gap: 14px; max-width: 760px; }
+.mk-intro, .mk-note { margin: 0; font-size: 13.5px; line-height: 1.55; color: var(--text-muted); }
+.mk-intro strong { color: var(--header-primary); }
+.mk-note { font-size: 12px; }
+.mk-fields { display: grid; gap: 10px; }
+.mk-field { display: flex; flex-direction: column; gap: 5px; font-size: 13px; color: var(--text-normal); }
+.mk-field input { height: 38px; padding: 0 12px; border-radius: 9px; background: var(--bg-tertiary, var(--bg-primary)); border: 1px solid var(--border); color: var(--text-normal); font-family: ui-monospace, monospace; }
+.mk-set, .mk-unset { font-style: normal; font-size: 11px; font-weight: 700; padding: 1px 7px; border-radius: 999px; margin-left: 6px; }
+.mk-set { background: color-mix(in srgb, var(--green, #23a55a) 18%, transparent); color: var(--green, #23a55a); }
+.mk-unset { background: var(--bg-modifier-hover); color: var(--text-muted); }
+.mk-help { font-size: 13px; color: var(--text-normal); background: var(--bg-secondary); border: 1px solid var(--border); border-radius: 10px; padding: 10px 14px; }
+.mk-help summary { cursor: pointer; font-weight: 700; color: var(--header-primary); }
+.mk-help ol { margin: 8px 0 0; padding-left: 20px; display: grid; gap: 8px; line-height: 1.5; }
+.mk-help code { display: inline-block; margin-top: 4px; padding: 3px 7px; border-radius: 6px; background: var(--bg-primary); user-select: all; word-break: break-all; }
+.mk-ok { margin: 0; color: var(--green, #23a55a); font-size: 13px; }
+
+/* Compêndio BLACKOUT (só na instância BLACKOUT): versão + "Atualizar". */
+.inst-blackout { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; margin: 4px 0 6px; padding: 12px 14px; border-radius: 12px; background: #0b0b0d; border: 1px solid rgba(255, 255, 255, .14); color: #e8e8ec; }
+.inst-blackout-text { flex: 1 1 220px; display: flex; flex-direction: column; gap: 3px; min-width: 0; }
+.inst-blackout-text strong { letter-spacing: .12em; color: #fff; }
+.inst-blackout-text small { color: #a9a9b2; font-size: 12.5px; }
+.inst-blackout-text .inst-blackout-warn { color: #ffb347; }

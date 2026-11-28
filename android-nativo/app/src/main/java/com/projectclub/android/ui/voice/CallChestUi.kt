@@ -1,0 +1,183 @@
+package com.projectclub.android.ui.voice
+
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.RepeatMode
+import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.rememberInfiniteTransition
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.scaleIn
+import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.Text
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableLongStateOf
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.scale
+import androidx.compose.ui.geometry.CornerRadius
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.graphics.drawscope.translate
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import com.projectclub.android.voice.CallState
+import kotlinx.coroutines.delay
+
+private val Gold = Color(0xFFE8B93C)
+private val Wood = Color(0xFF8A5A2B)
+private val WoodLid = Color(0xFFA46A33)
+private val Ink = Color(0xFF3B2410)
+
+/** Baú desenhado em código (mesmo desenho do site). */
+@Composable
+private fun ChestArt(open: Boolean, modifier: Modifier = Modifier) {
+    Canvas(modifier.size(48.dp, 42.dp)) {
+        val u = size.width / 64f
+        val stroke = Stroke(2.5f * u)
+        drawRoundRect(Wood, Offset(6 * u, 24 * u), Size(52 * u, 28 * u), CornerRadius(4 * u))
+        drawRoundRect(Ink, Offset(6 * u, 24 * u), Size(52 * u, 28 * u), CornerRadius(4 * u), style = stroke)
+        drawRect(Gold, Offset(28 * u, 24 * u), Size(8 * u, 28 * u))
+        val lid = Path().apply {
+            moveTo(6 * u, 24 * u); quadraticTo(6 * u, 8 * u, 32 * u, 8 * u); quadraticTo(58 * u, 8 * u, 58 * u, 24 * u); close()
+        }
+        val lift = if (open) -10 * u else 0f
+        translate(top = lift) {
+            drawPath(lid, WoodLid)
+            drawPath(lid, Ink, style = stroke)
+            drawRect(Gold, Offset(28 * u, 9 * u), Size(8 * u, 15 * u))
+        }
+        drawRoundRect(Color(0xFFFFF1B8), Offset(29 * u, 26 * u), Size(6 * u, 7 * u), CornerRadius(1.5f * u))
+    }
+}
+
+/**
+ * Baú da call: aparece de vez em quando; quem tocar primeiro leva moedas.
+ * O servidor sorteia e decide quem ganhou — aqui só mostra.
+ */
+@Composable
+fun CallChestOverlay(
+    state: CallState, meId: String?, claim: ((String) -> Unit) -> Unit,
+    answerDuel: (Boolean, (String) -> Unit) -> Unit = { _, _ -> }, modifier: Modifier = Modifier,
+) {
+    val chest = state.chest
+    val result = state.chestResult
+    var error by remember { mutableStateOf<String?>(null) }
+    var now by remember { mutableLongStateOf(System.currentTimeMillis()) }
+    LaunchedEffect(chest?.id) { while (chest != null) { now = System.currentTimeMillis(); delay(1000) } }
+    LaunchedEffect(error) { if (error != null) { delay(3500); error = null } }
+
+    Column(modifier, horizontalAlignment = Alignment.End, verticalArrangement = Arrangement.spacedBy(6.dp)) {
+        AnimatedVisibility(chest != null, enter = scaleIn() + fadeIn(), exit = fadeOut()) {
+            val left = ((chest?.expiresAt ?: 0L) - now).coerceAtLeast(0L) / 1000
+            val pulse by rememberInfiniteTransition(label = "chest").animateFloat(1f, 1.06f, infiniteRepeatable(tween(800), RepeatMode.Reverse), label = "p")
+            Column(
+                Modifier.scale(pulse).clip(RoundedCornerShape(16.dp)).background(Color(0xE618191C))
+                    .border(1.dp, Gold.copy(alpha = 0.6f), RoundedCornerShape(16.dp))
+                    .clickable { claim { error = it } }
+                    .semantics { contentDescription = "Abrir o baú da call" }
+                    .padding(horizontal = 14.dp, vertical = 10.dp),
+                horizontalAlignment = Alignment.CenterHorizontally,
+            ) {
+                ChestArt(open = false)
+                Text("Baú da call!", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 13.sp)
+                Text("Toque pra abrir · ${left}s", color = Color.White.copy(alpha = 0.7f), fontSize = 11.sp)
+            }
+        }
+        error?.let {
+            Text(it, color = Color.White, fontSize = 12.sp, modifier = Modifier.width(220.dp).clip(RoundedCornerShape(8.dp)).background(Color(0xE618191C)).padding(8.dp))
+        }
+        state.duel?.let { d ->
+            val left = ((d.expiresAt - now).coerceAtLeast(0L)) / 1000
+            LaunchedEffect(d.id) { while (true) { now = System.currentTimeMillis(); delay(1000) } }
+            Column(
+                Modifier.width(260.dp).clip(RoundedCornerShape(14.dp)).background(Color(0xEB18191C))
+                    .border(1.dp, Gold.copy(alpha = 0.6f), RoundedCornerShape(14.dp)).padding(12.dp),
+            ) {
+                val title = when (meId) {
+                    d.toId -> "${d.fromName} te desafiou"
+                    d.fromId -> "Esperando ${d.toName} aceitar"
+                    else -> "${d.fromName} desafiou ${d.toName}"
+                }
+                Text(title, color = Color.White, fontWeight = FontWeight.Bold, fontSize = 13.sp)
+                Text("Duelo de dados valendo ${d.stake} moedas · ${left}s", color = Gold, fontSize = 12.sp)
+                if (meId == d.toId || meId == d.fromId) {
+                    Spacer(Modifier.height(8.dp))
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        if (meId == d.toId) {
+                            Text("Aceitar", color = Ink, fontWeight = FontWeight.Bold, fontSize = 13.sp,
+                                modifier = Modifier.clip(RoundedCornerShape(8.dp)).background(Gold).clickable { answerDuel(true) { error = it } }.padding(horizontal = 14.dp, vertical = 7.dp))
+                        }
+                        Text(if (meId == d.toId) "Recusar" else "Cancelar", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 13.sp,
+                            modifier = Modifier.clip(RoundedCornerShape(8.dp)).border(1.dp, Color.White.copy(alpha = 0.25f), RoundedCornerShape(8.dp)).clickable { answerDuel(false) { error = it } }.padding(horizontal = 14.dp, vertical = 7.dp))
+                    }
+                }
+            }
+        }
+        state.duelResult?.let { r ->
+            fun who(id: String, name: String) = if (id == meId) "Você" else name
+            val winner = when (r.winnerId) { null -> null; r.fromId -> who(r.fromId, r.fromName); else -> who(r.toId, r.toName) }
+            Column(
+                Modifier.clip(RoundedCornerShape(14.dp)).background(Color(0xEB18191C))
+                    .then(if (r.winnerId != null && r.winnerId == meId) Modifier.border(1.dp, Gold, RoundedCornerShape(14.dp)) else Modifier)
+                    .padding(horizontal = 12.dp, vertical = 8.dp),
+            ) {
+                Text("${who(r.fromId, r.fromName)} ${r.fromRoll} × ${r.toRoll} ${who(r.toId, r.toName)}", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 13.sp)
+                Text(if (winner == null) "Empate! Ninguém perdeu nada." else "$winner levou ${r.stake} moedas", color = Gold, fontSize = 12.sp)
+            }
+        }
+        state.tips.forEach { t ->
+            val mineTip = t.toId != null && t.toId == meId
+            Column(
+                Modifier.clip(RoundedCornerShape(14.dp)).background(Color(0xEB18191C))
+                    .then(if (mineTip) Modifier.border(1.dp, Gold, RoundedCornerShape(14.dp)) else Modifier)
+                    .padding(horizontal = 12.dp, vertical = 8.dp),
+            ) {
+                Text("${if (t.fromId == meId) "Você" else t.fromName} deu ${t.amount} moedas", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 13.sp)
+                Text("pra ${if (mineTip) "você" else t.toName}", color = Gold, fontSize = 12.sp)
+            }
+        }
+        AnimatedVisibility(chest == null && result != null, enter = fadeIn(), exit = fadeOut()) {
+            val r = result ?: return@AnimatedVisibility
+            val mine = r.userId != null && r.userId == meId
+            Row(
+                Modifier.clip(RoundedCornerShape(16.dp)).background(Color(0xEB18191C))
+                    .then(if (mine) Modifier.border(1.dp, Gold, RoundedCornerShape(16.dp)) else Modifier)
+                    .padding(start = 10.dp, end = 14.dp, top = 8.dp, bottom = 8.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                ChestArt(open = true)
+                Spacer(Modifier.width(10.dp))
+                Column {
+                    Text(if (mine) "Você abriu o baú" else "${r.name} abriu o baú", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 13.sp)
+                    Text("+${r.coins} moedas" + (if (r.gems > 0) " · +${r.gems} gemas" else ""), color = Gold, fontWeight = FontWeight.Bold, fontSize = 13.sp)
+                }
+            }
+        }
+    }
+}

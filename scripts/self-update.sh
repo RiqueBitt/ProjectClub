@@ -1,0 +1,90 @@
+#!/bin/sh
+# Atualiza o Project Club DENTRO do container da Shard Cloud a partir do
+# branch `deploy` (main + client/dist já compilado pelo CI). Chamado pelo
+# vigia de deploy (VPS projectclub-voz, scripts/deploy-watch.sh) ou pelo
+# workflow deploy.yml via POST /api/apps/{id}/exec; depois disso o app é
+# reiniciado e o scripts/deploy.js instala dependências e sobe o servidor.
+#
+# Não toca em server/uploads nem em nada fora das pastas de código (e do
+# binário do servidor em Rust, rust/bin).
+#   uso: sh self-update.sh <sha-do-branch-deploy>
+set -eu
+SHA="${1:?informe o SHA}"
+APP=/app
+TMP=/tmp/pc-update
+rm -rf "$TMP" && mkdir -p "$TMP"
+curl -fsSL -o "$TMP/pacote.tar.gz" "https://codeload.github.com/RiqueBitt/ProjectClub/tar.gz/$SHA"
+tar xzf "$TMP/pacote.tar.gz" -C "$TMP" \
+  --wildcards '*/server/src' '*/server/prisma' '*/server/scripts' '*/server/package.json' \
+  '*/scripts' '*/client/dist' '*/client/package.json' '*/package.json' '*/package-lock.json'
+# Servidor em Rust (rust/bin/pc-server, compilado pelo CI): vem junto quando
+# existe; versão antiga do branch sem ele não é erro (o app sobe só com o Node).
+tar xzf "$TMP/pacote.tar.gz" -C "$TMP" --wildcards '*/rust/bin' 2>/dev/null || true
+rm -f "$TMP/pacote.tar.gz"
+SRC=$(find "$TMP" -mindepth 1 -maxdepth 1 -type d | head -1)
+test -f "$SRC/client/dist/index.html" || { echo "DEPLOY-FALHOU: sem client/dist"; exit 1; }
+test -f "$SRC/server/src/index.js" || { echo "DEPLOY-FALHOU: sem server/src"; exit 1; }
+# Binário cortado no caminho não entra: confere com o .sha256 que veio junto.
+if [ -f "$SRC/rust/bin/pc-server" ]; then
+  WANT=$(cut -d' ' -f1 "$SRC/rust/bin/pc-server.sha256" 2>/dev/null || true)
+  GOT=$(sha256sum "$SRC/rust/bin/pc-server" | cut -d' ' -f1)
+  if [ -n "$WANT" ] && [ "$WANT" != "$GOT" ]; then echo "DEPLOY-FALHOU: binário do Rust não confere"; exit 1; fi
+  chmod +x "$SRC/rust/bin/pc-server"
+fi
+
+# Quem está com o site aberto ainda tem a versão anterior na tela: ao abrir
+# uma parte que carrega sob demanda, o navegador pede o arquivo ANTIGO
+# (nome com código, ex.: assets/LojaPage-ab12cd.js). Antes a troca apagava
+# esses arquivos e a pessoa via erro e a página recarregava sozinha. Agora
+# os arquivos de assets/ das versões dos últimos 7 dias vão junto pra pasta
+# nova (o nome muda quando o conteúdo muda, então nunca há conflito; `cp -p`
+# mantém a data original, e é por ela que os velhos saem depois).
+keep_old_assets() {
+  old="$APP/client/dist/assets"
+  new="$SRC/client/dist/assets"
+  [ -d "$old" ] && [ -d "$new" ] || return 0
+  find "$old" -maxdepth 1 -type f -mtime -7 2>/dev/null | while IFS= read -r f; do
+    b=$(basename "$f")
+    [ -e "$new/$b" ] || cp -p "$f" "$new/$b" 2>/dev/null || true
+  done
+}
+keep_old_assets || true
+
+# Troca pasta por pasta (renomear é instantâneo: nunca fica meio copiado).
+for p in server/src server/prisma server/scripts scripts client/dist; do
+  rm -rf "$APP/$p.novo" "$APP/$p.velho"
+  cp -a "$SRC/$p" "$APP/$p.novo"
+  if [ -e "$APP/$p" ]; then mv "$APP/$p" "$APP/$p.velho"; fi
+  mv "$APP/$p.novo" "$APP/$p"
+  rm -rf "$APP/$p.velho"
+done
+# Club Penguin removido (nov/2026): tira o servidor do jogo e a mídia baixada
+# por ele (o boot também apaga a mídia, ver server/src/services/cpCleanup.js).
+# É limpeza, não pode parar a publicação: no app da Shard Cloud parte dessa
+# mídia é de outro dono no disco e o `rm` devolvia "Permission denied"; com
+# o `set -e` o script morria aqui, DEPOIS de trocar as pastas e ANTES de
+# trocar o Rust, os package.json e o .deployed-sha — o vigia tentava de novo
+# a cada minuto e nenhuma versão nova entrava no ar.
+rm -rf "$APP/server/waddle" "$APP/server/data/waddle" 2>/dev/null \
+  || echo "AVISO: sobrou mídia do Club Penguin em server/data/waddle (sem permissão pra apagar)"
+# Rust: troca a pasta do binário do mesmo jeito (o processo que está rodando
+# continua com o arquivo antigo até reiniciar). Sem binário nesta versão, tira
+# o antigo pra não rodar Rust de uma versão com Node de outra.
+if [ -f "$SRC/rust/bin/pc-server" ]; then
+  mkdir -p "$APP/rust"
+  rm -rf "$APP/rust/bin.novo" "$APP/rust/bin.velho"
+  cp -a "$SRC/rust/bin" "$APP/rust/bin.novo"
+  if [ -e "$APP/rust/bin" ]; then mv "$APP/rust/bin" "$APP/rust/bin.velho"; fi
+  mv "$APP/rust/bin.novo" "$APP/rust/bin"
+  rm -rf "$APP/rust/bin.velho"
+  echo "RUST-OK $(cat "$APP/rust/bin/pc-server.sha256" 2>/dev/null | cut -c1-12)"
+else
+  rm -rf "$APP/rust/bin"
+  echo "RUST-SEM-BINARIO"
+fi
+cp "$SRC/package.json" "$SRC/package-lock.json" "$APP/"
+cp "$SRC/server/package.json" "$APP/server/package.json"
+cp "$SRC/client/package.json" "$APP/client/package.json"
+echo "$SHA" > "$APP/.deployed-sha"
+rm -rf "$TMP"
+echo "DEPLOY-OK $SHA"

@@ -1,0 +1,1385 @@
+/* ============================================================
+   Visual novo do Project Club (nov/2026) — "estilo fundido"
+   ------------------------------------------------------------
+   O preto e branco do site (fonte Archivo larga nos títulos, folha
+   branca, linhas finas) com o grafite e o azul do app. Uma regra só
+   pra tudo: o item ATIVO vira uma pílula "de papel" (branca no escuro,
+   preta no claro); a cor de destaque fica só nos botões de ação.
+
+   Liga com <html data-visual="club"> (utils/appearance.js) e é o
+   padrão. "Visual clássico" em Configurações → Aparência tira o
+   atributo e tudo volta ao de antes — por isso TODA regra daqui começa
+   com html[data-visual='club'].
+
+   Temas: data-club-theme = preto | grafite | meianoite | claro
+   Destaque: data-accent = azul | roxo | verde | laranja | rosa |
+             vermelho | amarelo | mono
+   As páginas já usam as variáveis de tema (--bg-*, --text-*, --brand),
+   então trocar os tokens aqui muda o app inteiro de uma vez.
+   ============================================================ */
+
+@import '@fontsource-variable/archivo/wdth.css';
+@import '@fontsource/jetbrains-mono/400.css';
+@import '@fontsource/jetbrains-mono/500.css';
+
+/* ---------------------------------------------------------------
+   1. Tokens
+   --------------------------------------------------------------- */
+html[data-visual='club'] {
+  --club-font: 'Archivo Variable', 'Archivo', system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, 'Apple Color Emoji', 'Segoe UI Emoji', 'Noto Color Emoji', sans-serif;
+  --club-mono: 'JetBrains Mono', ui-monospace, 'SFMono-Regular', Menlo, Consolas, monospace;
+  --club-r-sm: 10px;
+  --club-r-md: 14px;
+  --club-r-lg: 20px;
+  --club-r-xl: 28px;
+  --club-rail-w: 68px;
+  --club-ease: cubic-bezier(.2, .8, .2, 1);
+
+  /* Preto (padrão) */
+  --bg-deepest: #0B0B0C;
+  --bg-secondary: #0E0F11;
+  --bg-primary: #0B0B0C;
+  --bg-primary-solid: #0B0B0C;
+  --bg-elevated: #17181C;
+  --bg-elevated-solid: #17181C;
+  --bg-floating: #141518;
+  --bg-floating-solid: #141518;
+  --bg-modifier-hover: rgba(255, 255, 255, .06);
+  --header-primary: #F4F4F5;
+  --header-secondary: #A6A8AF;
+  --text-normal: #DCDDE0;
+  --text-muted: #7D8088;
+  --interactive-active: #FFFFFF;
+  --border: rgba(255, 255, 255, .08);
+  --divider-strong: rgba(255, 255, 255, .14);
+  --scrollbar: #26272C;
+  --green: #2DBE6C;
+  --red: #F04848;
+
+  --club-surface: #121316;
+  --club-surface-2: #1A1B1F;
+  --club-line: rgba(255, 255, 255, .08);
+  --club-line-2: rgba(255, 255, 255, .15);
+  --club-sel-bg: #FFFFFF;
+  --club-sel-fg: #0B0B0C;
+  --club-paper: #FFFFFF;
+  --club-paper-fg: #0B0B0C;
+  --club-paper-muted: #5C5E66;
+  --club-paper-line: #E4E4E7;
+  --club-icon-filter: none; /* ícones PNG já vêm cinza-claro */
+  --club-icon-sel-filter: brightness(0);
+  --club-shadow: 0 18px 50px rgba(0, 0, 0, .5);
+
+  --club-accent: #4C9FFF;
+  --brand: var(--club-accent);
+  --brand-hover: color-mix(in srgb, var(--club-accent) 82%, #000);
+  --club-on-brand: #0B0B0C;
+  --text-link: color-mix(in srgb, var(--club-accent) 80%, #fff);
+  color-scheme: dark;
+}
+
+html[data-visual='club'][data-club-theme='grafite'] {
+  --bg-deepest: #141518;
+  --bg-secondary: #18191C;
+  --bg-primary: #1B1C20;
+  --bg-primary-solid: #1B1C20;
+  --bg-elevated: #24252A;
+  --bg-elevated-solid: #24252A;
+  --bg-floating: #212227;
+  --bg-floating-solid: #212227;
+  --text-muted: #8A8D95;
+  --scrollbar: #33343A;
+  --club-surface: #202126;
+  --club-surface-2: #282A30;
+}
+
+html[data-visual='club'][data-club-theme='meianoite'] {
+  --bg-deepest: #070B16;
+  --bg-secondary: #0A0F1D;
+  --bg-primary: #0B1222;
+  --bg-primary-solid: #0B1222;
+  --bg-elevated: #141D33;
+  --bg-elevated-solid: #141D33;
+  --bg-floating: #111A2E;
+  --bg-floating-solid: #111A2E;
+  --header-secondary: #A3ACC2;
+  --text-normal: #D8DEEC;
+  --text-muted: #7C88A6;
+  --scrollbar: #1D2842;
+  --club-surface: #101A2E;
+  --club-surface-2: #172238;
+  --club-line: rgba(160, 180, 255, .1);
+  --club-line-2: rgba(160, 180, 255, .18);
+  --border: rgba(160, 180, 255, .1);
+  --divider-strong: rgba(160, 180, 255, .18);
+}
+
+html[data-visual='club'][data-club-theme='claro'] {
+  --bg-deepest: #F4F4F5;
+  --bg-secondary: #FAFAFA;
+  --bg-primary: #FFFFFF;
+  --bg-primary-solid: #FFFFFF;
+  --bg-elevated: #F1F1F3;
+  --bg-elevated-solid: #F1F1F3;
+  --bg-floating: #FFFFFF;
+  --bg-floating-solid: #FFFFFF;
+  --bg-modifier-hover: rgba(11, 11, 12, .05);
+  --header-primary: #0B0B0C;
+  --header-secondary: #4B4D55;
+  --text-normal: #1D1E22;
+  --text-muted: #6B6E76;
+  --interactive-active: #0B0B0C;
+  --border: rgba(11, 11, 12, .09);
+  --divider-strong: rgba(11, 11, 12, .16);
+  --scrollbar: #D4D4D8;
+  --club-surface: #F6F6F7;
+  --club-surface-2: #EDEDEF;
+  --club-line: rgba(11, 11, 12, .09);
+  --club-line-2: rgba(11, 11, 12, .16);
+  --club-sel-bg: #0B0B0C;
+  --club-sel-fg: #FFFFFF;
+  --club-paper: #0B0B0C;
+  --club-paper-fg: #FFFFFF;
+  --club-paper-muted: #A6A8AF;
+  --club-paper-line: rgba(255, 255, 255, .14);
+  --club-icon-filter: brightness(0) opacity(.6);
+  --club-icon-sel-filter: brightness(0) invert(1);
+  --club-shadow: 0 18px 50px rgba(11, 11, 12, .14);
+  --text-link: color-mix(in srgb, var(--club-accent) 70%, #000);
+  --green: #16A34A;
+  color-scheme: light;
+}
+
+/* Temas coloridos (Configurações → Aparência → Temas coloridos, utils/extraPrefs.js):
+   eles pintam --bg-* e --brand direto no <html>; aqui o visual novo segue
+   as cores deles — superfícies tingidas, destaque do tema e sempre escuro. */
+html[data-visual='club'][data-pc-ctheme] {
+  --club-accent: var(--brand);
+  --club-surface: color-mix(in srgb, var(--bg-elevated) 55%, var(--bg-secondary));
+  --club-surface-2: var(--bg-elevated);
+  --club-line: rgba(255, 255, 255, .09);
+  --club-line-2: rgba(255, 255, 255, .16);
+  --club-sel-bg: #FFFFFF;
+  --club-sel-fg: #0B0B0C;
+  --club-paper: #FFFFFF;
+  --club-paper-fg: #0B0B0C;
+  --club-paper-muted: #5C5E66;
+  --club-paper-line: #E4E4E7;
+  --club-icon-filter: none;
+  --club-icon-sel-filter: brightness(0);
+  --club-on-brand: #0B0B0C;
+  --header-primary: #F4F4F5;
+  --header-secondary: #B5B8C0;
+  --text-normal: #DCDDE0;
+  --text-muted: #9A9DA6;
+  --interactive-active: #FFFFFF;
+  color-scheme: dark;
+}
+html[data-visual='club'][data-pc-ctheme] .club-rail,
+html[data-visual='club'][data-pc-ctheme] .n2-sidebar,
+html[data-visual='club'][data-pc-ctheme] .members-list { background: color-mix(in srgb, var(--bg-secondary) 88%, transparent); }
+
+/* Cores de destaque */
+html[data-visual='club'][data-accent='roxo'] { --club-accent: #A970FF; }
+html[data-visual='club'][data-accent='verde'] { --club-accent: #3DD68C; }
+html[data-visual='club'][data-accent='laranja'] { --club-accent: #FF8A3D; }
+html[data-visual='club'][data-accent='rosa'] { --club-accent: #FF6FAE; }
+html[data-visual='club'][data-accent='vermelho'] { --club-accent: #FF5A5F; }
+html[data-visual='club'][data-accent='amarelo'] { --club-accent: #F5C518; }
+html[data-visual='club'][data-accent='mono'] { --club-accent: #FFFFFF; --text-link: #FFFFFF; }
+html[data-visual='club'][data-club-theme='claro'][data-accent='mono'] { --club-accent: #0B0B0C; --club-on-brand: #FFFFFF; --text-link: #0B0B0C; }
+html[data-visual='club'][data-club-theme='claro'][data-accent='amarelo'] { --club-accent: #E0B000; }
+html[data-visual='club'][data-club-theme='claro'][data-accent='verde'] { --club-accent: #1FB86E; }
+
+/* O tema preto antigo desenhava "bordas iluminadas" com brilho azul em
+   todo cartão, herói e janela (styles/appearance.css). No visual novo:
+   sem brilho, linha fina e uma sombra só nas janelas que flutuam. */
+html[data-visual='club'] {
+  --lit-border-color: var(--club-line);
+  --lit-glow: 0 0 0 0 transparent;
+  --lit-shadow: var(--club-shadow);
+}
+html[data-visual='club'][data-theme='amoled'] :is(
+  .settings-block, .pc-layout-panel, .poll-card, .vc-lobby-card, .error-boundary-card,
+  [class$='-card']:not(.mini-profile-card):not([class*='avatar']), [class*='-card ']:not(.mini-profile-card):not([class*='avatar']),
+  [class*='-hero'], [class*='-tile']:not([class*='gif-picker'])
+):not(.lp *) { box-shadow: none; }
+
+/* ---------------------------------------------------------------
+   2. Base: tipografia, rolagem, foco
+   --------------------------------------------------------------- */
+html[data-visual='club'] body {
+  font-family: var(--club-font);
+  font-stretch: 100%;
+  -webkit-font-smoothing: antialiased;
+  background: var(--bg-deepest);
+}
+html[data-visual='club'].pc-legible-font body { font-family: 'Atkinson Hyperlegible', var(--club-font); }
+html[data-visual='club'] :is(code, kbd, pre, .md-inline-code, .md-codeblock code) { font-family: var(--club-mono); }
+html[data-visual='club'] ::selection { background: color-mix(in srgb, var(--club-accent) 35%, transparent); }
+html[data-visual='club'] :focus-visible { outline: 2px solid var(--club-accent); outline-offset: 2px; }
+html[data-visual='club'] ::-webkit-scrollbar-thumb { background: var(--scrollbar); border-radius: 999px; border: 3px solid transparent; background-clip: padding-box; }
+html[data-visual='club'] ::-webkit-scrollbar-track { background: transparent; }
+
+/* Títulos de página na Archivo larga (a "voz" do site) */
+html[data-visual='club'] :is(h1, .club-wide, .chat-title, .sidebar-header-name, .gh-brand-name, .settings-modal-content h2, .modal-header h2, .modal-title) {
+  font-family: var(--club-font);
+  font-stretch: 125%;
+  font-weight: 800;
+  letter-spacing: -0.035em;
+}
+html[data-visual='club'] h2 { letter-spacing: -0.02em; }
+
+/* Ícones PNG (cinza-claro): no tema claro ficam escuros. */
+html[data-visual='club'] img:is(.ui-icon, .ui-icon-sm, .ui-icon-lg) { filter: var(--club-icon-filter); }
+
+/* ---------------------------------------------------------------
+   3. Peças comuns: botões, campos, chips, menus, janelas
+   --------------------------------------------------------------- */
+html[data-visual='club'] .btn-primary {
+  background: var(--brand); color: var(--club-on-brand);
+  border-radius: 999px; font-weight: 650; padding-left: 18px; padding-right: 18px;
+  box-shadow: none;
+}
+html[data-visual='club'] .btn-primary:hover { background: var(--brand-hover); box-shadow: none; transform: none; }
+html[data-visual='club'] .btn-primary :is(img, svg) { filter: none; }
+html[data-visual='club'] .btn-secondary {
+  background: transparent; color: var(--header-primary);
+  border: 1px solid var(--club-line-2); border-radius: 999px; font-weight: 600;
+}
+html[data-visual='club'] .btn-secondary:hover { background: var(--bg-modifier-hover); transform: none; }
+html[data-visual='club'] .btn-danger { border-radius: 999px; font-weight: 600; }
+
+html[data-visual='club'] :is(input[type='text'], input[type='search'], input[type='email'], input[type='password'], input[type='number'], input[type='url'], input:not([type]), textarea, select):not(.message-input):not([class*='range']) {
+  border-radius: 12px;
+}
+html[data-visual='club'] :is(input, textarea, select):focus-visible { outline-color: var(--club-accent); }
+
+html[data-visual='club'] .chip { border-radius: 999px; background: var(--bg-elevated); }
+
+html[data-visual='club'] .modal-overlay { background: rgba(5, 5, 6, .62); backdrop-filter: blur(6px); }
+html[data-visual='club'][data-club-theme='claro'] .modal-overlay { background: rgba(11, 11, 12, .28); }
+html[data-visual='club'] .modal-box {
+  background: var(--bg-floating); border: 1px solid var(--club-line);
+  border-radius: 24px; box-shadow: var(--club-shadow);
+}
+
+html[data-visual='club'] :is(.context-menu, .dropdown-menu, .popover) {
+  background: var(--bg-floating); border: 1px solid var(--club-line-2);
+  border-radius: 14px; box-shadow: var(--club-shadow); padding: 6px;
+}
+html[data-visual='club'] :is(.context-menu-item, .dropdown-menu button) { border-radius: 9px; }
+html[data-visual='club'] :is(.context-menu-item:hover:not(:disabled), .dropdown-menu button:hover) {
+  background: var(--club-sel-bg); color: var(--club-sel-fg);
+}
+html[data-visual='club'] .context-menu-item:hover:not(:disabled) :is(img) { filter: var(--club-icon-sel-filter); }
+html[data-visual='club'] .context-menu-item.danger:hover:not(:disabled) { background: var(--red); color: #fff; }
+
+html[data-visual='club'] .hover-tip {
+  background: var(--club-sel-bg); color: var(--club-sel-fg); border: 0;
+  border-radius: 9px; font-weight: 600; box-shadow: var(--club-shadow);
+}
+
+/* ---------------------------------------------------------------
+   4. Barra do topo
+   --------------------------------------------------------------- */
+html[data-visual='club'] .layout-n2 .top-search-bar {
+  background: var(--bg-deepest);
+  border-bottom: 1px solid var(--club-line);
+}
+html[data-visual='club'] .layout-n2 .top-search-bar-input {
+  height: 30px; border-radius: 999px; border: 0;
+  background: var(--bg-elevated); font-size: 13px; padding-left: 34px;
+}
+html[data-visual='club'] .layout-n2 .top-search-bar-icon-btn { border-radius: 10px; color: var(--text-muted); }
+html[data-visual='club'] .layout-n2 .top-search-bar-icon-btn:hover { color: var(--header-primary); }
+html[data-visual='club'] .n2-top-title { font-weight: 600; color: var(--header-secondary); font-size: 13.5px; }
+
+/* ---------------------------------------------------------------
+   5. Coluna da esquerda: barra de ícones + canais
+   --------------------------------------------------------------- */
+@media (min-width: 601px) {
+  html[data-visual='club'].layout-n2-root { --n2-sidebar-width: 320px; }
+  html[data-visual='club'].layout-n2-root[data-pc-sidebar] { --n2-sidebar-width: max(288px, var(--pc-sidebar-w)); }
+}
+@media (max-width: 1100px) and (min-width: 601px) {
+  html[data-visual='club'].layout-n2-root:not([data-pc-sidebar]) { --n2-sidebar-width: 296px; }
+}
+
+html[data-visual='club'] .n2-sidebar { background: var(--bg-secondary); border-right: 1px solid var(--club-line); }
+html[data-visual='club'] .n2-sidebar.has-club-rail { flex-direction: row; }
+html[data-visual='club'] .n2-sidebar.has-club-rail > .sidebar { flex: 1 1 auto; min-width: 0; }
+
+.club-rail {
+  flex: 0 0 var(--club-rail-w, 68px); width: var(--club-rail-w, 68px);
+  display: flex; flex-direction: column; align-items: center; gap: 6px;
+  padding: 12px 0 14px; background: var(--bg-deepest);
+  border-right: 1px solid var(--club-line, var(--border));
+  overflow-y: auto; overflow-x: hidden; scrollbar-width: none;
+}
+.club-rail::-webkit-scrollbar { display: none; }
+.club-rail-group { display: flex; flex-direction: column; align-items: center; gap: 6px; }
+.club-rail-grow { flex: 1 1 auto; min-height: 8px; }
+.club-rail-sep { width: 24px; height: 1px; background: var(--club-line-2, var(--border)); margin: 4px 0; flex-shrink: 0; }
+.club-rail-btn {
+  position: relative; width: 44px; height: 44px; flex-shrink: 0;
+  display: grid; place-items: center; border-radius: 14px;
+  color: var(--text-muted); background: transparent;
+  transition: background-color .15s var(--club-ease), color .15s var(--club-ease), border-radius .2s var(--club-ease);
+}
+.club-rail-btn:hover { background: var(--bg-modifier-hover); color: var(--header-primary); }
+.club-rail-btn.is-active { background: var(--club-sel-bg); color: var(--club-sel-fg); }
+.club-rail-btn.is-gold { color: #E9B949; }
+.club-rail-btn.is-gold.is-active { color: var(--club-sel-fg); }
+.club-rail-dot {
+  position: absolute; top: 8px; right: 8px; width: 8px; height: 8px; border-radius: 50%;
+  background: var(--header-primary); box-shadow: 0 0 0 2.5px var(--bg-deepest);
+}
+.club-rail-dot.is-live { background: var(--red); }
+.club-rail-count {
+  position: absolute; top: 2px; right: 0; min-width: 18px; height: 18px; padding: 0 5px;
+  border-radius: 999px; display: grid; place-items: center;
+  background: var(--red); color: #fff; font-size: 10.5px; font-weight: 700; line-height: 1;
+  box-shadow: 0 0 0 2.5px var(--bg-deepest);
+}
+@media (max-width: 600px) {
+  .club-rail { display: none; }
+}
+/* Com a barra de ícones, os destaques saem da lista de canais (no PC). */
+@media (min-width: 601px) {
+  html[data-visual='club'] .n2-sidebar.has-club-rail .featured-channels { display: none; }
+}
+
+/* Cabeçalho e banner da comunidade */
+html[data-visual='club'] .n2-sidebar .sidebar-header { font-size: 17px; padding: 14px 14px 12px 18px; }
+html[data-visual='club'] .n2-sidebar .sidebar-header-name,
+html[data-visual='club'] .n2-sidebar .sidebar-header > span:first-child { font-stretch: 125%; font-weight: 800; letter-spacing: -0.035em; }
+@media (min-width: 601px) {
+  html[data-visual='club'] .n2-sidebar .sidebar-banner-img { max-height: 104px; }
+}
+
+/* Categorias e canais */
+html[data-visual='club'] .n2-sidebar .sidebar-list { padding: 6px 12px 16px 12px; }
+html[data-visual='club'] .n2-sidebar .category-block { margin-top: 14px; }
+html[data-visual='club'] .n2-sidebar .category-label {
+  font-size: 12px; font-weight: 600; color: var(--text-muted);
+  padding: 6px 8px 6px 10px; letter-spacing: 0;
+}
+html[data-visual='club'] .n2-sidebar .channel-item {
+  min-height: 36px; padding: 7px 12px 7px 10px; border-radius: 999px;
+  font-size: 14.5px; font-weight: 500; gap: 10px; color: var(--text-muted);
+  transition: background-color .12s var(--club-ease), color .12s var(--club-ease);
+}
+html[data-visual='club'] .n2-sidebar .channel-item:hover { background: var(--bg-modifier-hover); color: var(--text-normal); }
+html[data-visual='club'] .n2-sidebar .channel-item.active {
+  background: var(--club-sel-bg); color: var(--club-sel-fg); font-weight: 650;
+}
+/* Só o ícone padrão (#, alto-falante) escurece no canal aberto; emoji e
+   imagem que a staff escolheu pro canal ficam com as cores de verdade. */
+html[data-visual='club'] .n2-sidebar .channel-item.active :is(img.ui-icon:not(.custom-icon), span.channel-hash:not(.custom-icon)) { filter: var(--club-icon-sel-filter); opacity: .55; }
+html[data-visual='club'] .n2-sidebar .channel-item .custom-icon { filter: none !important; opacity: 1 !important; }
+html[data-visual='club'] .n2-sidebar .channel-item.active .icon-btn-small img { filter: var(--club-icon-sel-filter); }
+html[data-visual='club'] .n2-sidebar .channel-item .ui-icon { width: 17px; height: 17px; opacity: .8; }
+html[data-visual='club'] .n2-sidebar .channel-item.unread,
+html[data-visual='club'] .n2-sidebar .channel-item.has-unread { color: var(--header-primary); font-weight: 650; }
+
+/* Destaques (celular / sem barra de ícones): lista limpa, ativo vira pílula */
+html[data-visual='club'] .featured-channel { border-radius: 999px; }
+html[data-visual='club'] .featured-channel.active { background: var(--club-sel-bg) !important; color: var(--club-sel-fg) !important; }
+html[data-visual='club'] .featured-channel.active .featured-channel-icon { color: var(--club-sel-fg) !important; background: transparent !important; }
+
+/* Rodapé do usuário */
+html[data-visual='club'] .n2-sidebar .user-status-bar {
+  background: transparent; border-top: 1px solid var(--club-line);
+  margin: 0; padding: 10px 10px 10px 14px; border-radius: 0;
+}
+html[data-visual='club'] .user-status-bar .usb-btn { border-radius: 10px; color: var(--text-muted); }
+html[data-visual='club'] .user-status-bar .usb-btn:hover { background: var(--bg-modifier-hover); color: var(--header-primary); }
+
+/* ---------------------------------------------------------------
+   6. Chat
+   --------------------------------------------------------------- */
+html[data-visual='club'] .app-main { background: var(--bg-primary); }
+html[data-visual='club'] .chat-header {
+  min-height: 56px; background: var(--bg-primary);
+  border-bottom: 1px solid var(--club-line); box-shadow: none; padding-left: 28px;
+}
+html[data-visual='club'] .chat-title { font-size: 18px; }
+html[data-visual='club'] .chat-header-icon { background: transparent !important; color: var(--text-muted); width: auto; height: auto; padding: 0; margin-right: -2px; border-radius: 0; }
+html[data-visual='club'] .chat-header-icon svg { opacity: .8; }
+html[data-visual='club'] .chat-header-icon .custom-icon { filter: none; opacity: 1; }
+html[data-visual='club'] .chat-header-sub { color: var(--text-muted); }
+html[data-visual='club'] .chat-header-btn { border-radius: 10px; color: var(--text-muted); }
+html[data-visual='club'] .chat-header-btn:hover { background: var(--bg-modifier-hover); color: var(--header-primary); }
+
+html[data-visual='club'] .chat-intro { padding-left: 28px; padding-right: 28px; }
+html[data-visual='club'] .chat-intro-icon { display: none; }
+html[data-visual='club'] .chat-intro-title {
+  font-stretch: 125%; font-weight: 800; letter-spacing: -0.045em;
+  font-size: clamp(26px, 2.6vw, 36px); line-height: 1.05;
+}
+html[data-visual='club'] .chat-intro-text { color: var(--text-muted); }
+
+html[data-visual='club'] .chat-day-sep { color: var(--text-muted); }
+html[data-visual='club'] .chat-day-sep :is(span, .chat-day-sep-label) {
+  background: transparent; border: 0; font-size: 12px; font-weight: 500; color: var(--text-muted);
+}
+html[data-visual='club'] .message-list .message { border-radius: 14px; }
+html[data-visual='club'] .message-list .message:hover { background: color-mix(in srgb, var(--header-primary) 3.5%, transparent); }
+html[data-visual='club'] .message-meta :is(.message-time, time, .timestamp) { font-family: var(--club-mono); font-size: 11px; color: var(--text-muted); letter-spacing: 0; }
+html[data-visual='club'] .message-content { line-height: 1.5; }
+html[data-visual='club'] .message-hover-actions {
+  background: var(--bg-floating); border: 1px solid var(--club-line-2);
+  border-radius: 12px; box-shadow: var(--club-shadow); padding: 3px;
+}
+html[data-visual='club'] .message-hover-action { border-radius: 9px; }
+
+html[data-visual='club'] .reaction-chip {
+  border-radius: 999px; background: transparent;
+  border: 1px solid var(--club-line-2); padding: 2px 9px; min-height: 26px;
+}
+html[data-visual='club'] .reaction-chip:hover { background: var(--bg-modifier-hover); }
+html[data-visual='club'] .reaction-chip.mine {
+  border-color: var(--club-accent); color: var(--club-accent);
+  background: color-mix(in srgb, var(--club-accent) 9%, transparent);
+}
+
+html[data-visual='club'] .chat-composer { background: transparent; padding-left: 24px; padding-right: 24px; }
+html[data-visual='club'] .chat-composer .message-input-row {
+  background: var(--bg-elevated); border: 1px solid transparent; border-radius: 18px;
+  min-height: 50px; box-shadow: none;
+}
+html[data-visual='club'] .chat-composer .message-input-row:focus-within { border-color: var(--club-line-2); }
+html[data-visual='club'] .chat-composer-btn { border-radius: 10px; color: var(--text-muted); }
+html[data-visual='club'] .chat-send-btn { border-radius: 999px; background: var(--brand); color: var(--club-on-brand); }
+html[data-visual='club'] .chat-send-btn :is(img, svg) { filter: none; }
+html[data-visual='club'] .chat-typing { color: var(--text-muted); font-size: 12px; }
+
+/* ---------------------------------------------------------------
+   7. Painel da direita: Agora + membros
+   --------------------------------------------------------------- */
+html[data-visual='club'] .layout-n2 .members-list {
+  background: var(--bg-secondary); border-left: 1px solid var(--club-line); padding: 0 0 14px;
+}
+html[data-visual='club'] .layout-n2 .members-list.has-agora { --members-width: 280px; }
+@media (min-width: 1101px) {
+  html[data-visual='club'] .app-shell.layout-n2:has(.members-list.has-agora) { --members-width: 284px; }
+}
+html[data-visual='club'] .members-list-head {
+  padding: 16px 18px 6px 20px; border-top: 1px solid var(--club-line);
+  font-size: 13px; font-weight: 600; color: var(--header-secondary);
+}
+html[data-visual='club'] .members-list.has-agora .members-list-head { margin-top: 4px; }
+html[data-visual='club'] .layout-n2 .member-group-label { font-size: 12px; font-weight: 600; color: var(--text-muted); padding: 12px 20px 6px; }
+html[data-visual='club'] .layout-n2 .member-row { border-radius: 12px; margin: 0 8px 1px; padding: 6px 12px; }
+
+.agora { padding: 0 0 6px; }
+.agora-head { height: 56px; display: flex; align-items: center; gap: 10px; padding: 0 20px; }
+.agora-title { font-stretch: 125%; font-weight: 800; font-size: 18px; letter-spacing: -0.035em; color: var(--header-primary); }
+.agora-live { width: 7px; height: 7px; border-radius: 50%; background: var(--green); box-shadow: 0 0 0 4px color-mix(in srgb, var(--green) 22%, transparent); }
+.agora-empty { margin: 0 20px 12px; font-size: 12.5px; line-height: 1.5; color: var(--text-muted); }
+.agora-block { padding: 14px 20px 14px; border-top: 1px solid var(--club-line, var(--border)); }
+.agora-label { font-size: 12px; font-weight: 500; color: var(--text-muted); margin-bottom: 10px; }
+.agora-call + .agora-call { margin-top: 12px; }
+.agora-call-name {
+  display: flex; align-items: center; gap: 8px; width: 100%; min-width: 0;
+  font-size: 14px; font-weight: 650; color: var(--header-primary); background: none; padding: 0; text-align: left;
+}
+.agora-call-name svg { color: var(--green); flex-shrink: 0; }
+.agora-tag { margin-left: auto; font-size: 10.5px; font-weight: 700; border-radius: 999px; padding: 2px 8px; background: var(--club-sel-bg); color: var(--club-sel-fg); }
+.agora-call-row { display: flex; align-items: center; gap: 8px; margin-top: 8px; min-width: 0; }
+.agora-faces { display: inline-flex; align-items: center; flex-shrink: 0; }
+.agora-faces .avatar, .agora-faces img { border-radius: 50%; box-shadow: 0 0 0 2px var(--bg-secondary); }
+.agora-faces > * + * { margin-left: -8px; }
+.agora-more { font-size: 11px; font-weight: 700; color: var(--text-muted); margin-left: 4px !important; }
+.agora-sub { font-size: 12px; color: var(--text-muted); min-width: 0; flex: 1 1 auto; }
+.agora-join {
+  margin-left: auto; flex-shrink: 0; height: 28px; padding: 0 12px; border-radius: 999px;
+  background: var(--brand); color: var(--club-on-brand, #fff); font-size: 12.5px; font-weight: 650;
+}
+.agora-join:hover { background: var(--brand-hover); }
+.agora-here { margin-left: auto; font-size: 11.5px; color: var(--green); font-weight: 600; flex-shrink: 0; }
+.agora-game { display: flex; align-items: center; gap: 12px; padding: 5px 0; min-width: 0; }
+.agora-game-art { width: 34px; height: 34px; border-radius: 10px; object-fit: cover; flex-shrink: 0; background: var(--bg-elevated); }
+.agora-game-art.is-glyph { display: grid; place-items: center; color: var(--text-muted); }
+.agora-game-text { display: flex; flex-direction: column; min-width: 0; }
+.agora-game-text b { font-size: 13.5px; font-weight: 600; color: var(--header-primary); }
+.agora-event {
+  display: grid; grid-template-columns: 76px minmax(0, 1fr); gap: 8px; align-items: baseline;
+  width: 100%; padding: 6px 0; background: none; text-align: left; color: var(--text-normal);
+}
+.agora-event:hover .agora-event-title { color: var(--header-primary); text-decoration: underline; text-underline-offset: 3px; }
+.agora-when { font-family: var(--club-mono, monospace); font-size: 11.5px; color: var(--header-secondary); }
+.agora-when.is-live { color: var(--red); font-family: inherit; font-weight: 700; }
+.agora-event-title { font-size: 13.5px; font-weight: 600; }
+
+/* ---------------------------------------------------------------
+   8. Barra da call (embaixo do chat)
+   --------------------------------------------------------------- */
+html[data-visual='club'] .call-bar { background: var(--bg-secondary); border-top: 1px solid var(--club-line); }
+
+/* ---------------------------------------------------------------
+   9. Páginas — peças compartilhadas (PagesKit, Game Hub, Progresso,
+      Suporte, Social, Assinatura, Mods, Central, Loja)
+   Regra única: herói liso (sem degradê), ícone num quadrado de papel,
+   título na Archivo larga, abas com o ativo em pílula.
+   --------------------------------------------------------------- */
+html[data-visual='club'] :is(.pk-hero, .sp-hero, .pg-hero, .mdx-lib-hero, .jogos-page-header, .jh-hero, .jh-promo, .social-hero) {
+  background: var(--club-surface) !important;
+  border: 1px solid var(--club-line) !important;
+  border-radius: 24px; box-shadow: none !important;
+}
+html[data-visual='club'] :is(.pk-hero, .sp-hero, .pg-hero, .mdx-lib-hero, .jogos-page-header, .jh-hero, .jh-promo, .social-hero)::before,
+html[data-visual='club'] :is(.pk-hero, .sp-hero, .mdx-lib-hero, .jogos-page-header, .jh-hero, .jh-promo)::after {
+  background-image: none !important; opacity: 0 !important;
+}
+html[data-visual='club'] :is(.pk-hero-icon, .sp-hero-icon, .jogos-page-header-icon, .mdx-lib-hero-icon) {
+  background: var(--club-sel-bg) !important; color: var(--club-sel-fg) !important; box-shadow: none !important;
+  border-radius: 16px;
+}
+html[data-visual='club'] :is(.pk-hero-icon, .sp-hero-icon, .jogos-page-header-icon) :is(img) { filter: var(--club-icon-sel-filter); }
+html[data-visual='club'] :is(.pk-hero-text h1, .sp-hero h1, .mdx-lib-hero h1, .jogos-page-header h1, .jogos-page-header h2, .jh-hero h2, .social-hero h1, .pg-hero h1, .pg-name) {
+  font-stretch: 125%; font-weight: 800; letter-spacing: -0.04em;
+}
+html[data-visual='club'] :is(.pk-eyebrow, .jh-eyebrow, .mdx-eyebrow) {
+  text-transform: none; letter-spacing: 0; font-weight: 500; font-size: 12.5px; color: var(--text-muted);
+}
+
+/* Abas em pílula: o ativo vira papel */
+html[data-visual='club'] .pk-tabs { background: transparent; border: 1px solid var(--club-line); border-radius: 999px; padding: 4px; }
+html[data-visual='club'] .pk-tab { border-radius: 999px; }
+html[data-visual='club'] .pk-tab.active { background: var(--club-sel-bg); color: var(--club-sel-fg); box-shadow: none; }
+html[data-visual='club'] .pk-tab.active svg { color: currentColor; }
+html[data-visual='club'] .pk-tab-count { background: var(--red); color: #fff; }
+html[data-visual='club'] .pk-tab.pk-tab-gold { border-radius: 999px; }
+html[data-visual='club'] .sx-tab { border-radius: 999px; }
+html[data-visual='club'] .sx-tab.active { background: var(--club-sel-bg); color: var(--club-sel-fg); box-shadow: none; }
+html[data-visual='club'] .sx-tab.active svg { color: currentColor; }
+
+/* Abas sublinhadas (Progresso, Social): a linha fica na cor do texto */
+html[data-visual='club'] :is(.pg-tab, .social-tab).active svg { color: currentColor; }
+html[data-visual='club'] .pg-tab.active::after { background: var(--header-primary); }
+html[data-visual='club'] .social-tab.active::after { background: var(--header-primary); }
+
+/* Filtros e chips */
+html[data-visual='club'] .pk-filter { border-color: var(--club-line); background: transparent; }
+html[data-visual='club'] .pk-filter.active { background: var(--club-sel-bg); color: var(--club-sel-fg); border-color: transparent; }
+html[data-visual='club'] .pk-chip.brand { background: color-mix(in srgb, var(--club-accent) 16%, transparent); color: var(--text-link); }
+
+/* Botões das páginas */
+html[data-visual='club'] .pk-btn { border-radius: 999px; font-weight: 650; background: transparent; border-color: var(--club-line-2); }
+html[data-visual='club'] .pk-btn:hover:not(:disabled) { background: var(--bg-modifier-hover); border-color: var(--club-line-2); }
+html[data-visual='club'] .pk-btn.primary,
+html[data-visual='club'] :is(.gh-btn.is-primary, .sp-primary, .fx-add) {
+  background: var(--brand) !important; color: var(--club-on-brand) !important;
+  border-color: transparent; box-shadow: none !important; background-image: none !important; border-radius: 999px;
+}
+html[data-visual='club'] :is(.pk-btn.primary, .gh-btn.is-primary, .sp-primary, .fx-add):hover:not(:disabled) { background: var(--brand-hover) !important; }
+html[data-visual='club'] :is(.pk-btn.primary, .gh-btn.is-primary, .sp-primary, .fx-add) :is(svg) { color: currentColor; }
+html[data-visual='club'] .gh-btn { border-radius: 999px; }
+
+/* Cartões e títulos de seção */
+html[data-visual='club'] .pk-card { background: var(--club-surface); border-color: var(--club-line); border-radius: 20px; }
+html[data-visual='club'] .pk-section-title { font-size: 16px; font-weight: 700; }
+html[data-visual='club'] .pk-section-title svg { color: var(--text-muted); }
+html[data-visual='club'] .pk-empty { border-color: var(--club-line-2); border-radius: 20px; }
+html[data-visual='club'] .pk-empty-icon { background: var(--bg-elevated); color: var(--text-muted); }
+html[data-visual='club'] .pk-toast { border-color: var(--club-line-2); border-radius: 999px; }
+html[data-visual='club'] .pk-toast svg { color: var(--green); }
+
+/* Game Hub */
+html[data-visual='club'] .gh-shell { --gh-accent: var(--club-accent); }
+html[data-visual='club'] .gh-bar { background: var(--bg-primary); border-bottom: 1px solid var(--club-line); }
+html[data-visual='club'] .gh-brand-mark { background: var(--club-sel-bg) !important; color: var(--club-sel-fg) !important; box-shadow: none !important; }
+html[data-visual='club'] .gh-brand-name { font-size: 17px; }
+html[data-visual='club'] .gh-tab { border-radius: 999px; font-weight: 600; }
+html[data-visual='club'] .gh-tab.on { background: var(--club-sel-bg); color: var(--club-sel-fg); box-shadow: none; }
+html[data-visual='club'] .gh-tab.on svg { color: currentColor; }
+
+/* Central */
+html[data-visual='club'] .home-section-title,
+html[data-visual='club'] .an-section-title { font-weight: 700; }
+
+/* Notificações e listas */
+html[data-visual='club'] .pk-hero .pk-btn:not(.primary) { background: transparent; }
+
+/* Configurações: barra lateral com o ativo em pílula */
+html[data-visual='club'] .settings-modal-box.modal-box { border-radius: 24px; }
+html[data-visual='club'] .settings-modal-sidebar { background: var(--bg-secondary); border-right: 1px solid var(--club-line); }
+html[data-visual='club'] .settings-modal-sidebar-item { border-radius: 999px; }
+html[data-visual='club'] .settings-modal-sidebar-item.active { background: var(--club-sel-bg); color: var(--club-sel-fg); }
+html[data-visual='club'] .settings-modal-sidebar-item.active :is(svg, .settings-modal-sidebar-icon) { color: currentColor; }
+html[data-visual='club'] .settings-modal-sidebar-item.active img { filter: var(--club-icon-sel-filter); }
+html[data-visual='club'] .settings-block { border-radius: 20px; }
+html[data-visual='club'] .pc-seg button.active { background: var(--club-sel-bg); color: var(--club-sel-fg); }
+
+/* (Seletor de visual de Aparência: em appearance.css, que vale nos dois visuais) */
+
+/* Tema claro: textos que eram brancos fixos nos heróis */
+html[data-visual='club'] .jh-hero-content { color: var(--header-primary); }
+html[data-visual='club'] .jh-hero-art { color: var(--text-muted); opacity: .25; filter: none; }
+html[data-visual='club'] .jh-promo-btn { background: var(--club-sel-bg); color: var(--club-sel-fg); border-radius: 999px; }
+html[data-visual='club'] .jh-title { color: var(--header-primary); font-stretch: 125%; font-weight: 800; letter-spacing: -0.045em; }
+html[data-visual='club'] .jh-blackout .jh-title { letter-spacing: .12em; }
+html[data-visual='club'] .jh-text { color: var(--text-muted); }
+html[data-visual='club'] .jh-kicker { color: var(--text-muted); text-transform: none; letter-spacing: 0; font-weight: 600; }
+html[data-visual='club'] .jh-cta { background: var(--club-sel-bg); color: var(--club-sel-fg); border-radius: 999px; }
+html[data-visual='club'] .jh-dot { background: var(--club-line-2); }
+html[data-visual='club'] .jh-dot.on { background: var(--header-primary); }
+
+/* Barra de baixo do celular: o ativo vira pílula de papel */
+@media (max-width: 900px) {
+  html[data-visual='club'] .mtb { background: var(--bg-deepest); border-top: 1px solid var(--club-line); }
+  html[data-visual='club'] .mtb-item.active .mtb-icon { background: var(--club-sel-bg); color: var(--club-sel-fg); }
+  html[data-visual='club'] .mtb-item.active .mtb-icon img { filter: var(--club-icon-sel-filter); }
+  html[data-visual='club'] .mtb-item.active .mtb-avatar > * { box-shadow: 0 0 0 2px var(--header-primary); }
+}
+
+/* App de PC (Electron): barra de título no mesmo preto da barra do topo */
+html[data-visual='club'] .app-title-bar { background: var(--bg-deepest); border-bottom: 1px solid var(--club-line); }
+html[data-visual='club'] .app-title-bar-btn { color: var(--text-muted); }
+html[data-visual='club'] .app-title-bar-btn:hover { background: var(--bg-modifier-hover); color: var(--header-primary); }
+html[data-visual='club'] .app-title-bar-btn--close:hover { background: #E81123; color: #fff; }
+html[data-visual='club'] .app-update-pop { background: var(--bg-floating); border: 1px solid var(--club-line-2); border-radius: 16px; box-shadow: var(--club-shadow); }
+html[data-visual='club'] .app-update-pop-btn { border-radius: 999px; }
+html[data-visual='club'] .app-update-pop-btn.primary { background: var(--brand); color: var(--club-on-brand); }
+
+/* Rótulos pequenos sem CAIXA ALTA (o visual novo escreve como se fala).
+   Vale pros rótulos de grupo/seção do app inteiro; selos como "Ao vivo"
+   continuam como estão. */
+html[data-visual='club'] :is(.app-shell, .modal-overlay, .pk-modal-backdrop) :is([class*='-label'], [class*='eyebrow'], [class*='kicker'], [class*='section-title'], [class*='group-title'], .settings-block h4, .notifications-section h3, .pc-field-label, .admin-table th, .invite-list-header, .communities-sidebar-card h4, .activity-badge-title, .profile-ig-stat span):not([class*='badge']):not([class*='live']):not([class*='tag']) {
+  text-transform: none !important;
+  letter-spacing: 0 !important;
+}
+html[data-visual='club'] :is(.settings-modal-sidebar-group-label, .pc-field-label, .member-group-label, .category-label) { font-size: 12px; }
+
+/* ---------------------------------------------------------------
+   10. Menos enfeite (nov/2026, 2ª passada)
+   Cartões lisos (sem borda nem sombra), títulos sem ícone colorido,
+   selos discretos. O conteúdo (capas, artes, avatares) é que dá a cor.
+   --------------------------------------------------------------- */
+
+/* Cartões: superfície lisa, sem contorno nem sombra */
+html[data-visual='club'] :is(.home-card, .home-event, .an-feature, .home-update, .pk-card, .fx-card, .anp-card, .jh-empty, .sp-item, .pg-card, .gh-party, .app-card, .room-col, .nt-list) {
+  border-color: transparent !important;
+  box-shadow: none !important;
+}
+html[data-visual='club'] :is(.home-card, .home-event, .an-feature, .home-update, .pk-card, .fx-card, .anp-card, .jh-empty) {
+  background: var(--club-surface) !important;
+  border-radius: 20px;
+}
+html[data-visual='club'] :is(.home-hero, .home-carousel, .jh-hot-art, .gh-bcard, .gh-free, .jh-tool, .room-card, .room-grid, .room-btn) { box-shadow: none !important; }
+html[data-visual='club'] :is(.home-hero, .home-carousel) { border-color: transparent !important; border-radius: 24px; }
+html[data-visual='club'] .home-empty { border: 0; background: var(--bg-modifier-hover); border-radius: 14px; }
+
+/* Títulos de seção: só o texto, na fonte larga */
+html[data-visual='club'] .home-section-head h2 svg,
+html[data-visual='club'] .pk-section-title > svg,
+html[data-visual='club'] .an-section-head svg { display: none; }
+html[data-visual='club'] .home-section-head h2,
+html[data-visual='club'] .pk-section-title {
+  font-stretch: 118%; font-weight: 800; letter-spacing: -0.03em; font-size: 17px;
+}
+html[data-visual='club'] .home-card .home-section-head h2 { font-size: 15px; }
+html[data-visual='club'] .home-link { color: var(--text-muted); font-weight: 500; }
+html[data-visual='club'] .home-link:hover { color: var(--header-primary); }
+html[data-visual='club'] .home-pill { background: transparent; box-shadow: inset 0 0 0 1px var(--club-line-2); }
+
+/* Calls na lista de canais: selos e cronômetro discretos */
+html[data-visual='club'] .voice-roster-live {
+  background: transparent; color: var(--red); padding: 0; border-radius: 0;
+  font-size: 11px; font-weight: 600; letter-spacing: 0; text-transform: lowercase;
+}
+html[data-visual='club'] .voice-roster-live svg { display: none; }
+html[data-visual='club'] .voice-roster-live::before {
+  content: ''; width: 6px; height: 6px; border-radius: 50%; background: currentColor; margin-right: 5px;
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--red) 20%, transparent);
+}
+html[data-visual='club'] .voice-roster-servermod { background: transparent; color: var(--text-muted); padding: 0; font-weight: 600; }
+html[data-visual='club'] .voice-channel-timer {
+  background: transparent !important; color: var(--text-muted) !important; border: 0 !important;
+  font-family: var(--club-mono); font-size: 11px; font-weight: 400; padding: 0; margin-left: auto;
+}
+html[data-visual='club'] .channel-user-limit {
+  background: transparent !important; color: var(--text-muted) !important; border: 0 !important;
+  font-family: var(--club-mono); font-size: 11px; font-weight: 400; padding: 0 2px;
+}
+html[data-visual='club'] .n2-sidebar .channel-item.active :is(.voice-channel-timer, .channel-user-limit) { color: var(--club-sel-fg) !important; opacity: .55; }
+
+/* Placa de perfil (decoração) na lista de membros: mais suave */
+html[data-visual='club'] .layout-n2 .member-row.has-id-card::before { opacity: .45; }
+
+/* Banner da comunidade: um cartão arredondado em vez de faixa de ponta a ponta */
+@media (min-width: 601px) {
+  html[data-visual='club'] .n2-sidebar .sidebar-banner { margin: 10px 10px 0; width: calc(100% - 20px); border-radius: 16px; overflow: hidden; box-sizing: border-box; }
+  html[data-visual='club'] .n2-sidebar .sidebar-banner::after { background: none; }
+  html[data-visual='club'] .n2-sidebar .sidebar-banner-img { max-height: 92px; }
+}
+
+/* Chat: anexos e cartões com cantos do mesmo jeito, sem contorno */
+html[data-visual='club'] .attachment-image { border: 0; border-radius: 16px; }
+html[data-visual='club'] .message-hover-actions { box-shadow: 0 8px 24px rgba(0, 0, 0, .35); }
+
+/* Botões de ação nas páginas: sem degradê nem brilho */
+html[data-visual='club'] :is(.hc-cta:not(.is-live), .jh-cta, .room-btn.light) { box-shadow: none !important; }
+
+/* Calendário: só uma bolinha nos dias com evento; hoje e o dia escolhido em pílula */
+html[data-visual='club'] .evcal-day { border-radius: 999px; }
+html[data-visual='club'] .evcal-day.has-events,
+html[data-visual='club'] .evcal-day.is-live { background: transparent; }
+html[data-visual='club'] .evcal-day.is-today { box-shadow: inset 0 0 0 1px var(--club-line-2); }
+html[data-visual='club'] .evcal-day.is-picked { background: var(--club-sel-bg); color: var(--club-sel-fg); box-shadow: none; }
+html[data-visual='club'] .evcal-day .evcal-dot { background: var(--header-primary); }
+html[data-visual='club'] .evcal-day.is-live .evcal-dot { background: var(--red); }
+html[data-visual='club'] .evcal-day.is-picked .evcal-dot { background: var(--club-sel-fg); }
+html[data-visual='club'] .evcal-ev-date { background: var(--bg-modifier-hover); border-radius: 12px; }
+html[data-visual='club'] .evcal-ev-date.is-live { background: transparent; box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--red) 45%, transparent); }
+html[data-visual='club'] .an-head-icon { display: none; }
+html[data-visual='club'] .an-head h2 { font-stretch: 118%; font-weight: 800; letter-spacing: -0.03em; font-size: 17px; }
+html[data-visual='club'] :is(.evcal-list-head, .evcal-ev-date.is-live b) { text-transform: none !important; letter-spacing: 0 !important; }
+html[data-visual='club'] .evcal-list-head { font-size: 12px; font-weight: 600; color: var(--text-muted); }
+
+/* ---------------------------------------------------------------
+   11. Assinatura (pages/AssinaturaPage.jsx)
+   Abertura com os dois planos como cartões de membro (com o seu nome),
+   planos lado a lado — o Super em papel —, vantagens em lista limpa,
+   tabela de linhas finas e perguntas em sanfona. O dourado é a cor da
+   assinatura e aparece só na coroa e no botão do Super.
+   --------------------------------------------------------------- */
+html[data-visual='club'] .sub-page {
+  --sub-gold: #E9B949;
+  background: var(--bg-primary);
+  padding: 0 clamp(20px, 4vw, 56px) 64px;
+}
+html[data-visual='club'] .sub-page > * { max-width: 1080px; margin-left: auto; margin-right: auto; }
+
+/* Abertura */
+html[data-visual='club'] .sub-hero {
+  display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 440px); align-items: center; gap: 40px;
+  background: none !important; border: 0; border-radius: 0; overflow: visible;
+  padding: clamp(40px, 6vw, 84px) 0 clamp(36px, 5vw, 64px); text-align: left;
+}
+html[data-visual='club'] .sub-hero-glow,
+html[data-visual='club'] .sub-hero-crown { display: none; }
+html[data-visual='club'] .sub-hero-inner { margin: 0; max-width: 560px; align-items: flex-start; gap: 18px; }
+html[data-visual='club'] .sub-hero h1 {
+  color: var(--header-primary); font-size: clamp(38px, 4.6vw, 60px); line-height: .98;
+  font-stretch: 125%; font-weight: 800; letter-spacing: -0.05em;
+}
+html[data-visual='club'] .sub-hero h1 span { background: none; -webkit-background-clip: initial; background-clip: initial; color: var(--header-primary); }
+html[data-visual='club'] .sub-hero p { color: var(--text-muted); font-size: 17px; max-width: 480px; }
+html[data-visual='club'] .sub-hero .sub-hero-mine { background: transparent; border: 1px solid var(--club-line-2); color: var(--header-primary); }
+html[data-visual='club'] .sub-hero .sub-hero-mine svg { color: var(--sub-gold); }
+html[data-visual='club'] .sub-hero-ctas { justify-content: flex-start; }
+
+/* Botões */
+html[data-visual='club'] .sub-btn { font-weight: 650; min-height: 48px; box-shadow: none !important; }
+html[data-visual='club'] .sub-btn:hover { transform: none; }
+html[data-visual='club'] .sub-btn-gold { background: var(--club-sel-bg); color: var(--club-sel-fg); }
+html[data-visual='club'] .sub-btn-gold:hover { background: color-mix(in srgb, var(--club-sel-bg) 88%, var(--club-sel-fg)); }
+html[data-visual='club'] .sub-btn-ghost { background: transparent; color: var(--header-primary); box-shadow: inset 0 0 0 1px var(--club-line-2) !important; }
+html[data-visual='club'] .sub-btn-ghost:hover { background: var(--bg-modifier-hover); }
+
+/* Cartões de membro */
+html[data-visual='club'] .sub-cards { display: block; position: relative; height: 350px; }
+html[data-visual='club'] .sub-cards .sub-card {
+  position: absolute; width: min(86%, 350px); aspect-ratio: 1.586; border-radius: 22px;
+  display: flex; flex-direction: column; padding: 20px 22px; box-sizing: border-box;
+  box-shadow: 0 30px 70px rgba(0, 0, 0, .45) !important;
+}
+html[data-visual='club'] .sub-cards .sub-card:first-child { top: 0; left: 0; transform: rotate(-5deg); }
+html[data-visual='club'] .sub-cards .sub-card:last-child { top: 122px; right: 0; transform: rotate(3deg); }
+html[data-visual='club'] .sub-card.t-subscriber { background: #FFFFFF; color: #0B0B0C; }
+html[data-visual='club'] .sub-cards .sub-card.t-super {
+  background: #0B0B0C; color: #F4F4F5;
+  box-shadow: inset 0 0 0 1px rgba(233, 185, 73, .55), 0 30px 70px rgba(0, 0, 0, .55) !important;
+}
+html[data-visual='club'][data-club-theme='claro'] .sub-cards .sub-card.t-subscriber { box-shadow: inset 0 0 0 1px rgba(11, 11, 12, .12), 0 30px 60px rgba(11, 11, 12, .12) !important; }
+html[data-visual='club'] .sub-card-top { display: flex; align-items: center; gap: 10px; font-size: 14px; font-weight: 600; }
+html[data-visual='club'] .sub-card-top img { width: 28px; height: 28px; border-radius: 8px; }
+html[data-visual='club'] .sub-card.t-subscriber .sub-card-top img { filter: none; }
+html[data-visual='club'] .sub-card-top em {
+  margin-left: auto; font-style: normal; font-size: 11.5px; font-weight: 600;
+  padding: 3px 10px; border-radius: 999px; background: var(--sub-gold); color: #0B0B0C;
+}
+html[data-visual='club'] .sub-card-tier {
+  margin-top: 16px; font-size: 28px; line-height: 1; font-stretch: 125%; font-weight: 800; letter-spacing: -0.045em;
+}
+html[data-visual='club'] .sub-card.t-super .sub-card-tier { color: var(--sub-gold); }
+html[data-visual='club'] .sub-card-foot { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; margin-top: auto; font-size: 13.5px; opacity: .7; }
+html[data-visual='club'] .sub-card-price { font-family: var(--club-mono); font-size: 12px; }
+
+/* Planos */
+html[data-visual='club'] .sub-plans {
+  grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; padding: 0; margin-top: 8px; justify-content: stretch;
+}
+html[data-visual='club'] .sub-plan {
+  background: var(--club-surface) !important; border: 1px solid var(--club-line) !important;
+  box-shadow: none !important; border-radius: 28px; padding: 28px 28px 26px; gap: 16px;
+}
+html[data-visual='club'] .sub-plan.t-super { background: var(--club-paper) !important; color: var(--club-paper-fg); border-color: transparent !important; }
+html[data-visual='club'] .sub-plan.is-mine { outline: 0; box-shadow: inset 0 0 0 2px var(--sub-gold) !important; }
+html[data-visual='club'] .sub-plan-ico { display: none; }
+html[data-visual='club'] .sub-plan-ribbon {
+  position: static; order: -1; align-self: flex-start; text-transform: none; letter-spacing: 0;
+  font-size: 12px; font-weight: 600; padding: 4px 12px; box-shadow: none;
+  background: transparent; color: inherit; border: 1px solid currentColor; opacity: .75;
+}
+html[data-visual='club'] .sub-plan h2 { font-size: 24px; font-stretch: 125%; font-weight: 800; letter-spacing: -0.04em; color: inherit; }
+html[data-visual='club'] .sub-plan.t-super :is(.sub-plan-tag, .sub-plan-price small, li) { color: var(--club-paper-muted); }
+html[data-visual='club'] .sub-plan.t-super li strong { color: var(--club-paper-fg); }
+html[data-visual='club'] .sub-plan-mine { background: var(--sub-gold); color: #0B0B0C; font-weight: 600; }
+html[data-visual='club'] .sub-plan-price { padding: 6px 0 2px; }
+html[data-visual='club'] .sub-plan-price b { font-size: clamp(40px, 4vw, 52px); font-stretch: 125%; font-weight: 800; letter-spacing: -0.05em; color: inherit; }
+html[data-visual='club'] .sub-plan-note { color: inherit; font-weight: 600; opacity: .8; }
+html[data-visual='club'] .sub-plan ul { gap: 0; border-top: 1px solid var(--club-line); }
+html[data-visual='club'] .sub-plan.t-super ul { border-top-color: var(--club-paper-line); }
+html[data-visual='club'] .sub-plan li { padding: 11px 0; border-bottom: 1px solid var(--club-line); font-size: 14.5px; color: var(--text-normal); }
+html[data-visual='club'] .sub-plan.t-super li { border-bottom-color: var(--club-paper-line); }
+html[data-visual='club'] .sub-plan li svg { color: currentColor; opacity: .6; }
+html[data-visual='club'] .sub-plan-cta { margin-top: 6px; background: var(--club-sel-bg) !important; color: var(--club-sel-fg) !important; }
+html[data-visual='club'] .sub-plan.t-super .sub-plan-cta { background: var(--sub-gold) !important; color: #0B0B0C !important; }
+
+/* Seções */
+html[data-visual='club'] .sub-section { padding: 96px 0 0; }
+html[data-visual='club'] .sub-h2 {
+  text-align: left; margin-bottom: 32px !important; color: var(--header-primary);
+  font-size: clamp(30px, 3.6vw, 44px); font-stretch: 125%; font-weight: 800; letter-spacing: -0.045em; line-height: 1;
+}
+
+/* Vantagens: lista limpa em 3 colunas */
+html[data-visual='club'] .sub-highlights { column-gap: 40px; row-gap: 0; border-top: 1px solid var(--club-line-2); }
+html[data-visual='club'] .sub-highlight { background: none; border: 0; border-bottom: 1px solid var(--club-line); border-radius: 0; padding: 26px 0 30px; }
+html[data-visual='club'] .sub-highlight:nth-last-child(-n+3) { border-bottom: 0; }
+html[data-visual='club'] .sub-highlight-ico,
+html[data-visual='club'] .sub-highlight:nth-child(even) .sub-highlight-ico {
+  width: auto; height: auto; background: none; color: var(--text-muted); border-radius: 0; margin-bottom: 16px; justify-content: start;
+}
+html[data-visual='club'] .sub-highlight h3 { font-size: 17px; font-weight: 700; }
+
+/* Tabela */
+html[data-visual='club'] .sub-table-wrap { background: none; border: 0; border-radius: 0; border-top: 1px solid var(--club-line-2); }
+html[data-visual='club'] .sub-table th, html[data-visual='club'] .sub-table td { border-bottom-color: var(--club-line); padding: 16px 12px; }
+html[data-visual='club'] .sub-table thead th { text-transform: none; letter-spacing: 0; font-size: 14px; font-weight: 700; color: var(--header-primary); }
+html[data-visual='club'] .sub-table thead th:first-child { color: var(--text-muted); font-weight: 500; text-align: left; }
+html[data-visual='club'] .sub-table thead th.t-subscriber,
+html[data-visual='club'] .sub-table thead th.t-super { color: var(--header-primary); }
+html[data-visual='club'] .sub-table thead th.t-super::before { content: '♛ '; color: var(--sub-gold); }
+html[data-visual='club'] .sub-table thead th.is-mine::after {
+  display: block; width: fit-content; margin: 6px auto 0; padding: 2px 9px; border-radius: 999px; font-size: 11px; font-weight: 600;
+  background: var(--sub-gold); color: #0B0B0C;
+}
+html[data-visual='club'] .sub-table tbody th { font-weight: 500; }
+html[data-visual='club'] .sub-yes { background: none; color: var(--header-primary); }
+html[data-visual='club'] .sub-val { font-weight: 600; color: var(--header-primary); }
+
+/* Perguntas */
+html[data-visual='club'] .sub-faq { gap: 0; max-width: none; border-top: 1px solid var(--club-line-2); }
+html[data-visual='club'] .sub-faq-item { background: none; border: 0; border-bottom: 1px solid var(--club-line); border-radius: 0; }
+html[data-visual='club'] .sub-faq-item button { padding: 22px 2px; font-size: 17px; font-weight: 600; }
+html[data-visual='club'] .sub-faq-item p { padding: 0 2px 22px; font-size: 15px; max-width: 680px; }
+
+/* Fecho */
+html[data-visual='club'] .sub-final {
+  margin-top: 96px; margin-bottom: 0; text-align: left; padding: clamp(32px, 4vw, 52px);
+  background: var(--club-surface) !important; border: 0; border-radius: 28px;
+  display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 12px 32px;
+}
+html[data-visual='club'] .sub-final h2 { color: var(--header-primary); font-size: clamp(28px, 3.2vw, 40px); font-stretch: 125%; font-weight: 800; letter-spacing: -0.045em; }
+html[data-visual='club'] .sub-final p { color: var(--text-muted); margin: 6px 0 0; grid-column: 1; }
+html[data-visual='club'] .sub-final .sub-hero-ctas { grid-column: 2; grid-row: 1 / span 2; margin: 0; }
+html[data-visual='club'] .sub-final .sub-btn-gold { background: var(--sub-gold); color: #0B0B0C; }
+
+@media (max-width: 900px) {
+  html[data-visual='club'] .sub-hero { grid-template-columns: minmax(0, 1fr); }
+  html[data-visual='club'] .sub-cards { height: 300px; max-width: 420px; width: 100%; }
+  html[data-visual='club'] .sub-cards .sub-card:last-child { top: 100px; }
+  html[data-visual='club'] .sub-plans { grid-template-columns: minmax(0, 1fr); }
+  html[data-visual='club'] .sub-highlight:nth-last-child(-n+3) { border-bottom: 1px solid var(--club-line); }
+  html[data-visual='club'] .sub-final { grid-template-columns: minmax(0, 1fr); }
+  html[data-visual='club'] .sub-final .sub-hero-ctas { grid-column: 1; grid-row: auto; }
+  html[data-visual='club'] .sub-section { padding-top: 64px; }
+}
+@media (min-width: 901px) and (max-width: 1100px) {
+  html[data-visual='club'] .sub-highlight:nth-last-child(-n+3) { border-bottom: 1px solid var(--club-line); }
+  html[data-visual='club'] .sub-highlight:nth-last-child(-n+2) { border-bottom: 0; }
+}
+
+/* ---------------------------------------------------------------
+   12. Menus repaginados: a "capa" de cada página
+   Toda página de menu abre do mesmo jeito: sem caixa e sem ícone,
+   título largo e grande, a contagem ao vivo elevada ao lado (como o
+   "Call ¹" da lista de canais), uma linha de texto e as abas em
+   pílula logo embaixo. O resto vem solto: listas em linhas, sem
+   moldura tracejada, sem fundo tingido, ícones só onde ajudam.
+   --------------------------------------------------------------- */
+/* (.club-count escondido no clássico: ver o fim do global.css — este arquivo só vem no Minimalista) */
+html[data-visual='club'] .club-count {
+  display: inline-flex; align-items: center; gap: 6px; vertical-align: top;
+  margin: .32em 0 0 .05em; font-size: 13px; line-height: 1; font-weight: 650;
+  font-stretch: 100%; letter-spacing: 0; color: var(--text-link); white-space: nowrap;
+}
+html[data-visual='club'] .club-count .social-dot { width: 7px; height: 7px; animation: none; box-shadow: none; }
+
+/* Capa: sem caixa, sem ícone, sem rótulo em cima */
+html[data-visual='club'] .app-shell :is(.pk-hero, .sp-hero, .mdx-lib-hero, .social-hero) {
+  background: none !important; border: 0 !important; border-radius: 0 !important;
+  padding: 10px 2px 4px !important; box-shadow: none !important; align-items: flex-end;
+}
+html[data-visual='club'] .app-shell :is(.pk-hero-icon, .sp-hero-icon, .mdx-lib-hero-icon) { display: none; }
+html[data-visual='club'] .app-shell :is(.pk-hero .pk-eyebrow, .mdx-lib-hero .mdx-eyebrow) { display: none; }
+html[data-visual='club'] .app-shell .pk-hero-main { gap: 0; }
+html[data-visual='club'] .app-shell :is(.pk-hero-text h1, .sp-hero-text h1, .mdx-lib-hero h1, .social-hero h1) {
+  font-size: clamp(34px, 3.3vw, 46px); line-height: 1.04; font-weight: 800; font-stretch: 125%; letter-spacing: -0.045em;
+}
+html[data-visual='club'] .app-shell :is(.pk-hero-text p, .sp-hero-text p, .mdx-lib-hero p, .social-hero p) {
+  margin-top: 8px; font-size: 14.5px; line-height: 1.5; max-width: 58ch; color: var(--text-muted);
+}
+html[data-visual='club'] .app-shell .pk-hero-aside { padding-bottom: 4px; }
+
+/* Abas de todos os menus no mesmo trilho: o ativo vira papel */
+html[data-visual='club'] :is(.social-tabs, .pg-tabs, .sp-modes, .fx-filters) {
+  display: inline-flex; gap: 2px; width: fit-content; max-width: 100%; padding: 4px;
+  background: transparent; border: 1px solid var(--club-line); border-radius: 999px; box-shadow: none;
+  overflow-x: auto; scrollbar-width: none;
+}
+html[data-visual='club'] :is(.social-tab, .pg-tab, .sp-mode, .fx-filter) {
+  height: 34px; padding: 0 14px; border-radius: 999px; font-size: 13.5px; font-weight: 600; color: var(--text-muted); box-shadow: none;
+}
+html[data-visual='club'] :is(.social-tab, .pg-tab, .sp-mode, .fx-filter):hover:not(.active) { color: var(--header-primary); background: var(--bg-modifier-hover); }
+html[data-visual='club'] :is(.social-tab, .pg-tab, .sp-mode, .fx-filter).active { background: var(--club-sel-bg); color: var(--club-sel-fg); box-shadow: none; }
+html[data-visual='club'] :is(.social-tab, .pg-tab, .sp-mode, .fx-filter).active :is(svg, .pg-tab-count, .fx-count:not(.alert)) { color: currentColor; }
+html[data-visual='club'] :is(.social-tab, .pg-tab).active::after,
+html[data-visual='club'] .social-tabs-line { display: none; }
+html[data-visual='club'] .fx-filters-pill { display: none; }
+html[data-visual='club'] .pk-tabs { max-width: 100%; overflow-x: auto; scrollbar-width: none; }
+html[data-visual='club'] .pk-tabs::-webkit-scrollbar { display: none; }
+
+/* ---------- Amigos ---------- */
+html[data-visual='club'] .app-shell .social-hero {
+  display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 18px 24px; border-bottom: 0;
+}
+html[data-visual='club'] .social-hero .social-tabs { grid-column: 1 / -1; margin-top: 4px; }
+html[data-visual='club'] .social-stats .social-online { display: none; }
+html[data-visual='club'] .social-content { margin-top: 26px; }
+html[data-visual='club'] .fx-bar { flex-wrap: wrap; }
+html[data-visual='club'] .fx-add { border-radius: 999px; box-shadow: none !important; }
+html[data-visual='club'] .fx-card + .fx-card::before { background: var(--club-line); }
+html[data-visual='club'] .app-shell .fx-card { background: transparent !important; border: 0 !important; border-radius: 16px; }
+html[data-visual='club'] .app-shell .fx-card:hover { background: var(--bg-modifier-hover) !important; }
+html[data-visual='club'] .fx-icon { border-radius: 999px; }
+html[data-visual='club'] .fx-icon.brand { background: transparent; color: var(--header-primary); }
+html[data-visual='club'] .fx-icon.brand:hover { background: var(--bg-modifier-hover); filter: none; }
+html[data-visual='club'] .anp { border-left-color: var(--club-line); }
+html[data-visual='club'] .anp-empty { border: 0; padding: 4px 0; text-align: left; }
+html[data-visual='club'] .anp-empty strong { font-size: 14px; }
+
+/* ---------- Suporte ---------- */
+html[data-visual='club'] .app-shell .sp-hero { gap: 20px; }
+html[data-visual='club'] .sp-modes { margin-top: 6px; }
+html[data-visual='club'] .sp-list-panel { background: transparent; border: 0; border-radius: 0; }
+html[data-visual='club'] .sp-list-tools { padding: 0 0 12px; border-bottom: 1px solid var(--club-line); }
+html[data-visual='club'] .sp-search { border-radius: 999px; background: var(--club-surface); border-color: transparent; }
+html[data-visual='club'] .sp-filter { border-radius: 999px; }
+html[data-visual='club'] .sp-filter.active { background: var(--club-sel-bg); color: var(--club-sel-fg); }
+html[data-visual='club'] .sp-filter.active span { background: transparent; color: inherit; }
+html[data-visual='club'] .sp-pane { background: var(--club-surface); border: 0; border-radius: 24px; }
+html[data-visual='club'] .sp-welcome-icon { display: none; }
+html[data-visual='club'] .sp-welcome h2 { font-stretch: 125%; letter-spacing: -0.035em; font-size: 24px; }
+html[data-visual='club'] .sp-tag { background: none !important; padding: 0; font-weight: 600; }
+html[data-visual='club'] .sp-tag + .sp-tag::before { content: ''; display: inline-block; width: 3px; height: 3px; border-radius: 50%; margin: 0 8px 2px 0; background: var(--text-muted); vertical-align: middle; }
+
+/* ---------- Notificações ---------- */
+html[data-visual='club'] .nt .pk-tab svg { display: none; }
+html[data-visual='club'] .nt .nt-list { background: transparent !important; border: 0; padding: 0; gap: 0; border-radius: 0; }
+html[data-visual='club'] .nt .nt-item { border-radius: 16px; padding: 12px 12px; }
+html[data-visual='club'] .nt .nt-item.unread { background: transparent; }
+html[data-visual='club'] .nt .nt-item.clickable:hover,
+html[data-visual='club'] .nt .notifications-item-testimonial:hover { background: var(--bg-modifier-hover); }
+html[data-visual='club'] .nt-icon-solo { background: var(--club-surface); border-radius: 999px; }
+html[data-visual='club'] .nt-icon-badge { box-shadow: 0 0 0 3px var(--bg-primary); }
+html[data-visual='club'] .nt-dot { background: var(--club-accent); box-shadow: none; width: 8px; height: 8px; }
+html[data-visual='club'] .nt .nt-group h3 { margin: 8px 0 6px 12px; font-size: 13px; font-weight: 700; color: var(--header-primary); }
+html[data-visual='club'] .nt .nt-group h3 span { background: none; padding: 0; color: var(--text-muted); font-weight: 600; }
+html[data-visual='club'] .nt .nt-group h3::after { content: ''; flex: 1; height: 1px; background: var(--club-line); }
+html[data-visual='club'] .nt .nt-quote { background: var(--club-surface); border-left: 0; border-radius: 14px; }
+
+/* ---------- Progresso ---------- */
+html[data-visual='club'] .app-shell .pg-hero { border: 0 !important; border-radius: 28px; }
+html[data-visual='club'] .pg-stats > div { border-left-color: var(--club-line); }
+html[data-visual='club'] .pg-stats dt svg { color: var(--text-muted); }
+html[data-visual='club'] .pg-stats dd { font-stretch: 125%; letter-spacing: -0.03em; }
+html[data-visual='club'] .pg-tabs { margin-top: 26px; }
+
+/* ---------- Mods ---------- */
+html[data-visual='club'] .mdx-home-head-icon { display: none; }
+html[data-visual='club'] .mdx-home-head h2 { font-size: 19px; letter-spacing: -0.02em; }
+html[data-visual='club'] .mdx-home-empty { background: none; border: 0; padding: 4px 0 0; }
+html[data-visual='club'] .mdx-home-empty .mdx-empty-icon { display: none; }
+html[data-visual='club'] .mdx-empty { background: var(--club-surface); border: 0; border-radius: 24px; }
+html[data-visual='club'] .mdx-empty-icon { background: var(--bg-primary); color: var(--header-primary); border-radius: 999px; }
+
+/* ---------- Game Hub e Promoções: títulos de seção sem ícone colorido ---------- */
+html[data-visual='club'] :is(.jh-h2, .gh-h2) { font-stretch: 112%; letter-spacing: -0.03em; }
+html[data-visual='club'] :is(.jh-h2, .gh-h2) :is(svg, .gh-ico) { display: none; }
+html[data-visual='club'] .app-shell .jh-hero { border: 0 !important; border-radius: 28px; }
+
+/* ---------- Economia e Loja ---------- */
+html[data-visual='club'] .eco :is(.eco-daily, .eco-panel) { border-color: transparent; box-shadow: none !important; border-radius: 28px; }
+html[data-visual='club'] .eco .eco-chest { border-color: transparent; background: var(--club-surface); border-radius: 20px; }
+html[data-visual='club'] .room-nav-pill { background: var(--club-sel-bg); box-shadow: none; border-radius: 999px; }
+html[data-visual='club'] .room-nav-item { border-radius: 999px; }
+html[data-visual='club'] .room-nav-item.active { color: var(--club-sel-fg); }
+html[data-visual='club'] .room-nav-item.active :is(svg, em) { color: currentColor; }
+
+/* ---------- Central ---------- */
+html[data-visual='club'] .home-empty { background: none; border: 0; padding: 0; text-align: left; }
+
+/* ---------- Configurações: blocos lisos, sem traço azul no título ---------- */
+html[data-visual='club'] :is(.settings-block, .pc-layout-panel) {
+  background: var(--club-surface); border: 0; border-radius: 20px; box-shadow: none;
+}
+html[data-visual='club'] .settings-block:hover { border-color: transparent; }
+html[data-visual='club'] .settings-block h4::before { display: none; }
+/* (as Configurações do usuário viram lista: ver a seção 14) */
+html[data-visual='club'] .settings-page-head-icon { display: none; }
+html[data-visual='club'] .settings-page-head { margin-bottom: 22px; }
+html[data-visual='club'] .settings-page-head h2 { font-size: 30px; line-height: 1.05; font-stretch: 125%; letter-spacing: -0.045em; }
+html[data-visual='club'] .settings-page-head p { margin-top: 6px; font-size: 14px; }
+html[data-visual='club'] .settings-modal-wide .settings-modal-sidebar-item .settings-modal-sidebar-icon { background: transparent; }
+html[data-visual='club'] .settings-modal-wide .settings-modal-sidebar-item.active { box-shadow: none; }
+html[data-visual='club'] .settings-modal-wide .settings-modal-sidebar-item.active .settings-modal-sidebar-icon { background: transparent; color: currentColor; }
+
+@media (max-width: 700px) {
+  html[data-visual='club'] .app-shell :is(.pk-hero-text h1, .sp-hero-text h1, .mdx-lib-hero h1, .social-hero h1) { font-size: 32px; }
+  html[data-visual='club'] .app-shell .social-hero { grid-template-columns: minmax(0, 1fr); }
+  html[data-visual='club'] .club-count { font-size: 12px; }
+}
+
+/* ---------------------------------------------------------------
+   13. Canais de voz: a sala
+   Lista da barra lateral como um "fio" saindo do canal; o lobby sem
+   cartão (o nome da sala grande, quem está dentro e um botão); na
+   call, quadrados lisos, quem fala ganha um anel verde que pulsa como
+   onda de som, e os controles numa pílula só. A barra de chamada de
+   baixo, dentro da própria sala, fica só com a linha de status.
+   --------------------------------------------------------------- */
+
+/* Barra lateral: quem está em cada canal */
+html[data-visual='club'] .voice-roster {
+  margin: 2px 0 8px 27px; padding: 2px 0 2px 10px; gap: 1px;
+  border-left: 1px solid var(--club-line-2);
+}
+html[data-visual='club'] .voice-roster-item {
+  height: 28px; padding: 0 10px 0 6px; border-radius: 999px; gap: 9px;
+  font-size: 13px; font-weight: 500; color: var(--text-muted); transition: background-color .14s ease, color .14s ease;
+}
+html[data-visual='club'] .voice-roster-item:hover { background: var(--bg-modifier-hover); color: var(--header-primary); }
+html[data-visual='club'] .voice-roster-item .avatar.tiny { width: 20px; height: 20px; transition: box-shadow .14s ease; }
+html[data-visual='club'] .voice-roster-item.speaking { color: var(--header-primary); }
+html[data-visual='club'] .voice-roster-item.speaking .avatar.tiny {
+  transform: none; animation: none;
+  box-shadow: 0 0 0 2px var(--bg-secondary), 0 0 0 3.5px var(--green);
+}
+html[data-visual='club'] .voice-roster-ico,
+html[data-visual='club'] .voice-roster-ico.is-muted { color: var(--text-muted); opacity: .8; }
+
+/* Lobby */
+html[data-visual='club'] .vc { background: var(--bg-primary); }
+html[data-visual='club'] .vc-lobby-card {
+  width: min(100%, 620px); gap: 12px; padding: 24px 16px;
+  background: none; border: 0; box-shadow: none !important;
+}
+html[data-visual='club'] .vc-lobby-icon { display: none; }
+html[data-visual='club'] .vc-lobby-card h2 {
+  font-size: clamp(38px, 4.4vw, 62px); line-height: 1.02; font-weight: 800; font-stretch: 125%; letter-spacing: -0.045em;
+}
+html[data-visual='club'] .vc-lobby-topic { font-size: 15px; max-width: 46ch; }
+html[data-visual='club'] .vc-lobby-people { margin: 22px 0 4px; gap: 12px; }
+html[data-visual='club'] .vc-stack > * { box-shadow: 0 0 0 4px var(--bg-primary); }
+html[data-visual='club'] .vc-stack > * + * { margin-left: -12px; }
+html[data-visual='club'] .vc-stack-more { background: var(--club-surface); }
+html[data-visual='club'] .vc-lobby-people p { color: var(--text-muted); font-size: 14.5px; }
+html[data-visual='club'] .vc-chip-live { background: none !important; border: 0 !important; padding: 0; height: auto; color: var(--red); font-weight: 650; }
+html[data-visual='club'] .vc-chip-live svg { display: none; }
+html[data-visual='club'] .vc-chip-live::before { content: ''; width: 7px; height: 7px; border-radius: 50%; background: currentColor; }
+html[data-visual='club'] .vc-lobby-empty { font-size: 15px; margin-top: 14px; }
+html[data-visual='club'] .vc-join {
+  width: auto; min-width: 280px; height: 54px; padding: 0 30px; margin-top: 16px;
+  border-radius: 999px; box-shadow: none; font-size: 15.5px; color: #fff;
+}
+html[data-visual='club'] .vc-join:hover:not(:disabled) { transform: none; filter: brightness(1.08); }
+html[data-visual='club'] .vx-mictest { margin-top: 6px; }
+html[data-visual='club'] .vx-btn { border: 0; background: transparent; border-radius: 999px; color: var(--text-muted); }
+html[data-visual='club'] .vx-btn:hover:not(:disabled) { background: var(--bg-modifier-hover); color: var(--header-primary); }
+html[data-visual='club'] .vc-lobby .tvr-bar { margin: 2px 0 0; }
+
+/* Cabeçalho da call: só texto, sem caixinhas */
+html[data-visual='club'] .vc-head { padding: 12px 22px; gap: 16px; border-bottom-color: var(--club-line); }
+html[data-visual='club'] .vc-head .vc-chip { height: auto; padding: 0; background: none; border: 0; color: var(--text-muted); font-weight: 600; }
+html[data-visual='club'] .vc-head .vc-chip:has(.vc-live) { color: var(--header-primary); }
+html[data-visual='club'] .vc-head .vc-chip.vc-goal { padding: 0 10px; height: 26px; background: var(--club-surface); border-radius: 999px; }
+html[data-visual='club'] .ce-viewmode { background: transparent; border: 1px solid var(--club-line); border-radius: 999px; padding: 3px; }
+html[data-visual='club'] .ce-viewmode button { border-radius: 999px; padding: 5px 12px; }
+html[data-visual='club'] .ce-viewmode button.active { background: var(--club-sel-bg); color: var(--club-sel-fg); }
+
+/* Quadrados de quem está na call */
+html[data-visual='club'] .vc-stage { padding: 22px 22px 112px; gap: 14px; }
+html[data-visual='club'] .vc-grid { --vc-gap: 14px; }
+html[data-visual='club'] .vc-tile {
+  background: var(--club-surface); border: 0; border-radius: 28px; box-shadow: none;
+  transition: box-shadow .18s ease;
+}
+html[data-visual='club'] .vc-tile.has-banner {
+  background: linear-gradient(180deg, rgba(0, 0, 0, .25), rgba(0, 0, 0, .7)), var(--tile-banner) center / cover no-repeat, var(--club-surface);
+}
+html[data-visual='club'] .vc-tile.is-speaking { border-color: transparent !important; box-shadow: inset 0 0 0 2px var(--green) !important; }
+html[data-visual='club'] .vc-tile-avatar { position: relative; }
+html[data-visual='club'] .vc-tile-avatar > * { box-shadow: none; }
+html[data-visual='club'] .vc-tile.has-banner .vc-tile-avatar > * { box-shadow: 0 0 0 4px rgba(0, 0, 0, .3); }
+html[data-visual='club'] .vc-tile.is-speaking .vc-tile-avatar { transform: none; }
+html[data-visual='club'] .vc-tile.is-speaking .vc-tile-avatar::before,
+html[data-visual='club'] .vc-tile.is-speaking .vc-tile-avatar::after {
+  content: ''; position: absolute; inset: -5px; border-radius: 50%; pointer-events: none;
+  border: 2px solid var(--green); animation: club-voice-wave 1.8s cubic-bezier(.2, .6, .3, 1) infinite;
+}
+html[data-visual='club'] .vc-tile.is-speaking .vc-tile-avatar::after { animation-delay: .9s; }
+@keyframes club-voice-wave { 0% { transform: scale(1); opacity: .75; } 100% { transform: scale(1.5); opacity: 0; } }
+@media (prefers-reduced-motion: reduce) {
+  html[data-visual='club'] .vc-tile.is-speaking .vc-tile-avatar::before { animation: none; opacity: 1; }
+  html[data-visual='club'] .vc-tile.is-speaking .vc-tile-avatar::after { display: none; }
+}
+html.reduced-motion-pref[data-visual='club'] .vc-tile.is-speaking .vc-tile-avatar::before { animation: none; opacity: 1; }
+html.reduced-motion-pref[data-visual='club'] .vc-tile.is-speaking .vc-tile-avatar::after { display: none; }
+
+/* Nome: texto solto no quadrado liso; pílula escura só sobre banner/vídeo */
+html[data-visual='club'] .vc-label:not(.has-id-card) {
+  left: 18px; bottom: 16px; height: 24px; padding: 0; gap: 7px;
+  background: none; backdrop-filter: none; border-radius: 999px;
+  color: var(--header-primary); font-size: 14px; font-weight: 650;
+}
+html[data-visual='club'] :is(.vc-tile.has-video, .vc-tile.has-banner, .vc-screen) .vc-label:not(.has-id-card) {
+  left: 12px; bottom: 12px; height: 30px; padding: 0 12px;
+  background: rgba(0, 0, 0, .5); backdrop-filter: blur(10px); color: #fff;
+}
+html[data-visual='club'] .vc-label.has-id-card { border-radius: 999px; height: 30px; left: 12px; bottom: 12px; }
+html[data-visual='club'] .vc-label-muted:not(.vc-label-servermuted) { color: var(--red); }
+html[data-visual='club'] :is(.vc-tile.has-video, .vc-tile.has-banner) .vc-label-muted:not(.vc-label-servermuted) { color: #ff8a8d; }
+html[data-visual='club'] :is(.vc-tile-mod, .vc-vol-btn, .vc-screen-close, .vc-fullscreen) { border-radius: 999px; }
+
+/* Tela transmitida e a fileira embaixo */
+html[data-visual='club'] .vc-screen { border: 0; border-radius: 28px; }
+html[data-visual='club'] .vc-strip { gap: 12px; }
+html[data-visual='club'] .vc-strip .vc-tile { border-radius: 22px; }
+html[data-visual='club'] .vc-strip .vc-label:not(.has-id-card) { left: 14px; bottom: 12px; font-size: 13px; }
+html[data-visual='club'] .vc-section { font-weight: 650; color: var(--text-muted); }
+
+/* Controles: uma pílula, botões redondos */
+html[data-visual='club'] .vc-dock {
+  gap: 4px; padding: 6px; border-radius: 999px;
+  background: color-mix(in srgb, var(--bg-elevated) 86%, transparent); backdrop-filter: blur(16px);
+  border: 1px solid var(--club-line); box-shadow: 0 24px 60px -28px rgba(0, 0, 0, .75);
+}
+html[data-visual='club'] .vc-ctrl { width: 48px; height: 48px; border-radius: 999px; background: transparent; }
+html[data-visual='club'] .vc-ctrl:hover:not(:disabled) { background: var(--bg-modifier-hover); transform: none; }
+html[data-visual='club'] .vc-ctrl.is-active { background: var(--club-sel-bg); color: var(--club-sel-fg); }
+html[data-visual='club'] .vc-ctrl.is-danger { background: color-mix(in srgb, var(--red) 18%, transparent); color: var(--red); }
+html[data-visual='club'] .vc-leave { width: 72px; margin-left: 4px; background: var(--red); color: #fff; }
+html[data-visual='club'] .vc-leave:hover:not(:disabled) { background: var(--red); filter: brightness(1.1); }
+html[data-visual='club'] .vc-dock-sep { height: 22px; background: var(--club-line-2); margin: 0 2px; }
+html[data-visual='club'] .vc-ctrl-label { border-radius: 999px; background: var(--club-sel-bg); color: var(--club-sel-fg); box-shadow: none; padding: 6px 11px; }
+html[data-visual='club'] .vc-hand-btn { border-radius: 999px; }
+
+/* Barra de chamada (embaixo): status em texto, botões redondos */
+html[data-visual='club'] .call-bar.cb { background: var(--bg-primary); border-top-color: var(--club-line); }
+html[data-visual='club'] .call-bar.cb .cb-btn { border: 0; border-radius: 999px; background: var(--club-surface); }
+html[data-visual='club'] .call-bar.cb .cb-btn:hover:not(:disabled) { background: var(--bg-modifier-hover); border-color: transparent; }
+html[data-visual='club'] .call-bar.cb .cb-btn.is-off { background: color-mix(in srgb, var(--red) 16%, transparent); }
+html[data-visual='club'] .call-bar.cb .cb-btn.is-on { background: color-mix(in srgb, var(--green) 16%, transparent); }
+html[data-visual='club'] .call-bar.cb .cb-btn.cb-hangup { background: var(--red); }
+html[data-visual='club'] .call-bar.cb .cb-split > .cb-btn:first-child:not(:only-child) { border-radius: 999px 0 0 999px; }
+html[data-visual='club'] .call-bar.cb .cb-split > .cb-btn:last-child:not(:only-child) { border-radius: 0 999px 999px 0; }
+html[data-visual='club'] .call-bar.cb :is(.cb-time, .cb-count) { background: none; border: 0; padding: 0 2px; }
+html[data-visual='club'] .app-shell:has(.vc-dock) .call-bar.cb .cb-controls { display: none; }
+html[data-visual='club'] .tvr-btn { border-radius: 999px; background: transparent; color: var(--text-muted); padding: 6px 12px; font-size: 12.5px; }
+html[data-visual='club'] .tvr-btn:hover { background: var(--bg-modifier-hover); color: var(--header-primary); }
+html[data-visual='club'] .tvr-tag { border-style: solid; border-color: var(--club-line-2); color: var(--text-muted); }
+
+/* ---------------------------------------------------------------
+   14. Configurações do usuário: uma ficha
+   A janela fica mais alta; o título da janela vira um rótulo discreto
+   e quem manda é o título da aba. Cada opção é uma linha separada por
+   um fio fino (sem cartão em volta), campos em pílula lisa, chaves
+   liga/desliga maiores e as escolhas com o ativo em papel.
+   --------------------------------------------------------------- */
+html[data-visual='club'] .modal-overlay .settings-modal-box.settings-modal-wide.modal-box { width: min(1180px, 96vw); border-radius: 28px; }
+html[data-visual='club'] .settings-modal-wide .modal-header { padding: 16px 20px 0 26px; }
+html[data-visual='club'] .settings-modal-wide .modal-header h2 {
+  font-size: 13.5px; font-weight: 600; font-stretch: 100%; letter-spacing: 0; color: var(--text-muted);
+}
+html[data-visual='club'] .settings-save-pill { border: 0; height: 22px; }
+@media (min-width: 601px) {
+  html[data-visual='club'] .settings-modal-wide .settings-modal-layout { height: min(80vh, 860px); max-height: none; margin-top: 8px; }
+}
+
+/* Barra lateral */
+html[data-visual='club'] .settings-modal-wide .settings-modal-sidebar {
+  width: 268px; padding: 6px 14px 20px; gap: 2px; background: transparent; border-right-color: var(--club-line);
+}
+html[data-visual='club'] .settings-modal-sidebar-header {
+  margin-bottom: 8px; padding: 8px 14px 8px 8px; border-radius: 999px; background: none !important; border: 0 !important;
+}
+html[data-visual='club'] .settings-modal-sidebar-header:hover { background: var(--bg-modifier-hover) !important; }
+html[data-visual='club'] .settings-search {
+  height: 40px; margin: 0 0 8px; padding: 0 14px; border: 0; border-radius: 999px; background: var(--club-surface);
+}
+html[data-visual='club'] .settings-search:focus-within { box-shadow: 0 0 0 2px var(--club-accent); border-color: transparent; }
+html[data-visual='club'] .settings-modal-wide .settings-modal-sidebar-group { margin-top: 4px; }
+html[data-visual='club'] .settings-modal-wide .settings-modal-sidebar-group-label {
+  padding: 14px 14px 6px; font-size: 12px; font-weight: 600; letter-spacing: 0; text-transform: none; color: var(--text-muted);
+}
+html[data-visual='club'] .settings-modal-wide .settings-modal-sidebar-group-label::after { display: none; }
+html[data-visual='club'] .settings-modal-wide .settings-modal-sidebar-item { padding: 8px 14px; gap: 12px; font-size: 14px; border-radius: 999px; }
+html[data-visual='club'] .settings-modal-sidebar-divider { margin: 14px 10px; background: var(--club-line); }
+
+/* Página de cada aba */
+html[data-visual='club'] .settings-modal-wide .settings-modal-content { padding: 30px 44px 64px; }
+html[data-visual='club'] .settings-modal-wide .settings-modal-content > * { max-width: 780px; }
+html[data-visual='club'] .settings-modal-wide .settings-page-head { margin-bottom: 14px; }
+html[data-visual='club'] .settings-modal-wide .settings-page-head h2 { font-size: 34px; }
+html[data-visual='club'] .settings-modal-wide .settings-grid { gap: 0; }
+
+/* Linhas separadas por um fio, sem cartão */
+html[data-visual='club'] .settings-modal-wide .settings-modal-content :is(.settings-block, .pc-layout-panel) {
+  padding: 22px 0; gap: 12px; background: none; border: 0; border-top: 1px solid var(--club-line); border-radius: 0; box-shadow: none;
+}
+html[data-visual='club'] .settings-modal-wide .settings-modal-content :is(.settings-grid, .settings-modal-content) > :is(.settings-block, .pc-layout-panel):first-child,
+html[data-visual='club'] .settings-modal-wide .settings-page-head + :is(.settings-block, .pc-layout-panel) { border-top: 0; }
+html[data-visual='club'] .settings-modal-wide :is(.settings-block h4, .pc-layout-head h4) {
+  margin: 0; font-size: 15px; font-weight: 650; letter-spacing: -0.005em; text-transform: none; color: var(--header-primary);
+}
+html[data-visual='club'] .settings-modal-wide :is(.settings-block p.dim, .settings-block > p, .pc-layout-head p, .settings-field-hint, .settings-autosave-hint, .pc-field-hint) {
+  font-size: 13.5px; line-height: 1.5; color: var(--text-muted);
+}
+html[data-visual='club'] .settings-modal-wide .settings-block.settings-toggle-row { gap: 28px; }
+html[data-visual='club'] .settings-modal-wide .settings-block.danger-zone h4 { color: var(--red); }
+html[data-visual='club'] .danger-zone-row { border-top-color: var(--club-line); }
+html[data-visual='club'] .settings-section-title { text-transform: none; letter-spacing: 0; font-size: 13px; font-weight: 650; color: var(--text-muted); }
+html[data-visual='club'] .settings-section-title::after { background: var(--club-line); }
+
+/* Rótulos e campos */
+html[data-visual='club'] .settings-modal-wide .settings-grid label,
+html[data-visual='club'] .settings-modal-wide .pc-field-label {
+  font-size: 13px; font-weight: 600; letter-spacing: 0; text-transform: none; color: var(--text-muted); gap: 8px;
+}
+html[data-visual='club'] .settings-modal-wide .settings-modal-content :is(input:not([type=range]):not([type=checkbox]):not([type=radio]):not([type=color]), select, textarea) {
+  min-height: 44px; padding: 0 16px; border: 1px solid transparent; border-radius: 14px;
+  background: var(--club-surface); color: var(--header-primary); font-size: 14.5px; box-shadow: none;
+}
+html[data-visual='club'] .settings-modal-wide .settings-modal-content textarea { padding: 12px 16px; border-radius: 18px; }
+html[data-visual='club'] .settings-modal-wide .settings-modal-content :is(input, select, textarea):focus { border-color: var(--club-accent); outline: none; box-shadow: none; }
+html[data-visual='club'] .settings-prefix-input { border-radius: 14px; background: var(--club-surface); }
+html[data-visual='club'] .settings-prefix-input > span { background: none; border: 0; padding: 0 2px 0 16px; }
+html[data-visual='club'] .settings-modal-wide .settings-modal-content .settings-prefix-input > input { background: transparent; padding-left: 6px; }
+html[data-visual='club'] .settings-modal-wide input[type=range] { accent-color: var(--brand); }
+html[data-visual='club'] .settings-chip { height: auto; padding: 0; border: 0 !important; background: none !important; font-weight: 650; }
+html[data-visual='club'] .settings-char-count { color: var(--text-muted); font-weight: 500; }
+
+/* Liga/desliga */
+html[data-visual='club'] :is(.toggle-switch, .pc-switch) {
+  width: 46px; height: 28px; border: 0; border-radius: 999px; background: var(--club-line-2); transition: background-color .18s ease;
+}
+html[data-visual='club'] :is(.toggle-switch, .pc-switch)::after {
+  top: 4px; left: 4px; width: 20px; height: 20px; background: #fff; box-shadow: 0 1px 3px rgba(0, 0, 0, .3);
+  transition: transform .2s cubic-bezier(.3, .9, .3, 1), background-color .18s ease;
+}
+html[data-visual='club'] :is(.toggle-switch, .pc-switch).on { background: var(--brand); }
+html[data-visual='club'] :is(.toggle-switch, .pc-switch).on::after { left: 4px; transform: translateX(18px); background: var(--club-on-brand); }
+html[data-visual='club'] :is(.toggle-switch, .pc-switch):focus-visible { outline: 2px solid var(--club-accent); outline-offset: 2px; }
+
+/* Escolhas: o ativo em papel */
+html[data-visual='club'] :is(.settings-segmented, .pc-seg) { padding: 4px; gap: 2px; background: transparent; border: 1px solid var(--club-line); border-radius: 999px; }
+html[data-visual='club'] :is(.settings-segmented .chip-choice, .pc-seg button) { border-radius: 999px; height: 34px; }
+html[data-visual='club'] :is(.settings-segmented .chip-choice, .pc-seg button).active { background: var(--club-sel-bg); color: var(--club-sel-fg); box-shadow: none; }
+html[data-visual='club'] .settings-radio-cards { gap: 2px; }
+html[data-visual='club'] .settings-radio-card { padding: 12px 14px; border: 0; border-radius: 16px; background: transparent; }
+html[data-visual='club'] .settings-radio-card:hover { background: var(--bg-modifier-hover); }
+html[data-visual='club'] .settings-radio-card.active { background: var(--club-surface); }
+html[data-visual='club'] .settings-radio-dot { border-color: var(--club-line-2); }
+html[data-visual='club'] .settings-radio-card.active .settings-radio-dot { border: 6px solid var(--header-primary); background: var(--bg-primary); }
+html[data-visual='club'] .chip-choice:not(.settings-segmented .chip-choice) { border-radius: 999px; }
+html[data-visual='club'] .chip-choice.active:not(.settings-segmented .chip-choice) { background: var(--club-sel-bg); color: var(--club-sel-fg); border-color: transparent; box-shadow: none; }
+html[data-visual='club'] .xp-profiles { gap: 8px; }
+html[data-visual='club'] .xp-profile { border: 0; border-radius: 20px; background: var(--club-surface); padding: 14px 14px 14px 40px; }
+html[data-visual='club'] .xp-profile:hover { background: var(--bg-modifier-hover); }
+html[data-visual='club'] .xp-profile.on { background: var(--club-sel-bg); color: color-mix(in srgb, var(--club-sel-fg) 70%, transparent); }
+html[data-visual='club'] .xp-profile.on strong { color: var(--club-sel-fg); }
+html[data-visual='club'] .xp-profile.on .xp-profile-dot { border-color: var(--club-sel-fg); background: radial-gradient(circle, var(--club-sel-fg) 45%, transparent 50%); }
+html[data-visual='club'] .xp-entry { border: 0; border-radius: 999px; background: var(--club-surface); font-weight: 600; }
+html[data-visual='club'] .xp-entry.on { background: var(--club-sel-bg); color: var(--club-sel-fg); }
+html[data-visual='club'] .xp-sound { border-radius: 999px; padding: 6px 10px 6px 6px; }
+html[data-visual='club'] .xp-play { background: var(--club-surface); }
+html[data-visual='club'] .xp-play:hover { background: var(--club-sel-bg); color: var(--club-sel-fg); }
+html[data-visual='club'] :is(.xp-theme, .xp-icon).on { border-color: var(--header-primary); }
+html[data-visual='club'] .xp-custom { background: var(--club-surface); border: 0; border-radius: 20px; }
+html[data-visual='club'] .pc-season-chip { border-radius: 999px; }
+html[data-visual='club'] .pc-season-chip.is-now { background: var(--club-sel-bg); color: var(--club-sel-fg); border-color: transparent; }
+
+/* Botões */
+html[data-visual='club'] .settings-modal-wide :is(.btn-secondary, .btn-primary, .btn-danger, .pc-btn-ghost) {
+  min-height: 38px; padding: 0 18px; border-radius: 999px; font-weight: 650; box-shadow: none;
+}
+html[data-visual='club'] .settings-modal-wide :is(.btn-secondary, .pc-btn-ghost) { background: transparent; border: 1px solid var(--club-line-2); color: var(--header-primary); }
+html[data-visual='club'] .settings-modal-wide :is(.btn-secondary, .pc-btn-ghost):hover:not(:disabled) { background: var(--bg-modifier-hover); border-color: var(--club-line-2); }
+
+@media (max-width: 600px) {
+  html[data-visual='club'] .settings-modal-wide .settings-modal-content { padding: 18px 16px 40px; }
+  html[data-visual='club'] .settings-modal-wide .settings-page-head h2 { font-size: 26px; }
+  html[data-visual='club'] .settings-modal-wide .settings-modal-sidebar { width: 100%; padding: 10px 12px; }
+}
+
+/* Editor de perfil (aberto pelo "Editar perfil" das Configurações) */
+html[data-visual='club'] .pe-side { background: var(--bg-primary); border-right-color: var(--club-line); }
+html[data-visual='club'] .pe-side-body .settings-block { background: var(--club-surface); border: 0; border-radius: 20px; padding: 16px; box-shadow: none; }
+html[data-visual='club'] .pe-side-body .settings-block :is(input:not([type=range]):not([type=checkbox]):not([type=radio]):not([type=color]), select, textarea) {
+  border-radius: 14px; border: 1px solid transparent; background: var(--bg-primary); box-shadow: none;
+}
+html[data-visual='club'] .pe-side-body :is(.btn-secondary, .pc-btn-ghost) { border-radius: 999px; background: transparent; border: 1px solid var(--club-line-2); }
+html[data-visual='club'] .pe-view-toggle { background: transparent; border-color: var(--club-line); border-radius: 999px; }
+html[data-visual='club'] .pe-view-toggle button { border-radius: 999px; }
+html[data-visual='club'] .pe-view-toggle button.is-on { background: var(--club-sel-bg); color: var(--club-sel-fg); box-shadow: none; }
+html[data-visual='club'] :is(.pe-close, .pe-icon-btn) { border-radius: 999px; }
+
+/* ---------------------------------------------------------------
+   15. Mais um polimento nos menus
+   --------------------------------------------------------------- */
+/* Game Hub / Promoções: filtros em papel, busca e ordem em pílula */
+html[data-visual='club'] .gh-chip { border-radius: 999px; border-color: var(--club-line); background: transparent; }
+html[data-visual='club'] .gh-chip.on { background: var(--club-sel-bg); color: var(--club-sel-fg); border-color: transparent; }
+html[data-visual='club'] :is(.gh-search, .gh-select select) { border-radius: 999px; border-color: transparent; background: var(--club-surface); }
+html[data-visual='club'] .gh-search:focus-within { border-color: var(--club-accent); }
+html[data-visual='club'] .jh-hero-art { opacity: .1; }
+html[data-visual='club'] :is(.gh-deal, .gh-free) { border: 0 !important; border-radius: 22px; }
+html[data-visual='club'] :is(.gh-h1, .gh-head h1) { font-stretch: 125%; letter-spacing: -0.045em; }
+
+/* Amigos → "Ativo agora": cartões lisos, botão de entrar em pílula */
+html[data-visual='club'] .anp-card { border: 0; background: var(--club-surface); border-radius: 20px; }
+html[data-visual='club'] .anp-card:hover { border-color: transparent; transform: none; background: color-mix(in srgb, var(--club-surface) 70%, var(--bg-modifier-hover)); }
+html[data-visual='club'] .anp-head { padding: 12px 14px; }
+html[data-visual='club'] .anp-voice { padding: 10px 14px; border-top-color: var(--club-line); }
+html[data-visual='club'] .anp-voice button { border-radius: 999px; height: 32px; padding: 0 16px; }
+@media (max-width: 700px) {
+  html[data-visual='club'] .vc-stage { padding: 12px 12px 96px; }
+  html[data-visual='club'] .vc-grid { --vc-gap-x: 10px; }
+  html[data-visual='club'] .vc-tile { border-radius: 22px; }
+  html[data-visual='club'] .vc-dock { gap: 0; padding: 4px; max-width: calc(100vw - 16px); }
+  html[data-visual='club'] .vc-ctrl { width: 42px; height: 42px; }
+  html[data-visual='club'] .vc-leave { width: 54px; margin-left: 2px; }
+  html[data-visual='club'] .vc-dock-sep { margin: 0 1px; }
+  html[data-visual='club'] .vc-label:not(.has-id-card) { left: 14px; bottom: 12px; font-size: 13px; }
+  html[data-visual='club'] .vc-lobby-card h2 { font-size: 40px; }
+  html[data-visual='club'] .vc-join { min-width: 0; width: 100%; }
+}
+html[data-visual='club'] .vc-ctrl-split > .vc-ctrl { border-radius: 999px 10px 10px 999px; }
+html[data-visual='club'] .vc-ctrl-split .cb-caret { height: 48px; width: 20px; background: transparent; border-radius: 10px 999px 999px 10px; }
+html[data-visual='club'] .vc-ctrl-split.is-danger .cb-caret { background: color-mix(in srgb, var(--red) 18%, transparent); }

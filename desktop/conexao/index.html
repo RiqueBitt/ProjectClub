@@ -1,0 +1,51 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8" />
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'; script-src 'self'; img-src 'self' data:" />
+<title>Project Club · Conexão</title>
+<style>
+  :root { color-scheme: dark; --bg: #111318; --text: #e8e9ee; --muted: #a6a9b6; --accent: #4c9fff; --warn: #f0b232; }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; height: 100%; background: var(--bg); color: var(--text); font: 15px/1.5 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; user-select: none; overflow: hidden; }
+  .bar { height: 36px; display: flex; align-items: center; justify-content: space-between; padding: 0 6px 0 14px; -webkit-app-region: drag; }
+  .brand { font-size: 11px; font-weight: 800; letter-spacing: .12em; color: var(--accent); }
+  .win { display: flex; -webkit-app-region: no-drag; }
+  .win button { width: 34px; height: 28px; border: 0; border-radius: 6px; background: transparent; color: var(--muted); cursor: pointer; display: grid; place-items: center; }
+  .win button:hover { background: rgba(255,255,255,.08); color: var(--text); }
+  .win button.close:hover { background: #e81123; color: #fff; }
+  main { height: calc(100% - 36px); display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; padding: 8px 32px 28px; gap: 10px; }
+  .dot { width: 14px; height: 14px; border-radius: 50%; background: var(--warn); box-shadow: 0 0 0 0 rgba(240,178,50,.5); animation: pulse 1.8s infinite; margin-bottom: 6px; }
+  @keyframes pulse { 70% { box-shadow: 0 0 0 14px rgba(240,178,50,0); } 100% { box-shadow: 0 0 0 0 rgba(240,178,50,0); } }
+  @media (prefers-reduced-motion: reduce) { .dot { animation: none; } }
+  h1 { font-size: 21px; margin: 0; }
+  p { margin: 0; color: var(--muted); max-width: 320px; }
+  .status { display: flex; align-items: center; gap: 8px; font-size: 13px; color: var(--muted); min-height: 20px; margin-top: 6px; }
+  .spin { width: 14px; height: 14px; border: 2px solid rgba(255,255,255,.2); border-top-color: var(--accent); border-radius: 50%; animation: spin .8s linear infinite; visibility: hidden; }
+  .status.busy .spin { visibility: visible; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  button.retry { margin-top: 8px; border: 0; border-radius: 10px; padding: 11px 24px; font: inherit; font-weight: 700; background: var(--accent); color: #fff; cursor: pointer; }
+  button.retry:disabled { opacity: .6; cursor: default; }
+  button.retry:focus-visible, .win button:focus-visible { outline: 2px solid #fff; outline-offset: 2px; }
+  .detail { margin-top: 14px; font-size: 11px; color: #6b6f7c; }
+</style>
+</head>
+<body>
+  <div class="bar">
+    <span class="brand">PROJECT CLUB · CONEXÃO</span>
+    <div class="win">
+      <button type="button" id="min" aria-label="Minimizar"><svg width="10" height="10" viewBox="0 0 10 10"><rect y="4.5" width="10" height="1" fill="currentColor"/></svg></button>
+      <button type="button" id="hide" class="close" aria-label="Fechar (continua na bandeja)"><svg width="10" height="10" viewBox="0 0 10 10"><path d="M.5.5l9 9M9.5.5l-9 9" stroke="currentColor" stroke-width="1.2"/></svg></button>
+    </div>
+  </div>
+  <main>
+    <span class="dot" aria-hidden="true"></span>
+    <h1 id="title">Sem conexão com o Project Club</h1>
+    <p id="msg">A internet está funcionando, mas o servidor não respondeu. O app tenta de novo sozinho.</p>
+    <div class="status" id="status" role="status" aria-live="polite"><span class="spin"></span><span id="statusText">Tentando de novo a cada 5 segundos</span></div>
+    <button type="button" class="retry" id="retry">Tentar agora</button>
+    <div class="detail" id="detail"></div>
+  </main>
+  <script src="conexao.js"></script>
+</body>
+</html>

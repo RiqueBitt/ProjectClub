@@ -1,0 +1,174 @@
+; Instalador do Project Club para Windows: ganchos do electron-builder.
+;
+; O que sai do build (ver "win", "nsis" e "nsisWeb" no package.json):
+;   - um instalador pequeno (ProjectClub-Setup-Windows.exe), com telas em português, que baixa o
+;     pacote do app da própria release e instala em  %LOCALAPPDATA%\Programs\Project Club;
+;   - instalação sempre "só para mim": nunca pede senha de administrador.
+;
+; As versões antigas eram um .exe de "um clique" que instalava sem mostrar nada na pasta
+; ...\Programs\project-club-desktop. Como fica a passagem:
+;   - atualização automática (o app chama o instalador com --updated): continua na pasta em que
+;     já está, pra não mexer em atalho nem em ícone fixado de ninguém sem a pessoa pedir;
+;   - instalador aberto pela pessoa: passa pra pasta "Project Club" e a antiga é apagada.
+
+!define PC_LEGACY_DIR_NAME "project-club-desktop"
+
+!ifndef BUILD_UNINSTALLER
+  ; Pasta antiga que esta instalação está substituindo ("" = nenhuma).
+  Var pcLegacyDir
+  ; "1" = a pasta que está no registro é só a anotação temporária do preInit.
+  Var pcTempLocation
+!endif
+
+; Defeito do modelo do electron-builder: numa máquina sem o app, o instalador às vezes fechava
+; sozinho logo ao abrir (erro 0xC0000005 do Windows). Pra descobrir a pasta padrão, o modelo lê
+; 16 KB de memória a partir de um texto de poucos bytes (multiUser.nsh, logo depois do
+; "SHGetKnownFolderPath"); quando esse pedaço passa do fim da memória do programa, o Windows
+; encerra o instalador. Esse trecho só roda quando o registro não tem a pasta de instalação.
+; Então, na instalação nova, a pasta padrão (a mesma que o modelo calcularia) é anotada no
+; registro por um instante aqui e apagada logo em seguida, no customInit: o modelo acha a pasta
+; no registro e não chega no trecho com defeito.
+!macro preInit
+  !ifndef BUILD_UNINSTALLER
+    StrCpy $pcTempLocation ""
+    ReadRegStr $R8 HKCU "${INSTALL_REGISTRY_KEY}" InstallLocation
+    ${If} $R8 == ""
+      WriteRegStr HKCU "${INSTALL_REGISTRY_KEY}" InstallLocation "$LOCALAPPDATA\Programs\${APP_FILENAME}"
+      StrCpy $pcTempLocation "1"
+    ${EndIf}
+  !endif
+!macroend
+
+!macro customInit
+  ; Antes ainda, o app instalava pra todos os usuários (C:\Program Files\Project Club) e toda
+  ; atualização pedia permissão de administrador. Se sobrou uma instalação dessas, tira (um único
+  ; aviso do Windows, uma vez só) antes de instalar a nova.
+  ReadRegStr $R8 HKCU "Software\ProjectClub" "PerMachineMigrated"
+  ${If} $R8 != "1"
+    ReadRegStr $R9 HKLM "${INSTALL_REGISTRY_KEY}" InstallLocation
+    ${If} $R9 != ""
+    ${AndIf} ${FileExists} "$R9\${UNINSTALL_FILENAME}"
+      WriteRegStr HKCU "Software\ProjectClub" "PerMachineMigrated" "1"
+      ; O app (desktop/main.js) usa isto pra manter o "Iniciar com o Windows".
+      WriteRegStr HKCU "Software\ProjectClub" "OldExe" "$R9\${APP_EXECUTABLE_FILENAME}"
+      ExecShellWait "runas" "$R9\${UNINSTALL_FILENAME}" "/S /allusers _?=$R9"
+      RMDir /r "$R9"
+    ${EndIf}
+  ${EndIf}
+
+  ; Sempre "só para mim". Sem isto, um resto de instalação antiga em "Arquivos de Programas" faria
+  ; o instalador pedir administrador numa atualização silenciosa.
+  !ifndef ONE_CLICK
+    StrCpy $hasPerMachineInstallation "0"
+  !endif
+  ${If} $installMode != "CurrentUser"
+    !insertmacro setInstallModePerUser
+  ${EndIf}
+
+  ; Apaga a anotação temporária do preInit: o registro volta a ficar como estava.
+  ${If} $pcTempLocation == "1"
+    DeleteRegValue HKCU "${INSTALL_REGISTRY_KEY}" InstallLocation
+    DeleteRegKey /ifempty HKCU "${INSTALL_REGISTRY_KEY}"
+    StrCpy $perUserInstallationFolder ""
+    !ifndef ONE_CLICK
+      StrCpy $hasPerUserInstallation "0"
+    !endif
+  ${EndIf}
+
+  ; Pasta antiga -> pasta "Project Club" (só quando a pessoa abriu o instalador; ver o topo).
+  ; $INSTDIR aqui é a pasta gravada no registro pela instalação anterior, ou a padrão nova.
+  StrCpy $pcLegacyDir ""
+  ${IfNot} ${isUpdated}
+    ${If} $INSTDIR == $perUserInstallationFolder
+      StrLen $R7 "\${PC_LEGACY_DIR_NAME}"
+      StrCpy $R8 "$INSTDIR" "" -$R7
+      ${If} $R8 == "\${PC_LEGACY_DIR_NAME}"
+        StrCpy $pcLegacyDir "$INSTDIR"
+        StrCpy $R8 "$INSTDIR" -$R7
+        StrCpy $INSTDIR "$R8\${APP_FILENAME}"
+      ${EndIf}
+    ${EndIf}
+  ${EndIf}
+
+  ; Só pros testes (desktop/scripts/check-installer.js): faz tudo que acontece ao abrir o
+  ; instalador e sai antes de instalar, pra dar pra conferir a partida centenas de vezes.
+  ${StdUtils.TestParameter} $R8 "check-start"
+  ${If} $R8 == "true"
+    !insertmacro quitSuccess
+  ${EndIf}
+!macroend
+
+; Página "para quem instalar": não aparece. No instalador, o modo e a pasta já foram decididos no
+; customInit; não dá pra usar $isForceCurrentInstall ali porque ele relê a pasta do registro e
+; desfaria a troca de pasta.
+!macro customInstallMode
+  !ifdef BUILD_UNINSTALLER
+    StrCpy $isForceCurrentInstall "1"
+  !else
+    Abort
+  !endif
+!macroend
+
+; Primeira tela: diz o que vai acontecer e onde o app vai ficar.
+!macro customWelcomePage
+  ; A instalação começa logo depois desta tela (a de "para quem instalar" é pulada), então o
+  ; botão daqui já é o "Instalar", e não "Avançar".
+  Function pcWelcomeShow
+    GetDlgItem $0 $HWNDPARENT 1
+    SendMessage $0 ${WM_SETTEXT} 0 "STR:$(^InstallBtn)"
+  FunctionEnd
+
+  !define MUI_WELCOMEPAGE_TITLE "Instalar o Project Club"
+  !define MUI_WELCOMEPAGE_TEXT "Este instalador baixa o Project Club da internet e instala nesta pasta:$\r$\n$\r$\n$INSTDIR$\r$\n$\r$\nNão precisa de senha de administrador.$\r$\n$\r$\nClique em Instalar para começar."
+  !define MUI_PAGE_CUSTOMFUNCTION_SHOW pcWelcomeShow
+  !insertmacro skipPageIfUpdated
+  !insertmacro MUI_PAGE_WELCOME
+!macroend
+
+!macro customInstall
+  ; As versões antigas guardavam uma cópia inteira do instalador (mais de 100 MB) pra, na
+  ; atualização, baixar só a diferença. Agora quem fica guardado é o pacote (package.7z, na mesma
+  ; pasta); a cópia antiga não serve mais pra nada.
+  !ifdef APP_PACKAGE_STORE_FILE
+    !searchreplace PC_OLD_INSTALLER_COPY "${APP_PACKAGE_STORE_FILE}" "\package.7z" "\installer.exe"
+    !if "${PC_OLD_INSTALLER_COPY}" == "${APP_PACKAGE_STORE_FILE}"
+      !error "APP_PACKAGE_STORE_FILE mudou de formato: ${APP_PACKAGE_STORE_FILE}"
+    !endif
+    Delete "$LOCALAPPDATA\${PC_OLD_INSTALLER_COPY}"
+  !endif
+
+  ${If} $pcLegacyDir != ""
+    ; O desinstalador antigo já apagou os arquivos; RMDir sem /r só tira a pasta se ela ficou vazia.
+    RMDir "$pcLegacyDir"
+    ; O app (desktop/main.js) usa isto pra passar o "Iniciar com o Windows" e o ícone fixado na
+    ; barra de tarefas pro .exe da pasta nova.
+    WriteRegStr HKCU "Software\ProjectClub" "OldExe" "$pcLegacyDir\${APP_EXECUTABLE_FILENAME}"
+  ${EndIf}
+!macroend
+
+; Desinstalação pedida pela pessoa (não a que o instalador roda sozinho antes de atualizar).
+!macro customUnInstall
+  ; O desinstalador trabalha "dentro" da pasta do app, e o Windows não deixa apagar a pasta em que
+  ; um programa está: sobrava a pasta vazia. Sai dela e apaga (RMDir sem /r só tira pasta vazia).
+  SetOutPath "$TEMP"
+  RMDir "$INSTDIR"
+
+  ; O pacote guardado pra próxima atualização (mais de 100 MB) não serve mais pra nada. Apaga só
+  ; o que o atualizador cria ali, pelo nome; a conferência abaixo impede que a pasta saia vazia
+  ; ou com outro formato (um "RMDir /r" numa pasta errada apagaria coisa que não é do app).
+  !ifdef APP_PACKAGE_STORE_FILE
+    !searchreplace PC_UPDATER_DIR "${APP_PACKAGE_STORE_FILE}" "\package.7z" ""
+    !if "${PC_UPDATER_DIR}" == ""
+      !error "APP_PACKAGE_STORE_FILE sem pasta: ${APP_PACKAGE_STORE_FILE}"
+    !endif
+    !if "${PC_UPDATER_DIR}" == "${APP_PACKAGE_STORE_FILE}"
+      !error "APP_PACKAGE_STORE_FILE mudou de formato: ${APP_PACKAGE_STORE_FILE}"
+    !endif
+    ${IfNot} ${isUpdated}
+      Delete "$LOCALAPPDATA\${PC_UPDATER_DIR}\package.7z"
+      Delete "$LOCALAPPDATA\${PC_UPDATER_DIR}\installer.exe"
+      RMDir /r "$LOCALAPPDATA\${PC_UPDATER_DIR}\pending"
+      RMDir "$LOCALAPPDATA\${PC_UPDATER_DIR}"
+    ${EndIf}
+  !endif
+!macroend

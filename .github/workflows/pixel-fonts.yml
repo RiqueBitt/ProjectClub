@@ -1,0 +1,63 @@
+name: Fontes da Loja — Fonte Mania (DaFont + Fontesk)
+
+# Baixa as fontes da coleção "Fonte Mania" da Loja (antes "Pixels Galore")
+# com .github/scripts/fonte-mania.mjs, grava em
+# client/public/fonts/pixels-galore/ + manifest.json e publica o site. O
+# servidor cria a coleção e os itens da Loja sozinho no boot
+# (server/src/services/pixelsGalore.js). Roda quando este arquivo ou o
+# script mudam na main, ou na mão (Actions → Run workflow).
+#
+# Licenças (conferidas em nov/2026), todas liberadas pra uso comercial:
+#   Minecraft — Craftron Gaming, "100% grátis" no DaFont.
+#   Kiwi Soda — jeti (fontenddev.com), CC BY 4.0 (crédito na descrição).
+#   Satyr SP 2 — Sasha Pavljenko; Matcha Cih — Khurasan; Balium — Unio
+#   Creative Solutions: "Free for commercial use" no Fontesk.
+#   Cartas De Abril — Arthur de Paula; Eastern Rhodopes — Dmitry Chekanov: OFL.
+#   (Daydream ficou de fora: a versão do DaFont é só pra uso pessoal.)
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/pixel-fonts.yml'
+      - '.github/scripts/fonte-mania.mjs'
+  workflow_dispatch: {}
+
+concurrency:
+  group: pixel-fonts
+  cancel-in-progress: false
+
+jobs:
+  fonts:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      actions: write
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - name: Baixar as fontes (DaFont e Fontesk)
+        run: node .github/scripts/fonte-mania.mjs
+      - name: Gravar no repositório
+        id: commit
+        run: |
+          git add client/public/fonts/pixels-galore
+          if git diff --cached --quiet; then
+            echo "Nada mudou nas fontes."
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898732+github-actions[bot]@users.noreply.github.com"
+          git commit -m "chore: fontes da Loja (Fonte Mania)"
+          for i in 1 2 3; do git pull --rebase origin main && git push origin HEAD:main && break; sleep 5; done
+          echo "changed=true" >> "$GITHUB_OUTPUT"
+      - name: Publicar o site com as fontes novas
+        if: steps.commit.outputs.changed == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh workflow run deploy.yml --ref main

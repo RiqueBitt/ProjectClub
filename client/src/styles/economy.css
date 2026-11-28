@@ -1,0 +1,246 @@
+/* ============================================================
+   Economia (EconomyPage.jsx). Tudo sob .eco.
+
+   Ideia do desenho: o cartão 3D é o único objeto "chamativo" da página e
+   fica solto, sem moldura. O resto é quieto: painéis lisos, linhas finas
+   entre os itens (nada de caixa dentro de caixa) e uma cor de ação só.
+   ============================================================ */
+.eco {
+  --eco-coin: #e9b61f;                 /* a moeda "PC" */
+  --eco-gem: #3fc9b4;                  /* a gema verde-água */
+  --eco-line: var(--lit-border-color, var(--border));
+  --eco-display: 'Space Grotesk', 'Inter', system-ui, -apple-system, 'Segoe UI', sans-serif;
+}
+.eco .pk-inner { gap: 22px; container: eco / inline-size; }
+
+/* ---------- Topo: cartão + baú diário ---------- */
+.eco-top { display: grid; grid-template-columns: minmax(0, 470px) minmax(0, 1fr); gap: 24px 48px; align-items: start; padding: 12px 0 0; }
+.eco-stage { display: flex; flex-direction: column; align-items: center; gap: 4px; min-width: 0; }
+.eco-stage-links { display: flex; flex-wrap: wrap; justify-content: center; gap: 2px 18px; }
+.eco-quiet {
+  display: inline-flex; align-items: center; gap: 6px; padding: 6px 4px; border-radius: 8px;
+  font-size: 13px; font-weight: 600; color: var(--text-muted);
+}
+.eco-quiet:hover { color: var(--header-primary); text-decoration: none; }
+.eco-quiet:focus-visible { outline: 2px solid var(--brand); outline-offset: 2px; }
+
+.eco-daily {
+  display: flex; flex-direction: column; gap: 26px; min-width: 0; padding: 28px 30px 30px; border-radius: 22px;
+  background: var(--bg-secondary); border: 1px solid var(--eco-line); box-shadow: var(--lit-glow, none);
+}
+.eco-daily-head { display: flex; flex-direction: column; gap: 8px; }
+.eco-daily-title { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.eco-daily-head h2 { margin: 0; font-family: var(--eco-display); font-size: 23px; font-weight: 700; letter-spacing: -.015em; line-height: 1.2; color: var(--header-primary); }
+.eco-daily-head p { margin: 0; max-width: 44ch; font-size: 14px; line-height: 1.5; color: var(--text-muted); }
+.eco-status {
+  flex-shrink: 0; display: inline-flex; align-items: center; gap: 7px; height: 28px; padding: 0 12px; border-radius: 999px;
+  font-size: 12.5px; font-weight: 700; white-space: nowrap; font-variant-numeric: tabular-nums;
+  color: var(--text-muted); background: color-mix(in srgb, var(--text-muted) 13%, transparent);
+}
+.eco-status.is-ready { color: var(--green); background: color-mix(in srgb, var(--green) 14%, transparent); }
+.eco-status.is-ready::before { content: ''; width: 7px; height: 7px; border-radius: 50%; background: currentColor; }
+
+/* Sequência: um trilho com os dias; a parte já feita fica verde. */
+.eco-streak {
+  list-style: none; margin: 0; padding: 0; position: relative;
+  display: grid; grid-template-columns: repeat(var(--eco-days, 5), minmax(0, 1fr));
+}
+.eco-streak::before, .eco-streak::after { content: ''; position: absolute; top: 21px; left: calc(50% / var(--eco-days, 5)); height: 2px; border-radius: 2px; }
+.eco-streak::before { right: calc(50% / var(--eco-days, 5)); background: var(--eco-line); }
+.eco-streak::after { width: calc((100% - 100% / var(--eco-days, 5)) * var(--eco-fill, 0)); background: var(--green); transition: width .5s cubic-bezier(.2, .8, .2, 1); }
+.eco-streak li { position: relative; z-index: 1; display: flex; flex-direction: column; align-items: center; gap: 8px; min-width: 0; }
+.eco-streak-node {
+  width: 44px; height: 44px; box-sizing: border-box; border-radius: 50%; display: inline-flex; align-items: center; justify-content: center;
+  font-family: var(--eco-display); font-size: 15px; font-weight: 700; color: var(--text-muted);
+  background: var(--bg-secondary); border: 2px solid var(--eco-line);
+}
+.eco-streak li small { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 12px; font-weight: 600; color: var(--text-muted); }
+.eco-streak li.done .eco-streak-node { color: #fff; background: var(--green); border-color: var(--green); }
+.eco-streak li.done small { color: var(--text-normal); }
+.eco-streak li.next .eco-streak-node { color: var(--brand); border-color: var(--brand); box-shadow: 0 0 0 5px color-mix(in srgb, var(--brand) 18%, transparent); }
+.eco-streak li.next small { color: var(--header-primary); }
+.eco-streak li.mega .eco-streak-node { border-color: color-mix(in srgb, var(--eco-gem) 60%, var(--eco-line)); background: color-mix(in srgb, var(--eco-gem) 12%, var(--bg-secondary)); }
+.eco-streak li.mega small { color: color-mix(in srgb, var(--eco-gem) 80%, var(--header-primary)); }
+.eco-streak li.mega.next .eco-streak-node { box-shadow: 0 0 0 5px color-mix(in srgb, var(--eco-gem) 20%, transparent); border-color: var(--eco-gem); }
+.eco-streak li.mega.done .eco-streak-node { background: var(--eco-gem); border-color: var(--eco-gem); }
+
+.eco-claim { display: flex; align-items: center; gap: 14px 20px; flex-wrap: wrap; }
+.eco-claim-btn { flex-shrink: 0; }
+.eco-claim-note { flex: 1 1 220px; margin: 0; font-size: 13px; line-height: 1.5; color: var(--text-muted); }
+.eco-claim-note b { color: var(--header-primary); }
+
+/* ---------- Painéis e cabeçalhos ---------- */
+.eco-panel { min-width: 0; padding: 6px 0 8px; border-radius: 20px; background: var(--bg-secondary); border: 1px solid var(--eco-line); box-shadow: var(--lit-glow, none); }
+.eco-panel > .pk-empty, .eco-panel > .pk-skeleton { margin: 4px 22px 12px; }
+.eco-panel-head { display: flex; align-items: center; justify-content: space-between; gap: 8px 16px; flex-wrap: wrap; padding: 14px 22px 12px; }
+.eco-panel-head h2 { margin: 0; display: flex; align-items: baseline; gap: 10px; font-family: var(--eco-display); font-size: 17px; font-weight: 700; letter-spacing: -.01em; color: var(--header-primary); }
+.eco-panel-head h2 small { font-family: inherit; font-size: 13px; font-weight: 600; color: var(--text-muted); letter-spacing: 0; }
+.eco-panel-meta { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; }
+.eco-panel-sub { margin: 0; font-size: 13px; color: var(--text-muted); }
+.eco-reset { display: inline-flex; align-items: center; gap: 6px; font-size: 12.5px; font-weight: 600; color: var(--text-muted); white-space: nowrap; font-variant-numeric: tabular-nums; }
+
+.eco-tabhead { display: flex; align-items: flex-end; justify-content: space-between; gap: 12px 28px; flex-wrap: wrap; padding: 8px 2px 0; }
+.eco-tabhead h1 { margin: 0 0 5px; font-family: var(--eco-display); font-size: 27px; font-weight: 700; letter-spacing: -.02em; line-height: 1.15; color: var(--header-primary); }
+.eco-tabhead p { margin: 0; max-width: 64ch; font-size: 14px; line-height: 1.5; color: var(--text-muted); }
+.eco-tabhead p b { color: var(--header-primary); }
+.eco-purse { display: flex; align-items: center; gap: 20px; }
+.eco-purse span { display: inline-flex; align-items: center; gap: 7px; }
+.eco-purse b { font-family: var(--eco-display); font-size: 20px; font-weight: 600; letter-spacing: -.01em; color: var(--header-primary); font-variant-numeric: tabular-nums; }
+
+/* ---------- Missões: uma linha cada, colunas alinhadas entre as linhas ---------- */
+.eco-missions { display: flex; flex-direction: column; gap: 16px; }
+.eco-missions-note { margin: 0 2px; font-size: 12.5px; }
+.eco-mission-list { display: grid; grid-template-columns: 40px minmax(0, 1.2fr) minmax(150px, 1fr) minmax(0, .85fr) 96px; column-gap: 18px; padding: 0 22px; }
+.eco-mission {
+  position: relative; min-width: 0; display: grid; grid-column: 1 / -1; grid-template-columns: subgrid; align-items: center;
+  padding: 12px 0; border-top: 1px solid var(--eco-line);
+}
+@supports not (grid-template-columns: subgrid) {
+  .eco-mission-list { display: block; }
+  .eco-mission { grid-template-columns: 40px minmax(0, 1.2fr) minmax(150px, 1fr) minmax(0, .85fr) 96px; column-gap: 18px; }
+}
+.eco-mission.ready::before { content: ''; position: absolute; left: -22px; top: 10px; bottom: 10px; width: 3px; border-radius: 0 3px 3px 0; background: var(--green); }
+.eco-mission.claimed > :not(.eco-mission-action) { opacity: .5; }
+.eco-mission-icon {
+  width: 40px; height: 40px; border-radius: 12px; display: inline-flex; align-items: center; justify-content: center;
+  color: var(--brand); background: color-mix(in srgb, var(--brand) 13%, transparent);
+}
+.eco-mission.ready .eco-mission-icon, .eco-mission.claimed .eco-mission-icon { color: var(--green); background: color-mix(in srgb, var(--green) 14%, transparent); }
+.eco-mission-body { min-width: 0; display: flex; flex-direction: column; gap: 3px; }
+.eco-mission-body strong { font-size: 14.5px; font-weight: 600; color: var(--header-primary); }
+.eco-mission-body p { margin: 0; font-size: 12.5px; line-height: 1.4; color: var(--text-muted); }
+.eco-mission-progress { min-width: 0; display: flex; align-items: center; gap: 12px; }
+.eco-mission-progress small { flex-shrink: 0; min-width: 52px; text-align: right; font-size: 12px; font-weight: 600; color: var(--text-muted); white-space: nowrap; font-variant-numeric: tabular-nums; }
+.eco-bar { flex: 1; min-width: 40px; height: 6px; border-radius: 999px; overflow: hidden; background: color-mix(in srgb, var(--text-muted) 18%, transparent); }
+.eco-bar span { display: block; height: 100%; border-radius: inherit; background: var(--brand); transition: width .4s ease; }
+.eco-mission.ready .eco-bar span, .eco-mission.claimed .eco-bar span { background: var(--green); }
+.eco-rewards { display: flex; gap: 6px; flex-wrap: wrap; justify-content: flex-end; min-width: 0; }
+.eco-reward {
+  display: inline-flex; align-items: center; gap: 5px; height: 24px; padding: 0 9px 0 7px; border-radius: 999px; max-width: 190px;
+  font-size: 12px; font-weight: 700; white-space: nowrap; font-variant-numeric: tabular-nums;
+  color: var(--header-primary); background: color-mix(in srgb, var(--text-muted) 13%, transparent);
+}
+.eco-reward.xp { padding: 0 9px; color: var(--text-normal); }
+.eco-reward.item em { font-style: normal; font-weight: 600; color: var(--text-muted); }
+.eco-bonus { font-style: normal; font-size: 10px; font-weight: 800; padding: 1px 6px; border-radius: 999px; color: var(--brand); background: color-mix(in srgb, var(--brand) 18%, transparent); }
+.eco-mission-action { display: flex; justify-content: flex-end; min-width: 0; }
+.eco-mission-claim { min-width: 96px; }
+.eco-mission-done { font-size: 12.5px; font-weight: 700; color: var(--green); white-space: nowrap; }
+.eco-mult { display: flex; align-items: center; gap: 10px; padding: 11px 16px; border-radius: 14px; font-size: 13.5px; line-height: 1.45; color: var(--text-normal); background: color-mix(in srgb, var(--eco-coin) 9%, var(--bg-secondary)); border: 1px solid color-mix(in srgb, var(--eco-coin) 24%, var(--eco-line)); }
+.eco-mult svg { flex-shrink: 0; color: var(--eco-coin); }
+.eco-mult b { color: var(--header-primary); }
+
+/* ---------- Baús possíveis ---------- */
+.eco-chests .eco-panel-head { padding: 6px 2px 14px; }
+.eco .eco-chest-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(104px, 1fr)); gap: 10px; margin: 0; }
+.eco .eco-chest {
+  width: auto; gap: 10px; padding: 16px 8px 12px; border-radius: 16px;
+  background: var(--bg-secondary); border: 1px solid var(--eco-line);
+}
+.eco .eco-chest img { width: 60px; height: 60px; object-fit: contain; opacity: 1; filter: drop-shadow(0 6px 10px rgba(0, 0, 0, .3)); }
+.eco .eco-chest span { font-size: 12.5px; font-weight: 600; color: var(--text-normal); line-height: 1.25; }
+
+/* ---------- Passe do clube ---------- */
+.eco-season { display: flex; flex-direction: column; gap: 16px; }
+.eco-season-head { display: flex; align-items: center; gap: 14px 30px; flex-wrap: wrap; padding: 20px 22px; }
+.eco-season-now { font-family: var(--eco-display); font-size: 24px; font-weight: 700; letter-spacing: -.015em; color: var(--header-primary); white-space: nowrap; }
+.eco-season-now small { margin-left: 7px; font-size: 13px; font-weight: 600; letter-spacing: 0; color: var(--text-muted); }
+.eco-season-meter { flex: 1 1 260px; min-width: 0; display: flex; flex-direction: column; gap: 8px; }
+.eco-season-meter small { font-size: 12.5px; color: var(--text-muted); font-variant-numeric: tabular-nums; }
+.eco-season-bar { height: 8px; border-radius: 999px; overflow: hidden; background: color-mix(in srgb, var(--text-muted) 18%, transparent); }
+.eco-season-bar i { display: block; height: 100%; border-radius: inherit; background: var(--brand); }
+.eco-season-track { display: flex; gap: 8px; overflow-x: auto; padding: 4px 2px 14px; scroll-snap-type: x proximity; }
+.eco-season-legend { flex: 0 0 auto; display: grid; grid-template-rows: 34px 1fr 1fr; gap: 8px; padding-right: 6px; scroll-snap-align: start; }
+.eco-season-legend span { grid-row: auto; display: flex; align-items: center; font-size: 12px; font-weight: 700; color: var(--text-muted); }
+.eco-season-legend span:first-child { grid-row: 2; }
+.eco-season-tier { flex: 0 0 128px; display: grid; grid-template-rows: 34px 1fr 1fr; gap: 8px; scroll-snap-align: start; }
+.eco-season-n {
+  justify-self: center; width: 34px; height: 34px; border-radius: 50%; display: grid; place-items: center;
+  font-family: var(--eco-display); font-size: 14px; font-weight: 700; color: var(--text-muted);
+  background: color-mix(in srgb, var(--text-muted) 14%, transparent);
+}
+.eco-season-tier.unlocked .eco-season-n { color: #fff; background: var(--brand); }
+.eco-season-tier.milestone .eco-season-n { box-shadow: 0 0 0 2px var(--bg-primary), 0 0 0 4px var(--eco-coin); }
+.eco-season-cell {
+  display: flex; flex-direction: column; align-items: center; justify-content: space-between; gap: 10px; min-height: 92px; box-sizing: border-box;
+  padding: 14px 8px 12px; border-radius: 16px; background: var(--bg-secondary); border: 1px solid var(--eco-line);
+}
+.eco-season-cell.plus { background: color-mix(in srgb, var(--eco-coin) 8%, var(--bg-secondary)); border-color: color-mix(in srgb, var(--eco-coin) 28%, var(--eco-line)); }
+.eco-season-cell.is-locked { opacity: .5; }
+.eco-season-cell.is-claimed .eco-season-reward { opacity: .55; }
+.eco-season-reward { display: flex; flex-wrap: wrap; justify-content: center; gap: 4px 10px; font-family: var(--eco-display); font-size: 15px; font-weight: 600; color: var(--header-primary); font-variant-numeric: tabular-nums; }
+.eco-season-reward span { display: inline-flex; align-items: center; gap: 5px; }
+.eco-season-done { display: inline-flex; align-items: center; gap: 4px; font-size: 12px; font-weight: 700; color: var(--green); }
+.eco-season-lock { font-size: 12px; font-weight: 600; color: var(--text-muted); }
+
+/* ---------- Revelação do baú ---------- */
+.eco-reveal-backdrop { backdrop-filter: blur(4px); padding: 16px; }
+.eco .eco-reveal {
+  position: relative; overflow: hidden; width: 100%; max-width: 360px; box-sizing: border-box; gap: 8px;
+  padding: 30px 24px 24px; border-radius: 22px; border: 1px solid color-mix(in srgb, var(--brand) 35%, var(--border));
+  box-shadow: 0 30px 80px -20px rgba(0, 0, 0, .7);
+}
+.eco-reveal-glow {
+  position: absolute; inset: -40% -20% auto; height: 300px; pointer-events: none;
+  background: radial-gradient(circle at 50% 60%, color-mix(in srgb, var(--eco-coin) 35%, transparent), transparent 60%);
+}
+.eco .eco-reveal > * { position: relative; }
+/* O brilho é decoração: flutua por trás e não ocupa espaço (senão empurra o baú pra baixo). */
+.eco .eco-reveal > .eco-reveal-glow { position: absolute; }
+/* Baú como destaque: altura pela proporção da imagem (já sem a borda transparente), sem deformar. */
+.eco .eco-reveal .chest-reveal-img {
+  display: block; width: min(220px, 72%); height: auto; max-height: 200px;
+  aspect-ratio: auto; object-fit: contain; margin: 4px auto 6px;
+}
+.eco .eco-reveal h3 { margin: 0 0 4px; font-family: var(--eco-display); font-size: 23px; font-weight: 700; letter-spacing: -.015em; color: var(--header-primary); }
+.eco .eco-reveal-rewards { flex-direction: row; flex-wrap: wrap; justify-content: center; gap: 6px; margin-bottom: 10px; }
+.eco-mega { --tint: var(--eco-gem); }
+.eco .eco-reveal .pk-btn { min-width: 160px; }
+
+/* ---------- Telas estreitas (pela largura da área da página, não da janela) ---------- */
+@container eco (max-width: 880px) {
+  .eco-top { grid-template-columns: minmax(0, 1fr); gap: 14px; }
+  .eco-stage { justify-self: center; width: min(470px, 100%); }
+}
+@container eco (max-width: 720px) {
+  .eco-mission-list { display: block; padding: 0 18px; }
+  .eco-mission {
+    grid-template-columns: 40px minmax(0, 1fr) auto; column-gap: 12px; row-gap: 10px; padding: 14px 0;
+    grid-template-areas: 'icon body body' 'progress progress progress' 'rewards rewards action';
+  }
+  .eco-mission-icon { grid-area: icon; }
+  .eco-mission-body { grid-area: body; }
+  .eco-mission-progress { grid-area: progress; }
+  .eco-rewards { grid-area: rewards; justify-content: flex-start; }
+  .eco-mission-action { grid-area: action; }
+  .eco-mission-action:empty { display: none; }
+  .eco-mission:has(.eco-mission-action:empty) .eco-rewards { grid-column: 1 / -1; }
+  .eco-mission.ready::before { left: -18px; }
+  .eco-panel-head { padding: 14px 18px 12px; }
+  .eco-panel > .pk-empty, .eco-panel > .pk-skeleton { margin: 4px 18px 12px; }
+}
+@container eco (max-width: 520px) {
+  .eco-daily { gap: 22px; padding: 22px 18px 20px; border-radius: 20px; }
+  .eco-daily-head h2 { font-size: 21px; }
+  .eco-streak-node { width: 38px; height: 38px; font-size: 14px; }
+  .eco-streak::before, .eco-streak::after { top: 18px; }
+  .eco-streak li small { font-size: 11px; }
+  .eco-claim-btn { width: 100%; }
+  .eco-tabhead h1 { font-size: 24px; }
+  .eco-season-head { padding: 18px; }
+}
+@media (max-width: 700px) {
+  .eco .pk-inner { gap: 18px; }
+  .eco-frame .hub-tabs-bar { justify-content: flex-start; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .eco-bar span, .eco-streak::after { transition: none; }
+}
+
+/* Atalho no lugar das missões (que foram pro Progresso em nov/2026). */
+.eco-missions-moved { display: flex; align-items: center; gap: 10px; padding: 14px 16px; color: var(--text-normal); text-decoration: none; }
+.eco-missions-moved:hover { border-color: color-mix(in srgb, var(--brand) 45%, var(--eco-line)); }
+.eco-missions-moved > svg { color: var(--brand); flex-shrink: 0; }
+.eco-missions-moved .eco-quiet { margin-left: auto; white-space: nowrap; }
+/* Missões dentro do Progresso. */
+.pg-missions { display: grid; gap: 14px; }

@@ -1,0 +1,21 @@
+/* ============================================================
+   Modo leve (nov/2026)
+   ------------------------------------------------------------
+   html.is-lite-app → Project Club Lite (Windows 7/8, PC antigo).
+   html.is-low-end  → navegador num aparelho com até 2 GB de RAM.
+
+   O que mais pesa em placa de vídeo/processador antigo é o desfoque
+   por trás dos painéis (backdrop-filter) e o desfoque de elementos
+   (filter: blur): aqui os dois saem. As animações o Lite já corta
+   ligando o "reduzir movimento" do Chromium (ver desktop-lite/main.js),
+   que todo o CSS do site respeita.
+   ============================================================ */
+html:is(.is-lite-app, .is-low-end) *,
+html:is(.is-lite-app, .is-low-end) *::before,
+html:is(.is-lite-app, .is-low-end) *::after {
+  -webkit-backdrop-filter: none !important;
+  backdrop-filter: none !important;
+}
+html:is(.is-lite-app, .is-low-end) { scroll-behavior: auto; }
+/* Fundos de "vidro" ficam sólidos o bastante pra ler sem o desfoque. */
+html:is(.is-lite-app, .is-low-end) :is(.modal-overlay, .lp-cmd) { background: rgba(0, 0, 0, .72); }

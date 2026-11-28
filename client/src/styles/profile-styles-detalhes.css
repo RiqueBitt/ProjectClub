@@ -1,0 +1,602 @@
+/* =====================================================================
+   Estilos de perfil — camada de DETALHES (v2)
+   Vem depois de profile-styles.css. Lá cada estilo define as cores, as
+   fontes e a forma geral; aqui entra o acabamento: faixa do topo com o
+   tema, enfeite nos cartões, sublinhado dos títulos, botões com textura,
+   campos de texto, abas e cantinhos que antes ficavam no visual padrão.
+
+   Tudo continua por variáveis (--ps-*). Variáveis novas desta camada:
+     --ps-sec-badge        texto do selo no canto de cada cartão (ex.: '⚙')
+     --ps-sec-badge-bg / -color / -border / -radius / -font / -size / -shadow
+     --ps-sec-badge-pos    'top' (padrão) ou ajuste via --ps-sec-badge-top/right
+     --ps-label-line       linha/enfeite embaixo do título dos cartões
+     --ps-input-bg / --ps-input-border / --ps-input-radius
+     --ps-top-justify      alinhamento do texto da faixa do topo
+     --ps-link             cor dos links
+   Os 5 primeiros estilos (Windows 2000, Anime, Terror, Bugado, Nostalgia)
+   e o Mensageiro já tinham enfeites próprios — eles não usam o selo.
+   ===================================================================== */
+
+/* ---------- Base nova (vale pra todos) ---------- */
+.pstyle::before { justify-content: var(--ps-top-justify, flex-start); text-shadow: var(--ps-top-shadow, none); }
+
+/* Selo no canto dos cartões. */
+.pstyle:is(.pstyle-cyberpunk, .pstyle-vaporwave, .pstyle-pixel, .pstyle-oceano, .pstyle-floresta, .pstyle-galaxia,
+  .pstyle-sakura, .pstyle-inverno, .pstyle-lava, .pstyle-realeza, .pstyle-matrix, .pstyle-steampunk, .pstyle-gotico,
+  .pstyle-arcade, .pstyle-sunset, .pstyle-candy, .pstyle-aurora, .pstyle-deserto, .pstyle-halloween, .pstyle-natal,
+  .pstyle-lofi, .pstyle-holografico, .pstyle-militar, .pstyle-faroeste, .pstyle-medieval, .pstyle-cafe, .pstyle-grafite,
+  .pstyle-marmore, .pstyle-noir) :is(.mini-profile-section, .pf-card)::before {
+  content: var(--ps-sec-badge, none);
+  position: absolute; z-index: 2; pointer-events: none;
+  top: var(--ps-sec-badge-top, -11px); right: var(--ps-sec-badge-right, 12px);
+  min-width: 22px; height: 22px; padding: 0 6px; box-sizing: border-box;
+  display: grid; place-items: center;
+  font: var(--ps-sec-badge-font, 700 12px/1 system-ui);
+  color: var(--ps-sec-badge-color, var(--ps-btn-text));
+  background: var(--ps-sec-badge-bg, var(--ps-accent));
+  border: var(--ps-sec-badge-border, 0);
+  border-radius: var(--ps-sec-badge-radius, 999px);
+  box-shadow: var(--ps-sec-badge-shadow, 0 2px 6px rgba(0, 0, 0, .3));
+  transform: var(--ps-sec-badge-transform, none);
+  letter-spacing: var(--ps-sec-badge-spacing, normal);
+}
+/* Cartão com selo: um respiro em cima pro selo não encostar no título. */
+.pstyle .mini-profile-section { margin-top: 12px; }
+
+/* Linha/enfeite embaixo do título dos cartões. */
+.pstyle .mini-profile-section-label,
+.pstyle .pf-card-title {
+  background-image: var(--ps-label-line, none);
+  background-repeat: no-repeat; background-position: 0 100%; background-size: var(--ps-label-line-size, 100% 2px);
+}
+/* Respiro entre o texto e a linha (só nos estilos que ganharam a linha). */
+.pstyle:is(.pstyle-cyberpunk, .pstyle-vaporwave, .pstyle-pixel, .pstyle-oceano, .pstyle-floresta, .pstyle-galaxia,
+  .pstyle-sakura, .pstyle-inverno, .pstyle-lava, .pstyle-realeza, .pstyle-matrix, .pstyle-caderno, .pstyle-steampunk, .pstyle-gotico,
+  .pstyle-arcade, .pstyle-sunset, .pstyle-candy, .pstyle-aurora, .pstyle-deserto, .pstyle-halloween, .pstyle-natal,
+  .pstyle-lofi, .pstyle-holografico, .pstyle-militar, .pstyle-faroeste, .pstyle-medieval, .pstyle-cafe, .pstyle-grafite,
+  .pstyle-marmore, .pstyle-noir) :is(.mini-profile-section-label, .pf-card-title) { padding-bottom: 5px; }
+
+/* Campos de texto (recado, depoimento, busca de cargo) no visual do estilo. */
+.pstyle :is(.pf-composer input, .pf-composer textarea, textarea.pxn-text, .profile-role-menu-search) {
+  background: var(--ps-input-bg, var(--ps-section-bg)) !important;
+  color: var(--ps-text) !important;
+  border: var(--ps-input-border, 1px solid var(--ps-section-border)) !important;
+  border-radius: var(--ps-input-radius, var(--ps-radius)) !important;
+  font-family: var(--ps-body-font, var(--ps-font));
+}
+.pstyle :is(.pf-composer input, .pf-composer textarea, textarea.pxn-text)::placeholder { color: var(--ps-muted); opacity: .8; }
+.pstyle :is(.pf-composer input, .pf-composer textarea, textarea.pxn-text):focus {
+  outline: 2px solid color-mix(in srgb, var(--ps-accent) 70%, transparent); outline-offset: 1px;
+}
+
+/* Links e ícones dos cartões na cor do estilo. */
+.pstyle .pf-link { color: var(--ps-link, var(--ps-accent)) !important; font-family: var(--ps-btn-font, inherit); }
+.pstyle .pf-card-icon { color: var(--ps-accent) !important; }
+.pstyle .pf-card-count {
+  background: var(--ps-chip-bg, var(--ps-section-bg)) !important; color: var(--ps-text) !important;
+  border: 1px solid var(--ps-section-border); border-radius: var(--ps-chip-radius, 999px) !important;
+}
+
+/* Abas: a ativa ganha o botão do estilo; as outras clareiam no hover. */
+.pstyle .pf-tab { transition: background .15s ease, color .15s ease; }
+.pstyle .pf-tab:not(.active):not([aria-selected='true']):hover { color: var(--ps-text); background: color-mix(in srgb, var(--ps-accent) 12%, transparent); }
+.pstyle .pf-tab.active,
+.pstyle .pf-tab[aria-selected='true'] { box-shadow: var(--ps-tab-shadow, var(--ps-btn-shadow, none)); border: var(--ps-tab-border, var(--ps-btn-border, 0)); }
+
+/* Fileira de insígnias: vira uma "plaquinha" do estilo. */
+.pstyle .mini-profile-badges-row {
+  background: var(--ps-chip-bg, var(--ps-section-bg)) !important;
+  border: 1px solid var(--ps-section-border) !important;
+  border-radius: var(--ps-chip-radius, var(--ps-radius)) !important;
+}
+
+/* Botões "Editar perfil" / "Trocar banner" no canto do banner: pílula do estilo. */
+.pstyle :is(.mini-profile-edit-corner, .pf-edit-corner) {
+  background: color-mix(in srgb, var(--ps-bg-solid, #000) 70%, transparent) !important;
+  color: var(--ps-text) !important;
+  border: 1px solid var(--ps-section-border) !important;
+  border-radius: var(--ps-btn-radius, 999px) !important;
+  font-family: var(--ps-btn-font, inherit);
+  backdrop-filter: blur(4px);
+}
+
+/* Com faixa no topo, o "Editar perfil" do miniperfil desce pra baixo dela
+   (antes ficava escondido atrás da faixa). Terror e Nostalgia não têm faixa. */
+.pstyle:not(.pstyle-terror):not(.pstyle-nostalgia) .mini-profile-edit-corner { top: calc(var(--ps-top-h, 22px) + 8px); }
+
+/* Perfil completo: o "Editar perfil" do canto fica por cima do banner
+   (antes ficava escondido atrás dele) e, com faixa no topo, logo abaixo dela. */
+.profile-modal-fullscreen.pstyle .pf-edit-corner { z-index: 34; top: 30px; }
+.profile-modal-fullscreen.pstyle:not(.pstyle-terror):not(.pstyle-nostalgia) .pf-edit-corner { top: calc(var(--ps-top-h, 22px) + 30px); }
+
+/* Itens do mural (jogo favorito, rotação, citação): seguem os cartões. */
+.pstyle :is(.pxw-fav, .pxw-rotation, .pxw-rot, .pxw-quote, .pxw-strip-item, .pf-scrap, .pf-person, .pf-connection) {
+  border-radius: var(--ps-radius) !important;
+}
+.pstyle .pxw-quote { border-left-color: var(--ps-accent) !important; font-family: var(--ps-body-font, var(--ps-font)); }
+
+/* Fechar/engrenagem do perfil completo dentro da faixa do topo também nos
+   estilos que ganharam faixa nesta camada. */
+.profile-modal-fullscreen:is(.pstyle-oceano, .pstyle-floresta, .pstyle-galaxia, .pstyle-sakura, .pstyle-inverno, .pstyle-lava,
+  .pstyle-realeza, .pstyle-steampunk, .pstyle-gotico, .pstyle-sunset, .pstyle-candy, .pstyle-aurora, .pstyle-deserto,
+  .pstyle-halloween, .pstyle-natal, .pstyle-lofi, .pstyle-holografico, .pstyle-medieval, .pstyle-cafe, .pstyle-grafite,
+  .pstyle-caderno) :is(.profile-modal-close, .profile-modal-edit) {
+  top: calc((var(--ps-top-h, 22px) - 22px) / 2); width: 22px; height: 22px; min-width: 0; padding: 0; border-radius: 6px;
+  background: rgba(0, 0, 0, .28); color: #fff;
+}
+.profile-modal-fullscreen:is(.pstyle-oceano, .pstyle-floresta, .pstyle-galaxia, .pstyle-sakura, .pstyle-inverno, .pstyle-lava,
+  .pstyle-realeza, .pstyle-steampunk, .pstyle-gotico, .pstyle-sunset, .pstyle-candy, .pstyle-aurora, .pstyle-deserto,
+  .pstyle-halloween, .pstyle-natal, .pstyle-lofi, .pstyle-holografico, .pstyle-medieval, .pstyle-cafe, .pstyle-grafite,
+  .pstyle-caderno) .profile-modal-close { right: 8px; }
+.profile-modal-fullscreen:is(.pstyle-oceano, .pstyle-floresta, .pstyle-galaxia, .pstyle-sakura, .pstyle-inverno, .pstyle-lava,
+  .pstyle-realeza, .pstyle-steampunk, .pstyle-gotico, .pstyle-sunset, .pstyle-candy, .pstyle-aurora, .pstyle-deserto,
+  .pstyle-halloween, .pstyle-natal, .pstyle-lofi, .pstyle-holografico, .pstyle-medieval, .pstyle-cafe, .pstyle-grafite,
+  .pstyle-caderno) .profile-modal-edit { right: 36px; }
+.profile-modal-fullscreen:is(.pstyle-oceano, .pstyle-floresta, .pstyle-galaxia, .pstyle-sakura, .pstyle-inverno, .pstyle-lava,
+  .pstyle-realeza, .pstyle-steampunk, .pstyle-gotico, .pstyle-sunset, .pstyle-candy, .pstyle-aurora, .pstyle-deserto,
+  .pstyle-halloween, .pstyle-natal, .pstyle-lofi, .pstyle-holografico, .pstyle-medieval, .pstyle-cafe, .pstyle-grafite,
+  .pstyle-caderno) :is(.profile-modal-close, .profile-modal-edit) :is(svg, img) { width: 14px; height: 14px; }
+
+/* =====================================================================
+   Acabamento de cada estilo
+   ===================================================================== */
+
+/* 6) Cyberpunk 2099 — cantos de mira, chip de dados e botão cortado */
+.pstyle-cyberpunk {
+  --ps-section-bg:
+    linear-gradient(#fcee0a, #fcee0a) left top / 14px 2px no-repeat, linear-gradient(#fcee0a, #fcee0a) left top / 2px 14px no-repeat,
+    linear-gradient(#05d9e8, #05d9e8) right bottom / 14px 2px no-repeat, linear-gradient(#05d9e8, #05d9e8) right bottom / 2px 14px no-repeat,
+    linear-gradient(135deg, rgba(255, 42, 109, .12), rgba(5, 217, 232, .06));
+  --ps-sec-badge: 'ID·0x7F'; --ps-sec-badge-font: 700 9px/1 'Orbitron', monospace; --ps-sec-badge-spacing: 1px;
+  --ps-sec-badge-bg: #0a0612; --ps-sec-badge-color: #05d9e8; --ps-sec-badge-border: 1px solid #05d9e8; --ps-sec-badge-radius: 0;
+  --ps-sec-badge-shadow: 0 0 10px -2px #05d9e8;
+  --ps-label-line: linear-gradient(90deg, #ff2a6d 0 40%, transparent 40% 44%, #05d9e8 44% 60%, transparent 60%); --ps-label-line-size: 100% 1px;
+  --ps-btn-bg: linear-gradient(90deg, transparent 0 calc(100% - 26px), rgba(10, 6, 18, .25) calc(100% - 26px)), #fcee0a;
+  --ps-input-bg: rgba(10, 6, 18, .85); --ps-input-border: 1px solid #05d9e8; --ps-input-radius: 0;
+  --ps-top-text: 'NETRUNNER ID ▸ ONLINE'; --ps-top-color: #0a0612;
+  --ps-top-bg: linear-gradient(90deg, #fcee0a 0 68%, transparent 68% 70%, #ff2a6d 70% 82%, transparent 82% 84%, #05d9e8 84%);
+}
+.pstyle-cyberpunk :is(.btn-primary, .pf-btn) { clip-path: polygon(0 0, 100% 0, 100% calc(100% - 10px), calc(100% - 10px) 100%, 0 100%); }
+.pstyle-cyberpunk :is(.mini-profile-name, .profile-display-name) > span:first-child { animation: ps-jitter 6s infinite; }
+
+/* 7) Vaporwave — sol listrado, grade em perspectiva e janelinha retrô */
+.pstyle-vaporwave {
+  --ps-bg:
+    linear-gradient(0deg, rgba(255, 113, 206, .55) 1px, transparent 1px) 0 100% / 100% 22px,
+    linear-gradient(90deg, rgba(1, 205, 254, .45) 1px, transparent 1px) 0 100% / 28px 100%,
+    radial-gradient(circle at 50% 30%, transparent 0, transparent 0),
+    linear-gradient(180deg, #2b0f54 0%, #6b1d7a 45%, #ff6ec7 100%);
+  --ps-sec-badge: '✕'; --ps-sec-badge-bg: linear-gradient(180deg, #ff71ce, #b967ff); --ps-sec-badge-color: #fff;
+  --ps-sec-badge-border: 2px solid #fff; --ps-sec-badge-radius: 0; --ps-sec-badge-shadow: 3px 3px 0 #01cdfe;
+  --ps-label-line: linear-gradient(90deg, #ff71ce, #01cdfe, transparent);
+  --ps-input-bg: rgba(43, 15, 84, .7); --ps-input-border: 2px solid #01cdfe; --ps-input-radius: 0;
+  --ps-top-justify: space-between;
+}
+.pstyle-vaporwave :is(.btn-primary, .pf-btn) { text-shadow: 2px 2px 0 #01cdfe; }
+
+/* 8) 8-bit — cartões com "?" de bloco, coração de vida e botão de controle */
+.pstyle-pixel {
+  --ps-sec-badge: '?'; --ps-sec-badge-font: 400 10px/1 'Press Start 2P', monospace; --ps-sec-badge-color: #7a3a00;
+  --ps-sec-badge-bg: radial-gradient(circle at 3px 3px, #7a3a00 1.5px, transparent 2px) 0 0 / 100% 100%, #f8b800;
+  --ps-sec-badge-border: 2px solid #000; --ps-sec-badge-radius: 0; --ps-sec-badge-shadow: inset -3px -3px 0 #c77c00, inset 3px 3px 0 #ffe08a;
+  --ps-sec-badge-top: -14px;
+  --ps-label-line: repeating-linear-gradient(90deg, #3cbcfc 0 4px, transparent 4px 8px);
+  --ps-input-bg: #000; --ps-input-border: 4px solid #fff; --ps-input-radius: 0;
+}
+.pstyle-pixel :is(.mini-profile-badge, .pf-tile) { image-rendering: pixelated; }
+
+/* 9) Oceano Profundo — sonar, ondas na faixa e concha nos cartões */
+.pstyle-oceano {
+  --ps-top-display: flex; --ps-top-text: '≋  SONAR · PROFUNDIDADE 4.200 m  ≋'; --ps-top-h: 24px; --ps-top-justify: center;
+  --ps-top-font: 700 10px 'Righteous', 'Comfortaa', sans-serif; --ps-top-spacing: 2px; --ps-top-color: #bff6ef;
+  --ps-top-bg:
+    radial-gradient(10px 5px at 10px 100%, transparent 98%, rgba(62, 230, 208, .35)) 0 100% / 20px 6px repeat-x,
+    linear-gradient(180deg, #0a4f7a, #06314f);
+  --ps-top-border: 1px solid rgba(62, 230, 208, .35);
+  --ps-sec-badge: '🐚'; --ps-sec-badge-font: 400 12px/1 system-ui; --ps-sec-badge-bg: radial-gradient(circle at 35% 30%, #7ff7e6, #1a9bbd);
+  --ps-sec-badge-shadow: 0 0 0 2px rgba(255, 255, 255, .5), 0 0 14px -2px #3ee6d0;
+  --ps-label-line: radial-gradient(5px 3px at 5px 0, transparent 98%, rgba(62, 230, 208, .6)) 0 100% / 10px 3px repeat-x; --ps-label-line-size: 60% 3px;
+  --ps-section-bg:
+    radial-gradient(120% 60% at 0% 0%, rgba(120, 220, 255, .14), transparent 60%),
+    rgba(6, 49, 79, .55);
+  --ps-btn-bg: radial-gradient(60% 50% at 30% 20%, rgba(255, 255, 255, .45), transparent 70%), linear-gradient(180deg, #3ee6d0, #1a9bbd);
+  --ps-input-bg: rgba(2, 22, 38, .6); --ps-input-radius: 14px;
+}
+
+/* 10) Floresta Encantada — vinha na faixa, folha nos cartões e madeira nos botões */
+.pstyle-floresta {
+  --ps-top-display: flex; --ps-top-text: '❦ ── Clareira encantada ── ❦'; --ps-top-h: 26px; --ps-top-justify: center;
+  --ps-top-font: 700 12px 'Cinzel', Georgia, serif; --ps-top-spacing: 2px; --ps-top-color: #f4d35e;
+  --ps-top-bg:
+    radial-gradient(6px 3px at 50% 50%, #7aa63f 98%, transparent) 0 0 / 22px 10px repeat-x,
+    linear-gradient(180deg, #2c4a18, #1f3a1f);
+  --ps-top-border: 1px solid #4f7a3a; --ps-top-shadow: 0 0 10px rgba(244, 211, 94, .6);
+  --ps-sec-badge: '🍃'; --ps-sec-badge-font: 400 12px/1 system-ui; --ps-sec-badge-bg: #1f3a1f; --ps-sec-badge-border: 1px solid #b6e36b;
+  --ps-sec-badge-radius: 14px 2px 14px 2px; --ps-sec-badge-shadow: 0 0 12px -3px #b6e36b;
+  --ps-label-line: linear-gradient(90deg, #b6e36b, rgba(182, 227, 107, 0)); --ps-label-line-size: 70% 1px;
+  --ps-btn-bg:
+    repeating-linear-gradient(90deg, rgba(0, 0, 0, .06) 0 2px, transparent 2px 9px),
+    linear-gradient(180deg, #7aa63f, #4f7a2a);
+  --ps-input-bg: rgba(11, 24, 11, .7); --ps-input-radius: 14px 4px 14px 4px;
+}
+
+/* 11) Galáxia — coordenadas na faixa, planeta nos cartões e órbita no botão */
+.pstyle-galaxia {
+  --ps-top-display: flex; --ps-top-text: '✦  SETOR 7G · NEBULOSA DE ÓRION  ✦'; --ps-top-h: 24px; --ps-top-justify: center;
+  --ps-top-font: 700 10px 'Audiowide', sans-serif; --ps-top-spacing: 2px; --ps-top-color: #e8e2ff;
+  --ps-top-bg:
+    radial-gradient(1px 1px at 12% 40%, #fff 98%, transparent), radial-gradient(1px 1px at 38% 70%, #fff 98%, transparent),
+    radial-gradient(1px 1px at 72% 30%, #fff 98%, transparent), radial-gradient(1px 1px at 90% 60%, #fff 98%, transparent),
+    linear-gradient(90deg, #2a0f5a, #120a3a 50%, #0a2a5a);
+  --ps-top-border: 1px solid rgba(181, 139, 255, .45);
+  --ps-sec-badge: '🪐'; --ps-sec-badge-font: 400 12px/1 system-ui;
+  --ps-sec-badge-bg: radial-gradient(circle at 35% 30%, #d6b8ff, #7a4dff 60%, #2a0f5a);
+  --ps-sec-badge-shadow: 0 0 0 1px rgba(255, 255, 255, .3), 0 0 16px -2px #b58bff;
+  --ps-label-line: linear-gradient(90deg, #b58bff, #4fc3ff, transparent); --ps-label-line-size: 80% 1px;
+  --ps-section-bg:
+    radial-gradient(1px 1px at 80% 20%, rgba(255, 255, 255, .7) 98%, transparent),
+    radial-gradient(1px 1px at 20% 80%, rgba(255, 255, 255, .5) 98%, transparent),
+    rgba(20, 10, 50, .6);
+  --ps-input-bg: rgba(7, 3, 26, .7);
+}
+
+/* 12) Sakura — faixa com kanji, galho nos cartões e hanko no botão */
+.pstyle-sakura {
+  --ps-top-display: flex; --ps-top-text: '桜  ·  春の庭  ·  桜'; --ps-top-h: 26px; --ps-top-justify: center;
+  --ps-top-font: 500 13px 'Cormorant Garamond', serif; --ps-top-spacing: 4px; --ps-top-color: #3d222b;
+  --ps-top-bg:
+    radial-gradient(4px 3px at 8% 50%, #f7a8c1 98%, transparent), radial-gradient(4px 3px at 92% 50%, #f7a8c1 98%, transparent),
+    linear-gradient(180deg, #fff, #fde7ef);
+  --ps-top-border: 1px solid #f3c4d3;
+  --ps-sec-badge: '❀'; --ps-sec-badge-font: 400 13px/1 serif; --ps-sec-badge-bg: #fff; --ps-sec-badge-color: #e8597f;
+  --ps-sec-badge-border: 1px solid #f3c4d3; --ps-sec-badge-shadow: 0 2px 6px rgba(232, 89, 127, .25);
+  --ps-label-line: linear-gradient(90deg, #2b2b2b 0 22px, transparent 22px); --ps-label-line-size: 100% 1px;
+  --ps-section-bg:
+    linear-gradient(90deg, #e8597f 0 3px, transparent 3px),
+    rgba(255, 255, 255, .82);
+  --ps-input-bg: #fff; --ps-input-radius: 4px;
+}
+.pstyle-sakura :is(.btn-primary, .pf-btn) { letter-spacing: 2px; }
+
+/* 13) Inverno — gelo pendurado na faixa e floco nos cartões */
+.pstyle-inverno {
+  --ps-top-display: flex; --ps-top-text: '❄  ❅  ❆   inverno   ❆  ❅  ❄'; --ps-top-h: 26px; --ps-top-justify: center;
+  --ps-top-font: 700 12px 'Comfortaa', sans-serif; --ps-top-spacing: 2px; --ps-top-color: #102a43;
+  --ps-top-bg:
+    conic-gradient(from 150deg at 50% 0, transparent 0 60deg, rgba(255, 255, 255, .9) 0) 0 100% / 14px 6px repeat-x,
+    linear-gradient(180deg, #ffffff, #dcefff);
+  --ps-sec-badge: '❄'; --ps-sec-badge-font: 400 13px/1 system-ui; --ps-sec-badge-bg: linear-gradient(180deg, #ffffff, #cfe6fb);
+  --ps-sec-badge-color: #2f80ed; --ps-sec-badge-border: 1px solid #fff; --ps-sec-badge-shadow: 0 0 12px rgba(154, 209, 255, .9);
+  --ps-label-line: linear-gradient(90deg, #9ad1ff, transparent); --ps-label-line-size: 70% 2px;
+  --ps-btn-bg: linear-gradient(180deg, rgba(255, 255, 255, .45), rgba(255, 255, 255, 0) 50%), linear-gradient(180deg, #66b3ff, #2f80ed);
+  --ps-input-bg: rgba(255, 255, 255, .85);
+}
+
+/* 14) Vulcão — faixa de perigo, rachadura de lava nos cartões e botão em brasa */
+.pstyle-lava {
+  --ps-top-display: flex; --ps-top-text: '⚠ ZONA DE ERUPÇÃO ⚠'; --ps-top-h: 22px; --ps-top-justify: center;
+  --ps-top-font: 400 11px 'Bungee', sans-serif; --ps-top-spacing: 2px; --ps-top-color: #2a0d05;
+  --ps-top-bg: repeating-linear-gradient(-45deg, #ffb300 0 12px, #ff3d00 12px 24px);
+  --ps-sec-badge: '🔥'; --ps-sec-badge-font: 400 12px/1 system-ui; --ps-sec-badge-bg: radial-gradient(circle at 50% 70%, #ffd000, #ff3d00 60%, #7a1a00);
+  --ps-sec-badge-shadow: 0 0 14px -2px #ff6a00;
+  --ps-label-line: linear-gradient(90deg, #ff6a00, #ffd000 30%, transparent); --ps-label-line-size: 80% 2px;
+  --ps-section-bg:
+    linear-gradient(100deg, transparent 48%, rgba(255, 106, 0, .55) 49% 50%, transparent 51%) 80% 100% / 60px 30px no-repeat,
+    linear-gradient(60deg, transparent 48%, rgba(255, 179, 0, .4) 49% 50%, transparent 51%) 92% 100% / 30px 40px no-repeat,
+    rgba(40, 12, 4, .82);
+  --ps-input-bg: rgba(26, 10, 6, .85);
+}
+.pstyle-lava :is(.btn-primary, .pf-btn) { animation: ps-ember-glow 2.4s ease-in-out infinite; }
+
+/* 15) Realeza — faixa com coroa, cantoneiras douradas e selo real */
+.pstyle-realeza {
+  --ps-top-display: flex; --ps-top-text: '♛  SUA ALTEZA  ♛'; --ps-top-h: 26px; --ps-top-justify: center;
+  --ps-top-font: 700 11px 'Cinzel', serif; --ps-top-spacing: 5px; --ps-top-color: #1a1406;
+  --ps-top-bg: linear-gradient(180deg, #f6e7b4, #d4af37 55%, #a88520);
+  --ps-top-border: 1px solid #fff1b8;
+  --ps-section-bg:
+    linear-gradient(#d4af37, #d4af37) 6px 6px / 12px 1px no-repeat, linear-gradient(#d4af37, #d4af37) 6px 6px / 1px 12px no-repeat,
+    linear-gradient(#d4af37, #d4af37) calc(100% - 6px) 6px / 12px 1px no-repeat, linear-gradient(#d4af37, #d4af37) calc(100% - 6px) 6px / 1px 12px no-repeat,
+    linear-gradient(#d4af37, #d4af37) 6px calc(100% - 6px) / 12px 1px no-repeat, linear-gradient(#d4af37, #d4af37) 6px calc(100% - 6px) / 1px 12px no-repeat,
+    linear-gradient(#d4af37, #d4af37) calc(100% - 6px) calc(100% - 6px) / 12px 1px no-repeat, linear-gradient(#d4af37, #d4af37) calc(100% - 6px) calc(100% - 6px) / 1px 12px no-repeat,
+    linear-gradient(180deg, #161616, #0f0f0f);
+  --ps-sec-badge: '♛'; --ps-sec-badge-font: 400 12px/1 serif; --ps-sec-badge-color: #1a1406;
+  --ps-sec-badge-bg: radial-gradient(circle at 40% 30%, #fff1b8, #d4af37 55%, #8a6d1e);
+  --ps-sec-badge-shadow: 0 0 0 2px #0a0a0a, 0 0 0 3px #d4af37;
+  --ps-label-line: linear-gradient(90deg, transparent, #d4af37 15% 85%, transparent); --ps-label-line-size: 100% 1px;
+  --ps-input-bg: #0f0f0f; --ps-input-border: 1px solid #8a6d1e;
+}
+
+/* 16) Matrix — prompt em cada cartão e cursor piscando */
+.pstyle-matrix {
+  --ps-sec-badge: '[ OK ]'; --ps-sec-badge-font: 400 10px/1 'Share Tech Mono', monospace; --ps-sec-badge-bg: #000;
+  --ps-sec-badge-color: #00ff46; --ps-sec-badge-border: 1px solid #00b830; --ps-sec-badge-radius: 0; --ps-sec-badge-shadow: 0 0 8px -2px #00ff46;
+  --ps-label-line: repeating-linear-gradient(90deg, #00ff46 0 2px, transparent 2px 5px); --ps-label-line-size: 100% 1px;
+  --ps-input-bg: #000; --ps-input-border: 1px solid #00b830; --ps-input-radius: 0;
+}
+.pstyle-matrix :is(.mini-profile-section-label, .pf-card-title)::after { content: '▌'; margin-left: 4px; color: #00ff46; animation: ps-blink 1s steps(1) infinite; }
+
+/* 17) Caderno — espiral na faixa e post-it nos campos */
+.pstyle-caderno {
+  --ps-top-display: flex; --ps-top-text: ''; --ps-top-h: 20px;
+  --ps-top-bg:
+    radial-gradient(circle at 50% 60%, #fffef8 0 3px, #8a96a6 3.5px 5px, transparent 5.5px) 6px 0 / 22px 20px repeat-x,
+    linear-gradient(180deg, #e6ecf4, #fffef8);
+  --ps-label-line: linear-gradient(90deg, #e53935, #e53935); --ps-label-line-size: 60% 2px;
+  --ps-input-bg: #fff9c4; --ps-input-border: 1px solid #e0d27a; --ps-input-radius: 2px;
+}
+.pstyle-caderno :is(.btn-primary, .pf-btn) { transform: rotate(-.6deg); }
+
+/* 18) Steampunk — placa de latão na faixa, rebites nos cartões e manômetro */
+.pstyle-steampunk {
+  --ps-top-display: flex; --ps-top-text: '⚙ ─ REGISTRO DO INVENTOR ─ ⚙'; --ps-top-h: 26px; --ps-top-justify: center;
+  --ps-top-font: 400 12px 'Rye', serif; --ps-top-spacing: 1px; --ps-top-color: #2a1d11;
+  --ps-top-bg:
+    radial-gradient(circle, #5a3f1a 0 2px, transparent 2.5px) 8px 50% / 4px 4px no-repeat,
+    radial-gradient(circle, #5a3f1a 0 2px, transparent 2.5px) calc(100% - 8px) 50% / 4px 4px no-repeat,
+    linear-gradient(180deg, #e6c278, #c9a24a 50%, #8c6a2b);
+  --ps-top-border: 2px solid #5a3f1a;
+  --ps-section-bg:
+    radial-gradient(circle, #e6c278 0 2px, #5a3f1a 2.5px 3px, transparent 3.5px) 6px 6px / 8px 8px no-repeat,
+    radial-gradient(circle, #e6c278 0 2px, #5a3f1a 2.5px 3px, transparent 3.5px) calc(100% - 6px) 6px / 8px 8px no-repeat,
+    radial-gradient(circle, #e6c278 0 2px, #5a3f1a 2.5px 3px, transparent 3.5px) 6px calc(100% - 6px) / 8px 8px no-repeat,
+    radial-gradient(circle, #e6c278 0 2px, #5a3f1a 2.5px 3px, transparent 3.5px) calc(100% - 6px) calc(100% - 6px) / 8px 8px no-repeat,
+    linear-gradient(180deg, #4a3522, #3a2918);
+  --ps-sec-badge: '⚙'; --ps-sec-badge-font: 400 14px/1 serif; --ps-sec-badge-color: #2a1d11;
+  --ps-sec-badge-bg: radial-gradient(circle at 40% 35%, #f3d999, #c9a24a 55%, #8c6a2b);
+  --ps-sec-badge-border: 2px solid #5a3f1a; --ps-sec-badge-shadow: 0 2px 0 #2a1d11;
+  --ps-label-line: repeating-linear-gradient(90deg, #c9a24a 0 6px, transparent 6px 9px); --ps-label-line-size: 70% 2px;
+  --ps-input-bg: #2a1d11; --ps-input-border: 2px solid #c9a24a; --ps-input-radius: 4px;
+}
+.pstyle-steampunk :is(.mini-profile-section, .pf-card)::before { animation: ps-gear 8s linear infinite; }
+
+/* 19) Gótico — rosácea de vitral na faixa e arco nos cartões */
+.pstyle-gotico {
+  --ps-top-display: flex; --ps-top-text: '✠   ✠   ✠'; --ps-top-h: 26px; --ps-top-justify: center;
+  --ps-top-font: 400 13px 'Cinzel', serif; --ps-top-spacing: 6px; --ps-top-color: #f4ecff;
+  --ps-top-bg:
+    conic-gradient(from 0deg at 50% 50%, #c41e3a, #5a1f7a, #2a4d8f, #9b4dca, #c41e3a) 50% 50% / 26px 26px no-repeat,
+    linear-gradient(180deg, #2a1238, #120a18);
+  --ps-top-border: 1px solid #5a2d7a; --ps-top-shadow: 0 0 8px #9b4dca;
+  --ps-sec-badge: '✠'; --ps-sec-badge-font: 400 12px/1 serif; --ps-sec-badge-color: #f4ecff;
+  --ps-sec-badge-bg: linear-gradient(180deg, #5a1f7a, #2a0f3a); --ps-sec-badge-border: 1px solid #9b4dca;
+  --ps-sec-badge-radius: 10px 10px 2px 2px; --ps-sec-badge-right: calc(50% - 11px);
+  --ps-label-line: linear-gradient(90deg, #c41e3a, #9b4dca, transparent); --ps-label-line-size: 70% 1px;
+  --ps-input-bg: rgba(18, 10, 24, .85); --ps-input-radius: 14px 14px 2px 2px;
+}
+
+/* 20) Arcade 80 — fichas de crédito e joystick */
+.pstyle-arcade {
+  --ps-sec-badge: '1P'; --ps-sec-badge-font: 400 8px/1 'Press Start 2P', monospace; --ps-sec-badge-color: #0b0b22;
+  --ps-sec-badge-bg: radial-gradient(circle at 40% 35%, #fff59d, #ffeb3b 60%, #c7a500); --ps-sec-badge-border: 2px solid #0b0b22;
+  --ps-sec-badge-shadow: 0 0 0 2px #ffeb3b, 0 0 12px -2px #ffeb3b;
+  --ps-label-line: linear-gradient(90deg, #00e5ff, #ff00aa); --ps-label-line-size: 60% 2px;
+  --ps-input-bg: #0b0b22; --ps-input-border: 2px solid #00e5ff; --ps-input-radius: 6px;
+}
+.pstyle-arcade :is(.mini-profile-section-label, .pf-card-title) { text-shadow: 0 0 6px #ff00aa; }
+
+/* 21) Pôr do sol — sol se pondo na faixa, palmeira e onda nos cartões */
+.pstyle-sunset {
+  --ps-top-display: flex; --ps-top-text: '~ fim de tarde ~'; --ps-top-h: 26px; --ps-top-justify: center;
+  --ps-top-font: 400 15px 'Pacifico', cursive; --ps-top-color: #fff;
+  --ps-top-bg:
+    repeating-linear-gradient(0deg, transparent 0 3px, rgba(255, 94, 98, .9) 3px 4px) calc(100% - 14px) 100% / 40px 10px no-repeat,
+    radial-gradient(circle at 50% 100%, #ffe08a 0 18px, transparent 19px) calc(100% - 14px) 100% / 40px 20px no-repeat,
+    linear-gradient(180deg, #ff7e5f, #feb47b);
+  --ps-top-shadow: 0 2px 6px rgba(123, 67, 151, .6);
+  --ps-sec-badge: '🌴'; --ps-sec-badge-font: 400 12px/1 system-ui; --ps-sec-badge-bg: linear-gradient(180deg, #ffcd6b, #ff7e5f);
+  --ps-sec-badge-shadow: 0 0 0 2px rgba(255, 255, 255, .6);
+  --ps-label-line: radial-gradient(6px 3px at 6px 0, transparent 98%, rgba(255, 205, 107, .9)) 0 100% / 12px 3px repeat-x; --ps-label-line-size: 60% 3px;
+  --ps-input-bg: rgba(44, 22, 80, .45);
+}
+
+/* 22) Doceria — toldo listrado na faixa, pirulito nos cartões */
+.pstyle-candy {
+  --ps-top-display: flex; --ps-top-text: ''; --ps-top-h: 22px;
+  --ps-top-bg:
+    radial-gradient(circle at 50% 0, transparent 0 7px, #fff 7.5px) 0 100% / 18px 8px repeat-x,
+    repeating-linear-gradient(90deg, #ff4fa0 0 18px, #fff 18px 36px);
+  --ps-sec-badge: '🍭'; --ps-sec-badge-font: 400 12px/1 system-ui; --ps-sec-badge-bg: #fff;
+  --ps-sec-badge-border: 3px solid #ffb6d5; --ps-sec-badge-shadow: 0 3px 0 #ffb6d5;
+  --ps-label-line: repeating-linear-gradient(90deg, #ff4fa0 0 6px, #59c9ff 6px 12px, #ffd56b 12px 18px); --ps-label-line-size: 70% 3px;
+  --ps-input-bg: #fff; --ps-input-border: 3px solid #ffb6d5; --ps-input-radius: 16px;
+}
+
+/* 23) Aurora Boreal — cortina de luz animada na faixa e estrela-guia */
+.pstyle-aurora {
+  --ps-top-display: flex; --ps-top-text: '✧  céu do norte  ✧'; --ps-top-h: 24px; --ps-top-justify: center;
+  --ps-top-font: 700 11px 'Righteous', sans-serif; --ps-top-spacing: 3px; --ps-top-color: #04121f;
+  --ps-top-bg: linear-gradient(90deg, #3dffc0, #3dd5ff, #8a6bff, #3dffc0) 0 0 / 300% 100%;
+  --ps-sec-badge: '✧'; --ps-sec-badge-font: 400 13px/1 system-ui; --ps-sec-badge-color: #04121f;
+  --ps-sec-badge-bg: linear-gradient(135deg, #3dffc0, #8a6bff); --ps-sec-badge-shadow: 0 0 14px -2px #3dffc0;
+  --ps-label-line: linear-gradient(90deg, #3dffc0, #8a6bff, transparent); --ps-label-line-size: 80% 1px;
+  --ps-section-bg:
+    radial-gradient(80% 40% at 50% 0%, rgba(61, 255, 192, .12), transparent 70%),
+    rgba(4, 18, 31, .6);
+  --ps-input-bg: rgba(2, 10, 18, .7);
+}
+.pstyle-aurora::before { animation: ps-shift 9s linear infinite; }
+
+/* 24) Deserto — placa de madeira na faixa, cacto e bússola */
+.pstyle-deserto {
+  --ps-top-display: flex; --ps-top-text: '☼  OÁSIS A 3 KM  ➜'; --ps-top-h: 26px; --ps-top-justify: center;
+  --ps-top-font: 400 12px 'Rye', serif; --ps-top-spacing: 1px; --ps-top-color: #fff6e8;
+  --ps-top-bg: repeating-linear-gradient(0deg, rgba(0, 0, 0, .08) 0 2px, transparent 2px 6px), linear-gradient(180deg, #a5623a, #7a4220);
+  --ps-top-border: 2px solid #4a2d14; --ps-top-shadow: 0 1px 0 #4a2d14;
+  --ps-sec-badge: '🌵'; --ps-sec-badge-font: 400 12px/1 system-ui; --ps-sec-badge-bg: #fff0d6;
+  --ps-sec-badge-border: 2px solid #c98a4b; --ps-sec-badge-shadow: 0 2px 0 #c98a4b;
+  --ps-label-line: radial-gradient(8px 3px at 8px 3px, #c98a4b 98%, transparent) 0 100% / 16px 3px repeat-x; --ps-label-line-size: 60% 3px;
+  --ps-input-bg: #fff6e6; --ps-input-border: 1px solid #c98a4b;
+}
+
+/* 25) Halloween — lua com morcego na faixa e abóbora nos cartões */
+.pstyle-halloween {
+  --ps-top-display: flex; --ps-top-text: '🦇  Doces ou travessuras?  🦇'; --ps-top-h: 26px; --ps-top-justify: center;
+  --ps-top-font: 400 14px 'Creepster', cursive; --ps-top-spacing: 2px; --ps-top-color: #ff7518;
+  --ps-top-bg: linear-gradient(180deg, #170824, #2a0f3d);
+  --ps-top-border: 2px dashed #ff7518; --ps-top-shadow: 0 0 10px rgba(255, 117, 24, .9);
+  --ps-sec-badge: '🎃'; --ps-sec-badge-font: 400 12px/1 system-ui; --ps-sec-badge-bg: #2a0f3d;
+  --ps-sec-badge-border: 2px solid #ff7518; --ps-sec-badge-shadow: 0 0 12px -2px #ff7518;
+  --ps-label-line: linear-gradient(90deg, #8fd14f, #ff7518, transparent); --ps-label-line-size: 70% 2px;
+  --ps-section-bg:
+    radial-gradient(18px 18px at 0 0, transparent 0 14px, rgba(255, 255, 255, .25) 14.5px 15px, transparent 15.5px),
+    linear-gradient(45deg, transparent 49%, rgba(255, 255, 255, .18) 49.5% 50.5%, transparent 51%) 0 0 / 22px 22px no-repeat,
+    rgba(42, 15, 61, .82);
+  --ps-input-bg: rgba(13, 5, 22, .85); --ps-input-border: 1px dashed #ff7518;
+}
+
+/* 26) Natal — pisca-pisca na faixa e laço nos cartões */
+.pstyle-natal {
+  --ps-top-display: flex; --ps-top-text: ''; --ps-top-h: 20px;
+  --ps-top-bg:
+    radial-gradient(circle at 50% 70%, #ff5252 0 4px, transparent 4.5px) 0 0 / 64px 20px repeat-x,
+    radial-gradient(circle at 50% 70%, #ffd54f 0 4px, transparent 4.5px) 16px 0 / 64px 20px repeat-x,
+    radial-gradient(circle at 50% 70%, #69f0ae 0 4px, transparent 4.5px) 32px 0 / 64px 20px repeat-x,
+    radial-gradient(circle at 50% 70%, #40c4ff 0 4px, transparent 4.5px) 48px 0 / 64px 20px repeat-x,
+    radial-gradient(40px 10px at 50% 0, transparent 98%, #0a2a18) 0 0 / 16px 10px repeat-x,
+    linear-gradient(180deg, #0a2a18, #0f3d24);
+  --ps-sec-badge: '🎀'; --ps-sec-badge-font: 400 12px/1 system-ui; --ps-sec-badge-bg: #fff;
+  --ps-sec-badge-border: 2px solid #e53935; --ps-sec-badge-shadow: 0 0 10px -2px #ffd54f;
+  --ps-label-line: repeating-linear-gradient(90deg, #e53935 0 6px, #fff 6px 12px); --ps-label-line-size: 60% 2px;
+  --ps-input-bg: rgba(10, 42, 24, .8); --ps-input-border: 2px solid #e53935;
+}
+.pstyle-natal::before { animation: ps-lights 1.6s steps(2) infinite; }
+
+/* 27) Lo-fi Chill — janela com chuva na faixa, fita cassete nos cartões */
+.pstyle-lofi {
+  --ps-top-display: flex; --ps-top-text: '♪  lofi beats pra relaxar  ♪'; --ps-top-h: 26px; --ps-top-justify: center;
+  --ps-top-font: 400 16px 'Caveat', cursive; --ps-top-spacing: 1px; --ps-top-color: #ffb88c;
+  --ps-top-bg: repeating-linear-gradient(100deg, transparent 0 14px, rgba(255, 255, 255, .06) 14px 15px), linear-gradient(180deg, #24213d, #2d2a4a);
+  --ps-top-border: 1px solid rgba(255, 255, 255, .14);
+  --ps-sec-badge: '📼'; --ps-sec-badge-font: 400 12px/1 system-ui; --ps-sec-badge-bg: #2d2a4a;
+  --ps-sec-badge-border: 1px solid rgba(255, 255, 255, .2); --ps-sec-badge-radius: 8px;
+  --ps-label-line: linear-gradient(90deg, #ffb88c, #8ad1c2, transparent); --ps-label-line-size: 60% 1px;
+  --ps-input-bg: rgba(0, 0, 0, .25);
+}
+.pstyle-lofi::before { background-size: auto; animation: ps-rain-window 1.4s linear infinite; }
+
+/* 28) Holográfico — faixa espelhada, selo de holograma */
+.pstyle-holografico {
+  --ps-top-display: flex; --ps-top-text: '◈  HOLO-ID  ◈'; --ps-top-h: 24px; --ps-top-justify: center;
+  --ps-top-font: 700 11px 'Audiowide', sans-serif; --ps-top-spacing: 4px; --ps-top-color: #141830;
+  --ps-top-bg: linear-gradient(90deg, #a68bff, #6fe3ff, #ff9be8, #ffe08a, #a68bff) 0 0 / 300% 100%;
+  --ps-top-shadow: 0 1px 0 rgba(255, 255, 255, .8);
+  --ps-sec-badge: '◈'; --ps-sec-badge-font: 400 12px/1 system-ui; --ps-sec-badge-color: #141830;
+  --ps-sec-badge-bg: conic-gradient(#a68bff, #6fe3ff, #ff9be8, #ffe08a, #a68bff);
+  --ps-sec-badge-border: 1px solid #fff; --ps-sec-badge-shadow: 0 4px 12px -4px rgba(122, 92, 255, .8);
+  --ps-label-line: linear-gradient(90deg, #a68bff, #6fe3ff, #ff9be8, transparent); --ps-label-line-size: 80% 2px;
+  --ps-input-bg: rgba(255, 255, 255, .7); --ps-input-border: 1px solid #fff;
+}
+.pstyle-holografico::before { animation: ps-shift 6s linear infinite; }
+
+/* 29) Tático — cantoneiras de mira, plaqueta de identificação */
+.pstyle-militar {
+  --ps-top-justify: center; --ps-top-text: 'OPERADOR · ACESSO CONFIDENCIAL';
+  --ps-top-bg: linear-gradient(#d4c35a, #d4c35a) 50% 50% / 76% 100% no-repeat, repeating-linear-gradient(-45deg, #d4c35a 0 12px, #1c2410 12px 24px);
+  --ps-section-bg:
+    linear-gradient(#d4c35a, #d4c35a) left top / 12px 2px no-repeat, linear-gradient(#d4c35a, #d4c35a) left top / 2px 12px no-repeat,
+    linear-gradient(#d4c35a, #d4c35a) right top / 12px 2px no-repeat, linear-gradient(#d4c35a, #d4c35a) right top / 2px 12px no-repeat,
+    linear-gradient(#d4c35a, #d4c35a) left bottom / 12px 2px no-repeat, linear-gradient(#d4c35a, #d4c35a) left bottom / 2px 12px no-repeat,
+    linear-gradient(#d4c35a, #d4c35a) right bottom / 12px 2px no-repeat, linear-gradient(#d4c35a, #d4c35a) right bottom / 2px 12px no-repeat,
+    rgba(28, 36, 16, .88);
+  --ps-sec-badge: 'SEC-01'; --ps-sec-badge-font: 400 9px/1 'Share Tech Mono', monospace; --ps-sec-badge-spacing: 1px;
+  --ps-sec-badge-bg: linear-gradient(180deg, #c9cfb4, #8f9677); --ps-sec-badge-color: #1c2410;
+  --ps-sec-badge-border: 1px solid #1c2410; --ps-sec-badge-radius: 6px;
+  --ps-label-line: repeating-linear-gradient(90deg, #d4c35a 0 8px, transparent 8px 12px); --ps-label-line-size: 60% 2px;
+  --ps-input-bg: #1c2410; --ps-input-border: 1px solid #8a9460; --ps-input-radius: 2px;
+}
+
+/* 30) Faroeste — prego no cartaz e estrela de xerife */
+.pstyle-faroeste {
+  --ps-sec-badge: '★'; --ps-sec-badge-font: 400 13px/1 serif; --ps-sec-badge-color: #6e4424;
+  --ps-sec-badge-bg: radial-gradient(circle at 40% 35%, #ffe08a, #d9a441 60%, #8a5a1a);
+  --ps-sec-badge-border: 1px solid #6e4424; --ps-sec-badge-shadow: 0 2px 0 #3a1608;
+  --ps-label-line: linear-gradient(90deg, #3a1608, #3a1608); --ps-label-line-size: 50% 2px;
+  --ps-section-bg:
+    radial-gradient(circle, #6e6e6e 0 2px, #2a2a2a 2.5px 3px, transparent 3.5px) 50% 4px / 8px 8px no-repeat,
+    #efdcb5;
+  --ps-input-bg: #f6e6c4; --ps-input-border: 1px solid #8a5a32; --ps-input-radius: 2px;
+}
+.pstyle-faroeste .mini-profile-section:nth-of-type(odd),
+.pstyle-faroeste .pf-card:nth-of-type(odd) { transform: rotate(-.4deg); }
+.pstyle-faroeste .mini-profile-section:nth-of-type(even),
+.pstyle-faroeste .pf-card:nth-of-type(even) { transform: rotate(.35deg); }
+
+/* 31) Pergaminho — faixa de carta do reino e lacre de cera */
+.pstyle-medieval {
+  --ps-top-display: flex; --ps-top-text: '❧  Carta do Reino  ❧'; --ps-top-h: 28px; --ps-top-justify: center;
+  --ps-top-font: 700 13px 'Cinzel', serif; --ps-top-spacing: 2px; --ps-top-color: #8c1c13;
+  --ps-top-bg: radial-gradient(120% 140% at 50% 0%, #fbeccb 50%, #e6cd96 100%);
+  --ps-top-border: 3px double #8c6a30;
+  --ps-sec-badge: '⚜'; --ps-sec-badge-font: 400 12px/1 serif; --ps-sec-badge-color: #f3e2b8;
+  --ps-sec-badge-bg: radial-gradient(circle at 40% 35%, #d84a3a, #8c1c13 60%, #5a0e08);
+  --ps-sec-badge-radius: 46% 54% 50% 50% / 52% 48% 52% 48%; --ps-sec-badge-shadow: 0 2px 4px rgba(0, 0, 0, .35);
+  --ps-label-line: linear-gradient(90deg, #8c1c13, #c9a25a 60%, transparent); --ps-label-line-size: 80% 1px;
+  --ps-input-bg: #fff6dc; --ps-input-border: 1px solid #8c6a30; --ps-input-radius: 2px;
+}
+
+/* 32) Cafeteria — faixa de quadro-negro com cardápio e xícara */
+.pstyle-cafe {
+  --ps-top-display: flex; --ps-top-text: '☕  CARDÁPIO DO DIA  ☕'; --ps-top-h: 28px; --ps-top-justify: center;
+  --ps-top-font: 700 17px 'Amatic SC', cursive; --ps-top-spacing: 3px; --ps-top-color: #f3e6d8;
+  --ps-top-bg: radial-gradient(60% 120% at 50% 50%, rgba(255, 255, 255, .06), transparent 70%), #2b2b2b;
+  --ps-top-border: 4px solid #8a6240;
+  --ps-sec-badge: '☕'; --ps-sec-badge-font: 400 12px/1 system-ui; --ps-sec-badge-bg: #e0b384; --ps-sec-badge-color: #3e2716;
+  --ps-sec-badge-shadow: 0 3px 0 #8a6240;
+  --ps-label-line: linear-gradient(90deg, rgba(243, 230, 216, .7), rgba(243, 230, 216, 0)); --ps-label-line-size: 60% 1px;
+  --ps-input-bg: #2b2b2b; --ps-input-border: 2px solid #8a6240; --ps-input-radius: 4px;
+}
+
+/* 33) Grafite — faixa de fita e respingo de spray nos cartões */
+.pstyle-grafite {
+  --ps-top-display: flex; --ps-top-text: 'STREET  ✸  ART  ✸  CREW'; --ps-top-h: 26px; --ps-top-justify: center;
+  --ps-top-font: 400 14px 'Permanent Marker', cursive; --ps-top-spacing: 2px; --ps-top-color: #000;
+  --ps-top-bg: linear-gradient(#39ff14, #39ff14) 50% 50% / 74% 100% no-repeat, repeating-linear-gradient(-45deg, #39ff14 0 14px, #000 14px 18px);
+  --ps-sec-badge: '✸'; --ps-sec-badge-font: 400 14px/1 system-ui; --ps-sec-badge-color: #000;
+  --ps-sec-badge-bg: #ff2bd6; --ps-sec-badge-border: 2px solid #000; --ps-sec-badge-radius: 40% 60% 55% 45% / 50% 40% 60% 50%;
+  --ps-sec-badge-shadow: 3px 3px 0 #39ff14;
+  --ps-section-bg:
+    radial-gradient(circle at 92% 88%, rgba(57, 255, 20, .5) 0 3px, transparent 3.5px),
+    radial-gradient(circle at 88% 80%, rgba(57, 255, 20, .4) 0 1.5px, transparent 2px),
+    radial-gradient(circle at 95% 76%, rgba(57, 255, 20, .35) 0 1px, transparent 1.5px),
+    rgba(0, 0, 0, .62);
+  --ps-label-line: linear-gradient(90deg, #ff2bd6, #39ff14); --ps-label-line-size: 70% 3px;
+  --ps-input-bg: rgba(0, 0, 0, .75); --ps-input-border: 3px solid #ff2bd6; --ps-input-radius: 10px 2px 12px 3px;
+}
+
+/* 34) Mármore — fio dourado no topo e monograma */
+.pstyle-marmore {
+  --ps-top-display: flex; --ps-top-text: ''; --ps-top-h: 6px; --ps-top-pad: 0;
+  --ps-top-bg: linear-gradient(90deg, #e3d1a8, #b8955a, #f3e6c4, #b8955a, #e3d1a8);
+  --ps-sec-badge: 'PC'; --ps-sec-badge-font: 500 10px/1 'Cormorant Garamond', serif; --ps-sec-badge-spacing: 2px;
+  --ps-sec-badge-bg: #fff; --ps-sec-badge-color: #b8955a; --ps-sec-badge-border: 1px solid #b8955a; --ps-sec-badge-radius: 0;
+  --ps-sec-badge-shadow: none;
+  --ps-label-line: linear-gradient(90deg, #b8955a, #b8955a); --ps-label-line-size: 24px 1px;
+  --ps-input-bg: #fff; --ps-input-border: 1px solid #e3e0d9; --ps-input-radius: 0;
+}
+
+/* 35) Filme Noir — carimbo de arquivo e cartões como fichas de investigação */
+.pstyle-noir {
+  --ps-sec-badge: 'ARQUIVO'; --ps-sec-badge-font: 400 11px/1 'Bebas Neue', sans-serif; --ps-sec-badge-spacing: 2px;
+  --ps-sec-badge-bg: transparent; --ps-sec-badge-color: #b00020; --ps-sec-badge-border: 2px solid #b00020;
+  --ps-sec-badge-radius: 2px; --ps-sec-badge-shadow: none; --ps-sec-badge-transform: rotate(-6deg);
+  --ps-label-line: linear-gradient(90deg, #e6e6e6, #e6e6e6); --ps-label-line-size: 100% 1px;
+  --ps-input-bg: rgba(0, 0, 0, .7); --ps-input-border: 1px solid #3a3a3a; --ps-input-radius: 0;
+}
+
+/* ---------- Animações novas ---------- */
+@keyframes ps-gear { to { transform: rotate(360deg); } }
+@keyframes ps-ember-glow {
+  0%, 100% { box-shadow: 0 0 22px -4px #ff6a00, inset 0 -3px 0 #a52a00; }
+  50% { box-shadow: 0 0 30px -2px #ffb300, inset 0 -3px 0 #a52a00; }
+}
+@keyframes ps-lights { 50% { filter: hue-rotate(90deg) brightness(1.25); } }
+
+/* Menos movimento: tira as animações novas também. */
+@media (prefers-reduced-motion: reduce) {
+  .pstyle::before,
+  .pstyle :is(.mini-profile-section, .pf-card)::before,
+  .pstyle :is(.btn-primary, .pf-btn),
+  .pstyle :is(.mini-profile-section-label, .pf-card-title)::after,
+  .pstyle :is(.mini-profile-name, .profile-display-name) > span:first-child { animation: none !important; }
+}

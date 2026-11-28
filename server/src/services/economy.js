@@ -1,0 +1,88 @@
+const prisma = require('../config/prisma');
+const { recordTransaction } = require('./economyLedger');
+const { MEGA_CHEST_STREAK_REQUIRED, MEGA_CHEST_GEMS_MIN, MEGA_CHEST_GEMS_MAX } = require('../data/chestsCatalog');
+
+const DAILY_COOLDOWN_MS = 24 * 60 * 60 * 1000;
+const STREAK_GRACE_MS = 48 * 60 * 60 * 1000;
+// Sequência que cresce: cada dia seguido soma STREAK_BONUS_STEP moedas a mais
+// no baú (dia 1 +0, dia 2 +5 ... até o Mega Baú). Igual no Rust
+// (rust/pc-server/src/routes/economy.rs, streak_bonus).
+const STREAK_BONUS_STEP = 5;
+const streakBonus = (day) => Math.max(0, Math.min(day, MEGA_CHEST_STREAK_REQUIRED) - 1) * STREAK_BONUS_STEP;
+
+function randInt(min, max) {
+  return Math.floor(Math.random() * (max - min + 1)) + min;
+}
+
+// Baús diários — lidos do banco (staff edita em Admin → Economia →
+// Baús diários; ver seed.js pros valores iniciais, extraídos 1:1 do
+// config/chests.json original do bot Robbie).
+async function selectChest() {
+  const chests = await prisma.dailyChest.findMany({ where: { enabled: true }, orderBy: { position: 'asc' } });
+  if (chests.length === 0) return null;
+  const random = Math.random();
+  let cumulative = 0;
+  for (const chest of chests) {
+    cumulative += chest.chanceRegular;
+    if (random <= cumulative) return chest;
+  }
+  return chests[chests.length - 1];
+}
+
+async function claimDaily(userId) {
+  const user = await prisma.user.findUnique({ where: { id: userId } });
+  const now = Date.now();
+  const lastDaily = user.lastDailyAt ? user.lastDailyAt.getTime() : 0;
+
+  if (lastDaily && now - lastDaily < DAILY_COOLDOWN_MS) {
+    const nextAt = new Date(lastDaily + DAILY_COOLDOWN_MS);
+    const err = new Error('Você já resgatou a recompensa diária hoje.');
+    err.status = 400;
+    err.nextAt = nextAt;
+    throw err;
+  }
+
+  const chest = await selectChest();
+  if (!chest) { const e = new Error('Nenhum baú diário configurado.'); e.status = 400; throw e; }
+  let streak = user.dailyStreak || 0;
+  streak = (lastDaily && now - lastDaily <= STREAK_GRACE_MS) ? streak + 1 : 1;
+  const bonus = streakBonus(streak);
+  const coins = randInt(chest.coinsMin, chest.coinsMax) + bonus;
+  let earnedMegaGems = 0;
+  let megaAwarded = false;
+  if (streak >= MEGA_CHEST_STREAK_REQUIRED) {
+    earnedMegaGems = randInt(MEGA_CHEST_GEMS_MIN, MEGA_CHEST_GEMS_MAX);
+    megaAwarded = true;
+    streak = 0;
+  }
+
+  // Trava contra resgate duplo (duas abas ou dois cliques ao mesmo tempo): só
+  // grava se, na hora de gravar, o último resgate ainda está fora das 24h.
+  // (Igual ao Rust — rust/pc-server/src/routes/economy.rs, claim_daily.)
+  const locked = await prisma.user.updateMany({
+    where: { id: userId, OR: [{ lastDailyAt: null }, { lastDailyAt: { lte: new Date(now - DAILY_COOLDOWN_MS) } }] },
+    data: {
+      coins: { increment: coins },
+      dailyStreak: streak,
+      gems: { increment: earnedMegaGems },
+      lastDailyAt: new Date(now),
+    },
+  });
+  if (locked.count !== 1) {
+    const err = new Error('Você já resgatou a recompensa diária hoje.');
+    err.status = 400;
+    throw err;
+  }
+  const updated = await prisma.user.findUnique({ where: { id: userId }, select: { coins: true, gems: true, dailyStreak: true } });
+
+  recordTransaction(userId, { kind: 'DAILY', label: `Baú diário: ${chest.name}${bonus ? ` (+${bonus} da sequência)` : ''}`, coins });
+  if (megaAwarded) recordTransaction(userId, { kind: 'DAILY', label: 'Mega Baú (sequência completa)', gems: earnedMegaGems });
+
+  return {
+    chestName: chest.name, chestImageClosed: chest.imageClosed, chestImageOpened: chest.imageOpened,
+    coins, streakBonus: bonus, streak, streakRequired: MEGA_CHEST_STREAK_REQUIRED,
+    megaAwarded, megaGems: earnedMegaGems, balance: updated,
+  };
+}
+
+module.exports = { DAILY_COOLDOWN_MS, claimDaily, streakBonus, STREAK_BONUS_STEP };

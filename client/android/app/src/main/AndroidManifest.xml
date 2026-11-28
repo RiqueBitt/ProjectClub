@@ -1,0 +1,103 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <application
+        android:allowBackup="true"
+        android:icon="@mipmap/ic_launcher"
+        android:label="@string/app_name"
+        android:roundIcon="@mipmap/ic_launcher_round"
+        android:supportsRtl="true"
+        android:theme="@style/AppTheme">
+
+        <activity
+            android:configChanges="orientation|keyboardHidden|keyboard|screenSize|locale|smallestScreenSize|screenLayout|uiMode|navigation|density"
+            android:name=".MainActivity"
+            android:label="@string/title_activity_main"
+            android:theme="@style/AppTheme.NoActionBarLaunch"
+            android:launchMode="singleTask"
+            android:exported="true">
+
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+
+        </activity>
+
+        <!-- Tela de sem conexão como app à parte: processo próprio, sem nada
+             do site. Aberta pelo ConnectionGuard só depois de confirmar que a
+             internet ou o servidor estão mesmo fora (ver ConexaoActivity.java). -->
+        <activity
+            android:name=".ConexaoActivity"
+            android:process=":conexao"
+            android:label="Project Club · Conexão"
+            android:theme="@android:style/Theme.Material.NoActionBar"
+            android:excludeFromRecents="true"
+            android:exported="false" />
+
+        <!-- Item pedido: compartilhamento de tela — declaração
+             obrigatória do serviço em primeiro plano que faz a captura
+             de verdade (ver ScreenCaptureService.java). -->
+        <service
+            android:name=".ScreenCaptureService"
+            android:foregroundServiceType="mediaProjection"
+            android:exported="false" />
+
+        <provider
+            android:name="androidx.core.content.FileProvider"
+            android:authorities="${applicationId}.fileprovider"
+            android:exported="false"
+            android:grantUriPermissions="true">
+            <meta-data
+                android:name="android.support.FILE_PROVIDER_PATHS"
+                android:resource="@xml/file_paths"></meta-data>
+        </provider>
+
+        <!-- Item pedido: "se sair do app, continua na call em segundo
+             plano" — sem um foreground service de verdade, o Android mata
+             o áudio da chamada de voz poucos segundos depois de minimizar
+             o app (limite de execução em segundo plano do sistema). Esse
+             serviço mostra uma notificação fixa ("Em chamada de voz...")
+             enquanto ativo — é uma exigência do próprio Android pra
+             qualquer app que queira continuar usando o microfone com a
+             tela desligada/app minimizado, não dá pra esconder isso; é o
+             mesmo aviso que WhatsApp/Discord mostram durante uma chamada. -->
+        <receiver android:name="io.capawesome.capacitorjs.plugins.foregroundservice.NotificationActionBroadcastReceiver" />
+        <service
+            android:name="io.capawesome.capacitorjs.plugins.foregroundservice.AndroidForegroundService"
+            android:foregroundServiceType="microphone" />
+    </application>
+
+    <!-- Permissions -->
+
+    <uses-permission android:name="android.permission.INTERNET" />
+    <!-- Guarda de conexão: saber se o aparelho tem rede (permissão comum, sem pedir nada). -->
+    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
+    <uses-permission android:name="android.permission.RECORD_AUDIO" />
+    <uses-permission android:name="android.permission.MODIFY_AUDIO_SETTINGS" />
+    <uses-permission android:name="android.permission.CAMERA" />
+    <!-- As três abaixo são só o que o serviço de segundo plano da chamada
+         de voz precisa (ver comentário acima) — nenhuma delas dá acesso a
+         nada além de continuar tocando/captando áudio com a tela apagada. -->
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MICROPHONE" />
+    <uses-permission android:name="android.permission.WAKE_LOCK" />
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+    <!-- Item pedido: sistema de atualização automática (baixar e
+         instalar o .apk novo sozinho, sem precisar abrir o
+         navegador) — READ_EXTERNAL_STORAGE pra achar o arquivo
+         baixado, REQUEST_INSTALL_PACKAGES é a permissão específica
+         que o Android exige de qualquer app que queira instalar OUTRO
+         app (mesmo sendo uma atualização de si mesmo) — sem ela, o
+         sistema bloqueia a instalação silenciosamente. -->
+    <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" />
+    <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />
+    <!-- Item pedido: compartilhamento de tela — o serviço em primeiro
+         plano é obrigatório pra captura de tela funcionar (o Android
+         mata qualquer captura feita fora de um serviço assim), e desde
+         o Android 14 (API 34) precisa ser desse TIPO específico
+         (mediaProjection). FOREGROUND_SERVICE em si já foi declarado
+         mais acima (a chamada de voz também precisa dela) — sem
+         repetir aqui. -->
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MEDIA_PROJECTION" />
+</manifest>

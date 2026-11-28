@@ -1,0 +1,478 @@
+[
+ {
+  "name": "msn_smile",
+  "file": "msn_smile.png",
+  "title": "Smile",
+  "shortcut": ":)"
+ },
+ {
+  "name": "msn_open_mouthed_smile",
+  "file": "msn_open_mouthed_smile.png",
+  "title": "Open-mouthed smile",
+  "shortcut": ":D"
+ },
+ {
+  "name": "msn_winking_smile",
+  "file": "msn_winking_smile.png",
+  "title": "Winking smile",
+  "shortcut": ";)"
+ },
+ {
+  "name": "msn_surprised_smile",
+  "file": "msn_surprised_smile.png",
+  "title": "Surprised smile",
+  "shortcut": ":-O"
+ },
+ {
+  "name": "msn_smile_with_tongue_out",
+  "file": "msn_smile_with_tongue_out.png",
+  "title": "Smile with tongue out",
+  "shortcut": ":P"
+ },
+ {
+  "name": "msn_hot_smile",
+  "file": "msn_hot_smile.png",
+  "title": "Hot smile",
+  "shortcut": "(H)"
+ },
+ {
+  "name": "msn_angry_smile",
+  "file": "msn_angry_smile.png",
+  "title": "Angry smile",
+  "shortcut": ":@"
+ },
+ {
+  "name": "msn_embarrassed_smile",
+  "file": "msn_embarrassed_smile.png",
+  "title": "Embarrassed smile",
+  "shortcut": ":$"
+ },
+ {
+  "name": "msn_confused_smile",
+  "file": "msn_confused_smile.png",
+  "title": "Confused smile",
+  "shortcut": ":S"
+ },
+ {
+  "name": "msn_sad_smile",
+  "file": "msn_sad_smile.png",
+  "title": "Sad smile",
+  "shortcut": ":("
+ },
+ {
+  "name": "msn_crying_face",
+  "file": "msn_crying_face.png",
+  "title": "Crying face",
+  "shortcut": ":'("
+ },
+ {
+  "name": "msn_disappointed_smile",
+  "file": "msn_disappointed_smile.png",
+  "title": "](original/disappointed-smile.png)",
+  "shortcut": ":|"
+ },
+ {
+  "name": "msn_devil",
+  "file": "msn_devil.png",
+  "title": "Devil",
+  "shortcut": "(6)"
+ },
+ {
+  "name": "msn_angel",
+  "file": "msn_angel.png",
+  "title": "Angel",
+  "shortcut": "(A)"
+ },
+ {
+  "name": "msn_red_heart",
+  "file": "msn_red_heart.png",
+  "title": "Red heart",
+  "shortcut": "(L)"
+ },
+ {
+  "name": "msn_broken_heart",
+  "file": "msn_broken_heart.png",
+  "title": "Broken heart",
+  "shortcut": "(U)"
+ },
+ {
+  "name": "msn_messenger",
+  "file": "msn_messenger.png",
+  "title": "Messenger",
+  "shortcut": "(M)"
+ },
+ {
+  "name": "msn_cat_face",
+  "file": "msn_cat_face.png",
+  "title": "Cat face",
+  "shortcut": "(@)"
+ },
+ {
+  "name": "msn_dog_face",
+  "file": "msn_dog_face.png",
+  "title": "Dog face",
+  "shortcut": "(&)"
+ },
+ {
+  "name": "msn_sleeping_half_moon",
+  "file": "msn_sleeping_half_moon.png",
+  "title": "Sleeping half-moon",
+  "shortcut": "(S)"
+ },
+ {
+  "name": "msn_star",
+  "file": "msn_star.png",
+  "title": "Star",
+  "shortcut": "(*)"
+ },
+ {
+  "name": "msn_filmstrip",
+  "file": "msn_filmstrip.png",
+  "title": "Filmstrip",
+  "shortcut": "(~)"
+ },
+ {
+  "name": "msn_note",
+  "file": "msn_note.png",
+  "title": "Note",
+  "shortcut": "(8)"
+ },
+ {
+  "name": "msn_e_mail",
+  "file": "msn_e_mail.png",
+  "title": "E-mail",
+  "shortcut": "(E)"
+ },
+ {
+  "name": "msn_red_rose",
+  "file": "msn_red_rose.png",
+  "title": "Red rose",
+  "shortcut": "(F)"
+ },
+ {
+  "name": "msn_wilted_rose",
+  "file": "msn_wilted_rose.png",
+  "title": "Wilted rose",
+  "shortcut": "(W)"
+ },
+ {
+  "name": "msn_clock",
+  "file": "msn_clock.png",
+  "title": "Clock",
+  "shortcut": "(O)"
+ },
+ {
+  "name": "msn_red_lips",
+  "file": "msn_red_lips.png",
+  "title": "Red lips",
+  "shortcut": "(K)"
+ },
+ {
+  "name": "msn_gift_with_a_bow",
+  "file": "msn_gift_with_a_bow.png",
+  "title": "Gift with a bow",
+  "shortcut": "(G)"
+ },
+ {
+  "name": "msn_birthday_cake",
+  "file": "msn_birthday_cake.png",
+  "title": "Birthday cake",
+  "shortcut": "(^)"
+ },
+ {
+  "name": "msn_camera",
+  "file": "msn_camera.png",
+  "title": "Camera",
+  "shortcut": "(P)"
+ },
+ {
+  "name": "msn_light_bulb",
+  "file": "msn_light_bulb.png",
+  "title": "Light bulb",
+  "shortcut": "(I)"
+ },
+ {
+  "name": "msn_coffee_cup",
+  "file": "msn_coffee_cup.png",
+  "title": "Coffee cup",
+  "shortcut": "(C)"
+ },
+ {
+  "name": "msn_telephone_receiver",
+  "file": "msn_telephone_receiver.png",
+  "title": "Telephone receiver",
+  "shortcut": "(T)"
+ },
+ {
+  "name": "msn_left_hug",
+  "file": "msn_left_hug.png",
+  "title": "Left hug",
+  "shortcut": "({)"
+ },
+ {
+  "name": "msn_right_hug",
+  "file": "msn_right_hug.png",
+  "title": "Right hug",
+  "shortcut": "(})"
+ },
+ {
+  "name": "msn_beer_mug",
+  "file": "msn_beer_mug.png",
+  "title": "Beer mug",
+  "shortcut": "(B)"
+ },
+ {
+  "name": "msn_martini_glass",
+  "file": "msn_martini_glass.png",
+  "title": "Martini glass",
+  "shortcut": "(D)"
+ },
+ {
+  "name": "msn_boy",
+  "file": "msn_boy.png",
+  "title": "Boy",
+  "shortcut": "(Z)"
+ },
+ {
+  "name": "msn_girl",
+  "file": "msn_girl.png",
+  "title": "Girl",
+  "shortcut": "(X)"
+ },
+ {
+  "name": "msn_thumbs_up",
+  "file": "msn_thumbs_up.png",
+  "title": "Thumbs up",
+  "shortcut": "(Y)"
+ },
+ {
+  "name": "msn_thumbs_down",
+  "file": "msn_thumbs_down.png",
+  "title": "Thumbs down",
+  "shortcut": "(N)"
+ },
+ {
+  "name": "msn_vampire_bat",
+  "file": "msn_vampire_bat.png",
+  "title": "Vampire bat",
+  "shortcut": ":["
+ },
+ {
+  "name": "msn_goat",
+  "file": "msn_goat.png",
+  "title": "Goat",
+  "shortcut": "(nnh)"
+ },
+ {
+  "name": "msn_sun",
+  "file": "msn_sun.png",
+  "title": "Sun",
+  "shortcut": "(#)"
+ },
+ {
+  "name": "msn_rainbow",
+  "file": "msn_rainbow.png",
+  "title": "Rainbow",
+  "shortcut": "(R)"
+ },
+ {
+  "name": "msn_dont_tell_anyone_smile",
+  "file": "msn_dont_tell_anyone_smile.png",
+  "title": "Don't tell anyone smile",
+  "shortcut": ":-#"
+ },
+ {
+  "name": "msn_baring_teeth_smile",
+  "file": "msn_baring_teeth_smile.png",
+  "title": "](original/baring-teeth-smile.png)",
+  "shortcut": "8o|"
+ },
+ {
+  "name": "msn_nerd_smile",
+  "file": "msn_nerd_smile.png",
+  "title": "](original/nerd-smile.png)",
+  "shortcut": "8-|"
+ },
+ {
+  "name": "msn_sarcastic_smile",
+  "file": "msn_sarcastic_smile.png",
+  "title": "Sarcastic smile",
+  "shortcut": "^o)"
+ },
+ {
+  "name": "msn_secret_telling_smile",
+  "file": "msn_secret_telling_smile.png",
+  "title": "Secret telling smile",
+  "shortcut": ":-*"
+ },
+ {
+  "name": "msn_sick_smile",
+  "file": "msn_sick_smile.png",
+  "title": "Sick smile",
+  "shortcut": "+o("
+ },
+ {
+  "name": "msn_snail",
+  "file": "msn_snail.png",
+  "title": "Snail",
+  "shortcut": "(sn)"
+ },
+ {
+  "name": "msn_turtle",
+  "file": "msn_turtle.png",
+  "title": "Turtle",
+  "shortcut": "(tu)"
+ },
+ {
+  "name": "msn_plate",
+  "file": "msn_plate.png",
+  "title": "Plate",
+  "shortcut": "(pl)"
+ },
+ {
+  "name": "msn_bowl",
+  "file": "msn_bowl.png",
+  "title": "\\",
+  "shortcut": "(||)"
+ },
+ {
+  "name": "msn_pizza",
+  "file": "msn_pizza.png",
+  "title": "Pizza",
+  "shortcut": "(pi)"
+ },
+ {
+  "name": "msn_soccer_ball",
+  "file": "msn_soccer_ball.png",
+  "title": "Soccer ball",
+  "shortcut": "(so)"
+ },
+ {
+  "name": "msn_auto",
+  "file": "msn_auto.png",
+  "title": "Auto",
+  "shortcut": "(au)"
+ },
+ {
+  "name": "msn_airplane",
+  "file": "msn_airplane.png",
+  "title": "Airplane",
+  "shortcut": "(ap)"
+ },
+ {
+  "name": "msn_umbrella",
+  "file": "msn_umbrella.png",
+  "title": "Umbrella",
+  "shortcut": "(um)"
+ },
+ {
+  "name": "msn_island_with_a_palm_tree",
+  "file": "msn_island_with_a_palm_tree.png",
+  "title": "Island with a palm tree",
+  "shortcut": "(ip)"
+ },
+ {
+  "name": "msn_computer",
+  "file": "msn_computer.png",
+  "title": "Computer",
+  "shortcut": "(co)"
+ },
+ {
+  "name": "msn_mobile_phone",
+  "file": "msn_mobile_phone.png",
+  "title": "Mobile phone",
+  "shortcut": "(mp)"
+ },
+ {
+  "name": "msn_be_right_back",
+  "file": "msn_be_right_back.png",
+  "title": "Be right back",
+  "shortcut": "(brb)"
+ },
+ {
+  "name": "msn_storm_cloud",
+  "file": "msn_storm_cloud.png",
+  "title": "Storm cloud",
+  "shortcut": "(st)"
+ },
+ {
+  "name": "msn_high_five",
+  "file": "msn_high_five.png",
+  "title": "High five!",
+  "shortcut": "(h5)"
+ },
+ {
+  "name": "msn_money",
+  "file": "msn_money.png",
+  "title": "Money",
+  "shortcut": "(mo)"
+ },
+ {
+  "name": "msn_black_sheep",
+  "file": "msn_black_sheep.png",
+  "title": "Black sheep",
+  "shortcut": "(bah)"
+ },
+ {
+  "name": "msn_i_dont_know_smile",
+  "file": "msn_i_dont_know_smile.png",
+  "title": "I don't know smile",
+  "shortcut": ":^)"
+ },
+ {
+  "name": "msn_thinking_smile",
+  "file": "msn_thinking_smile.png",
+  "title": "Thinking smile",
+  "shortcut": "*-)"
+ },
+ {
+  "name": "msn_lightning",
+  "file": "msn_lightning.png",
+  "title": "Lightning",
+  "shortcut": "(li)"
+ },
+ {
+  "name": "msn_party_smile",
+  "file": "msn_party_smile.png",
+  "title": "Party smile",
+  "shortcut": "<:o)"
+ },
+ {
+  "name": "msn_eye_rolling_smile",
+  "file": "msn_eye_rolling_smile.png",
+  "title": "Eye-rolling smile",
+  "shortcut": "8-)"
+ },
+ {
+  "name": "msn_sleepy_smile",
+  "file": "msn_sleepy_smile.png",
+  "title": "-)](original/sleepy-smile.png)",
+  "shortcut": "|-)"
+ },
+ {
+  "name": "msn_bunny",
+  "file": "msn_bunny.png",
+  "title": "Bunny",
+  "shortcut": "('.')"
+ },
+ {
+  "name": "msn_unused_headphones",
+  "file": "msn_unused_headphones.png",
+  "title": "Headphones"
+ },
+ {
+  "name": "msn_unused_fingers_crossed",
+  "file": "msn_unused_fingers_crossed.png",
+  "title": "Fingers crossed"
+ },
+ {
+  "name": "msn_unused_cigarette",
+  "file": "msn_unused_cigarette.png",
+  "title": "Cigarette"
+ },
+ {
+  "name": "msn_unused_xbox",
+  "file": "msn_unused_xbox.png",
+  "title": "Xbox"
+ }
+]

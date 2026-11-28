@@ -1,0 +1,1 @@
+import{t as s}from"./vendor.DtGO0RTN.js";import{u as a,N as r}from"./vendor-router.DyYf8WxH.js";const c=new Set(["resumo","termos","mudancas","contato"]);function u(){const{hash:o}=a(),t=decodeURIComponent((o||"").slice(1)),e=c.has(t)?"termos-de-uso":"politica-de-privacidade";return s.jsx(r,{to:`/blog/${e}${o||""}`,replace:!0})}export{u as default};

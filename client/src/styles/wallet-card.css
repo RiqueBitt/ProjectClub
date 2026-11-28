@@ -1,0 +1,355 @@
+/* ============================================================
+   Cartão da carteira 3D (components/WalletCard.jsx).
+
+   Tudo dentro do cartão é medido em --u = 1% da largura dele, então ele
+   fica igual em qualquer tamanho (Economia, Loja, chat). O cartão tem
+   espessura (frente, verso, fatias e laterais), luz e sombra próprias;
+   quem gira e ilumina é o JS, escrevendo --ry/--rx/--gx/--gy/--shade-*.
+   ============================================================ */
+.wcard-stage { display: flex; flex-direction: column; align-items: center; gap: 12px; width: 100%; min-width: 0; }
+.wcard-scene {
+  --wcard-w: 440px;
+  --u: 4.4px; /* reserva pra navegador sem unidades de container */
+  position: relative; width: min(var(--wcard-w), 100%); container-type: inline-size;
+  perspective: 1500px; perspective-origin: 50% 42%;
+}
+@supports (width: 1cqw) { .wcard-scene { --u: 1cqw; } }
+
+.wcard {
+  --r: calc(var(--u) * 4.4);   /* canto */
+  --t: calc(var(--u) * 1.15);  /* espessura */
+  --ink: #fff;
+  --ink-soft: rgba(255, 255, 255, .7);
+  --edge: #0c1c5e; --edge-core: #9ecbff; --edge-side: linear-gradient(180deg, #5f8df0, #17307f 45%, #091550);
+  --ring: linear-gradient(145deg, #fff, #9ecbff);
+  --badge-bg: #fff; --badge-ink: #12297f;
+  position: relative; display: block; width: 100%; aspect-ratio: 1.586; border-radius: var(--r);
+  transform-style: preserve-3d; outline: none; cursor: grab; touch-action: pan-y;
+  user-select: none; -webkit-user-select: none; -webkit-tap-highlight-color: transparent;
+  font-family: 'Space Grotesk', 'Inter', system-ui, -apple-system, 'Segoe UI', sans-serif;
+  font-variant-numeric: tabular-nums;
+}
+.wcard.is-dragging { cursor: grabbing; }
+.wcard:focus-visible { outline: 2px solid var(--brand); outline-offset: calc(var(--u) * 1.8); }
+.wcard-float { width: 100%; height: 100%; transform-style: preserve-3d; animation: wcard-float 7s ease-in-out infinite; }
+.wcard.is-dragging .wcard-float { animation-play-state: paused; }
+.wcard-body {
+  position: relative; width: 100%; height: 100%; transform-style: preserve-3d; will-change: transform;
+  transform: rotateX(var(--rx, 0deg)) rotateY(var(--ry, 0deg));
+}
+@keyframes wcard-float {
+  0%, 100% { transform: translateY(0) rotateZ(-.35deg); }
+  50% { transform: translateY(calc(var(--u) * -1.5)) rotateZ(.35deg); }
+}
+
+/* ---------- Espessura ---------- */
+.wcard-slab { position: absolute; inset: 0; border-radius: var(--r); background: var(--edge); pointer-events: none; }
+.wcard-slab.s1 { transform: translateZ(calc(var(--t) * -.36)); }
+.wcard-slab.s2 { transform: translateZ(calc(var(--t) * -.18)); }
+.wcard-slab.s3 { background: var(--edge-core); }
+.wcard-slab.s4 { transform: translateZ(calc(var(--t) * .18)); }
+.wcard-slab.s5 { transform: translateZ(calc(var(--t) * .36)); }
+.wcard-side { position: absolute; top: var(--r); bottom: var(--r); width: var(--t); background: var(--edge-side); pointer-events: none; }
+.wcard-side.l { left: 0; transform: translateX(-50%) rotateY(90deg); }
+.wcard-side.r { right: 0; transform: translateX(50%) rotateY(90deg); }
+
+/* ---------- Faces ---------- */
+.wcard-face {
+  position: absolute; inset: 0; box-sizing: border-box; overflow: hidden; border-radius: var(--r);
+  backface-visibility: hidden; -webkit-backface-visibility: hidden;
+  padding: calc(var(--u) * 5.2) calc(var(--u) * 5.6); color: var(--ink);
+  background:
+    radial-gradient(95% 100% at 0% 0%, rgba(150, 205, 255, .5), rgba(150, 205, 255, 0) 58%),
+    linear-gradient(140deg, #2552cc 0%, #142d8c 46%, #091654 100%);
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, .13), inset 0 1px 0 rgba(255, 255, 255, .42), inset 0 -1px 0 rgba(0, 0, 0, .4);
+}
+.wcard-front { transform: translateZ(calc(var(--t) / 2)); }
+/* Verso claro em todos os estilos (referência do dono): fundo claro na cor
+   do estilo, tarja preta, faixa branca da assinatura, código e a estrelinha. */
+.wcard-back {
+  --ink: #1f2b46; --ink-soft: rgba(31, 43, 70, .72);
+  transform: rotateY(180deg) translateZ(calc(var(--t) / 2)); padding: 0;
+  background:
+    radial-gradient(90% 80% at 100% 0%, rgba(255, 255, 255, .5), rgba(255, 255, 255, 0) 60%),
+    linear-gradient(160deg, #a9c3ec 0%, #8fb0e3 55%, #7ea2da 100%);
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, .45), inset 0 1px 0 rgba(255, 255, 255, .85), inset 0 -1px 0 rgba(20, 40, 90, .28);
+}
+
+/* Esconde de verdade a face que está de costas (não depende só do
+   backface-visibility, que alguns navegadores/WebViews ignoram — aí o verso
+   nunca aparecia). O JS marca na cena, quadro a quadro, qual face está de
+   frente; a troca acontece exatamente quando o cartão passa de perfil. */
+.wcard-back { visibility: hidden; }
+.wcard-scene[data-face='back'] .wcard-back { visibility: visible; }
+.wcard-scene[data-face='back'] .wcard-front { visibility: hidden; }
+
+/* Arte da frente: anéis finos (gelo), floco em marca d'água e grão do material. */
+.wcard-art { position: absolute; inset: 0; border-radius: inherit; pointer-events: none; overflow: hidden; }
+.wcard-art::before {
+  content: ''; position: absolute; inset: 0;
+  background: repeating-radial-gradient(circle at 104% 56%, rgba(255, 255, 255, .075) 0 calc(var(--u) * .2), rgba(255, 255, 255, 0) calc(var(--u) * .2) calc(var(--u) * 2.5));
+  -webkit-mask-image: linear-gradient(90deg, transparent 22%, #000 100%); mask-image: linear-gradient(90deg, transparent 22%, #000 100%);
+}
+.wcard-art::after, .wcard-back::before {
+  content: ''; position: absolute; inset: 0; opacity: .5; mix-blend-mode: overlay; pointer-events: none;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='180' height='180'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.85' numOctaves='2' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 .5 0 0 0 0 .5 0 0 0 0 .5 0 0 0 .55 0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+}
+.wcard-watermark {
+  position: absolute; right: calc(var(--u) * -24); bottom: calc(var(--u) * -30);
+  width: calc(var(--u) * 70); height: calc(var(--u) * 70); color: rgba(255, 255, 255, .16);
+}
+
+/* Luz: sombra de quando a face vira pra longe + reflexo que acompanha o giro e o mouse. */
+.wcard-shade { position: absolute; inset: 0; border-radius: inherit; pointer-events: none; background: #000; opacity: var(--shade-front, 0); }
+.wcard-back .wcard-shade { opacity: var(--shade-back, 0); }
+.wcard-glare {
+  position: absolute; inset: 0; border-radius: inherit; pointer-events: none; mix-blend-mode: screen;
+  background:
+    radial-gradient(circle calc(var(--u) * 44) at var(--gx, 26%) var(--gy, 18%), rgba(255, 255, 255, .3), rgba(255, 255, 255, .07) 46%, rgba(255, 255, 255, 0) 72%),
+    linear-gradient(104deg, rgba(255, 255, 255, 0) calc(var(--gx, 26%) - 20%), rgba(255, 255, 255, .11) var(--gx, 26%), rgba(255, 255, 255, 0) calc(var(--gx, 26%) + 20%));
+}
+/* No verso o reflexo corre espelhado (o cartão está de costas). */
+.wcard-back .wcard-glare { transform: scaleX(-1); }
+
+/* ---------- Frente ---------- */
+.wcard-top { position: relative; display: flex; align-items: flex-start; justify-content: space-between; gap: calc(var(--u) * 3); }
+.wcard-bank {
+  display: inline-flex; align-items: center; gap: calc(var(--u) * 1.5);
+  font-size: calc(var(--u) * 3.9); font-weight: 600; letter-spacing: .01em; line-height: 1.2; white-space: nowrap;
+}
+.wcard-bank-mark { width: calc(var(--u) * 4.6); height: calc(var(--u) * 4.6); flex-shrink: 0; }
+.wcard-photo {
+  position: relative; flex-shrink: 0; box-sizing: border-box; display: block;
+  width: calc(var(--u) * 14.5); height: calc(var(--u) * 14.5); padding: calc(var(--u) * .55); border-radius: 50%;
+  background: var(--ring); box-shadow: 0 calc(var(--u) * 1) calc(var(--u) * 3) rgba(0, 0, 0, .38);
+}
+.wcard-photo .avatar { width: 100% !important; height: 100% !important; font-size: calc(var(--u) * 6) !important; }
+.wcard-photo .avatar > svg, .wcard-photo .avatar > img { width: 100% !important; height: 100% !important; }
+
+.wcard-mid { position: relative; display: flex; align-items: center; gap: calc(var(--u) * 2.6); margin-top: calc(var(--u) * -3.4); width: fit-content; }
+.wcard-chip {
+  display: block; width: calc(var(--u) * 11.4); height: calc(var(--u) * 8.7); border-radius: calc(var(--u) * 1.9); overflow: hidden;
+  color: rgba(88, 60, 10, .62);
+  background: linear-gradient(135deg, #f8e6a6 0%, #d8ab49 36%, #f5dc8e 56%, #b5832b 100%);
+  box-shadow: inset 0 0 0 calc(var(--u) * .18) rgba(70, 45, 0, .38), 0 calc(var(--u) * .3) calc(var(--u) * .8) rgba(0, 0, 0, .28);
+}
+.wcard-chip svg { display: block; width: 100%; height: 100%; }
+.wcard-contactless { width: calc(var(--u) * 6); height: calc(var(--u) * 6); color: var(--ink); opacity: .78; }
+
+.wcard-balances { position: relative; display: flex; align-items: baseline; gap: calc(var(--u) * 5.4); margin-top: calc(var(--u) * 5.2); min-width: 0; }
+.wcard-bal { display: inline-flex; align-items: baseline; gap: calc(var(--u) * 1.5); min-width: 0; white-space: nowrap; }
+.wcard-bal img {
+  width: calc(var(--u) * 6) !important; height: calc(var(--u) * 6) !important; align-self: center;
+  filter: drop-shadow(0 calc(var(--u) * .4) calc(var(--u) * .7) rgba(0, 0, 0, .35));
+}
+.wcard-bal b { font-size: calc(var(--u) * 8.2); font-weight: 600; letter-spacing: -.02em; line-height: 1.05; text-shadow: 0 calc(var(--u) * .3) calc(var(--u) * 1.2) rgba(0, 0, 0, .3); }
+.wcard-bal small { font-size: max(8px, calc(var(--u) * 3)); font-weight: 500; color: var(--ink-soft); }
+
+.wcard-bottom {
+  position: absolute; left: calc(var(--u) * 5.6); right: calc(var(--u) * 5.6); bottom: calc(var(--u) * 4.8);
+  display: flex; align-items: flex-end; justify-content: space-between; gap: calc(var(--u) * 3);
+}
+.wcard-holder { min-width: 0; display: flex; flex-direction: column; gap: calc(var(--u) * .7); }
+.wcard-holder strong {
+  font-size: calc(var(--u) * 3.8); font-weight: 600; letter-spacing: .09em; text-transform: uppercase; line-height: 1.2;
+  text-shadow: 0 calc(var(--u) * .25) 0 rgba(0, 0, 0, .4), 0 calc(var(--u) * -.12) 0 rgba(255, 255, 255, .22);
+}
+.wcard-holder small { font-size: max(8px, calc(var(--u) * 2.9)); font-weight: 500; color: var(--ink-soft); line-height: 1.2; }
+.wcard-brand { display: inline-flex; align-items: center; gap: calc(var(--u) * 1.5); flex-shrink: 0; }
+.wcard-brand-gem {
+  width: calc(var(--u) * 5.2); height: calc(var(--u) * 5.2); margin: calc(var(--u) * .9); box-sizing: border-box; flex-shrink: 0;
+  display: inline-flex; align-items: center; justify-content: center; border-radius: calc(var(--u) * 1.3); transform: rotate(45deg);
+  background: rgba(255, 255, 255, .16); box-shadow: inset 0 0 0 calc(var(--u) * .3) rgba(255, 255, 255, .72);
+}
+.wcard-brand-gem svg { width: 74%; height: 74%; transform: rotate(-45deg); }
+.wcard-brand-name { font-size: calc(var(--u) * 3.9); font-style: italic; font-weight: 500; letter-spacing: .01em; line-height: 1; }
+.wcard-brand-name b { font-weight: 700; }
+
+/* ---------- Verso ---------- */
+.wcard-stripe {
+  display: block; height: calc(var(--u) * 10); margin-top: calc(var(--u) * 5.7);
+  background:
+    repeating-linear-gradient(180deg, rgba(255, 255, 255, .04) 0 calc(var(--u) * .2), rgba(255, 255, 255, 0) calc(var(--u) * .2) calc(var(--u) * .7)),
+    linear-gradient(180deg, #1c1c1f, #0c0c0e 55%, #171719);
+}
+.wcard-sig-label {
+  display: block; margin: calc(var(--u) * 3.2) 0 0 calc(var(--u) * 7);
+  font-size: max(7px, calc(var(--u) * 2.4)); font-weight: 700; letter-spacing: .07em; text-transform: uppercase; color: var(--ink); opacity: .82;
+}
+.wcard-sign { display: flex; align-items: stretch; gap: calc(var(--u) * 3.4); height: calc(var(--u) * 9.5); margin: calc(var(--u) * 1.3) calc(var(--u) * 7) 0; }
+.wcard-sign-strip {
+  position: relative; flex: 1; min-width: 0; display: flex; align-items: center; justify-content: space-between; gap: calc(var(--u) * 2);
+  padding: 0 calc(var(--u) * 2.8); border-radius: calc(var(--u) * .7); color: #20222a;
+  background: repeating-linear-gradient(135deg, #f7f7f3 0 calc(var(--u) * 1), #efeee8 calc(var(--u) * 1) calc(var(--u) * 2));
+  box-shadow: inset 0 0 0 calc(var(--u) * .15) rgba(0, 0, 0, .06);
+}
+.wcard-scribble { height: 70%; width: auto; max-width: 62%; }
+.wcard-sign-strip b { font-size: calc(var(--u) * 4.1); font-weight: 700; letter-spacing: .08em; }
+.wcard-cvv {
+  width: calc(var(--u) * 20.6); display: flex; align-items: center; justify-content: center; border-radius: calc(var(--u) * .7);
+  background: #f7f7f3; color: #20222a; font-size: calc(var(--u) * 4.1); font-weight: 700; letter-spacing: .08em;
+  box-shadow: inset 0 0 0 calc(var(--u) * .15) rgba(0, 0, 0, .06);
+}
+.wcard-sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
+.wcard-star {
+  position: absolute; left: calc(var(--u) * 7); bottom: calc(var(--u) * 5.7); width: calc(var(--u) * 13); height: calc(var(--u) * 13);
+  display: flex; align-items: center; justify-content: center; border-radius: calc(var(--u) * 2.4);
+  color: rgba(255, 255, 255, .96); background: rgba(255, 255, 255, .45);
+  box-shadow: inset 0 0 0 calc(var(--u) * .25) rgba(255, 255, 255, .3);
+}
+.wcard-star svg { width: 55%; height: 55%; filter: drop-shadow(0 calc(var(--u) * .2) calc(var(--u) * .7) rgba(20, 40, 90, .28)); }
+
+/* ---------- Sombra no chão e dica ---------- */
+/* No escuro uma sombra preta some: o chão ganha uma "poça" da luz que o
+   cartão rebate, com a sombra de contato por cima. No claro, só a sombra. */
+.wcard-shadow {
+  --pool: #3f74f5;
+  position: relative; display: block; height: calc(var(--u) * 7); margin: calc(var(--u) * 3.6) 4% 0; pointer-events: none;
+  transform: scaleX(var(--cos, 1)); animation: wcard-shadow 7s ease-in-out infinite;
+}
+.wcard-shadow::before, .wcard-shadow::after { content: ''; position: absolute; border-radius: 50%; }
+.wcard-shadow::before {
+  inset: calc(var(--u) * -3) -4% calc(var(--u) * -5);
+  background: radial-gradient(closest-side, color-mix(in srgb, var(--pool) var(--wcard-pool, 30%), transparent), transparent);
+  filter: blur(calc(var(--u) * 2.4));
+}
+.wcard-shadow::after {
+  inset: 0 6%;
+  background: radial-gradient(closest-side, color-mix(in srgb, #000 var(--wcard-shadow, 70%), transparent), transparent);
+  filter: blur(calc(var(--u) * 1.2));
+}
+.wcard--gold ~ .wcard-shadow { --pool: #e2b24a; }
+.wcard--rainbow ~ .wcard-shadow { --pool: #9a7bff; }
+@keyframes wcard-shadow { 0%, 100% { opacity: 1; } 50% { opacity: .7; } }
+
+[data-theme='light'] .wcard-shadow, [data-theme='facebook'] .wcard-shadow { --wcard-shadow: 30%; --wcard-pool: 0%; }
+.wcard-hint { margin: 0; font-size: 12.5px; color: var(--text-muted); transition: opacity .5s ease; }
+.wcard-hint.is-used { opacity: 0; }
+
+@media (prefers-reduced-motion: reduce) { .wcard-float, .wcard-shadow { animation: none; } }
+html.reduced-motion-pref .wcard-float, html.reduced-motion-pref .wcard-shadow,
+html[data-lite] .wcard-float, html[data-lite] .wcard-shadow { animation: none; }
+
+/* ---------- Versão compacta (chat e Loja) ---------- */
+.wcard-stage.is-compact { align-items: flex-start; gap: 6px; padding: 4px 0 0; }
+.wcard-stage.is-compact .wcard-scene { --wcard-w: 320px; --u: 3.2px; }
+@supports (width: 1cqw) { .wcard-stage.is-compact .wcard-scene { --u: 1cqw; } }
+.wcard-stage.is-compact .wcard-shadow { height: calc(var(--u) * 4.5); margin-top: calc(var(--u) * 2.4); }
+/* Na cestinha da Loja o cartão é arrastado pela fenda: sem sombra no chão. */
+.shop-pos-card .wcard-shadow { display: none; }
+
+/* ============================================================
+   Assinante: preto e dourado (metal escovado, folha de ouro)
+   ============================================================ */
+.wcard--gold {
+  --ink: #f4e2a8; --ink-soft: rgba(244, 226, 168, .72);
+  --edge: #6f5416; --edge-core: #f7df95; --edge-side: linear-gradient(180deg, #f7df95, #b4862c 45%, #6a4d12);
+  --ring: linear-gradient(145deg, #fff1bf, #b8892f);
+  --badge-bg: linear-gradient(145deg, #fff1bf, #d4a640); --badge-ink: #2b1f04;
+  --foil: linear-gradient(100deg, #fff4cc 0%, #dcae4a 28%, #fff1ba 50%, #b98a2c 74%, #f6dc8c 100%);
+}
+.wcard--gold .wcard-face {
+  background:
+    repeating-linear-gradient(90deg, rgba(255, 255, 255, .028) 0 1px, rgba(255, 255, 255, 0) 1px 3px),
+    radial-gradient(90% 100% at 0% 0%, rgba(230, 190, 96, .2), rgba(230, 190, 96, 0) 60%),
+    linear-gradient(140deg, #1d1b16 0%, #0f0e0b 52%, #050504 100%);
+  box-shadow: inset 0 0 0 1px rgba(232, 196, 104, .5), inset 0 1px 0 rgba(255, 236, 170, .55), inset 0 -1px 0 rgba(0, 0, 0, .5);
+}
+.wcard--gold .wcard-art::before {
+  inset: calc(var(--u) * 2.3); border-radius: calc(var(--r) - var(--u) * 2.3); background: none;
+  -webkit-mask-image: none; mask-image: none; border: calc(var(--u) * .22) solid rgba(232, 196, 104, .42);
+}
+.wcard--gold .wcard-watermark { color: rgba(232, 196, 104, .13); }
+.wcard--gold .wcard-bank, .wcard--gold .wcard-bal b, .wcard--gold .wcard-holder strong, .wcard--gold .wcard-brand-name {
+  background: var(--foil); background-size: 240% 100%; background-position: var(--gx, 26%) 0;
+  -webkit-background-clip: text; background-clip: text; color: transparent; -webkit-text-fill-color: transparent; text-shadow: none;
+}
+.wcard--gold .wcard-bank-mark, .wcard--gold .wcard-contactless { color: #e8c468; }
+.wcard--gold .wcard-brand-gem { background: rgba(232, 196, 104, .14); box-shadow: inset 0 0 0 calc(var(--u) * .3) #e8c468; color: #f6dc8c; }
+.wcard--gold .wcard-glare {
+  background:
+    radial-gradient(circle calc(var(--u) * 44) at var(--gx, 26%) var(--gy, 18%), rgba(255, 228, 150, .2), rgba(255, 228, 150, .05) 46%, rgba(255, 228, 150, 0) 72%),
+    linear-gradient(104deg, rgba(255, 220, 140, 0) calc(var(--gx, 26%) - 20%), rgba(255, 220, 140, .12) var(--gx, 26%), rgba(255, 220, 140, 0) calc(var(--gx, 26%) + 20%));
+}
+.wcard--gold .wcard-back {
+  --ink: #4a3a12; --ink-soft: rgba(74, 58, 18, .72);
+  background:
+    radial-gradient(90% 70% at 100% 0%, rgba(255, 255, 255, .45), rgba(255, 255, 255, 0) 60%),
+    linear-gradient(160deg, #f3e6bd 0%, #e2c98a 55%, #cfae63 100%);
+  box-shadow: inset 0 0 0 1px rgba(201, 160, 72, .7), inset 0 1px 0 rgba(255, 250, 230, .9), inset 0 -1px 0 rgba(90, 64, 10, .3);
+}
+.wcard--gold .wcard-back .wcard-sig-label { color: #6b5216; }
+.wcard--gold .wcard-back .wcard-star { color: #fffaf0; }
+.wcard--gold .wcard-back .wcard-glare {
+  background:
+    radial-gradient(circle calc(var(--u) * 44) at var(--gx, 26%) var(--gy, 18%), rgba(255, 255, 255, .3), rgba(255, 255, 255, .07) 46%, rgba(255, 255, 255, 0) 72%),
+    linear-gradient(104deg, rgba(255, 255, 255, 0) calc(var(--gx, 26%) - 20%), rgba(255, 255, 255, .11) var(--gx, 26%), rgba(255, 255, 255, 0) calc(var(--gx, 26%) + 20%));
+}
+
+/* ============================================================
+   Super Assinante: preto e arco-íris (vidro escuro, holográfico)
+   ============================================================ */
+@property --wcard-hue { syntax: '<angle>'; inherits: true; initial-value: 0deg; }
+@keyframes wcard-hue { to { --wcard-hue: 360deg; } }
+.wcard--rainbow {
+  --ink: #fff; --ink-soft: rgba(255, 255, 255, .7);
+  --spectrum: #ff5d7a, #ffb65c, #f6f27a, #5cf7a6, #5cc8ff, #9a7bff, #ff5ddc;
+  --edge: #15151a; --edge-core: #fff; --edge-side: linear-gradient(180deg, var(--spectrum));
+  --ring: conic-gradient(from var(--holo, 0deg), var(--spectrum), #ff5d7a);
+  --badge-bg: #fff; --badge-ink: #111;
+  --foil: linear-gradient(90deg, var(--spectrum), #ff5d7a);
+  animation: wcard-hue 14s linear infinite;
+}
+.wcard--rainbow .wcard-face {
+  background: radial-gradient(100% 110% at 0% 0%, #26262c 0%, rgba(38, 38, 44, 0) 60%), linear-gradient(140deg, #141417 0%, #08080a 55%, #000 100%);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, .3), inset 0 -1px 0 rgba(0, 0, 0, .5);
+}
+/* Aro holográfico por dentro da borda. */
+.wcard--rainbow .wcard-art::before {
+  inset: 0; padding: calc(var(--u) * .5); border-radius: inherit;
+  background: conic-gradient(from calc(var(--holo, 0deg) + var(--wcard-hue)), var(--spectrum), #ff5d7a);
+  -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+  -webkit-mask-composite: xor; mask-composite: exclude;
+}
+.wcard--rainbow .wcard-back {
+  --ink: #2f2b55; --ink-soft: rgba(47, 43, 85, .72);
+  background: linear-gradient(120deg, #ffd6e0, #ffe9c7, #fffbc7, #d4ffe6, #d6f1ff, #e5dcff, #ffd6f3);
+  background-size: 300% 100%; animation: wcard-holo 10s ease-in-out infinite;
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, .6), inset 0 1px 0 rgba(255, 255, 255, .9), inset 0 -1px 0 rgba(60, 50, 110, .22);
+}
+@keyframes wcard-holo { 0% { background-position: 0% 50%; } 50% { background-position: 100% 50%; } 100% { background-position: 0% 50%; } }
+.wcard--rainbow .wcard-back .wcard-sig-label { color: #3b3760; }
+.wcard--rainbow .wcard-back .wcard-star { background: rgba(255, 255, 255, .55); color: #fff; box-shadow: inset 0 0 0 calc(var(--u) * .25) rgba(255, 255, 255, .9), 0 calc(var(--u) * .4) calc(var(--u) * 1.6) rgba(70, 60, 130, .18); }
+.wcard--rainbow .wcard-back .wcard-star svg { filter: drop-shadow(0 calc(var(--u) * .2) calc(var(--u) * .8) rgba(90, 80, 170, .5)); }
+/* Película holográfica: as cores correm conforme o cartão inclina. */
+.wcard--rainbow .wcard-art { background: linear-gradient(calc(118deg + var(--holo, 0deg) * .5), rgba(255, 93, 122, .1), rgba(255, 182, 92, .05), rgba(92, 247, 166, .05), rgba(92, 200, 255, .1), rgba(154, 123, 255, .12), rgba(255, 93, 220, .09)); }
+.wcard--rainbow .wcard-bank-mark { color: #fff; }
+.wcard--rainbow .wcard-watermark { color: rgba(255, 255, 255, .1); stroke: currentColor; }
+.wcard--rainbow .wcard-bank, .wcard--rainbow .wcard-bal b, .wcard--rainbow .wcard-brand-name {
+  background: var(--foil); background-size: 220% 100%; background-position: var(--gx, 26%) 0;
+  -webkit-background-clip: text; background-clip: text; color: transparent; -webkit-text-fill-color: transparent; text-shadow: none;
+}
+.wcard--rainbow .wcard-chip { color: rgba(40, 46, 60, .6); background: linear-gradient(135deg, #f4f7fb 0%, #9aa7ba 38%, #eef2f8 58%, #7f8da3 100%); box-shadow: inset 0 0 0 calc(var(--u) * .18) rgba(20, 26, 40, .4), 0 calc(var(--u) * .3) calc(var(--u) * .8) rgba(0, 0, 0, .3); }
+@media (prefers-reduced-motion: reduce) { .wcard--rainbow, .wcard--rainbow .wcard-back { animation: none; } }
+html.reduced-motion-pref .wcard--rainbow, html[data-lite] .wcard--rainbow,
+html.reduced-motion-pref .wcard--rainbow .wcard-back, html[data-lite] .wcard--rainbow .wcard-back { animation: none; }
+
+/* ============================================================
+   Loja → Cartão da carteira (components/shop/WalletCardStyles.jsx)
+   ============================================================ */
+.wcs-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 330px), 1fr)); gap: 16px; margin-top: 18px; }
+.wcs-option {
+  display: flex; flex-direction: column; align-items: flex-start; gap: 10px; padding: 16px 16px 16px; min-width: 0;
+  border-radius: 16px; background: var(--room-raised, var(--bg-secondary)); border: 1px solid var(--room-line, var(--border));
+}
+.wcs-option.is-current { border-color: var(--room-accent, var(--brand)); box-shadow: 0 0 0 1px var(--room-accent, var(--brand)); }
+.wcs-option.is-locked .wcard-stage { filter: saturate(.55) brightness(.8); }
+.wcs-info { display: flex; flex-direction: column; gap: 2px; }
+.wcs-info strong { font-size: 15px; }
+.wcs-info span { font-size: 13px; color: var(--room-muted, var(--text-muted)); }
+.wcs-badge { display: inline-flex; align-items: center; gap: 5px; padding: 6px 12px; border-radius: 999px; font-size: 13px; font-weight: 700; color: var(--green); background: color-mix(in srgb, var(--green) 14%, transparent); }
+.wcs-error { color: var(--red); font-size: 13.5px; }
+
+/* Cartão mostrado no chat (InternalLinkCard → kind "wallet") */
+.wcard-chat { margin-top: 6px; display: flex; flex-direction: column; gap: 4px; width: 320px; max-width: 100%; }
+.wcard-chat-caption { font-size: 12px; color: var(--text-muted); }

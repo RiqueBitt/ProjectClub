@@ -1,0 +1,201 @@
+import { test, expect } from '@playwright/test';
+import { handler, imageHandler } from './mock-api.mjs';
+
+// Loja — sala branca: abre clara mesmo com o app no tema escuro, mostra
+// destaques/novidades/exclusivos, filtra, abre o detalhe com prévia e
+// pede confirmação com o preço final antes de comprar. Sem vazar na
+// horizontal no PC nem no celular.
+const SHOTS = process.env.SHOP_SHOTS; // pasta pra salvar prints (opcional)
+
+test.beforeEach(async ({ page }) => {
+  await page.addInitScript(() => {
+    try {
+      localStorage.setItem('theme', 'dark');
+      localStorage.setItem('layoutStyle', 'normal2');
+      sessionStorage.setItem('inicio-redirect-done', '1');
+    } catch { /* sem storage */ }
+  });
+  await page.route('**/api/**', handler);
+  await page.route('**/socket.io/**', (r) => r.abort());
+  await page.route('**/mock-img/**', imageHandler);
+  await page.route(/fonts\.(googleapis|gstatic)\.com/, (r) => r.abort());
+});
+
+const shot = async (page, name, info) => { if (SHOTS) await page.screenshot({ path: `${SHOTS}/${info.project.name}-${name}.png` }); };
+
+test('loja segue o tema, com vitrine, filtros, detalhe e confirmação', async ({ page }, info) => {
+  const errors = [];
+  page.on('pageerror', (e) => errors.push(e.message));
+  await page.goto('/loja');
+  await expect(page.locator('.shop-room .room-card').first()).toBeVisible();
+
+  // A Loja segue o tema escolhido: no tema escuro o fundo é escuro.
+  const bg = await page.locator('.shop-room').evaluate((el) => getComputedStyle(el).backgroundColor);
+  const [r, g, b] = bg.match(/\d+/g).map(Number);
+  expect((r + g + b) / 3).toBeLessThan(80);
+  expect(await page.evaluate(() => document.documentElement.dataset.theme || document.body.dataset.theme || '')).not.toBe('light');
+
+  await expect(page.getByRole('heading', { name: 'Novidades' })).toBeVisible();
+  // Seção renomeada para "Loja exclusiva" na rodada Loja → Assinatura (#127).
+  await expect(page.getByRole('heading', { name: 'Loja exclusiva' }).first()).toBeVisible();
+  await shot(page, 'inicio', info);
+
+  // Categoria + filtro de disponibilidade.
+  await page.locator('.room-nav-item', { hasText: 'Efeitos de texto' }).click();
+  await expect(page.getByRole('heading', { level: 1, name: 'Efeitos de texto' })).toBeVisible();
+  await page.locator('.room-chip', { hasText: 'Adquiridos' }).click();
+  await expect(page.locator('.room-card')).toHaveCount(1);
+  // Já comprado: continua na caixinha (com o gancho) e o carimbo "Comprado"
+  // fica colado no plástico da frente, dentro da caixinha.
+  const owned = page.locator('.room-card').first();
+  await expect(owned.locator('.room-pack')).toHaveCount(1);
+  await expect(owned.locator('.room-hook')).toHaveCount(1);
+  await expect(owned.locator('.room-pack-front .room-stamp')).toHaveText(/Comprado|Liberado/);
+  await page.waitForTimeout(450); // fim da animação do carimbo
+  const stamp = await owned.locator('.room-stamp').boundingBox();
+  const pack = await owned.locator('.room-pack').boundingBox();
+  expect(stamp.x).toBeGreaterThanOrEqual(pack.x - 1);
+  expect(stamp.x + stamp.width).toBeLessThanOrEqual(pack.x + pack.width + 1);
+  expect(stamp.y).toBeGreaterThanOrEqual(pack.y - 1);
+  expect(stamp.y + stamp.height).toBeLessThanOrEqual(pack.y + pack.height + 1);
+  // E nenhuma caixinha tem mais a faixa com o nome.
+  await expect(page.locator('.room-pack-label')).toHaveCount(0);
+  await page.locator('.room-chip', { hasText: 'Tudo' }).click();
+  await shot(page, 'molduras', info);
+
+  // Detalhe com prévia + modos de visualização.
+  await page.locator('.room-card', { hasText: 'Brasa' }).locator('.room-card-art').click();
+  const dialog = page.getByRole('dialog', { name: 'Brasa' });
+  await expect(dialog).toBeVisible();
+  await dialog.getByRole('tab', { name: 'Mini perfil' }).click();
+  await expect(dialog.getByRole('tab', { name: 'Mini perfil' })).toHaveAttribute('aria-selected', 'true');
+  await expect(dialog.locator('.shop-mock-mini')).toBeVisible();
+  await expect(dialog.locator('.shop-mock-mini img').first()).toBeVisible();
+  await shot(page, 'detalhe', info);
+
+  // Confirmação mostra preço e saldo antes de cobrar.
+  await dialog.locator('.room-detail-price.coins').getByRole('button', { name: 'Comprar' }).click();
+  const confirm = page.getByRole('alertdialog', { name: 'Confirmar compra' });
+  await expect(confirm).toBeVisible();
+  await expect(confirm.locator('.room-receipt .total')).toContainText('450');
+  await shot(page, 'confirmar', info);
+  await confirm.getByRole('button', { name: 'Cancelar' }).click();
+  await expect(confirm).toBeHidden();
+
+  // Sem rolagem lateral.
+  const overflow = await page.locator('.room-main').evaluate((el) => el.scrollWidth - el.clientWidth);
+  expect(overflow).toBeLessThanOrEqual(1);
+  expect(errors).toEqual([]);
+});
+
+test('busca encontra itens por nome e descrição', async ({ page }) => {
+  await page.goto('/loja');
+  await page.getByRole('textbox', { name: 'Buscar na loja' }).fill('neon');
+  await expect(page.getByRole('heading', { name: /Resultados para/ })).toBeVisible();
+  await page.getByRole('textbox', { name: 'Buscar na loja' }).fill('fogo');
+  await expect(page.locator('.room-card', { hasText: 'Brasa' })).toBeVisible();
+});
+
+test('painel: gerenciamento de apoio pede motivo e confirma antes de remover', async ({ page }, info) => {
+  const errors = [];
+  page.on('pageerror', (e) => errors.push(e.message));
+  await page.goto('/admin?tab=apoio');
+  await expect(page.locator('.sup-list button').first()).toBeVisible();
+  await page.locator('.sup-list button', { hasText: 'Lia' }).click();
+  await page.getByRole('radio', { name: 'Membro' }).click();
+  const btn = page.locator('.sup-editor .shop-btn.danger');
+  await btn.click();
+  await expect(page.locator('.sup-editor .shop-notice.bad')).toContainText('motivo');
+  await page.getByPlaceholder(/assinatura encerrada/).fill('Assinatura encerrada');
+  await btn.click();
+  await expect(page.getByRole('alert')).toContainText('Remover todo o apoio');
+  await shot(page, 'painel-apoio', info);
+  await page.getByRole('button', { name: 'Confirmar remoção' }).click();
+  await expect(page.getByRole('status')).toContainText('agora é Membro');
+  expect(errors).toEqual([]);
+});
+
+test('parede em 3D: gancho, caixinha e painel carregam e a caixinha cabe na cartela', async ({ page }) => {
+  await page.goto('/loja');
+  await page.locator('.room-nav-item', { hasText: 'Efeitos de texto' }).click();
+  const card = page.locator('.room-card', { hasText: 'Brasa' });
+  await expect(card.locator('.room-pack-plastic')).toHaveCount(1);
+  // os renders (tools/loja-3d) vão junto com o site
+  for (const f of ['caixinha', 'sombra', 'gancho', 'painel']) {
+    const r = await page.request.get(new URL(`/loja/parede/${f}.webp`, page.url()).href);
+    expect(r.status(), f).toBe(200);
+    expect(r.headers()['content-type'], f).toContain('image/webp');
+  }
+  const bg = (sel) => page.locator(sel).first().evaluate((el) => getComputedStyle(el).backgroundImage);
+  expect(await bg('.room-grid')).toContain('/loja/parede/painel.webp');
+  // gancho e caixinha: o modelo 3D ao vivo (canvas) ou, sem WebGL, a imagem parada
+  await expect(card.locator('.room-pack')).toHaveClass(/\bp3d(-off)?\b/, { timeout: 20_000 });
+  if (await card.locator('.room-pack.p3d-off').count()) expect(await card.locator('.room-hook').evaluate((el) => getComputedStyle(el).backgroundImage)).toContain('/loja/parede/gancho.webp');
+  else await expect(card.locator('canvas.room-pack-3d')).toHaveCount(1);
+  // o item (fundo da caixinha) fica inteiro dentro da cartela, no computador e no celular
+  const c = await card.boundingBox();
+  const w = await card.locator('.room-pack-window').boundingBox();
+  expect(w.x).toBeGreaterThanOrEqual(c.x);
+  expect(w.x + w.width).toBeLessThanOrEqual(c.x + c.width);
+  expect(w.y).toBeGreaterThan(c.y);
+  expect(w.width).toBeGreaterThan(c.width * 0.55);
+  // botão da cesta simples: sem brilho nem sombra no texto
+  const btn = card.getByRole('button', { name: /Pôr Brasa na cestinha/ });
+  expect(await btn.evaluate((el) => { const st = getComputedStyle(el); return [st.textShadow, st.backgroundImage, st.fontWeight]; })).toEqual(['none', 'none', '600']);
+});
+
+test('loja de conveniência: pega do gancho, cestinha e paga passando o cartão', async ({ page }) => {
+  await page.addInitScript(() => { try { localStorage.removeItem('shopBasket:v1'); } catch { /* ok */ } });
+  let paidWith = null;
+  await page.route('**/api/decorations/checkout', async (r) => {
+    paidWith = r.request().postDataJSON();
+    await r.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ ok: true, bought: [{ kind: 'textfx', id: paidWith.items[0].id, name: 'Brasa', paid: 450, currency: 'coins' }], coins: 2030, gems: 12 }) });
+  });
+  await page.goto('/loja');
+  await page.locator('.room-nav-item', { hasText: 'Efeitos de texto' }).click();
+  const card = page.locator('.room-card', { hasText: 'Brasa' });
+  await expect(card.locator('.room-hook')).toHaveCount(1); // pendurado no gancho
+  await card.getByRole('button', { name: /Pôr Brasa na cestinha/ }).click();
+  const fab = page.locator('.shop-basket-fab');
+  await expect(fab.locator('.shop-basket-count')).toHaveText('1');
+  await fab.click();
+  await expect(page.getByRole('heading', { level: 1, name: 'Checkout' })).toBeVisible();
+  await expect(page.locator('.shop-receipt-row')).toHaveCount(1);
+  await expect(page.locator('.shop-receipt-total')).toContainText('450');
+  await expect(page.locator('.shop-pos-screen')).toContainText('PASSE O CARTÃO');
+  // aproxima o cartão da maquininha (pelo teclado: Enter no cartão = aproximação)
+  await page.locator('.pos-card').focus();
+  await page.keyboard.press('Enter');
+  await expect(page.locator('.shop-pos-screen')).toContainText('APROVADO', { timeout: 10_000 });
+  expect(paidWith.items).toHaveLength(1);
+  expect(paidWith.items[0]).toMatchObject({ kind: 'textfx', currency: 'coins', expectedPrice: 450 });
+  await expect(page.getByRole('heading', { level: 1, name: 'Meus itens' })).toBeVisible({ timeout: 5000 });
+  await expect(page.locator('.shop-basket-count')).toHaveCount(0);
+});
+
+test('loja de conveniência: o pacote sai do gancho e vai arrastado até a cestinha', async ({ page }, info) => {
+  test.skip(info.project.name === 'celular', 'no celular é segurar e arrastar (toque); aqui testa o mouse');
+  await page.addInitScript(() => { try { localStorage.removeItem('shopBasket:v1'); } catch { /* ok */ } });
+  await page.goto('/loja');
+  await page.locator('.room-nav-item', { hasText: 'Efeitos de texto' }).click();
+  const card = page.locator('.room-grid .room-card', { hasText: 'Brasa' }); // o do gancho (não o que voa)
+  await card.scrollIntoViewIfNeeded();
+  const from = await card.locator('.room-card-art').boundingBox();
+  const to = await page.locator('.shop-basket-fab').boundingBox();
+  await page.mouse.move(from.x + from.width / 2, from.y + from.height / 2);
+  await page.mouse.down();
+  await page.mouse.move(from.x + from.width / 2 + 30, from.y + from.height / 2 + 10, { steps: 4 });
+  // Saiu do gancho: o pacote original some e o "voando" aparece.
+  await expect(card).toHaveClass(/is-lifted/);
+  await expect(page.locator('.shop-drag-layer .shop-drag-ghost')).toHaveCount(1);
+  // Só a caixinha voa: a cartela verde (nome, preço, botões) fica na parede.
+  await expect(page.locator('.shop-drag-layer .shop-drag-ghost.room-pack')).toHaveCount(1);
+  await expect(page.locator('.shop-drag-layer .room-card-body')).toHaveCount(0);
+  await expect(card.locator('.room-card-body')).toBeVisible();
+  await page.mouse.move(to.x + to.width / 2, to.y + to.height / 2, { steps: 20 });
+  await expect(page.locator('.shop-basket-fab')).toHaveClass(/is-over/);
+  await page.mouse.up();
+  await expect(page.locator('.shop-basket-fab .shop-basket-count')).toHaveText('1');
+  await expect(page.locator('.shop-drag-layer')).toHaveCount(0);
+  await expect(card).not.toHaveClass(/is-lifted/);
+});

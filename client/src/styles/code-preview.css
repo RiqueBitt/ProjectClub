@@ -1,0 +1,35 @@
+/* Prévia de arquivo de código/texto no chat. */
+.cfp { max-width: 640px; border-radius: 10px; overflow: hidden; border: 1px solid var(--border); background: var(--bg-secondary); margin-top: 6px; }
+.cfp-body { max-height: 420px; overflow: auto; background: var(--bg-deepest); }
+.cfp-loading, .cfp-error { margin: 0; padding: 12px; font-size: 13px; color: var(--text-muted); }
+.cfp-code { display: flex; font: 12.5px/1.55 ui-monospace, 'Cascadia Code', Consolas, Menlo, monospace; color: #d4d4d8; }
+.cfp-gutter { margin: 0; padding: 10px 8px 10px 10px; text-align: right; color: #5c606b; user-select: none; border-right: 1px solid var(--border); flex: none; }
+.cfp-src { margin: 0; padding: 10px 12px; flex: 1; min-width: 0; overflow-x: auto; white-space: pre; tab-size: 4; }
+.cfp-bar { display: flex; align-items: center; gap: 6px; padding: 8px 10px; border-top: 1px solid var(--border); position: relative; }
+.cfp-name { display: flex; flex-direction: column; min-width: 0; flex: 1; }
+.cfp-name a { color: var(--text-link); font-size: 13.5px; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.cfp-name small { color: var(--text-muted); font-size: 11.5px; }
+.cfp-btn { display: inline-grid; place-items: center; min-width: 30px; height: 30px; padding: 0 8px; border-radius: 8px; border: 0; background: var(--bg-elevated); color: var(--header-secondary); cursor: pointer; font: 700 12px inherit; text-decoration: none; }
+.cfp-btn:hover { color: var(--header-primary); background: var(--bg-modifier-hover); }
+.cfp-btn:disabled { opacity: .5; }
+.cfp-lang { position: relative; }
+.cfp-langmenu { position: absolute; right: 0; bottom: 36px; z-index: 20; width: 170px; max-height: 260px; overflow-y: auto; display: flex; flex-direction: column; padding: 4px; border-radius: 10px; background: var(--bg-floating); border: 1px solid var(--border); box-shadow: 0 10px 30px rgba(0,0,0,.45); }
+.cfp-langmenu button { text-align: left; padding: 6px 10px; border: 0; border-radius: 6px; background: transparent; color: var(--text-normal); font: 13px inherit; cursor: pointer; }
+.cfp-langmenu button:hover, .cfp-langmenu button.on { background: var(--brand); color: #fff; }
+.cfp-full { position: fixed; inset: 0; z-index: 10050; background: rgba(0,0,0,.7); display: grid; place-items: center; padding: 20px; }
+.cfp-full-box { width: min(1100px, 100%); height: min(86vh, 100%); display: flex; flex-direction: column; border-radius: 12px; overflow: hidden; background: var(--bg-secondary); border: 1px solid var(--border); }
+.cfp-full-box header { display: flex; align-items: center; gap: 10px; padding: 10px 14px; border-bottom: 1px solid var(--border); }
+.cfp-full-box header strong { color: var(--header-primary); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.cfp-full-box header small { color: var(--text-muted); flex: 1; }
+.cfp-full-body { flex: 1; overflow: auto; background: var(--bg-deepest); }
+/* Cores (tema escuro, estilo VS Code). */
+.cfp .hljs-keyword, .cfp .hljs-selector-tag, .cfp .hljs-literal, .cfp .hljs-section, .cfp .hljs-link, .cfp-full .hljs-keyword, .cfp-full .hljs-literal { color: #c586c0; }
+.cfp .hljs-string, .cfp .hljs-attr-value, .cfp-full .hljs-string { color: #ce9178; }
+.cfp .hljs-number, .cfp-full .hljs-number { color: #b5cea8; }
+.cfp .hljs-comment, .cfp .hljs-quote, .cfp-full .hljs-comment { color: #6a9955; font-style: italic; }
+.cfp .hljs-title, .cfp .hljs-title.function_, .cfp-full .hljs-title { color: #dcdcaa; }
+.cfp .hljs-tag, .cfp .hljs-name, .cfp-full .hljs-tag, .cfp-full .hljs-name { color: #569cd6; }
+.cfp .hljs-attr, .cfp .hljs-attribute, .cfp .hljs-variable, .cfp .hljs-property, .cfp-full .hljs-attr, .cfp-full .hljs-attribute { color: #9cdcfe; }
+.cfp .hljs-built_in, .cfp .hljs-type, .cfp .hljs-class, .cfp-full .hljs-built_in, .cfp-full .hljs-type { color: #4ec9b0; }
+.cfp .hljs-meta, .cfp-full .hljs-meta { color: #808080; }
+.cfp .hljs-regexp, .cfp-full .hljs-regexp { color: #d16969; }

@@ -1,0 +1,52 @@
+{
+  "name": "project-club-lite",
+  "version": "1.0.0",
+  "description": "Project Club Lite — app leve para Windows 7, 8 e 10 (32 e 64 bits) em PC antigo.",
+  "main": "main.js",
+  "author": "Project Club",
+  "license": "MIT",
+  "private": true,
+  "scripts": {
+    "shared": "node scripts/copy-shared.js",
+    "start": "npm run shared && electron .",
+    "test": "node --test test/*.test.js",
+    "build:win": "npm run shared && electron-builder --win --ia32 --publish never"
+  },
+  "devDependencies": {
+    "electron": "22.3.27",
+    "electron-builder": "^24.13.3"
+  },
+  "dependencies": {
+    "electron-updater": "6.3.9"
+  },
+  "build": {
+    "appId": "com.projectclub.lite",
+    "productName": "Project Club Lite",
+    "asar": true,
+    "files": ["main.js", "lite-preload.js", "picker.html", "picker-preload.js", "settings.js", "shared/**/*", "build/**/*"],
+    "npmRebuild": false,
+    "directories": { "output": "dist" },
+    "protocols": [{ "name": "Project Club", "schemes": ["projectclub"] }],
+    "electronLanguages": ["pt-BR", "en-US"],
+    "win": {
+      "target": [{ "target": "nsis", "arch": ["ia32"] }],
+      "icon": "build/icon.ico"
+    },
+    "nsis": {
+      "oneClick": false,
+      "perMachine": false,
+      "allowToChangeInstallationDirectory": false,
+      "installerLanguages": ["pt_BR"],
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "Project Club Lite",
+      "runAfterFinish": true,
+      "artifactName": "ProjectClub-Lite-Setup-Windows.${ext}"
+    },
+    "publish": {
+      "provider": "generic",
+      "url": "https://github.com/RiqueBitt/ProjectClub/releases/latest/download/",
+      "channel": "lite"
+    }
+  }
+}

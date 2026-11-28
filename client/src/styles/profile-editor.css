@@ -1,0 +1,170 @@
+/* Editor de perfil (components/profileEditor/ProfileEditorFrame.jsx) —
+   estilo do editor do Discord: opções à esquerda, prévia ao vivo à direita. */
+.pe-overlay {
+  position: fixed; inset: 0; z-index: 300; display: grid; place-items: center;
+  padding: max(16px, env(safe-area-inset-top, 0px)) 16px 16px;
+  background: rgba(0, 0, 0, .72); animation: modal-overlay-in .12s ease-out;
+}
+.pe-box {
+  position: relative; display: grid; grid-template-columns: minmax(320px, 420px) 1fr;
+  width: min(1280px, 100%); height: min(860px, 100%);
+  border-radius: 16px; overflow: hidden; border: 1px solid var(--border);
+  background: var(--bg-primary); box-shadow: 0 30px 80px rgba(0, 0, 0, .55);
+}
+.pe-box.is-side-hidden { grid-template-columns: 1fr; }
+.pe-box.is-side-hidden .pe-side { display: none; }
+
+/* ---- lado esquerdo: opções ---- */
+.pe-side { display: flex; flex-direction: column; min-height: 0; background: var(--bg-secondary); border-right: 1px solid var(--border); }
+.pe-side-head { display: flex; align-items: center; gap: 8px; padding: 14px 14px 12px 16px; border-bottom: 1px solid var(--border); }
+.pe-section-pick { position: relative; min-width: 0; flex: 1; }
+.pe-section-btn {
+  display: inline-flex; align-items: center; gap: 6px; max-width: 100%; padding: 6px 8px; margin-left: -8px; border-radius: 8px;
+  background: none; border: 0; color: var(--header-primary, var(--text-normal)); font: inherit; font-size: 16px; font-weight: 700; cursor: pointer;
+}
+.pe-section-btn span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.pe-section-btn:hover, .pe-section-btn[aria-expanded="true"] { background: var(--bg-modifier-hover); }
+.pe-section-menu {
+  position: absolute; top: calc(100% + 6px); left: -8px; z-index: 5; width: 300px; padding: 6px; border-radius: 12px;
+  background: var(--bg-floating, var(--bg-tertiary)); border: 1px solid var(--border); box-shadow: 0 14px 36px rgba(0, 0, 0, .45);
+}
+.pe-section-item {
+  display: flex; flex-direction: column; gap: 2px; width: 100%; padding: 9px 10px; border: 0; border-radius: 8px; text-align: left;
+  background: none; color: var(--text-normal); font: inherit; cursor: pointer;
+}
+.pe-section-item small { color: var(--text-muted); font-size: 12px; }
+.pe-section-item:hover { background: var(--bg-modifier-hover); }
+.pe-section-item.is-current { background: color-mix(in srgb, var(--brand) 18%, transparent); }
+.pe-save { flex: none; }
+.pe-icon-btn {
+  flex: none; display: grid; place-items: center; width: 30px; height: 30px; border-radius: 8px; border: 0;
+  background: none; color: var(--text-muted); cursor: pointer;
+}
+.pe-icon-btn:hover { background: var(--bg-modifier-hover); color: var(--text-normal); }
+.pe-side-body { flex: 1; min-height: 0; overflow-y: auto; overscroll-behavior: contain; padding: 4px 16px 32px; }
+/* O conteúdo vem das Configurações: aqui fica numa coluna só, mais compacto. */
+.pe-side-body .settings-modal-content { padding: 0 !important; max-width: none !important; }
+.pe-side-body .settings-page-head { display: none; }
+.pe-side-body .settings-grid { display: flex !important; flex-direction: column; gap: 12px; }
+.pe-side-body .settings-block { margin: 0; padding: 14px; border-radius: 12px; }
+.pe-side-body .settings-block h4 { font-size: 13px; text-transform: none; letter-spacing: 0; }
+.pe-side-body .settings-section-title { margin-top: 10px; }
+
+/* ---- lado direito: prévia ---- */
+.pe-preview { position: relative; display: flex; flex-direction: column; min-width: 0; min-height: 0; background: var(--bg-tertiary, #0b0d12); }
+.pe-preview-bar { display: flex; align-items: center; gap: 12px; padding: 12px 64px 12px 16px; border-bottom: 1px solid var(--border); }
+.pe-view-toggle { display: inline-flex; padding: 3px; border-radius: 10px; background: var(--bg-secondary); border: 1px solid var(--border); }
+.pe-view-toggle button {
+  padding: 6px 14px; border-radius: 8px; border: 0; background: none; color: var(--text-muted);
+  font: inherit; font-size: 13px; font-weight: 600; cursor: pointer;
+}
+.pe-view-toggle button.is-on { background: var(--bg-primary); color: var(--text-normal); box-shadow: 0 1px 3px rgba(0, 0, 0, .3); }
+.pe-preview-note { margin-left: auto; font-size: 12px; color: var(--text-muted); white-space: nowrap; }
+.pe-stage { position: relative; flex: 1; min-height: 0; overflow: hidden; }
+.pe-full { position: absolute; inset: 0; }
+/* O perfil completo de verdade, encaixado na área da prévia. */
+.pe-full .modal-overlay.profile-fullscreen-overlay.pf-embedded {
+  position: absolute !important; inset: 0 !important; z-index: auto; padding: 0; background: none; animation: none; display: block;
+}
+.pe-full .pf-embedded > .modal-box.profile-modal-fullscreen {
+  width: 100%; height: 100%; max-width: none; max-height: none; margin: 0; border-radius: 0; overflow-y: auto; zoom: .84;
+}
+.pe-mini { position: absolute; inset: 0; overflow-y: auto; display: flex; justify-content: center; align-items: flex-start; padding: 40px 16px; }
+.pe-mini .mini-profile-card.mini-profile-preview { position: relative; animation: none; box-shadow: 0 24px 60px rgba(0, 0, 0, .5); }
+
+.pe-close {
+  position: absolute; top: 10px; right: 12px; z-index: 6; display: grid; place-items: center; width: 36px; height: 36px; border-radius: 10px;
+  border: 1px solid var(--border); background: var(--bg-secondary); color: var(--text-normal); cursor: pointer;
+}
+.pe-close:hover { background: var(--bg-modifier-hover); }
+
+/* Celular / janela estreita: opções em cima, prévia embaixo (rola tudo junto). */
+@media (max-width: 900px) {
+  .pe-overlay { padding: 0; }
+  .pe-box { display: flex; flex-direction: column; width: 100%; height: 100%; border-radius: 0; border: 0; overflow-y: auto; }
+  .pe-side { border-right: 0; border-bottom: 1px solid var(--border); }
+  .pe-side-body { overflow: visible; }
+  .pe-side-head { position: sticky; top: 0; z-index: 4; background: var(--bg-secondary); padding-right: 60px; }
+  .pe-preview { min-height: 640px; }
+  .pe-preview-note { display: none; }
+  .pe-full .pf-embedded > .modal-box.profile-modal-fullscreen { zoom: 1; }
+  .pe-close { position: fixed; top: max(10px, env(safe-area-inset-top, 0px)); }
+}
+
+
+/* ---------- Aba Perfil do editor: grupos no estilo do Discord ---------- */
+.pe-groups { display: flex; flex-direction: column; gap: 0; padding-top: 6px; }
+.pe-group { display: flex; flex-direction: column; gap: 12px; padding: 20px 0 22px; border-bottom: 1px solid var(--border); }
+.pe-group:last-child { border-bottom: 0; }
+.pe-group-title { margin: 0; font-size: 15px; font-weight: 700; color: var(--header-primary, var(--text-normal)); letter-spacing: 0; text-transform: none; }
+.pe-group-desc { margin: -6px 0 0; font-size: 12.5px; line-height: 1.45; color: var(--text-muted); }
+.pe-sub { margin: 6px 0 -2px; font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: .04em; color: var(--text-muted); }
+.pe-sub small { text-transform: none; letter-spacing: 0; font-weight: 500; opacity: .8; margin-left: 4px; }
+.pe-loading { margin: 0; font-size: 13px; }
+/* Cartões: o mesmo visual pros blocos antigos (settings-block) e os novos. */
+.pe-card, .pe-groups .settings-block {
+  display: flex; flex-direction: column; gap: 10px; margin: 0; padding: 14px; border-radius: 12px;
+  background: var(--bg-primary); border: 1px solid var(--border);
+}
+.pe-groups .settings-block h4 { margin: 0; font-size: 13px; font-weight: 700; text-transform: none; letter-spacing: 0; color: var(--header-primary, var(--text-normal)); }
+.pe-groups .settings-block > p.dim { margin: -4px 0 0; font-size: 12.5px; line-height: 1.45; }
+.pe-card label, .pe-groups .settings-block label { display: flex; flex-direction: column; gap: 6px; font-size: 11.5px; font-weight: 700; color: var(--text-muted); }
+.pe-card label + label { margin-top: 4px; }
+
+/* Avatar */
+.pe-avatar-card { flex-direction: row; align-items: center; gap: 16px; }
+.pe-avatar-thumb { flex: none; display: grid; place-items: center; width: 84px; height: 84px; border-radius: 50%; background: var(--bg-secondary); }
+.pe-avatar-side { display: flex; flex-direction: column; align-items: flex-start; gap: 6px; min-width: 0; }
+
+/* Grades de itens (moldura, estilo, efeito) */
+.pe-tiles { display: grid; grid-template-columns: repeat(auto-fill, minmax(104px, 1fr)); gap: 10px; }
+.pe-tiles-style, .pe-tiles-effect { grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); }
+.pe-tile {
+  position: relative; display: flex; flex-direction: column; gap: 7px; min-width: 0; padding: 6px 6px 8px; border-radius: 12px;
+  border: 2px solid transparent; background: var(--bg-primary); outline: 1px solid var(--border); outline-offset: -1px;
+  color: var(--text-normal); font: inherit; text-align: center; cursor: pointer; transition: border-color .15s, transform .15s;
+}
+.pe-tile:hover:not(:disabled) { transform: translateY(-1px); border-color: color-mix(in srgb, var(--brand) 55%, transparent); }
+.pe-tile.is-on { border-color: var(--brand); outline-color: transparent; cursor: default; }
+.pe-tile:disabled { opacity: .85; }
+.pe-tile-art { position: relative; display: grid; place-items: center; height: 84px; border-radius: 8px; overflow: hidden; background: var(--bg-secondary); }
+.pe-tiles-style .pe-tile-art, .pe-tiles-effect .pe-tile-art { height: 120px; }
+.pe-tile-art .shop-mock { width: 100%; height: 100%; }
+.pe-tile-deco { display: grid; place-items: center; }
+.pe-tile-name { font-size: 12px; font-weight: 600; line-height: 1.25; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.pe-tile-name small { color: #c98a00; font-weight: 800; }
+.pe-tile-check { position: absolute; top: 10px; right: 10px; z-index: 40; display: grid; place-items: center; width: 20px; height: 20px; border-radius: 50%; background: var(--brand); color: #fff; }
+.pe-tile-busy { position: absolute; inset: 10px 10px auto; z-index: 40; padding: 3px 6px; border-radius: 6px; background: rgba(0, 0, 0, .72); color: #fff; font-size: 11px; }
+.pe-tile-shop { outline-style: dashed; color: var(--text-muted); }
+.pe-tile-shop .pe-tile-art { background: transparent; }
+.pe-tile-shop:hover { color: var(--text-normal); }
+.pe-shop-msg { margin: 0; padding: 8px 10px; border-radius: 8px; font-size: 12.5px; background: color-mix(in srgb, var(--green, #23a55a) 15%, transparent); }
+.pe-shop-msg.is-bad { background: color-mix(in srgb, var(--red, #f23f43) 15%, transparent); }
+
+/* Nome: fontes (padrão + compradas) e efeitos numa grade só */
+.pe-name-preview { margin: 2px 0 0; padding: 14px 12px; border-radius: 10px; background: var(--bg-secondary); font-size: 22px; font-weight: 700; text-align: center; overflow: hidden; }
+.pe-font-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(104px, 1fr)); gap: 8px; }
+.pe-font {
+  position: relative; display: flex; flex-direction: column; align-items: center; gap: 4px; min-width: 0; padding: 10px 6px 8px; border-radius: 10px;
+  border: 2px solid transparent; background: var(--bg-primary); outline: 1px solid var(--border); outline-offset: -1px;
+  color: var(--text-normal); font: inherit; cursor: pointer; transition: border-color .15s;
+}
+.pe-font:hover:not(:disabled) { border-color: color-mix(in srgb, var(--brand) 55%, transparent); }
+.pe-font.is-on { border-color: var(--brand); outline-color: transparent; }
+.pe-font.is-shop::after { content: 'Loja'; position: absolute; top: 4px; right: 5px; font-size: 9px; font-weight: 800; padding: 1px 5px; border-radius: 999px; background: color-mix(in srgb, var(--brand) 22%, transparent); color: var(--text-normal); }
+.pe-font-sample { max-width: 100%; font-size: 18px; line-height: 1.3; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.pe-font-label { max-width: 100%; font-size: 11px; color: var(--text-muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.pe-name-colors:empty { display: none; }
+.pe-name-colors .name-style-color-row { display: flex; flex-wrap: wrap; gap: 12px; margin: 0; }
+
+/* Banners: perfil completo e miniperfil lado a lado */
+.pe-banners { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.pe-banner { display: flex; flex-direction: column; gap: 8px; min-width: 0; padding: 10px; border-radius: 12px; background: var(--bg-primary); border: 1px solid var(--border); }
+.pe-banner-label { font-size: 12px; font-weight: 700; color: var(--header-primary, var(--text-normal)); }
+.pe-banner-art { position: relative; display: grid; place-items: center; aspect-ratio: 2.6 / 1; border-radius: 8px; overflow: hidden; }
+.pe-banner-art.is-mini { aspect-ratio: 2.2 / 1; }
+.pe-banner-empty { padding: 0 8px; font-size: 11px; text-align: center; color: rgba(255, 255, 255, .85); text-shadow: 0 1px 2px rgba(0, 0, 0, .5); }
+.pe-banner-actions { display: flex; flex-wrap: wrap; gap: 6px; }
+.pe-banner-actions .btn-secondary { padding: 6px 10px; font-size: 12.5px; }
+.pe-banner .settings-upload-hint { font-size: 11px; }
+@media (max-width: 520px) { .pe-banners { grid-template-columns: 1fr; } }

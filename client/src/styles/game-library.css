@@ -1,0 +1,191 @@
+/* Biblioteca de jogos (página /jogos/biblioteca + seção "Jogos" do perfil). */
+.gl-page { height: 100%; overflow-y: auto; padding: 20px 28px 48px; }
+.gl-inner { max-width: 1080px; margin: 0 auto; display: flex; flex-direction: column; gap: 16px; }
+
+.gl-back {
+  align-self: flex-start; display: inline-flex; align-items: center; gap: 6px; height: 32px; padding: 0 12px 0 8px;
+  border-radius: 10px; border: 1px solid var(--lit-border-color, var(--border)); background: var(--bg-secondary);
+  color: var(--text-muted); font: inherit; font-size: 13px; font-weight: 600; cursor: pointer;
+}
+.gl-back:hover { color: var(--header-primary); border-color: color-mix(in srgb, var(--brand) 45%, var(--border)); }
+
+.gl-hero {
+  border-radius: 20px; padding: 22px 24px; display: flex; flex-direction: column; gap: 18px;
+  background: radial-gradient(ellipse 60% 140% at 0% 0%, color-mix(in srgb, var(--brand) 30%, transparent), transparent 70%), var(--bg-secondary);
+  border: 1px solid var(--lit-border-color, var(--border));
+}
+.gl-head-top { display: flex; align-items: center; gap: 14px; min-width: 0; }
+.gl-head-icon {
+  width: 52px; height: 52px; border-radius: 15px; flex-shrink: 0; display: grid; place-items: center;
+  color: var(--brand); background: color-mix(in srgb, var(--brand) 16%, transparent);
+}
+.gl-head-avatar { padding: 0; border: 0; background: none; cursor: pointer; border-radius: 50%; flex-shrink: 0; }
+.gl-head-text { min-width: 0; }
+.gl-head-text h1 { margin: 0; font-size: 28px; font-weight: 800; letter-spacing: -0.5px; color: var(--header-primary); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.gl-head-text p { margin: 4px 0 0; color: var(--text-muted); font-size: 13.5px; }
+.gl-head-stats { display: flex; flex-wrap: wrap; gap: 10px; }
+.gl-stat {
+  display: flex; flex-direction: column; gap: 2px; padding: 10px 16px; min-width: 110px; border-radius: 14px;
+  background: var(--bg-primary); border: 1px solid var(--lit-border-color, var(--border)); text-align: left;
+}
+.gl-stat b { font-size: 20px; font-weight: 800; color: var(--header-primary); display: inline-flex; align-items: center; gap: 6px; }
+.gl-stat span { font-size: 11.5px; font-weight: 700; text-transform: uppercase; letter-spacing: .5px; color: var(--text-muted); }
+.gl-stat-btn { font: inherit; cursor: pointer; color: inherit; }
+.gl-stat-btn b { font-size: 16px; }
+.gl-stat-btn:hover { border-color: color-mix(in srgb, var(--brand) 50%, var(--border)); }
+
+/* Jogando agora */
+.gl-now {
+  display: flex; align-items: center; gap: 18px; padding: 14px; border-radius: 18px;
+  background: linear-gradient(90deg, color-mix(in srgb, var(--green, #3ba55d) 16%, transparent), transparent 70%), var(--bg-secondary);
+  border: 1px solid color-mix(in srgb, var(--green, #3ba55d) 45%, var(--border));
+}
+.gl-now-text { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
+.gl-now-text strong { font-size: 20px; color: var(--header-primary); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.gl-now-label { display: inline-flex; align-items: center; gap: 7px; font-size: 11.5px; font-weight: 800; letter-spacing: .6px; text-transform: uppercase; color: var(--green, #3ba55d); }
+.gl-now-meta { font-size: 13px; color: var(--text-muted); }
+.gl-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--green, #3ba55d); box-shadow: 0 0 0 3px color-mix(in srgb, var(--green, #3ba55d) 25%, transparent); animation: gl-pulse 1.6s ease-in-out infinite; flex-shrink: 0; }
+@keyframes gl-pulse { 50% { opacity: .45; } }
+
+/* Barra: abas + busca + ordenar */
+.gl-toolbar { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+.gl-tabs { display: inline-flex; gap: 4px; padding: 4px; border-radius: 14px; background: var(--bg-secondary); border: 1px solid var(--lit-border-color, var(--border)); }
+.gl-tab {
+  display: inline-flex; align-items: center; gap: 7px; height: 34px; padding: 0 14px; border-radius: 10px; border: 0;
+  background: transparent; color: var(--text-muted); font: inherit; font-size: 13.5px; font-weight: 700; cursor: pointer; white-space: nowrap;
+}
+.gl-tab:hover { color: var(--header-primary); }
+.gl-tab.active { background: var(--bg-primary); color: var(--header-primary); box-shadow: 0 1px 3px rgba(0, 0, 0, .35); }
+.gl-tab.active svg { color: var(--brand); }
+.gl-tab-count { font-size: 11.5px; padding: 1px 7px; border-radius: 999px; background: var(--bg-modifier-hover); color: var(--text-muted); }
+.gl-tools { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+.gl-search {
+  display: inline-flex; align-items: center; gap: 8px; height: 38px; padding: 0 12px; border-radius: 11px; width: 240px;
+  background: var(--bg-secondary); border: 1px solid var(--lit-border-color, var(--border)); color: var(--text-muted);
+}
+.gl-search:focus-within { border-color: var(--brand); }
+.gl-search input { flex: 1; min-width: 0; width: 100%; border: 0; outline: 0; background: transparent; color: var(--text-normal); font: inherit; font-size: 13.5px; }
+.gl-sort { display: inline-flex; align-items: center; gap: 8px; font-size: 12px; font-weight: 700; color: var(--text-muted); text-transform: uppercase; letter-spacing: .4px; }
+.gl-sort select {
+  height: 38px; padding: 0 10px; border-radius: 11px; background: var(--bg-secondary); color: var(--text-normal);
+  border: 1px solid var(--lit-border-color, var(--border)); font: inherit; font-size: 13.5px; text-transform: none; letter-spacing: 0; cursor: pointer;
+}
+
+/* Lista */
+.gl-list { display: flex; flex-direction: column; gap: 8px; }
+.gl-row {
+  display: flex; align-items: center; gap: 18px; padding: 10px; border-radius: 16px; min-width: 0;
+  background: var(--bg-secondary); border: 1px solid var(--lit-border-color, var(--border));
+  transition: border-color .15s ease, background .15s ease;
+}
+.gl-row:hover { border-color: color-mix(in srgb, var(--brand) 40%, var(--border)); background: color-mix(in srgb, var(--brand) 4%, var(--bg-secondary)); }
+.gl-row.is-live { border-color: color-mix(in srgb, var(--green, #3ba55d) 45%, var(--border)); }
+.gl-row-main { flex: 1; min-width: 0; display: flex; align-items: center; gap: 18px; }
+.gl-row-name { flex: 1; min-width: 0; font-size: 17px; font-weight: 800; color: var(--header-primary); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.gl-row-stats { display: flex; gap: 26px; flex-shrink: 0; }
+.gl-row-stat { display: flex; flex-direction: column; gap: 3px; min-width: 104px; }
+.gl-row-stat-label { font-size: 10.5px; font-weight: 800; letter-spacing: .7px; text-transform: uppercase; color: var(--text-muted); }
+.gl-row-stat-value { font-size: 14px; font-weight: 700; color: var(--text-normal); white-space: nowrap; }
+.gl-row-stat-value.is-live { color: var(--green, #3ba55d); }
+
+.gl-row.is-compact { gap: 12px; padding: 8px; border-radius: 13px; }
+.gl-row.is-compact .gl-row-main { flex-direction: column; align-items: flex-start; gap: 6px; }
+.gl-row.is-compact .gl-row-name { font-size: 14.5px; width: 100%; }
+.gl-row.is-compact .gl-row-stats { gap: 18px; }
+.gl-row.is-compact .gl-row-stat { min-width: 0; }
+.gl-row.is-compact .gl-row-stat-value { font-size: 13px; }
+
+/* Capa (proporção da capa da Steam, 460x215) */
+.gl-capsule {
+  position: relative; flex-shrink: 0; overflow: hidden; border-radius: 10px; aspect-ratio: 460 / 215;
+  background: linear-gradient(135deg, hsl(var(--gl-hue, 220) 55% 26%), hsl(calc(var(--gl-hue, 220) + 40) 60% 12%));
+  display: block;
+}
+.gl-capsule-sm { width: 128px; border-radius: 8px; }
+.gl-capsule-md { width: 196px; }
+.gl-capsule-lg { width: 230px; border-radius: 12px; }
+.gl-capsule > img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.gl-capsule-fallback { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; gap: 8px; padding: 8px 12px; text-align: center; }
+.gl-capsule-logo { width: 34%; max-height: 60%; object-fit: contain; filter: drop-shadow(0 2px 6px rgba(0, 0, 0, .5)); }
+.gl-capsule-name { font-size: 14px; font-weight: 800; color: #fff; line-height: 1.15; text-shadow: 0 2px 8px rgba(0, 0, 0, .6); overflow: hidden; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
+.gl-capsule-logo + .gl-capsule-name { display: none; }
+.gl-capsule-sm .gl-capsule-name { font-size: 11.5px; }
+.gl-capsule-live {
+  position: absolute; left: 6px; bottom: 6px; padding: 2px 7px; border-radius: 999px; font-size: 10.5px; font-weight: 800;
+  background: var(--green, #3ba55d); color: #fff; letter-spacing: .3px;
+}
+
+.gl-capsule-lg .gl-capsule-live { display: none; }
+
+/* Estados */
+.gl-empty {
+  display: flex; flex-direction: column; align-items: center; text-align: center; gap: 6px; padding: 34px 18px;
+  border-radius: 18px; background: var(--bg-secondary); border: 1px solid var(--lit-border-color, var(--border));
+}
+.gl-empty h3 { margin: 6px 0 0; font-size: 16px; color: var(--header-primary); }
+.gl-empty p { margin: 0; max-width: 420px; color: var(--text-muted); font-size: 13.5px; line-height: 1.45; }
+.gl-empty-icon { width: 48px; height: 48px; border-radius: 14px; display: grid; place-items: center; color: var(--brand); background: color-mix(in srgb, var(--brand) 14%, transparent); }
+.gl-skeleton { height: 112px; animation: gl-skel 1.4s ease-in-out infinite; }
+@keyframes gl-skel { 50% { opacity: .5; } }
+
+/* Perfil */
+.gl-profile-card { display: flex; flex-direction: column; gap: 12px; }
+.gl-profile .gl-empty { padding: 22px 14px; background: var(--pf-card-bg, var(--bg-secondary)); border-color: var(--pf-card-border, var(--border)); }
+.gl-profile .gl-row { background: var(--pf-card-bg, var(--bg-secondary)); border-color: var(--pf-card-border, var(--border)); }
+.gl-profile-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; }
+.gl-profile-stats { display: flex; flex-wrap: wrap; gap: 6px; min-width: 0; }
+.gl-chip {
+  display: inline-flex; align-items: center; gap: 5px; height: 26px; padding: 0 10px; border-radius: 999px; font-size: 12px; font-weight: 700;
+  color: var(--text-muted); background: var(--pf-card-bg, var(--bg-secondary)); border: 1px solid var(--pf-card-border, var(--border)); max-width: 100%;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.gl-chip b { color: var(--header-primary); }
+.gl-chip.is-live { color: var(--green, #3ba55d); border-color: color-mix(in srgb, var(--green, #3ba55d) 45%, transparent); }
+.gl-link-btn {
+  display: inline-flex; align-items: center; gap: 6px; height: 32px; padding: 0 12px; border-radius: 10px; cursor: pointer;
+  border: 1px solid var(--pf-card-border, var(--border)); background: var(--pf-card-bg, var(--bg-primary)); color: var(--header-primary);
+  font: inherit; font-size: 13px; font-weight: 700;
+}
+.gl-link-btn:hover { border-color: var(--brand); }
+
+/* Entrada na página Apps */
+.gl-entry-icon { color: var(--brand); }
+
+@media (max-width: 900px) {
+  .gl-row-stat-hide-sm { display: none; }
+  .gl-row-main { flex-direction: column; align-items: flex-start; gap: 8px; }
+  .gl-row-name { width: 100%; }
+}
+@media (max-width: 640px) {
+  .gl-page { padding: 12px 12px 40px; }
+  .gl-hero { padding: 16px; border-radius: 18px; }
+  .gl-head-text h1 { font-size: 22px; }
+  .gl-stat { min-width: 0; flex: 1; padding: 9px 12px; }
+  .gl-stat b { font-size: 17px; }
+  .gl-toolbar { flex-direction: column; align-items: stretch; }
+  .gl-tabs { display: flex; }
+  .gl-tab { flex: 1; justify-content: center; padding: 0 8px; font-size: 12.5px; }
+  .gl-tools { width: 100%; }
+  .gl-search { flex: 1; min-width: 0; width: auto; }
+  .gl-sort span { display: none; }
+  .gl-row { gap: 12px; padding: 8px; }
+  .gl-capsule-md { width: 120px; border-radius: 8px; }
+  .gl-capsule-lg { width: 132px; }
+  .gl-row-name { font-size: 14.5px; }
+  .gl-row-stats { gap: 14px; }
+  .gl-row-stat { min-width: 0; }
+  .gl-row-stat-value { font-size: 12.5px; }
+  .gl-row-stat-label { font-size: 9.5px; }
+  .gl-capsule-name { font-size: 11px; }
+  .gl-now { gap: 12px; padding: 10px; }
+  .gl-now-text strong { font-size: 16px; }
+  .gl-row.is-compact .gl-capsule-sm { width: 104px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .gl-dot, .gl-skeleton { animation: none; }
+  .gl-row { transition: none; }
+}
+
+/* Mods ↔ biblioteca (app desktop) */
+.gl-row-mods { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-top: 8px; }
+.gl-row-mods .gl-link-btn { height: 28px; font-size: 12.5px; }

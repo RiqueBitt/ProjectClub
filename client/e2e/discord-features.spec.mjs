@@ -1,0 +1,150 @@
+import { test, expect } from '@playwright/test';
+import { handler, imageHandler } from './mock-api.mjs';
+
+// Recursos trazidos do Discord: Mural/Lista de desejos/Atividade/Estatísticas
+// no perfil; lista de desejos, presentes e códigos e comparar planos na Loja.
+const SHOTS = process.env.FEAT_SHOTS;
+const shot = async (page, name, info) => { if (SHOTS) await page.screenshot({ path: `${SHOTS}/${info.project.name}-${name}.png`, fullPage: false }); };
+
+test.beforeEach(async ({ page }) => {
+  await page.addInitScript(() => {
+    try { localStorage.setItem('theme', 'dark'); localStorage.setItem('layoutStyle', 'normal2'); sessionStorage.setItem('inicio-redirect-done', '1'); } catch { /* sem storage */ }
+  });
+  await page.route('**/api/**', handler);
+  await page.route('**/socket.io/**', (r) => r.abort());
+  await page.route('**/mock-img/**', imageHandler);
+  await page.route(/fonts\.(googleapis|gstatic)\.com/, (r) => r.abort());
+});
+
+test('perfil mostra Mural, Lista de desejos, Atividade e Estatísticas', async ({ page }, info) => {
+  const errors = [];
+  page.on('pageerror', (e) => errors.push(e.message));
+  await page.goto('/u/1');
+  // O perfil é em abas: Mural e Lista de desejos em "Visão geral",
+  // atividade em "Jogos" e estatísticas em "Conquistas".
+  const tab = (name) => page.getByRole('tab', { name });
+  await expect(tab('Visão geral')).toBeVisible({ timeout: 15000 });
+  await tab('Visão geral').click();
+  await expect(page.locator('.pxw-mural')).toBeVisible();
+  await expect(page.getByText('Jogo desde a beta, nunca enjoa.')).toBeVisible();
+  await page.locator('.pxw-mural').scrollIntoViewIfNeeded();
+  await shot(page, 'perfil-mural', info);
+  await expect(page.locator('.pxl-item').first()).toBeVisible();
+  await page.locator('.pxl-grid').scrollIntoViewIfNeeded();
+  await shot(page, 'perfil-wishlist', info);
+  await tab('Conquistas').click();
+  await expect(page.locator('.pxs-badge')).toHaveCount(4);
+  await page.locator('.pxs-grid').scrollIntoViewIfNeeded();
+  await shot(page, 'perfil-stats', info);
+  await tab('Jogos').click();
+  await expect(page.getByText('Retornando após 2 meses')).toBeVisible();
+  await page.locator('.pxa-list').scrollIntoViewIfNeeded();
+  await shot(page, 'perfil-atividade', info);
+  // Editor do mural
+  await tab('Visão geral').click();
+  await page.getByRole('button', { name: 'Editar mural' }).click();
+  await expect(page.getByRole('tab', { name: /Jogos em rotação/ })).toBeVisible();
+  await shot(page, 'mural-editor', info);
+  await page.getByRole('tab', { name: /Jogos que eu gosto/ }).click();
+  await page.getByLabel('Buscar jogo').fill('terr');
+  await expect(page.getByRole('button', { name: /Terraria/ })).toBeVisible();
+  await shot(page, 'mural-editor-busca', info);
+  const overflow = await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth);
+  expect(overflow).toBeLessThanOrEqual(1);
+  expect(errors).toEqual([]);
+});
+
+test('loja: coração da lista de desejos, presentes e códigos, comparar planos', async ({ page }, info) => {
+  const errors = [];
+  page.on('pageerror', (e) => errors.push(e.message));
+  await page.goto('/loja');
+  await expect(page.locator('.shop-room .room-card').first()).toBeVisible();
+  await page.getByRole('button', { name: /Efeitos de texto/ }).first().click();
+  await expect(page.locator('.room-wish').first()).toBeVisible();
+  await expect(page.getByRole('button', { name: /Embaralhar/ })).toBeVisible();
+  await shot(page, 'loja-catalogo', info);
+  await page.getByRole('button', { name: /Presentes e códigos/ }).click();
+  await expect(page.getByRole('heading', { name: 'Resgatar código' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Insígnia de Presentes' })).toBeVisible();
+  await shot(page, 'loja-presentes', info);
+  // Assinatura saiu da Loja: agora é a página /assinatura (canais em destaque).
+  await expect(page.locator('.room-nav-sub', { hasText: 'Assinatura' })).toHaveCount(0);
+  await page.goto('/loja?secao=assinatura');
+  await expect(page).toHaveURL(/\/assinatura$/);
+  await expect(page.locator('.sub-plan')).toHaveCount(2);
+  await expect(page.getByRole('heading', { name: 'Compare os planos' })).toBeVisible();
+  await page.getByRole('button', { name: 'Quanto tempo vale?' }).click();
+  await expect(page.getByText('Um mês por pagamento.')).toBeVisible();
+  await shot(page, 'assinatura', info);
+  expect(errors).toEqual([]);
+});
+
+test('configurações: tema colorido, ícone, modo streamer, sons, privacidade', async ({ page }, info) => {
+  test.skip(info.project.name !== 'pc', 'telas de configurações conferidas no PC');
+  const errors = [];
+  page.on('pageerror', (e) => errors.push(e.message));
+  const patches = [];
+  page.on('request', (r) => { if (r.method() === 'PATCH' && r.url().includes('/users/me/settings')) patches.push(r.postDataJSON()); });
+  await page.goto('/inicio');
+  await page.locator('.top-more-btn').click();
+  await page.locator('.top-more-menu').getByRole('menuitem', { name: 'Configurações' }).click();
+  await page.getByText(/^Aparência$/).first().click();
+  await expect(page.getByRole('heading', { name: 'Temas coloridos' })).toBeVisible();
+  await page.getByRole('radio', { name: /Aurora/ }).click();
+  await expect.poll(() => page.evaluate(() => document.documentElement.getAttribute('data-pc-ctheme'))).toBe('aurora');
+  await page.getByRole('heading', { name: 'Temas coloridos' }).scrollIntoViewIfNeeded();
+  await shot(page, 'cfg-temas', info);
+  await page.getByRole('radio', { name: /Personalizado/ }).first().click();
+  await expect(page.getByLabel('Cor de destaque')).toBeVisible();
+  await page.getByRole('heading', { name: 'Ícone do app' }).scrollIntoViewIfNeeded();
+  await page.getByRole('radio', { name: /Neon/ }).click();
+  await expect.poll(() => page.evaluate(() => document.querySelector('link[rel="icon"]')?.href.startsWith('data:image/png'))).toBe(true);
+  await shot(page, 'cfg-icone', info);
+  await page.getByRole('switch', { name: 'Ativar modo streamer' }).click();
+  await expect(page.locator('.pc-streamer-badge')).toBeVisible();
+  await page.waitForTimeout(800);
+  expect(patches.some((p) => p.extraPrefs?.streamerMode === true && p.extraPrefs?.appIcon === 'neon')).toBe(true);
+  await page.locator('.settings-modal-sidebar').getByText('Notificações', { exact: true }).last().click();
+  await expect(page.getByRole('heading', { name: 'Notifique-me quando…' })).toBeVisible();
+  await page.getByRole('heading', { name: 'Sons', exact: true }).scrollIntoViewIfNeeded();
+  await shot(page, 'cfg-notificacoes', info);
+  await page.getByText(/^Voz e vídeo$/).first().click();
+  await expect(page.getByRole('heading', { name: 'Perfil de entrada' })).toBeVisible();
+  await page.getByRole('switch', { name: 'Determinar automaticamente' }).click();
+  await expect(page.getByLabel('Limite em dB')).toBeVisible();
+  await page.getByRole('heading', { name: 'Sensibilidade de entrada' }).scrollIntoViewIfNeeded();
+  await shot(page, 'cfg-voz', info);
+  await page.locator('.settings-modal-sidebar').getByText('Dados e privacidade', { exact: true }).last().click();
+  await expect(page.getByRole('heading', { name: 'Filtros de spam' })).toBeVisible();
+  await page.getByRole('heading', { name: 'Filtros de spam' }).scrollIntoViewIfNeeded();
+  await shot(page, 'cfg-privacidade', info);
+  expect(errors).toEqual([]);
+});
+
+test('barra de ícones (visual novo): Assinatura leva pra página de planos', async ({ page }, info) => {
+  test.skip(info.project.name !== 'pc', 'barra de ícones conferida no PC');
+  await page.addInitScript(() => { try { localStorage.setItem('pc-layout-prefs', JSON.stringify({ visual: 'novo' })); } catch { /* */ } });
+  await page.goto('/inicio');
+  // No PC os destaques saem da lista de canais e viram a barra de ícones.
+  await expect(page.locator('.club-rail')).toBeVisible({ timeout: 20_000 });
+  await expect(page.locator('.n2-sidebar .featured-channels')).toBeHidden();
+  const sub = page.locator('.club-rail-btn[aria-label^="Assinatura"]');
+  await sub.click();
+  await expect(page).toHaveURL(/\/assinatura$/);
+  await expect(sub).toHaveClass(/is-active/);
+  await expect(page.locator('.sub-hero h1')).toContainText('Assinatura');
+  // Comunidade volta pro chat.
+  await page.locator('.club-rail-btn[aria-label^="Comunidade"]').click();
+  await expect(page.locator('.chat-header')).toBeVisible({ timeout: 20_000 });
+});
+
+test('visual clássico: canais em destaque com a Assinatura no topo e sem barra de ícones', async ({ page }, info) => {
+  test.skip(info.project.name !== 'pc', 'barra de canais conferida no PC');
+  await page.addInitScript(() => { try { localStorage.setItem('pc-layout-prefs', JSON.stringify({ visual: 'classic' })); } catch { /* */ } });
+  await page.goto('/inicio');
+  const first = page.locator('.featured-channels .featured-channel').first();
+  await expect(first).toBeVisible({ timeout: 20_000 });
+  await expect(first).toContainText('Assinatura');
+  await expect(page.locator('.club-rail')).toHaveCount(0);
+  await expect(page.locator('html')).not.toHaveAttribute('data-visual', 'club');
+});

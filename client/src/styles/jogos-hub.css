@@ -1,0 +1,139 @@
+/* Canal em destaque Jogos (components/games/JogosHub.jsx). */
+.jh { display: flex; flex-direction: column; gap: 26px; margin-bottom: 30px; }
+.jogos-page-header.jh-apps-head h2 { margin: 0 0 4px; font-size: 20px; font-weight: 800; color: var(--header-primary); }
+
+/* Vitrine */
+.jh-hero {
+  --jh-a: #7c4dff; --jh-b: #2a1a5e;
+  position: relative; overflow: hidden; display: flex; align-items: center; min-height: 250px; border-radius: 22px;
+  background:
+    radial-gradient(90% 140% at 100% 0%, color-mix(in srgb, var(--jh-a) 55%, transparent), transparent 60%),
+    linear-gradient(115deg, #0f0d16 0%, var(--jh-b) 70%, color-mix(in srgb, var(--jh-a) 70%, #000) 100%);
+  border: 1px solid rgba(255, 255, 255, .08); box-shadow: 0 18px 40px rgba(0, 0, 0, .3);
+  transition: background .5s ease;
+}
+.jh-hero.jh-blackout { --jh-a: #d7263d; --jh-b: #1a0b0e; }
+.jh-hero.jh-mods { --jh-a: #ff5c93; --jh-b: #2b0f22; }
+.jh-hero.jh-cartas { --jh-a: #f5a524; --jh-b: #2a1a06; }
+.jh-hero.jh-library { --jh-a: #5865f2; --jh-b: #121633; }
+.jh-hero-art { position: absolute; right: 5%; top: 50%; transform: translateY(-50%) rotate(-10deg); color: color-mix(in srgb, var(--jh-a) 65%, #fff); opacity: .55; filter: drop-shadow(0 0 40px color-mix(in srgb, var(--jh-a) 70%, transparent)); pointer-events: none; }
+.jh-hero-content { position: relative; z-index: 1; max-width: 560px; padding: 30px 34px 46px; color: #fff; animation: jh-in .45s ease-out; }
+@keyframes jh-in { from { opacity: 0; transform: translateX(-12px); } }
+.jh-kicker { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; font-weight: 800; letter-spacing: .08em; text-transform: uppercase; color: color-mix(in srgb, var(--jh-a) 55%, #fff); }
+.jh-title { margin: 8px 0 8px; font-size: clamp(28px, 3.6vw, 44px); line-height: 1.05; font-weight: 900; letter-spacing: -.5px; color: #fff; }
+.jh-blackout .jh-title { letter-spacing: .22em; }
+.jh-text { margin: 0 0 18px; font-size: 14.5px; line-height: 1.5; color: rgba(255, 255, 255, .82); }
+.jh-cta { display: inline-flex; align-items: center; gap: 6px; min-height: 40px; padding: 0 18px; border: 0; border-radius: 12px; cursor: pointer; font: inherit; font-weight: 800; font-size: 14px; color: #111; background: #fff; transition: transform .15s ease; }
+.jh-cta:hover { transform: translateY(-1px); }
+.jh-dots { position: absolute; left: 34px; bottom: 18px; display: flex; gap: 8px; z-index: 1; }
+.jh-dot { width: 10px; height: 4px; padding: 0; border: 0; border-radius: 999px; cursor: pointer; background: rgba(255, 255, 255, .45); transition: width .25s ease, background .25s ease; }
+.jh-dot.on { width: 46px; background: #fff; }
+
+/* Linha: jogando agora + mesa de RPG */
+.jh-row { display: grid; grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr); gap: 18px; align-items: stretch; }
+.jh-block { display: flex; flex-direction: column; gap: 12px; min-width: 0; }
+.jh-head { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; }
+.jh-h2 { margin: 0; font-size: 22px; font-weight: 800; letter-spacing: -.3px; color: var(--header-primary); }
+.jh-link { display: inline-flex; align-items: center; gap: 4px; border: 0; background: none; cursor: pointer; font: inherit; font-size: 13px; font-weight: 700; color: var(--text-muted); }
+.jh-link:hover { color: var(--header-primary); }
+.jh-empty { margin: 0; padding: 18px; border-radius: 14px; font-size: 13.5px; color: var(--text-muted); background: var(--bg-secondary); border: 1px dashed var(--border); }
+.jh-players { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+.jh-player {
+  position: relative; display: flex; align-items: center; gap: 10px; min-width: 0; padding: 7px 12px 7px 7px; border-radius: 999px 14px 14px 999px;
+  cursor: pointer; font: inherit; color: inherit; text-align: left; background: var(--bg-secondary); border: 1px solid var(--border); transition: border-color .15s ease;
+}
+.jh-player:hover { border-color: color-mix(in srgb, var(--brand) 50%, var(--border)); }
+.jh-player-text { display: flex; flex-direction: column; min-width: 0; }
+.jh-player-text strong { font-size: 14px; color: var(--header-primary); }
+.jh-player-text small { font-size: 12px; color: var(--text-muted); }
+.jh-player-dot { position: absolute; right: 12px; top: 50%; width: 8px; height: 8px; margin-top: -4px; border-radius: 50%; background: #23a55a; box-shadow: 0 0 0 3px color-mix(in srgb, #23a55a 25%, transparent); }
+.jh-promo {
+  position: relative; overflow: hidden; display: flex; flex-direction: column; justify-content: center; gap: 8px; padding: 22px 24px; min-height: 180px;
+  border-radius: 999px 22px 22px 999px; background: radial-gradient(120% 120% at 100% 100%, rgba(215, 38, 61, .35), transparent 60%), var(--bg-secondary); border: 1px solid var(--border);
+  padding-left: 40px;
+}
+.jh-promo h2 { margin: 0; font-size: 22px; line-height: 1.1; font-weight: 900; color: var(--header-primary); max-width: 260px; }
+.jh-promo p { margin: 0; font-size: 13px; line-height: 1.45; color: var(--text-muted); max-width: 280px; }
+.jh-promo-art { position: absolute; right: -14px; bottom: -18px; color: rgba(215, 38, 61, .5); transform: rotate(14deg); pointer-events: none; }
+.jh-promo-btn { align-self: flex-start; margin-top: 4px; min-height: 36px; padding: 0 16px; border: 0; border-radius: 10px; cursor: pointer; font: inherit; font-weight: 800; font-size: 13.5px; color: #111; background: #fff; position: relative; }
+
+/* Jogos recentes: capas altas com o topo em arco */
+.jh-games { display: grid; grid-auto-flow: column; grid-auto-columns: 150px; gap: 16px; overflow-x: auto; padding-bottom: 6px; scrollbar-width: thin; }
+.jh-game { display: flex; flex-direction: column; gap: 8px; padding: 0; border: 0; background: none; cursor: pointer; font: inherit; color: inherit; text-align: left; min-width: 0; }
+.jh-game-art {
+  display: block; aspect-ratio: 2 / 3; overflow: hidden; border-radius: 48% 48% 14px 14px / 22% 22% 14px 14px;
+  background: var(--bg-secondary); border: 1px solid var(--border); transition: transform .18s ease, box-shadow .18s ease;
+}
+.jh-game:hover .jh-game-art { transform: translateY(-4px); box-shadow: 0 12px 24px rgba(0, 0, 0, .35); }
+.jh-game.is-now .jh-game-art { border-color: #23a55a; box-shadow: 0 0 0 2px color-mix(in srgb, #23a55a 45%, transparent); }
+.jh-game-art img { display: block; width: 100%; height: 100%; object-fit: cover; }
+.jh-cover-none { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 8px; height: 100%; padding: 10px; text-align: center; color: var(--text-muted); font-size: 12px; }
+.jh-game-name { font-size: 13px; font-weight: 700; color: var(--text-normal); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.jh-game.jh-skel { aspect-ratio: 2 / 3; border-radius: 48% 48% 14px 14px / 22% 22% 14px 14px; background: var(--bg-secondary); animation: jh-pulse 1.2s ease-in-out infinite; }
+@keyframes jh-pulse { 50% { opacity: .5; } }
+
+/* Atalhos */
+.jh-tools { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; }
+.jh-tool { --t: var(--brand); display: flex; align-items: center; gap: 12px; padding: 14px 16px; border-radius: 14px; cursor: pointer; font: inherit; color: inherit; text-align: left; background: var(--bg-secondary); border: 1px solid var(--border); transition: border-color .15s ease, transform .15s ease; }
+.jh-tool > svg { flex-shrink: 0; padding: 9px; box-sizing: content-box; border-radius: 12px; color: var(--t); background: color-mix(in srgb, var(--t) 16%, transparent); }
+.jh-tool span { display: flex; flex-direction: column; min-width: 0; }
+.jh-tool strong { font-size: 14.5px; color: var(--header-primary); }
+.jh-tool small { font-size: 12px; color: var(--text-muted); }
+.jh-tool:hover { transform: translateY(-2px); border-color: color-mix(in srgb, var(--t) 50%, var(--border)); }
+.jh-tool.t-blackout { --t: #e5484d; }
+.jh-tool.t-blackout strong { letter-spacing: .14em; }
+.jh-tool.t-mods { --t: #ff5c93; }
+.jh-tool.t-library { --t: #7c8cff; }
+
+@media (max-width: 860px) {
+  .jh-row { grid-template-columns: 1fr; }
+  .jh-promo { border-radius: 22px; padding-left: 24px; }
+}
+@media (max-width: 600px) {
+  .jh-hero { min-height: 230px; border-radius: 18px; }
+  .jh-hero-content { padding: 22px 20px 40px; }
+  .jh-hero-art { right: -30px; opacity: .3; }
+  .jh-dots { left: 20px; }
+  .jh-players { grid-template-columns: 1fr; }
+  .jh-tools { grid-template-columns: 1fr; }
+  .jh-games { grid-auto-columns: 120px; }
+}
+@media (prefers-reduced-motion: reduce) { .jh-hero-content { animation: none; } .jh-hero, .jh-dot, .jh-game-art { transition: none; } }
+
+/* Hotlist do mês: os 5 mais jogados, com o número grande atrás da capa */
+.jh-hot { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 14px; }
+.jh-hot-item { position: relative; display: flex; flex-direction: column; gap: 8px; min-width: 0; padding-left: 46px; }
+.jh-hot-pos {
+  position: absolute; left: -4px; bottom: 40px; z-index: 0; font-size: 124px; line-height: .78; font-weight: 900; letter-spacing: -8px;
+  color: var(--bg-primary-solid, #0b0b0c); -webkit-text-stroke: 3px color-mix(in srgb, var(--text-muted) 70%, transparent); pointer-events: none;
+}
+.jh-hot-art { position: relative; z-index: 1; display: block; aspect-ratio: 2 / 3; overflow: hidden; border-radius: 14px; background: var(--bg-secondary); border: 1px solid var(--border); box-shadow: -10px 10px 24px rgba(0, 0, 0, .35); transition: transform .18s ease; }
+.jh-hot-item:hover .jh-hot-art { transform: translateY(-4px); }
+.jh-hot-art img { display: block; width: 100%; height: 100%; object-fit: cover; }
+.jh-hot-item.p1 .jh-hot-pos { -webkit-text-stroke-color: #ffcf4a; text-shadow: 0 0 24px rgba(255, 190, 40, .35); }
+.jh-hot-item.p1 .jh-hot-art { border-color: #e0a800; box-shadow: 0 0 0 1px rgba(224, 168, 0, .5), -10px 12px 30px rgba(224, 168, 0, .22); }
+.jh-hot-item.p2 .jh-hot-pos { -webkit-text-stroke-color: #cfd6e0; }
+.jh-hot-item.p3 .jh-hot-pos { -webkit-text-stroke-color: #e0a272; }
+.jh-hot-text { position: relative; z-index: 1; display: flex; flex-direction: column; min-width: 0; }
+.jh-hot-text strong { font-size: 14px; color: var(--header-primary); }
+.jh-hot-text small { font-size: 12px; color: var(--text-muted); }
+.jh-hot-item.jh-skel { aspect-ratio: 2 / 3; border-radius: 14px; margin-left: 46px; padding: 0; background: var(--bg-secondary); animation: jh-pulse 1.2s ease-in-out infinite; }
+@media (max-width: 760px) {
+  .jh-hot { grid-template-columns: repeat(5, 160px); overflow-x: auto; padding-bottom: 8px; scrollbar-width: thin; }
+  .jh-hot-item { padding-left: 40px; }
+  .jh-hot-pos { font-size: 100px; }
+}
+
+/* Game Hub: cores das novas vitrines, cabeçalhos e atalhos */
+.jh-hero.jh-party { --jh-a: #8b5cf6; --jh-b: #1a1038; }
+.jh-hero.jh-free { --jh-a: #23a55a; --jh-b: #0a2214; }
+.jh-hero.jh-builds { --jh-a: #d9a441; --jh-b: #261a06; }
+.jh-h2 { display: flex; align-items: center; gap: 8px; }
+.jh-h2 .gh-ico { color: #8b5cf6; flex: none; }
+.jh-head { flex-wrap: wrap; }
+.jh-head-note { font-size: 12.5px; color: var(--text-muted); }
+.jh-head-actions { display: inline-flex; align-items: center; gap: 14px; }
+.jh-tools { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+.jh-tool.t-deals { --t: #a3e635; }
+@media (max-width: 860px) { .jh-tools { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+@media (max-width: 600px) { .jh-tools { grid-template-columns: 1fr; } }
