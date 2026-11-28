@@ -23,7 +23,10 @@ android {
         // Mesmo pacote e mesma chave do app antigo (WebView): o .apk nativo
         // ATUALIZA o app que as pessoas já têm, em vez de instalar outro.
         applicationId = "com.projectclub.app"
-        minSdk = 26
+        // Android 6 (nov/2026): o mínimo que o Compose e as outras bibliotecas
+        // aceitam. O que só existe em Android mais novo tem alternativa no
+        // código (Build.VERSION.SDK_INT) e o java.time vem do "desugaring".
+        minSdk = 23
         targetSdk = 35
         versionCode = appVersionCode
         versionName = appVersion
@@ -55,6 +58,8 @@ android {
     }
 
     compileOptions {
+        // java.time, Map.getOrDefault etc. no Android 6/7 (ver minSdk).
+        isCoreLibraryDesugaringEnabled = true
         sourceCompatibility = JavaVersion.VERSION_17
         targetCompatibility = JavaVersion.VERSION_17
     }
@@ -91,6 +96,7 @@ android {
 }
 
 dependencies {
+    coreLibraryDesugaring("com.android.tools:desugar_jdk_libs:2.1.3")
     val composeBom = platform("androidx.compose:compose-bom:2024.12.01")
     implementation(composeBom)
     implementation("androidx.compose.ui:ui")

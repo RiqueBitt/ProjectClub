@@ -1,6 +1,7 @@
 package com.projectclub.android
 
 import android.app.Application
+import com.projectclub.android.net.legacyTls
 import androidx.lifecycle.DefaultLifecycleObserver
 import androidx.lifecycle.LifecycleOwner
 import androidx.lifecycle.ProcessLifecycleOwner
@@ -33,6 +34,10 @@ class App : Application(), coil.ImageLoaderFactory {
     override fun newImageLoader(): coil.ImageLoader = coil.ImageLoader.Builder(this)
         .diskCache { com.projectclub.android.data.offline.ImageCaches.disk(this) }
         .respectCacheHeaders(false)
+        // Celular com pouca memória (1–2 GB): cache de imagens na RAM menor e
+        // sem a animação de "aparecer aos poucos".
+        .apply { if (LowEnd.isLowEnd(this@App)) { memoryCache { coil.memory.MemoryCache.Builder(this@App).maxSizePercent(0.12).build() }; crossfade(false) } }
+        .okHttpClient { okhttp3.OkHttpClient.Builder().legacyTls().build() }
         .build()
 
     /**
@@ -62,6 +67,8 @@ class App : Application(), coil.ImageLoaderFactory {
 
     override fun onCreate() {
         super.onCreate()
+        // Android 6/7.0: soma as raízes de certificado novas (ver net/LegacyTls.kt).
+        com.projectclub.android.net.LegacyTls.installDefault()
         CrashReporter.install(this)
         com.projectclub.android.voice.VoiceTrace.init(this)
         // Antes de tudo que possa usar o Updater (o observador do ciclo de vida chama ele).

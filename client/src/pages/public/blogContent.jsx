@@ -382,7 +382,8 @@ export const GUIDE_SECTIONS = [
       <>
         <p className="wk-lead">O app de Windows e Linux abre a mesma comunidade do site e é quem instala os programas da aba Apps.</p>
         <Facts items={[
-          ['Sistemas', 'Instalador .exe para Windows 10 e 11 e AppImage para Linux x86_64.'],
+          ['Sistemas', 'Instalador .exe para Windows 10 e 11 e AppImage para Linux x86_64. Para PC antigo existe o Project Club Lite.'],
+          ['Project Club Lite', 'Versão leve para Windows 7, 8 e 10, de 32 ou 64 bits: 1 núcleo, 2 GB de RAM, 250 MB livres e internet de 1 Mbps. Tem chat, voz e tela; mods e programas ficam no app completo.'],
           ['Atualização', 'O app procura a versão nova sozinho e atualiza a partir das versões publicadas no GitHub. Cada programa da aba Apps mostra um botão quando sai versão nova.'],
           ['Bandeja', 'Fica na bandeja do sistema, pode abrir com o computador e fechar a janela não encerra o app.'],
           ['Links projectclub://', 'Links como projectclub://post/…, projectclub://user/… e projectclub://channel/… abrem direto no lugar certo do app.'],
@@ -399,6 +400,7 @@ export const GUIDE_SECTIONS = [
         <p className="wk-lead">No Android você usa a comunidade inteira: chat, voz, fórum, perfil e economia.</p>
         <Facts items={[
           ['Instalação', 'Arquivo .apk baixado do site. Permita instalar apps fora da loja quando o sistema pedir.'],
+          ['Requisitos', 'Android 6 ou mais novo, 1 GB de RAM, 150 MB livres e internet de 1 Mbps. Em celular com pouca memória o app usa menos RAM e corta animações sozinho.'],
           ['Notificações', 'Chegam mesmo com o app fechado.'],
           ['Voz', 'Chamadas continuam em segundo plano, e o compartilhamento de tela funciona.'],
           ['Programas', 'Os apps de criação são para computador (Windows e Linux).'],
@@ -461,7 +463,7 @@ export const GUIDE_SECTIONS = [
         </details>
         <details>
           <summary>Roda em PC fraco?</summary>
-          <p>A comunidade roda em qualquer navegador atual. Nos programas, o WaveProject pede 2 GB de RAM, o GameProject e o CanvasProject pedem 4 GB e o ForgeProject pede 8 GB.</p>
+          <p>A comunidade roda em qualquer navegador atual, no Project Club Lite (Windows 7, 8 e 10, 32 ou 64 bits, 2 GB de RAM) e em Android 6 ou mais novo com 1 GB de RAM. Nos programas, o WaveProject pede 2 GB de RAM, o GameProject e o CanvasProject pedem 4 GB e o ForgeProject pede 8 GB.</p>
         </details>
         <details>
           <summary>Como excluo a minha conta?</summary>

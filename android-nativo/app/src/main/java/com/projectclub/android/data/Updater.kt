@@ -1,5 +1,6 @@
 package com.projectclub.android.data
 
+import com.projectclub.android.net.legacyTls
 import android.app.PendingIntent
 import android.content.BroadcastReceiver
 import android.content.Context
@@ -70,7 +71,7 @@ object Updater {
     const val AUTO_BLOCKER_MSG = "O \"Bloqueador automático\" do Samsung barrou a atualização (ele só deixa a Play Store instalar apps). Desligue-o por um instante, toque em Atualizar e ligue de novo depois."
     private const val INFO_URL = "https://github.com/RiqueBitt/ProjectClub/releases/download/android-nativo/android-nativo.json"
     private const val ACTION_RESULT = "com.projectclub.android.UPDATE_RESULT"
-    private val http = OkHttpClient.Builder().connectTimeout(15, TimeUnit.SECONDS).readTimeout(60, TimeUnit.SECONDS).build()
+    private val http = OkHttpClient.Builder().legacyTls().connectTimeout(15, TimeUnit.SECONDS).readTimeout(60, TimeUnit.SECONDS).build()
     private val lock = Mutex()
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
 

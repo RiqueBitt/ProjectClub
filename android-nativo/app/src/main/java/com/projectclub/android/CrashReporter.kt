@@ -1,5 +1,6 @@
 package com.projectclub.android
 
+import com.projectclub.android.net.legacyTls
 import android.app.ActivityManager
 import android.app.ApplicationExitInfo
 import android.content.Context
@@ -100,7 +101,7 @@ object CrashReporter {
         }
         if (reports.isEmpty()) return@withContext
 
-        val http = OkHttpClient.Builder().callTimeout(10, TimeUnit.SECONDS).build()
+        val http = OkHttpClient.Builder().legacyTls().callTimeout(10, TimeUnit.SECONDS).build()
         var ok = true
         for ((message, stack) in reports) {
             val body = JSONObject()

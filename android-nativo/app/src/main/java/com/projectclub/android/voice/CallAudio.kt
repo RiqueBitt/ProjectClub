@@ -36,7 +36,9 @@ class CallAudio(
     private var active = false
     private var wantSpeaker = true
     private var savedMode = AudioManager.MODE_NORMAL
-    private var focus: AudioFocusRequest? = null
+    // AudioFocusRequest (Android 8+); no Android 6/7 o pedido antigo, só com o listener.
+    private var focus: Any? = null
+    private var legacyFocus = false
     private var scoOn = false
     /** Perdemos o foco (ligação do telefone…): o mic da call está mutado por isso. */
     private var interrupted = false
@@ -108,11 +110,24 @@ class CallAudio(
         }
         scoOn = false
         runCatching { am.mode = if (savedMode == AudioManager.MODE_IN_COMMUNICATION) AudioManager.MODE_NORMAL else savedMode }
-        focus?.let { f -> runCatching { am.abandonAudioFocusRequest(f) } }
+        if (Build.VERSION.SDK_INT >= 26) {
+            (focus as? AudioFocusRequest)?.let { f -> runCatching { am.abandonAudioFocusRequest(f) } }
+        } else if (legacyFocus) {
+            @Suppress("DEPRECATION") runCatching { am.abandonAudioFocus(focusListener) }
+        }
         focus = null
+        legacyFocus = false
     }
 
     private fun requestFocus() {
+        if (Build.VERSION.SDK_INT < 26) {
+            @Suppress("DEPRECATION")
+            val r = runCatching { am.requestAudioFocus(focusListener, AudioManager.STREAM_VOICE_CALL, AudioManager.AUDIOFOCUS_GAIN_TRANSIENT) }
+                .getOrDefault(AudioManager.AUDIOFOCUS_REQUEST_FAILED)
+            legacyFocus = r == AudioManager.AUDIOFOCUS_REQUEST_GRANTED
+            if (!legacyFocus) Log.w(TAG, "foco de áudio negado ($r)")
+            return
+        }
         val req = AudioFocusRequest.Builder(AudioManager.AUDIOFOCUS_GAIN_TRANSIENT)
             .setAudioAttributes(
                 AudioAttributes.Builder()

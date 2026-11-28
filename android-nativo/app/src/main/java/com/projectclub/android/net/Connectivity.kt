@@ -23,7 +23,7 @@ class Connectivity(context: Context) {
 
     init {
         runCatching {
-            cm?.registerDefaultNetworkCallback(object : ConnectivityManager.NetworkCallback() {
+            cm?.let { m -> registerDefaultCompat(m, object : ConnectivityManager.NetworkCallback() {
                 override fun onAvailable(network: Network) {
                     current = network
                     // A capacidade "validada" chega logo depois em onCapabilitiesChanged.
@@ -43,7 +43,7 @@ class Connectivity(context: Context) {
                 }
 
                 override fun onUnavailable() { current = null; _online.value = false }
-            })
+            }) }
         }
     }
 
@@ -59,4 +59,20 @@ class Connectivity(context: Context) {
     private fun hasInternet(caps: NetworkCapabilities): Boolean =
         caps.hasCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET) &&
             caps.hasCapability(NetworkCapabilities.NET_CAPABILITY_VALIDATED)
+}
+
+/**
+ * Avisos de troca de rede. registerDefaultNetworkCallback só existe a partir do
+ * Android 7; no Android 6 escuta as redes com internet (dá no mesmo pra saber
+ * se está online e quando a rede muda).
+ */
+fun registerDefaultCompat(cm: ConnectivityManager, cb: ConnectivityManager.NetworkCallback) {
+    if (android.os.Build.VERSION.SDK_INT >= 24) {
+        cm.registerDefaultNetworkCallback(cb)
+    } else {
+        val req = android.net.NetworkRequest.Builder()
+            .addCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET)
+            .build()
+        cm.registerNetworkCallback(req, cb)
+    }
 }

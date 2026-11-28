@@ -166,6 +166,7 @@ class ClipService : Service() {
     // ---------- notificações ----------
 
     private fun channel() {
+        if (Build.VERSION.SDK_INT < 26) return // canais de notificação só existem no Android 8+
         getSystemService(NotificationManager::class.java)?.createNotificationChannel(
             NotificationChannel(CHANNEL, "Gravação de clipes", NotificationManager.IMPORTANCE_LOW).apply {
                 description = "Aparece enquanto o Project Club grava a tela"
