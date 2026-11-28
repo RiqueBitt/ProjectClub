@@ -564,6 +564,12 @@ jobs:
           APK_PATH=$(find android-nativo/app/build/outputs/apk/release -name "*universal*.apk" | head -n 1)
           [ -n "$APK_PATH" ] || APK_PATH=$(find android-nativo/app/build/outputs/apk/release -name "*.apk" | head -n 1)
           cp "$APK_PATH" "$RUNNER_TEMP/ProjectClub.apk"
+          # Os .apk só de 64 e só de 32 bits (menores), pra escolher no site.
+          A64=$(find android-nativo/app/build/outputs/apk/release -name "*arm64-v8a*.apk" | head -n 1)
+          A32=$(find android-nativo/app/build/outputs/apk/release -name "*armeabi-v7a*.apk" | head -n 1)
+          [ -n "$A64" ] && cp "$A64" "$RUNNER_TEMP/ProjectClub-arm64.apk" || echo "::warning::Sem o .apk de 64 bits."
+          [ -n "$A32" ] && cp "$A32" "$RUNNER_TEMP/ProjectClub-arm32.apk" || echo "::warning::Sem o .apk de 32 bits."
+          ls -la "$RUNNER_TEMP"/*.apk
           # Publica neste repositório (lugar oficial dos downloads).
           publish() {
             REPO="$1"
@@ -575,6 +581,10 @@ jobs:
             gh release view "$VERSION" --repo "$REPO" >/dev/null 2>&1 || \
               gh release create "$VERSION" --repo "$REPO" --target "${{ github.sha }}" --title "$VERSION" \
                 --notes "Gerado automaticamente pelo GitHub Actions." --latest=false || true
+            for f in ProjectClub-arm64.apk ProjectClub-arm32.apk; do
+              [ -f "$RUNNER_TEMP/$f" ] || continue
+              for i in 1 2 3; do gh release upload "$VERSION" "$RUNNER_TEMP/$f" --repo "$REPO" --clobber && break || { echo "Tentativa $i falhou, esperando..."; sleep 10; }; done
+            done
             for i in 1 2 3; do gh release upload "$VERSION" "$RUNNER_TEMP/ProjectClub.apk" --repo "$REPO" --clobber && break || { echo "Tentativa $i falhou, esperando..."; sleep 10; }; done
             # Diz ao servidor (GET /api/mobile/update) se este .apk é
             # obrigatório ou se os apps já instalados continuam servindo.
@@ -661,7 +671,7 @@ jobs:
           REPO="${{ github.repository }}"
           CURRENT=$(gh api "repos/$REPO/releases/latest" --jq .tag_name || true)
           HAVE=$(gh api "repos/$REPO/releases/tags/$VERSION" --jq '[.assets[].name] | join(" ")' || true)
-          for f in ProjectClub.apk android-native.json; do
+          for f in ProjectClub.apk ProjectClub-arm64.apk ProjectClub-arm32.apk android-native.json; do
             case " $HAVE " in *" $f "*) continue ;; esac
             if [ -n "$CURRENT" ] && gh release download "$CURRENT" --repo "$REPO" -p "$f" --dir /tmp/android-anterior --clobber \
               && gh release upload "$VERSION" "/tmp/android-anterior/$f" --repo "$REPO" --clobber; then
@@ -724,7 +734,7 @@ jobs:
             if curl -fsSL --retry 6 --retry-delay 5 --retry-all-errors -r 0-0 -o /dev/null "$BASE/$f"; then echo "ok   $f"; else echo "::error::O link de download de $f não responde."; FAILED=1; fi
           done
           curl -fsSL --retry 3 --retry-delay 5 --retry-all-errors -r 0-0 -o /dev/null "$BASE/ProjectClub.apk" && echo "ok   ProjectClub.apk" || echo "::warning::O link de download do ProjectClub.apk não responde."
-          for f in ProjectClub-Lite-Setup-Windows.exe lite.yml; do
+          for f in ProjectClub-Lite-Setup-Windows.exe lite.yml ProjectClub-arm64.apk ProjectClub-arm32.apk; do
             curl -fsSL --retry 3 --retry-delay 5 --retry-all-errors -r 0-0 -o /dev/null "$BASE/$f" && echo "ok   $f" || echo "::warning::O link de download de $f (Project Club Lite) não responde."
           done
           echo "Versão que os apps de Windows instalados vão enxergar:"

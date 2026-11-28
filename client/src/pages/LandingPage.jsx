@@ -6,6 +6,7 @@ import '../styles/landing.css';
 import '../styles/landing-mono.css';
 import '../styles/landing-club.css';
 import '../styles/public-classic.css';
+import DownloadChooser, { DOWNLOAD_FILES } from './public/DownloadChooser';
 
 // Página inicial pública (vitrine + download).
 //
@@ -22,15 +23,9 @@ import '../styles/public-classic.css';
 // perguntas e o convite final. Cabeçalho e rodapé são os mesmos do Blog
 // (PublicChrome.jsx). Com "reduzir movimento" ligado, tudo aparece parado.
 
-const DOWNLOADS_BASE = 'https://github.com/RiqueBitt/ProjectClub/releases/latest/download';
-const DOWNLOADS = {
-  windows: `${DOWNLOADS_BASE}/ProjectClub-Setup-Windows.exe`,
-  linux: `${DOWNLOADS_BASE}/ProjectClub-Linux.AppImage`,
-  // ProjectClub.apk = app Android nativo (mesmo pacote do app antigo, que atualiza para ele).
-  android: `${DOWNLOADS_BASE}/ProjectClub.apk`,
-  // Project Club Lite: Windows 7, 8 e 10, 32 ou 64 bits, PC antigo (desktop-lite/).
-  lite: `${DOWNLOADS_BASE}/ProjectClub-Lite-Setup-Windows.exe`,
-};
+// Arquivos de download (ver public/DownloadChooser.jsx): Windows 64 bits,
+// Lite (32 bits / PC antigo), Linux e os .apk universal, 64 e 32 bits.
+const DOWNLOADS = DOWNLOAD_FILES;
 
 // Apps da vitrine (o próprio Project Club, o Mod Manager e o RPG Blackout).
 // Os programas de criação saíram da vitrine por enquanto (continuam no app).
@@ -85,7 +80,11 @@ function detectPlatform() {
   if (/linux/i.test(ua)) return 'linux';
   return null;
 }
-const PLATFORM_LABEL = { windows: 'Windows', lite: 'Windows (PC antigo)', linux: 'Linux', android: 'Android' };
+const PLATFORM_LABEL = { windows: 'Windows', lite: 'Windows', linux: 'Linux', android: 'Android' };
+// Nome no aviso de "download começando".
+const FILE_LABEL = { windows: 'Windows 64 bits', lite: 'Windows (Lite)', linux: 'Linux', android: 'Android', arm64: 'Android 64 bits', arm32: 'Android 32 bits' };
+// Windows e Android abrem a janela de escolher a versão (32/64 bits, Lite, .apk).
+const FAMILY = { windows: 'windows', lite: 'windows', android: 'android' };
 
 // Revela blocos ao entrarem na tela (uma vez só).
 function useReveal() {
@@ -246,7 +245,9 @@ export default function LandingPage() {
   const toastTimer = useRef(0);
   useEffect(() => () => clearTimeout(toastTimer.current), []);
   // Baixou: confete + aviso do que fazer depois (some sozinho).
+  const [chooser, setChooser] = useState(null); // 'windows' | 'android' | null
   const onDownload = (e, key) => {
+    setChooser(null);
     confettiFrom(e.currentTarget);
     setDlToast(key);
     clearTimeout(toastTimer.current);
@@ -286,7 +287,12 @@ export default function LandingPage() {
   const goRegister = () => navigate(user ? '/inicio' : '/register');
 
   // Botão principal: baixar pro sistema detectado (ou entrar, se não deu pra saber).
-  const mainCta = platform ? (
+  // Windows e Android: abre a escolha de versão; Linux baixa direto.
+  const mainCta = platform && FAMILY[platform] ? (
+    <button type="button" className="lc-btn is-brand" onClick={() => setChooser(FAMILY[platform])} aria-haspopup="dialog">
+      <Mark name="download" size={18} /> Baixar para {PLATFORM_LABEL[platform]}
+    </button>
+  ) : platform ? (
     <a className="lc-btn is-brand" href={DOWNLOADS[platform]} download onClick={(e) => onDownload(e, platform)}>
       <Mark name="download" size={18} /> Baixar para {PLATFORM_LABEL[platform]}
     </a>
@@ -297,7 +303,7 @@ export default function LandingPage() {
     { key: 'windows', name: 'Windows', href: DOWNLOADS.windows },
     { key: 'linux', name: 'Linux', href: DOWNLOADS.linux },
     { key: 'android', name: 'Android', href: DOWNLOADS.android },
-  ].filter((d) => d.key !== platform);
+  ].filter((d) => d.key !== platform && !(d.key === 'windows' && platform === 'lite'));
 
   return (
     <div className="lp lp-mono lp-club lp-classic">
@@ -317,7 +323,9 @@ export default function LandingPage() {
               <div className="lc-go">
                 {mainCta}
                 <div className="lc-alt">
-                  {others.map((d) => <a key={d.key} href={d.href} download onClick={(e) => onDownload(e, d.key)}><Mark name={d.key} size={16} />{d.name}</a>)}
+                  {others.map((d) => (FAMILY[d.key]
+                    ? <button key={d.key} type="button" onClick={() => setChooser(FAMILY[d.key])} aria-haspopup="dialog"><Mark name={d.key} size={16} />{d.name}</button>
+                    : <a key={d.key} href={d.href} download onClick={(e) => onDownload(e, d.key)}><Mark name={d.key} size={16} />{d.name}</a>))}
                   <button type="button" onClick={goLogin}><Mark name="browser" size={16} />Navegador</button>
                 </div>
               </div>
@@ -396,24 +404,26 @@ export default function LandingPage() {
             </div>
             <ul className="lc-dl-list">
               {[
-                { key: 'windows', name: 'Windows', desc: 'Instalador .exe que baixa o app, Windows 10 e 11', href: DOWNLOADS.windows },
-                { key: 'lite', icon: 'windows', name: 'Windows Lite', desc: 'PC antigo: Windows 7, 8 e 10, 32 ou 64 bits, 2 GB de RAM', href: DOWNLOADS.lite },
+                { key: 'windows', name: 'Windows', desc: '64 bits (Windows 10 e 11) ou 32 bits e PC antigo (Lite, do Windows 7 em diante)', choose: 'windows' },
                 { key: 'linux', name: 'Linux', desc: 'AppImage, roda na maioria das distros', href: DOWNLOADS.linux },
-                { key: 'android', name: 'Android', desc: 'Arquivo .apk, Android 6 ou mais novo', href: DOWNLOADS.android },
+                { key: 'android', name: 'Android', desc: '.apk universal, 64 ou 32 bits. Android 6 ou mais novo', choose: 'android' },
                 { key: 'browser', name: 'Navegador', desc: 'Sem instalar nada' },
               ].map((d, i) => {
+                const mine = platform === d.key || (d.key === 'windows' && platform === 'lite');
                 const inner = (
                   <>
-                    <span className="lc-dl-name"><Mark name={d.icon || d.key} size={22} />{d.name}{platform === d.key && <em>seu sistema</em>}</span>
+                    <span className="lc-dl-name"><Mark name={d.icon || d.key} size={22} />{d.name}{mine && <em>seu sistema</em>}</span>
                     <span className="lc-dl-desc">{d.desc}</span>
-                    <span className="lc-dl-go">{d.href ? 'Baixar' : (user ? 'Abrir' : 'Entrar')}</span>
+                    <span className="lc-dl-go">{d.href || d.choose ? 'Baixar' : (user ? 'Abrir' : 'Entrar')}</span>
                   </>
                 );
                 return (
                   <li key={d.key} className="lp-reveal" style={{ '--i': i }}>
-                    {d.href
-                      ? <a className={`lc-dl-row lc-spot${platform === d.key ? ' is-mine' : ''}`} href={d.href} download onClick={(e) => onDownload(e, d.key)}>{inner}</a>
-                      : <button type="button" className="lc-dl-row lc-spot" onClick={goLogin}>{inner}</button>}
+                    {d.choose
+                      ? <button type="button" className={`lc-dl-row lc-spot${mine ? ' is-mine' : ''}`} onClick={() => setChooser(d.choose)} aria-haspopup="dialog">{inner}</button>
+                      : d.href
+                        ? <a className={`lc-dl-row lc-spot${mine ? ' is-mine' : ''}`} href={d.href} download onClick={(e) => onDownload(e, d.key)}>{inner}</a>
+                        : <button type="button" className="lc-dl-row lc-spot" onClick={goLogin}>{inner}</button>}
                   </li>
                 );
               })}
@@ -457,12 +467,15 @@ export default function LandingPage() {
         <div className="lc-toast" role="status">
           <span className="lc-toast-ico" aria-hidden="true"><Mark name="download" size={18} /></span>
           <span>
-            <strong>Download começando{PLATFORM_LABEL[dlToast] ? ` para ${PLATFORM_LABEL[dlToast]}` : ''}</strong>
-            <small>{dlToast === 'android' ? 'Abra o .apk e permita instalar apps deste navegador.' : dlToast === 'linux' ? 'Dê permissão de execução ao AppImage e abra.' : 'Abra o instalador, ele baixa o resto e já entra no app.'}</small>
+            <strong>Download começando{FILE_LABEL[dlToast] ? `: ${FILE_LABEL[dlToast]}` : ''}</strong>
+            <small>{FAMILY[dlToast] === 'android' || dlToast === 'arm64' || dlToast === 'arm32' ? 'Abra o .apk e permita instalar apps deste navegador.'
+              : dlToast === 'lite' ? 'Abra o instalador do Project Club Lite e siga as telas.' : dlToast === 'linux' ? 'Dê permissão de execução ao AppImage e abra.' : 'Abra o instalador, ele baixa o resto e já entra no app.'}</small>
           </span>
           <button type="button" onClick={() => setDlToast(null)} aria-label="Fechar aviso">×</button>
         </div>
       )}
+
+      {chooser && <DownloadChooser family={chooser} onClose={() => setChooser(null)} onPick={onDownload} Icon={Mark} />}
 
       <CommandPalette open={cmdOpen} onClose={() => setCmdOpen(false)} onPickApp={() => jump('apps')} actions={cmdActions} />
 
