@@ -1,6 +1,7 @@
 package com.projectclub.android.data
 
-import java.util.Base64
+import okio.ByteString.Companion.decodeBase64
+import okio.ByteString.Companion.toByteString
 import javax.crypto.Cipher
 import javax.crypto.SecretKey
 import javax.crypto.spec.GCMParameterSpec
@@ -29,7 +30,8 @@ class AesGcmSealer(private val key: () -> SecretKey) : Sealer {
         val cipher = Cipher.getInstance(TRANSFORMATION)
         cipher.init(Cipher.ENCRYPT_MODE, key()) // o próprio cofre sorteia o IV, um por gravação
         val body = cipher.doFinal(plain.toByteArray(Charsets.UTF_8))
-        PREFIX + Base64.getEncoder().encodeToString(cipher.iv + body)
+        // Base64 do okio (o java.util.Base64 só existe a partir do Android 8).
+        PREFIX + (cipher.iv + body).toByteString().base64()
     } catch (_: Exception) {
         null
     }
@@ -37,7 +39,7 @@ class AesGcmSealer(private val key: () -> SecretKey) : Sealer {
     override fun open(sealed: String): String? {
         if (!isSealed(sealed)) return null
         return try {
-            val raw = Base64.getDecoder().decode(sealed.substring(PREFIX.length))
+            val raw = sealed.substring(PREFIX.length).decodeBase64()?.toByteArray() ?: return null
             if (raw.size <= IV_SIZE) return null
             val cipher = Cipher.getInstance(TRANSFORMATION)
             cipher.init(Cipher.DECRYPT_MODE, key(), GCMParameterSpec(TAG_BITS, raw, 0, IV_SIZE))

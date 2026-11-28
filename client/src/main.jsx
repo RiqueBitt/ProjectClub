@@ -5,6 +5,8 @@ import App from './App.jsx';
 import { AuthProvider } from './context/AuthContext.jsx';
 import { RouteErrorBoundary } from './components/ErrorBoundary.jsx';
 import { startConsoleWarning } from './utils/consoleWarning';
+import { installColorMixFallback } from './utils/legacyColorMix';
+import './styles/lite-mode.css';
 import './styles/global.css';
 import './styles/name-fx.css';
 // Correção de responsividade mobile da barra lateral de Configurações —
@@ -61,6 +63,15 @@ window.addEventListener('unhandledrejection', (e) => {
 if (window.electronAPI) {
   document.documentElement.classList.add('is-electron-app');
 }
+// Modo leve (styles/lite-mode.css): o Project Club Lite (Windows 7/8) e
+// aparelhos com até 2 GB de RAM cortam os efeitos mais pesados.
+if (window.electronAPI?.isLite) document.documentElement.classList.add('is-lite-app');
+else if (typeof navigator !== 'undefined' && navigator.deviceMemory && navigator.deviceMemory <= 2) {
+  document.documentElement.classList.add('is-low-end');
+}
+// Navegador antigo sem color-mix() (Electron 22 do Lite, Chrome < 111):
+// converte as cores do CSS (utils/legacyColorMix.js). Nos atuais não faz nada.
+installColorMixFallback();
 
 // Busca o perfil antes do clique (ver api/profileCache.js).
 installProfilePrefetch();

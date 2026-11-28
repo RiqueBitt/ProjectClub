@@ -1,5 +1,7 @@
 package com.projectclub.android.ui.store
 
+import com.projectclub.android.LowEnd
+import com.projectclub.android.net.legacyTls
 import android.content.Context
 import android.os.Build
 import androidx.compose.foundation.background
@@ -104,7 +106,8 @@ private object AnimatedImages {
             .components {
                 if (Build.VERSION.SDK_INT >= 28) add(ImageDecoderDecoder.Factory()) else add(GifDecoder.Factory())
             }
-            .crossfade(true)
+            .crossfade(!LowEnd.isLowEnd(context))
+            .okHttpClient { okhttp3.OkHttpClient.Builder().legacyTls().build() }
             // Mesmo cache em disco do loader padrão (modo offline: GIFs/avatares salvos aparecem sem internet).
             .diskCache { com.projectclub.android.data.offline.ImageCaches.disk(context.applicationContext) }
             .respectCacheHeaders(false)

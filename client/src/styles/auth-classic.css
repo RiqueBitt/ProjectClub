@@ -1,0 +1,243 @@
+/* ============================================================
+   Login, inscrição, senha e verificação no visual CLÁSSICO do app
+   (nov/2026). Fica por cima de auth.css + auth-mono.css; tudo sob
+   .pc-auth.pc-auth-classic (AuthLayout.jsx).
+
+   Mesmas cores do app Clássico e do site/Blog (public-classic.css):
+   grafite #1E1F22 / #2B2D31 / #313338 / #383A40, texto #F2F3F5,
+   cinza #949BA4 e o azul #4C9FFF. A turminha ganha o azul da marca.
+
+   PC: vitrine grafite (folha com pontinhos) com "PROJECT" em branco e
+   "CLUB" em azul, a turminha, a frase e o "Agora no clube" passando;
+   formulário num cartão grafite. Celular: uma coluna, o cartão ocupa a
+   largura toda, com respiro nas bordas.
+   ============================================================ */
+
+.pc-auth.pc-auth-classic {
+  --c-deep: #1E1F22;
+  --c-2: #2B2D31;
+  --c-1: #313338;
+  --c-elev: #383A40;
+  --c-hover: #404249;
+  --c-text: #F2F3F5;
+  --c-text-2: #DBDEE1;
+  --c-muted: #949BA4;
+  --c-label: #B5BAC1;
+  --c-brand: #4C9FFF;
+  --c-brand-2: #2E7FE0;
+  --c-green: #23A55A;
+  --c-red: #F23F43;
+  --c-wide: 'Archivo Variable', 'Archivo', 'Space Grotesk', system-ui, sans-serif;
+  --c-body: 'Roboto', system-ui, -apple-system, 'Segoe UI', sans-serif;
+
+  --a-bg: var(--c-deep);
+  --a-bg-2: var(--c-deep);
+  --a-panel: var(--c-deep);
+  --a-panel-2: var(--c-deep);
+  --a-text: var(--c-text);
+  --a-muted: var(--c-muted);
+  --a-faint: #6D6F78;
+  --a-line: rgba(255, 255, 255, .16);
+  --a-line-soft: rgba(255, 255, 255, .08);
+  --a-brand: var(--c-brand);
+  --a-brand-soft: rgba(76, 159, 255, .16);
+  --a-radius: 10px;
+  --a-field-h: 50px;
+
+  background: var(--c-deep);
+  font-family: var(--c-body);
+}
+.pc-auth.pc-auth-classic ::selection { background: var(--c-brand); color: #fff; }
+html .pc-auth.pc-auth-classic :focus-visible { outline: 2px solid var(--c-brand) !important; outline-offset: 3px; }
+html .pc-auth.pc-auth-classic .pc-field-box input:focus-visible { outline: none !important; }
+
+/* Fundo: aurora azul/verde bem suave (no lugar do preto chapado). */
+.pc-auth-classic .pc-auth-glow {
+  position: fixed; inset: 0; pointer-events: none;
+  background:
+    radial-gradient(40% 50% at 85% 15%, rgba(76, 159, 255, .16), transparent 70%),
+    radial-gradient(35% 45% at 70% 95%, rgba(35, 165, 90, .1), transparent 70%),
+    var(--c-deep);
+}
+
+/* ---------- Marca, "Início" ---------- */
+.pc-auth-classic .pc-brand { font: 800 15px/1 var(--c-wide); text-transform: none; letter-spacing: -.01em; color: var(--c-text); }
+.pc-auth-classic .pc-brand-mark { width: 34px; height: 34px; border-radius: 10px; filter: drop-shadow(0 4px 12px rgba(76, 159, 255, .4)); }
+.pc-auth-classic .pc-back {
+  border-radius: 10px; background: var(--c-2); border: 1px solid var(--a-line-soft); padding: 10px 14px;
+  font: 600 14px/1 var(--c-body); text-transform: none; letter-spacing: 0; color: var(--c-text-2) !important;
+}
+.pc-auth-classic .pc-back:hover { background: var(--c-1); border-color: var(--a-line); color: #fff !important; }
+
+/* ---------- Cartão do formulário ---------- */
+.pc-auth-classic .pc-auth-panel {
+  background: var(--c-2); border: 1px solid var(--a-line-soft); border-radius: 18px;
+  padding: clamp(24px, 3vw, 40px);
+  box-shadow: 0 40px 100px -40px rgba(0, 0, 0, .9), 0 0 0 1px rgba(0, 0, 0, .2);
+  position: relative;
+}
+.pc-auth-classic .pc-auth-panel::before {
+  content: ''; position: absolute; left: 24px; right: 24px; top: -1px; height: 2px; border-radius: 2px;
+  background: linear-gradient(90deg, transparent, var(--c-brand), var(--c-green), transparent);
+}
+
+/* Título */
+.pc-auth-classic .pc-auth-head::before {
+  content: 'Project Club'; display: inline-flex; align-items: center; gap: 8px; width: fit-content;
+  margin-bottom: 16px; padding: 6px 10px 6px 24px; border-radius: 999px;
+  background: rgba(35, 165, 90, .14) radial-gradient(circle at 12px 50%, var(--c-green) 3.5px, transparent 4.5px) no-repeat;
+  color: #57D98C; font: 700 12px/1 var(--c-body); text-transform: none; letter-spacing: .02em;
+}
+.pc-auth-classic .pc-auth-head h1 {
+  font: 800 clamp(30px, 3.2vw, 42px)/1.02 var(--c-wide); font-variation-settings: 'wdth' 112;
+  text-transform: none; letter-spacing: -.035em; color: var(--c-text); margin-bottom: 10px;
+}
+.pc-auth-classic .pc-auth-head p { color: var(--c-muted); font-size: 15px; }
+
+/* ---------- Campos (iguais aos do app) ---------- */
+.pc-auth-classic .pc-field-label,
+.pc-auth-classic .pc-birth legend,
+.pc-auth-classic .pc-choice legend {
+  font: 700 12px/1.2 var(--c-body); text-transform: uppercase; letter-spacing: .04em; color: var(--c-label);
+}
+.pc-auth-classic .pc-field-box {
+  border-radius: 10px; background: var(--c-deep); border: 1px solid transparent; padding-left: 14px;
+}
+.pc-auth-classic .pc-field-box:hover { border-color: var(--a-line); }
+.pc-auth-classic .pc-field-box:focus-within {
+  border-color: var(--c-brand); background: var(--c-deep); box-shadow: 0 0 0 3px rgba(76, 159, 255, .22);
+}
+.pc-auth-classic .pc-field-box:focus-within .pc-field-icon { color: var(--c-brand); }
+.pc-auth-classic .pc-field-eye { border-radius: 8px; }
+.pc-auth-classic .pc-code-input,
+.pc-auth-classic textarea,
+.pc-auth-classic .pc-birth input,
+.pc-auth-classic .pc-birth select { border-radius: 10px !important; background: var(--c-deep); border-color: transparent; }
+.pc-auth-classic .pc-code-input:focus,
+.pc-auth-classic .pc-birth input:focus,
+.pc-auth-classic .pc-birth select:focus,
+.pc-auth-classic textarea:focus { box-shadow: 0 0 0 3px rgba(76, 159, 255, .22); border-color: var(--c-brand); }
+.pc-auth-classic input:-webkit-autofill,
+.pc-auth-classic input:-webkit-autofill:hover,
+.pc-auth-classic input:-webkit-autofill:focus { -webkit-box-shadow: 0 0 0 1000px var(--c-deep) inset; -webkit-text-fill-color: var(--c-text); }
+.pc-auth-classic .pc-field.has-error .pc-field-box { border-color: var(--c-red); }
+
+/* ---------- Botões ---------- */
+.pc-auth-classic .pc-btn {
+  border-radius: 10px; min-height: 50px; padding: 0 22px;
+  font: 700 15px/1 var(--c-body); text-transform: none; letter-spacing: 0;
+}
+.pc-auth-classic .pc-btn::before { display: none; }
+.pc-auth-classic .pc-btn-primary {
+  background: var(--c-brand); color: #fff; border: 0; border-radius: 10px;
+  box-shadow: 0 12px 30px -14px rgba(76, 159, 255, .95), inset 0 -2px 0 rgba(0, 0, 0, .16);
+}
+.pc-auth-classic .pc-btn-primary::after {
+  display: block; background: linear-gradient(100deg, transparent 30%, rgba(255, 255, 255, .3) 50%, transparent 70%);
+}
+.pc-auth-classic .pc-btn-primary:hover:not(:disabled) { background: var(--c-brand-2); color: #fff; transform: translateY(-1px); box-shadow: 0 16px 34px -14px rgba(76, 159, 255, .95); }
+.pc-auth-classic .pc-btn-primary:disabled { background: #3B6FA8; color: rgba(255, 255, 255, .7); opacity: 1; box-shadow: none; }
+.pc-auth-classic .pc-btn-primary .pc-spinner { border-color: rgba(255, 255, 255, .35); border-top-color: #fff; }
+
+.pc-auth-classic .pc-btn-ghost,
+.pc-auth-classic .pc-oauth-btn,
+.pc-auth-classic .auth-passkey-btn {
+  border-radius: 10px; background: var(--c-elev); color: var(--c-text); border: 1px solid transparent;
+  font: 600 14.5px/1 var(--c-body); text-transform: none; letter-spacing: 0; min-height: 48px;
+  transition: background-color .15s, transform .15s, border-color .15s;
+}
+.pc-auth-classic .auth-passkey-btn { width: 100%; display: inline-flex; align-items: center; justify-content: center; gap: 10px; margin-top: 10px; }
+.pc-auth-classic .auth-passkey-btn::before { display: none; }
+.pc-auth-classic .pc-btn-ghost:hover:not(:disabled),
+.pc-auth-classic .pc-oauth-btn:hover:not(:disabled),
+.pc-auth-classic .auth-passkey-btn:hover:not(:disabled) { background: var(--c-hover); color: #fff; border-color: transparent; transform: translateY(-1px); }
+.pc-auth-classic .pc-oauth-btn:hover:not(:disabled) svg { filter: none; }
+.pc-auth-classic .pc-oauth-divider { font: 700 12px/1 var(--c-body); text-transform: uppercase; letter-spacing: .06em; color: var(--c-muted); }
+
+.pc-auth-classic .pc-text-btn,
+.pc-auth-classic .pc-inline-link {
+  font: 600 13.5px/1.3 var(--c-body); text-transform: none; letter-spacing: 0; color: var(--c-brand);
+  text-decoration: none;
+}
+.pc-auth-classic .pc-inline-link:hover, .pc-auth-classic .pc-text-btn:hover { text-decoration: underline; }
+.pc-auth-classic a { text-decoration-color: rgba(76, 159, 255, .45); }
+.pc-auth-classic .pc-auth-foot { border-top-color: var(--a-line-soft); color: var(--c-muted); }
+.pc-auth-classic .pc-auth-foot a { font: 700 14px/1 var(--c-body); text-transform: none; letter-spacing: 0; color: var(--c-brand); text-decoration: none; }
+.pc-auth-classic .pc-auth-foot a:hover { text-decoration: underline; }
+
+/* Avisos, passos, opções */
+.pc-auth-classic .pc-alert,
+.pc-auth-classic .pc-oauth-pending,
+.pc-auth-classic .pc-qr-details,
+.pc-auth-classic .pc-account-notice,
+.pc-auth-classic .pc-appeal-status,
+.pc-auth-classic .pc-success { border-radius: 10px; }
+.pc-auth-classic .pc-chip, .pc-auth-classic .pc-chip-check { border-radius: 8px; }
+.pc-auth-classic .pc-steps li { font: 700 12px/1.2 var(--c-body); text-transform: none; letter-spacing: 0; }
+.pc-auth-classic .pc-step-dot { border-radius: 50%; }
+
+/* Turminha no celular (sobre o cartão grafite): azul da marca. */
+.pc-auth-classic .pc-auth-chars-mobile { --pcc-ink: var(--c-brand); --pcc-paper: var(--c-2); }
+
+/* ---------- Vitrine (PC) ---------- */
+@media (min-width: 1024px) {
+  .pc-auth.pc-auth-classic { grid-template-columns: minmax(0, 1fr) minmax(500px, 42%); }
+  .pc-auth-classic.pc-auth-wide { grid-template-columns: minmax(0, .85fr) minmax(580px, 52%); }
+
+  .pc-auth-classic .pc-auth-showcase {
+    background:
+      radial-gradient(rgba(255, 255, 255, .055) 1px, transparent 1.4px) 0 0 / 22px 22px,
+      radial-gradient(60% 50% at 20% 20%, rgba(76, 159, 255, .22), transparent 70%),
+      radial-gradient(50% 40% at 90% 85%, rgba(35, 165, 90, .14), transparent 70%),
+      var(--c-2);
+    color: var(--c-text); border: 1px solid var(--a-line-soft);
+  }
+  .pc-auth-classic .pc-auth-showcase .pc-brand { color: var(--c-text); }
+  .pc-auth-classic .pc-auth-showcase .pc-brand-mark { filter: drop-shadow(0 4px 12px rgba(76, 159, 255, .4)); }
+  .pc-auth-classic .pc-showcase-title { color: var(--c-text); font-family: var(--c-wide); }
+  .pc-auth-classic .pc-showcase-title .pc-wm-line + .pc-wm-line { color: var(--c-brand); }
+  .pc-auth-classic .pc-showcase-copy .pc-statement { color: var(--c-text-2); font-family: var(--c-wide); }
+
+  .pc-auth-classic .pc-marquee { border-top-color: var(--a-line-soft); color: var(--c-text); font-family: var(--c-wide); }
+  .pc-auth-classic .pc-marquee-row.is-rev { -webkit-text-stroke: 1.2px var(--c-brand); }
+  .pc-auth-classic .pc-marquee-item i { color: var(--c-brand); }
+  .pc-auth-classic .pc-marquee-row.is-rev .pc-marquee-item i { color: var(--c-green); }
+
+  .pc-auth-classic .pc-chars-hint { color: var(--c-muted); font: 600 12px/1.4 var(--c-body); text-transform: none; letter-spacing: 0; }
+  .pc-auth-classic .pc-showcase-chars .pcc-stage { --pcc-ink: var(--c-brand); --pcc-paper: var(--c-2); }
+}
+
+/* "Agora no clube" (ShowcaseTicker) */
+.pc-ticker-live {
+  display: none; align-items: center; gap: 10px; margin-top: 22px; padding: 10px 14px 10px 12px;
+  width: fit-content; max-width: 100%; border-radius: 12px;
+  background: rgba(30, 31, 34, .7); border: 1px solid rgba(255, 255, 255, .08);
+  font: 500 14px/1.3 'Roboto', system-ui, sans-serif; color: #DBDEE1; overflow: hidden;
+}
+@media (min-width: 1024px) { .pc-auth-classic .pc-ticker-live { display: inline-flex; } }
+.pc-ticker-dot { flex: none; width: 8px; height: 8px; border-radius: 50%; background: #23A55A; box-shadow: 0 0 0 0 rgba(35, 165, 90, .6); animation: pc-live 1.8s ease-out infinite; }
+.pc-ticker-label { flex: none; font-weight: 700; font-size: 12px; text-transform: uppercase; letter-spacing: .04em; color: #949BA4; padding-right: 10px; border-right: 1px solid rgba(255, 255, 255, .1); }
+.pc-ticker-msg { display: inline-flex; align-items: center; gap: 7px; white-space: nowrap; animation: pc-tick-in .55s cubic-bezier(.16, 1, .3, 1); }
+.pc-ticker-msg i { width: 20px; height: 20px; border-radius: 50%; display: grid; place-items: center; font-style: normal; font-size: 11px; font-weight: 700; color: #fff; }
+.pc-ticker-msg b { color: #F2F3F5; font-weight: 700; }
+@keyframes pc-live { 0% { box-shadow: 0 0 0 0 rgba(35, 165, 90, .6); } 70% { box-shadow: 0 0 0 8px rgba(35, 165, 90, 0); } 100% { box-shadow: 0 0 0 0 rgba(35, 165, 90, 0); } }
+@keyframes pc-tick-in { from { opacity: 0; transform: translateY(70%); } to { opacity: 1; transform: none; } }
+
+/* ---------- Celular ---------- */
+@media (max-width: 1023px) {
+  .pc-auth-classic .pc-auth-main { padding-left: max(14px, env(safe-area-inset-left)); padding-right: max(14px, env(safe-area-inset-right)); }
+  .pc-auth-classic .pc-auth-top { max-width: 480px; }
+  .pc-auth-classic .pc-auth-panel { max-width: 480px; }
+}
+@media (max-width: 640px) {
+  .pc-auth-classic .pc-auth-panel { padding: 22px 18px 24px; border-radius: 16px; }
+  .pc-auth-classic .pc-auth-head h1 { font-size: 30px; }
+  .pc-auth-classic .pc-btn, .pc-auth-classic .auth-passkey-btn { min-height: 50px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .pc-ticker-dot, .pc-ticker-msg { animation: none; }
+  .pc-auth-classic .pc-btn-primary:hover:not(:disabled),
+  .pc-auth-classic .pc-btn-ghost:hover:not(:disabled),
+  .pc-auth-classic .auth-passkey-btn:hover:not(:disabled) { transform: none; }
+}

@@ -1,8 +1,9 @@
 import { test, expect } from '@playwright/test';
 import { handler, imageHandler } from './mock-api.mjs';
 
-// Aviso de segurança no console: "NÃO COLE NADA AQUI!" assim que a página
-// abre e de novo a cada 5 segundos, em qualquer rota, sem intervalo em dobro.
+// Aviso de segurança no console: o cartão completo ("PARE! NÃO COLE NADA
+// AQUI!" + texto de apoio) assim que a página abre e, a cada 5 segundos, só o
+// lembrete curto com o título — em qualquer rota, sem intervalo em dobro.
 const TITLE = 'NÃO COLE NADA AQUI!';
 const TEXT = 'Colar códigos desconhecidos no console pode comprometer sua conta';
 
@@ -36,17 +37,17 @@ async function pause(page) {
   await page.waitForTimeout(250); // o que disparou até aqui já chegou ao teste
 }
 
-test('aparece ao abrir e reaparece a cada 5 segundos, com o texto de apoio', async ({ page }) => {
+test('aparece ao abrir com o texto de apoio e o lembrete volta a cada 5 segundos', async ({ page }) => {
   const seen = await open(page, '/channels/ch2');
   const start = seen.title;
-  expect(seen.text).toBe(start); // o texto de apoio vem junto com o título
+  expect(seen.text).toBe(1); // o texto de apoio vem uma vez, no cartão da abertura
   await page.clock.fastForward(5000);
   await expect.poll(() => seen.title).toBe(start + 1);
   await page.clock.fastForward(5000);
   await expect.poll(() => seen.title).toBe(start + 2);
   await page.clock.runFor(10000); // runFor dispara todos os timers do período
   await expect.poll(() => seen.title).toBe(start + 4); // 20 s = 4 repetições, nem mais nem menos
-  expect(seen.text).toBe(seen.title);
+  expect(seen.text).toBe(1); // os lembretes são curtos: o texto longo não se repete
 });
 
 test('trocar de página dentro do site não cria outro intervalo', async ({ page }) => {

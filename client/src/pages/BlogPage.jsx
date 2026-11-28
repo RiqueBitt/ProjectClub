@@ -8,12 +8,14 @@ import '../styles/landing-mono.css';
 import '../styles/landing-club.css';
 import '../styles/public-docs.css';
 import '../styles/blog.css';
+import '../styles/public-classic.css';
 
 // Blog (/blog e /blog/:slug), no estilo de blog de produto: destaque grande
 // no topo, filtro por categoria, cartões com banner e uma página por artigo
 // com endereço próprio (/blog/efeitos-de-texto-na-loja). Os termos de uso e
 // a política de privacidade são artigos daqui também.
-// Preto e branco, no mesmo visual da página inicial (landing-mono.css).
+// Visual Clássico do app (grafite + azul), igual à página inicial
+// (public-classic.css); os banners ganham a cor da categoria.
 
 const reducedMotion = () => typeof window !== 'undefined' && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 
@@ -23,7 +25,7 @@ const reducedMotion = () => typeof window !== 'undefined' && window.matchMedia('
 // (destaque e topo do artigo), sempre o claro.
 export function PostBanner({ post, big = false, dark = false }) {
   return (
-    <div className={`bl-banner ${dark ? 'is-dark' : 'is-light'} ${big ? 'is-big' : ''}`} aria-hidden="true">
+    <div className={`bl-banner ${dark ? 'is-dark' : 'is-light'} ${big ? 'is-big' : ''}`} data-cat={post.category} aria-hidden="true">
       <BannerArt post={post} />
       <span className="bl-banner-cat">{categoryLabel(post.category)}</span>
     </div>
@@ -195,7 +197,7 @@ export default function BlogPage() {
   const post = slug ? postBySlug(slug) : null;
   if (slug && !post) return <Navigate to="/blog" replace />;
   return (
-    <div className="lp lp-mono lp-doc lp-blog">
+    <div className="lp lp-mono lp-doc lp-blog lp-classic">
       <a className="lp-skip" href="#conteudo">Pular para o conteúdo</a>
       <div className="lp-progress" aria-hidden="true" />
       <PublicHeader page="blog" />

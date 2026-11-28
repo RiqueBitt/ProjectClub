@@ -207,6 +207,14 @@ export async function checkForNativeUpdate() {
       return;
     }
 
+    // Project Club Lite (Windows 7/8): atualiza pelo canal próprio (lite.yml),
+    // que pode estar numa versão diferente da do app completo — o aviso do
+    // app completo não vale pra ele (o botão verde da barra cuida disso).
+    if (window.electronAPI?.isLite) {
+      announceNativeVersionChange(localVersion, '');
+      return;
+    }
+
     // Desktop (Electron): quem atualiza é o electron-updater (botão verde da
     // barra). A versão que vale é a do latest.yml (/system/desktop-latest),
     // NÃO a tag da release: deploy só do site gera tag nova mas reaproveita o

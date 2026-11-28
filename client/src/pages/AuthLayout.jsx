@@ -4,8 +4,11 @@ import logo from '../assets/icons/logo-project-club.png';
 import { ArrowLeftIcon } from '../components/auth/AuthIcons.jsx';
 import AuthCharacters from '../components/auth/AuthCharacters.jsx';
 import '../styles/auth-mono.css';
+import '../styles/auth-classic.css';
 
-// Mesma faixa e mesma frase do site de download (LandingPage, .lp-mono).
+// Visual Clássico (auth-classic.css, por cima de auth-mono.css): as cores do
+// app — grafite + azul — iguais às do site de download e do Blog.
+// Mesma faixa e mesma frase do site de download.
 const MARQUEE = ['Chat', 'Voz', 'Fórum', 'Mods', 'RPG'];
 const STATEMENT = 'Comunidade, mods e RPG. De graça.';
 
@@ -17,6 +20,34 @@ function Wordmark({ text, offset = 0 }) {
         <span key={i} className="pc-wm-mask"><span className="pc-wm-ch" style={{ '--i': i + offset }}>{ch}</span></span>
       ))}
     </span>
+  );
+}
+
+// "Acontecendo agora" na vitrine do PC: avisos curtinhos do clube passando
+// um de cada vez (só enfeite, nada vem do servidor).
+const TICKER = [
+  { c: '#23A55A', who: 'Kaio', what: 'entrou na call das 23h' },
+  { c: '#4C9FFF', who: 'Lia', what: 'trocou moedas por uma moldura nova' },
+  { c: '#F0B232', who: 'Nina', what: 'salvou um jogo de graça no Game Hub' },
+  { c: '#EB459F', who: 'Loritta', what: 'abriu o evento de figurinhas' },
+  { c: '#F23F43', who: 'RiqueBitt', what: 'está compartilhando a tela' },
+];
+function ShowcaseTicker() {
+  const [i, setI] = useState(0);
+  useEffect(() => {
+    if (window.matchMedia?.('(prefers-reduced-motion: reduce)').matches) return undefined;
+    const id = setInterval(() => { if (!document.hidden) setI((x) => (x + 1) % TICKER.length); }, 3200);
+    return () => clearInterval(id);
+  }, []);
+  const t = TICKER[i];
+  return (
+    <div className="pc-ticker-live">
+      <span className="pc-ticker-dot" aria-hidden="true" />
+      <span className="pc-ticker-label">Agora no clube</span>
+      <span key={i} className="pc-ticker-msg">
+        <i style={{ background: t.c }}>{t.who[0]}</i><b>{t.who}</b> {t.what}
+      </span>
+    </div>
   );
 }
 
@@ -65,7 +96,7 @@ export default function AuthLayout({ title, subtitle, children, footer, wide = f
   const charsAboveForm = characters && !charsInShowcase;
 
   return (
-    <div className={`pc-auth pc-auth-mono${wide ? ' pc-auth-wide' : ''}${showcase ? '' : ' pc-auth-solo'}`}>
+    <div className={`pc-auth pc-auth-mono pc-auth-classic${wide ? ' pc-auth-wide' : ''}${showcase ? '' : ' pc-auth-solo'}`}>
       <div className="pc-auth-glow" aria-hidden="true" />
       {/* O grão é maior que a tela (pra poder "tremer"); a moldura recorta,
           senão ele aumentava a área rolável do <body> e qualquer rolagem
@@ -94,6 +125,7 @@ export default function AuthLayout({ title, subtitle, children, footer, wide = f
             <p className="pc-statement" aria-label={STATEMENT}>
               {STATEMENT.split(' ').map((w, i) => <span key={i} aria-hidden="true" style={{ '--i': i }}>{w} </span>)}
             </p>
+            <ShowcaseTicker />
           </div>
 
           <div className="pc-marquee">

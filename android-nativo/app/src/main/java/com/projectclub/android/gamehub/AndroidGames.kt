@@ -1,5 +1,6 @@
 package com.projectclub.android.gamehub
 
+import com.projectclub.android.net.legacyTls
 import android.content.ActivityNotFoundException
 import android.content.Context
 import android.content.Intent
@@ -72,7 +73,7 @@ object BedrockInstaller {
     const val MINECRAFT = "com.mojang.minecraftpe"
     private const val MAX_BYTES = 600L * 1024 * 1024
     private val http by lazy {
-        OkHttpClient.Builder().connectTimeout(20, TimeUnit.SECONDS).readTimeout(60, TimeUnit.SECONDS).followRedirects(true).build()
+        OkHttpClient.Builder().legacyTls().connectTimeout(20, TimeUnit.SECONDS).readTimeout(60, TimeUnit.SECONDS).followRedirects(true).build()
     }
 
     private fun dir(ctx: Context) = File(ctx.cacheDir, "addons").apply { mkdirs() }

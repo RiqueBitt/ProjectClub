@@ -5,6 +5,8 @@ on:
     branches: [main]
     paths:
       - 'desktop/**'
+      # Project Club Lite (Windows 7/8, 32 bits).
+      - 'desktop-lite/**'
       - 'client/android/**'
       # App Android nativo: é ele que sai como ProjectClub.apk.
       - 'android-nativo/**'
@@ -41,6 +43,7 @@ jobs:
       changelog_b64: ${{ steps.v.outputs.changelog_b64 }}
       last_tag: ${{ steps.v.outputs.last_tag }}
       desktop_changed: ${{ steps.v.outputs.desktop_changed }}
+      lite_changed: ${{ steps.v.outputs.lite_changed }}
       apps_changed: ${{ steps.v.outputs.apps_changed }}
     steps:
       - uses: actions/checkout@v4
@@ -115,9 +118,16 @@ jobs:
           echo "Desktop mudou desde $LAST_TAG? $DESKTOP_CHANGED"
           echo "last_tag=$LAST_TAG" >> "$GITHUB_OUTPUT"
           echo "desktop_changed=$DESKTOP_CHANGED" >> "$GITHUB_OUTPUT"
+          # Project Club Lite: muda com desktop-lite/ e com os 3 módulos que ele
+          # copia do app completo (ver desktop-lite/scripts/copy-shared.js).
+          LITE_CHANGED=true
+          if [ "$LAST_TAG" != "v0.0.0" ] && [ "${{ github.event_name }}" != "workflow_dispatch" ] && git diff --quiet "$LAST_TAG" HEAD -- desktop-lite/ desktop/security.js desktop/deepLinks.js desktop/oauthWindow.js; then LITE_CHANGED=false; fi
+          echo "Lite mudou desde $LAST_TAG? $LITE_CHANGED"
+          echo "lite_changed=$LITE_CHANGED" >> "$GITHUB_OUTPUT"
           # Post "Nova versão disponível" no site só quando algum APP mudou de
           # verdade (PC/Linux ou Android nativo) — não a cada deploy do site.
           APPS_CHANGED=$DESKTOP_CHANGED
+          if [ "$LITE_CHANGED" = "true" ]; then APPS_CHANGED=true; fi
           if [ "$APPS_CHANGED" = "false" ] && ! git diff --quiet "$LAST_TAG" HEAD -- android-nativo/ client/android/; then APPS_CHANGED=true; fi
           echo "apps_changed=$APPS_CHANGED" >> "$GITHUB_OUTPUT"
           echo "changelog_b64=$(echo "$CHANGELOG" | base64 -w 0)" >> "$GITHUB_OUTPUT"
@@ -258,6 +268,93 @@ jobs:
           # apps instalados que tem versão nova.
           upload dist/nsis-web/ProjectClub-Setup-Windows.exe
           upload dist/nsis-web/latest.yml
+
+  # Project Club Lite: app de PC leve pro Windows 7, 8 e 10 (32 e 64 bits),
+  # em Electron 22 (o último que roda no Windows 7/8). Instalador completo
+  # (não baixa nada na hora, o que evita problema de HTTPS do Windows 7) e
+  # atualização automática pelo canal "lite" (lite.yml), separada do app
+  # completo. Ver desktop-lite/main.js.
+  build-windows-lite:
+    needs: compute-version
+    permissions:
+      contents: write
+    runs-on: windows-latest
+    defaults:
+      run:
+        working-directory: desktop-lite
+    env:
+      VERSION: ${{ needs.compute-version.outputs.version }}
+      REPO: ${{ github.repository }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Reaproveitar o Lite da versão anterior (sem mudança)
+        id: reuse
+        if: needs.compute-version.outputs.lite_changed == 'false'
+        shell: bash
+        working-directory: .
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -e
+          PREV="${{ needs.compute-version.outputs.last_tag }}"
+          mkdir -p "$RUNNER_TEMP/prev"
+          if ! gh release download "$PREV" --repo "$REPO" --dir "$RUNNER_TEMP/prev" -p 'ProjectClub-Lite-Setup-Windows.exe' -p 'ProjectClub-Lite-Setup-Windows.exe.blockmap' -p 'lite.yml' --clobber; then
+            echo "Versão anterior sem o Lite; vai gerar."; exit 0
+          fi
+          for f in ProjectClub-Lite-Setup-Windows.exe lite.yml; do [ -f "$RUNNER_TEMP/prev/$f" ] || { echo "Falta $f na $PREV; vai gerar."; exit 0; }; done
+          gh release view "$VERSION" --repo "$REPO" >/dev/null 2>&1 || \
+            gh release create "$VERSION" --repo "$REPO" --target "${{ github.sha }}" --title "$VERSION" --notes "Gerado automaticamente pelo GitHub Actions." --latest=false || true
+          for f in "$RUNNER_TEMP"/prev/*; do
+            for i in 1 2 3; do gh release upload "$VERSION" "$f" --repo "$REPO" --clobber && break || sleep 10; done
+          done
+          echo "ok=true" >> "$GITHUB_OUTPUT"
+      - uses: actions/setup-node@v4
+        if: steps.reuse.outputs.ok != 'true'
+        with:
+          node-version: 22
+      - name: Instalar dependências
+        if: steps.reuse.outputs.ok != 'true'
+        run: npm install
+      - name: Testes
+        if: steps.reuse.outputs.ok != 'true'
+        run: npm test
+      - name: Gravar a versão no app
+        if: steps.reuse.outputs.ok != 'true'
+        run: npm version "${{ needs.compute-version.outputs.version }}" --no-git-tag-version --allow-same-version
+      # Sai em desktop-lite/dist:
+      #   ProjectClub-Lite-Setup-Windows.exe            instalador completo (32 bits)
+      #   ProjectClub-Lite-Setup-Windows.exe.blockmap   atualização só do que mudou
+      #   lite.yml                                      o que o Lite instalado lê pra se atualizar
+      - name: Gerar o instalador do Lite
+        if: steps.reuse.outputs.ok != 'true'
+        run: npm run build:win
+      - name: Conferir os arquivos
+        if: steps.reuse.outputs.ok != 'true'
+        shell: bash
+        run: |
+          set -e
+          ls -la dist
+          for f in ProjectClub-Lite-Setup-Windows.exe lite.yml; do [ -f "dist/$f" ] || { echo "::error::Faltou dist/$f"; exit 1; }; done
+          cat dist/lite.yml
+          grep -q "^version: ${VERSION#v}" dist/lite.yml || { echo "::error::lite.yml sem a versão ${VERSION#v}"; exit 1; }
+          SIZE=$(stat -c %s dist/ProjectClub-Lite-Setup-Windows.exe)
+          echo "Tamanho do instalador do Lite: $SIZE bytes"
+          if [ "$SIZE" -gt 125829120 ]; then echo "::error::O instalador do Lite passou de 120 MB."; exit 1; fi
+      - name: Publicar o Lite na release
+        if: steps.reuse.outputs.ok != 'true'
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -e
+          gh release view "$VERSION" --repo "$REPO" >/dev/null 2>&1 || \
+            gh release create "$VERSION" --repo "$REPO" --target "${{ github.sha }}" --title "$VERSION" \
+              --notes "Gerado automaticamente pelo GitHub Actions." --latest=false || true
+          upload() { for i in 1 2 3; do gh release upload "$VERSION" "$1" --repo "$REPO" --clobber && return 0; echo "Tentativa $i falhou, esperando..."; sleep 10; done; return 1; }
+          upload dist/ProjectClub-Lite-Setup-Windows.exe
+          [ -f dist/ProjectClub-Lite-Setup-Windows.exe.blockmap ] && upload dist/ProjectClub-Lite-Setup-Windows.exe.blockmap || true
+          # O lite.yml vai por último: é ele que avisa os Lite instalados.
+          upload dist/lite.yml
 
   build-linux:
     needs: compute-version
@@ -467,6 +564,12 @@ jobs:
           APK_PATH=$(find android-nativo/app/build/outputs/apk/release -name "*universal*.apk" | head -n 1)
           [ -n "$APK_PATH" ] || APK_PATH=$(find android-nativo/app/build/outputs/apk/release -name "*.apk" | head -n 1)
           cp "$APK_PATH" "$RUNNER_TEMP/ProjectClub.apk"
+          # Os .apk só de 64 e só de 32 bits (menores), pra escolher no site.
+          A64=$(find android-nativo/app/build/outputs/apk/release -name "*arm64-v8a*.apk" | head -n 1)
+          A32=$(find android-nativo/app/build/outputs/apk/release -name "*armeabi-v7a*.apk" | head -n 1)
+          [ -n "$A64" ] && cp "$A64" "$RUNNER_TEMP/ProjectClub-arm64.apk" || echo "::warning::Sem o .apk de 64 bits."
+          [ -n "$A32" ] && cp "$A32" "$RUNNER_TEMP/ProjectClub-arm32.apk" || echo "::warning::Sem o .apk de 32 bits."
+          ls -la "$RUNNER_TEMP"/*.apk
           # Publica neste repositório (lugar oficial dos downloads).
           publish() {
             REPO="$1"
@@ -478,6 +581,10 @@ jobs:
             gh release view "$VERSION" --repo "$REPO" >/dev/null 2>&1 || \
               gh release create "$VERSION" --repo "$REPO" --target "${{ github.sha }}" --title "$VERSION" \
                 --notes "Gerado automaticamente pelo GitHub Actions." --latest=false || true
+            for f in ProjectClub-arm64.apk ProjectClub-arm32.apk; do
+              [ -f "$RUNNER_TEMP/$f" ] || continue
+              for i in 1 2 3; do gh release upload "$VERSION" "$RUNNER_TEMP/$f" --repo "$REPO" --clobber && break || { echo "Tentativa $i falhou, esperando..."; sleep 10; }; done
+            done
             for i in 1 2 3; do gh release upload "$VERSION" "$RUNNER_TEMP/ProjectClub.apk" --repo "$REPO" --clobber && break || { echo "Tentativa $i falhou, esperando..."; sleep 10; }; done
             # Diz ao servidor (GET /api/mobile/update) se este .apk é
             # obrigatório ou se os apps já instalados continuam servindo.
@@ -492,7 +599,7 @@ jobs:
   # só aparecem quando os arquivos de verdade já estão publicados — nunca
   # antes, o que anunciaria uma versão que ainda não existe pra baixar.
   finalize:
-    needs: [compute-version, build-windows, build-linux, build-android]
+    needs: [compute-version, build-windows, build-linux, build-android, build-windows-lite]
     # O app de PC (Windows/Linux) não fica mais preso esperando o Android:
     # se os dois de PC deram certo, a versão é publicada mesmo que o
     # build do Android tenha falhado.
@@ -564,13 +671,34 @@ jobs:
           REPO="${{ github.repository }}"
           CURRENT=$(gh api "repos/$REPO/releases/latest" --jq .tag_name || true)
           HAVE=$(gh api "repos/$REPO/releases/tags/$VERSION" --jq '[.assets[].name] | join(" ")' || true)
-          for f in ProjectClub.apk android-native.json; do
+          for f in ProjectClub.apk ProjectClub-arm64.apk ProjectClub-arm32.apk android-native.json; do
             case " $HAVE " in *" $f "*) continue ;; esac
             if [ -n "$CURRENT" ] && gh release download "$CURRENT" --repo "$REPO" -p "$f" --dir /tmp/android-anterior --clobber \
               && gh release upload "$VERSION" "/tmp/android-anterior/$f" --repo "$REPO" --clobber; then
               echo "Copiado $f da $CURRENT."
             else
               echo "::warning::Não deu pra copiar $f da release anterior; o download do Android pode falhar até o próximo build."
+            fi
+          done
+
+      # Mesma ideia pro Project Club Lite: se o build dele falhou, a release nova
+      # leva o Lite da anterior (o link do site e a atualização dele continuam).
+      - name: Completar com o Lite anterior (se o build dele falhou)
+        if: needs.build-windows-lite.result != 'success'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          VERSION="${{ needs.compute-version.outputs.version }}"
+          REPO="${{ github.repository }}"
+          CURRENT=$(gh api "repos/$REPO/releases/latest" --jq .tag_name || true)
+          HAVE=$(gh api "repos/$REPO/releases/tags/$VERSION" --jq '[.assets[].name] | join(" ")' || true)
+          for f in ProjectClub-Lite-Setup-Windows.exe ProjectClub-Lite-Setup-Windows.exe.blockmap lite.yml; do
+            case " $HAVE " in *" $f "*) continue ;; esac
+            if [ -n "$CURRENT" ] && gh release download "$CURRENT" --repo "$REPO" -p "$f" --dir /tmp/lite-anterior --clobber \
+              && gh release upload "$VERSION" "/tmp/lite-anterior/$f" --repo "$REPO" --clobber; then
+              echo "Copiado $f da $CURRENT."
+            else
+              echo "::warning::Não deu pra copiar $f da release anterior (o Lite ainda não tinha saído?)."
             fi
           done
 
@@ -606,6 +734,9 @@ jobs:
             if curl -fsSL --retry 6 --retry-delay 5 --retry-all-errors -r 0-0 -o /dev/null "$BASE/$f"; then echo "ok   $f"; else echo "::error::O link de download de $f não responde."; FAILED=1; fi
           done
           curl -fsSL --retry 3 --retry-delay 5 --retry-all-errors -r 0-0 -o /dev/null "$BASE/ProjectClub.apk" && echo "ok   ProjectClub.apk" || echo "::warning::O link de download do ProjectClub.apk não responde."
+          for f in ProjectClub-Lite-Setup-Windows.exe lite.yml ProjectClub-arm64.apk ProjectClub-arm32.apk; do
+            curl -fsSL --retry 3 --retry-delay 5 --retry-all-errors -r 0-0 -o /dev/null "$BASE/$f" && echo "ok   $f" || echo "::warning::O link de download de $f (Project Club Lite) não responde."
+          done
           echo "Versão que os apps de Windows instalados vão enxergar:"
           curl -fsSL --retry 3 "$BASE/latest.yml" | grep -E '^version:' || true
           SIZE=$(gh api "repos/$REPO/releases/latest" --jq '.assets[] | select(.name == "ProjectClub-Setup-Windows.exe") | .size' || echo 0)
